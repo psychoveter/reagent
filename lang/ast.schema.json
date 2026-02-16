@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://psychoveter.github.io/reagent/schemas/lang/ast.v0.json",
+  "title": "Reagent Language AST (v0)",
+  "type": "object",
+  "required": ["kind", "items"],
+  "properties": {
+    "kind": { "const": "Program" },
+    "items": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Item" }
+    }
+  },
+  "$defs": {
+    "Loc": {
+      "type": "object",
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "$ref": "#/$defs/Pos" },
+        "end": { "$ref": "#/$defs/Pos" }
+      },
+      "additionalProperties": false
+    },
+    "Pos": {
+      "type": "object",
+      "required": ["index", "line", "col"],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0 },
+        "line": { "type": "integer", "minimum": 1 },
+        "col": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "Item": {
+      "oneOf": [
+        { "$ref": "#/$defs/ImportStmt" },
+        { "$ref": "#/$defs/ProtocolDef" }
+      ]
+    },
+    "ImportStmt": {
+      "type": "object",
+      "required": ["kind", "path", "loc"],
+      "properties": {
+        "kind": { "const": "ImportStmt" },
+        "path": { "type": "string", "minLength": 1 },
+        "alias": { "type": "string" },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "ProtocolDef": {
+      "type": "object",
+      "required": ["kind", "name", "participants", "initiator", "on", "body", "loc"],
+      "properties": {
+        "kind": { "const": "ProtocolDef" },
+        "name": { "type": "string", "minLength": 1 },
+        "participants": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "initiator": { "type": "string", "minLength": 1 },
+        "on": { "$ref": "#/$defs/MessageSig" },
+        "body": { "type": "array", "items": { "$ref": "#/$defs/ProtocolItem" } },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "MessageSig": {
+      "type": "object",
+      "required": ["from", "to", "name", "loc"],
+      "properties": {
+        "from": { "type": "string", "minLength": 1 },
+        "to": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "ProtocolItem": {
+      "oneOf": [
+        { "$ref": "#/$defs/MessageStmt" },
+        { "$ref": "#/$defs/AgentZone" },
+        { "$ref": "#/$defs/RawStmt" }
+      ]
+    },
+    "MessageStmt": {
+      "type": "object",
+      "required": ["kind", "from", "to", "name", "props", "loc"],
+      "properties": {
+        "kind": { "const": "MessageStmt" },
+        "from": { "type": "string", "minLength": 1 },
+        "to": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "props": { "$ref": "#/$defs/ObjectValue" },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "AgentZone": {
+      "type": "object",
+      "required": ["kind", "agent", "body", "loc"],
+      "properties": {
+        "kind": { "const": "AgentZone" },
+        "agent": { "type": "string", "minLength": 1 },
+        "body": { "type": "string" },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "RawStmt": {
+      "type": "object",
+      "required": ["kind", "text", "loc"],
+      "properties": {
+        "kind": { "const": "RawStmt" },
+        "text": { "type": "string" },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "Value": {
+      "oneOf": [
+        { "$ref": "#/$defs/NullValue" },
+        { "$ref": "#/$defs/BoolValue" },
+        { "$ref": "#/$defs/NumberValue" },
+        { "$ref": "#/$defs/StringValue" },
+        { "$ref": "#/$defs/IdentValue" },
+        { "$ref": "#/$defs/ObjectValue" },
+        { "$ref": "#/$defs/ArrayValue" }
+      ]
+    },
+    "NullValue": {
+      "type": "object",
+      "required": ["type", "loc"],
+      "properties": {
+        "type": { "const": "null" },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "BoolValue": {
+      "type": "object",
+      "required": ["type", "value", "loc"],
+      "properties": {
+        "type": { "const": "bool" },
+        "value": { "type": "boolean" },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "NumberValue": {
+      "type": "object",
+      "required": ["type", "value", "loc"],
+      "properties": {
+        "type": { "const": "number" },
+        "value": { "type": "number" },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "StringValue": {
+      "type": "object",
+      "required": ["type", "value", "loc"],
+      "properties": {
+        "type": { "const": "string" },
+        "value": { "type": "string" },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "IdentValue": {
+      "type": "object",
+      "required": ["type", "name", "loc"],
+      "properties": {
+        "type": { "const": "ident" },
+        "name": { "type": "string", "minLength": 1 },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "ObjectValue": {
+      "type": "object",
+      "required": ["type", "entries", "loc"],
+      "properties": {
+        "type": { "const": "object" },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["key", "value", "loc"],
+            "properties": {
+              "key": { "type": "string" },
+              "value": { "$ref": "#/$defs/Value" },
+              "loc": { "$ref": "#/$defs/Loc" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "ArrayValue": {
+      "type": "object",
+      "required": ["type", "items", "loc"],
+      "properties": {
+        "type": { "const": "array" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Value" }
+        },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
+

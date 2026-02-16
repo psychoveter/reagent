@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://psychoveter.github.io/reagent/schemas/TraceEvent.schema.json",
+  "title": "Reagent TraceEvent (M1)",
+  "type": "object",
+  "required": ["instanceId", "eventId", "kind", "ts"],
+  "properties": {
+    "instanceId": { "type": "string", "minLength": 1 },
+    "eventId": { "type": "string", "minLength": 1 },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "ProtocolStarted",
+        "ProtocolCompleted",
+        "MessageSent",
+        "MessageReceived",
+        "ActionStarted",
+        "ActionFinished",
+        "GuardOpened",
+        "GuardSatisfied",
+        "GuardTimedOut",
+        "TimerScheduled",
+        "TimerFired",
+        "ProtocolViolated"
+      ]
+    },
+    "ts": { "type": "string", "minLength": 1 },
+    "role": { "type": "string" },
+    "participantId": { "type": "string" },
+    "causes": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "message": {
+      "type": "object",
+      "properties": {
+        "messageId": { "type": "string" },
+        "correlationId": { "type": "string" },
+        "messageType": { "type": "string" },
+        "version": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "action": {
+      "type": "object",
+      "properties": {
+        "actionId": { "type": "string" },
+        "idempotencyKey": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "violation": {
+      "type": "object",
+      "required": ["ruleId"],
+      "properties": {
+        "ruleId": { "type": "string", "minLength": 1 },
+        "evidence": { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}
+

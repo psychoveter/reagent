@@ -27,7 +27,7 @@ Glossary (minimal):
 ### DoD (functional tests)
 - **F0.1**: `docker compose up --abort-on-container-exit --exit-code-from tests` exits with code `0`.
 - **F0.2**: `projects/losos/tmp/process-test.log` exists after the run and contains:
-  - at least one `PASSED` line,
+  - all tests are `PASSED`,
   - at least one Losos test log line (e.g. `io.losos.process.LososPlatformTest`).
 
 ---
@@ -38,6 +38,10 @@ Glossary (minimal):
 
 ### Tasks
 - Define **core entities** (ProtocolSpec, Role, ProtocolInstance, ParticipantId).
+- Specify **protocol-level language surface**:
+  - Build an **examples-first corpus** for CognOS under `projects/reagent/examples/` that covers all communicative acts (alt/loop/par/await/timeout/spawn/exception).
+  - Derive the initial DSL surface from the examples (message steps + control-flow constructs + zones).
+  - Document semantics at the boundary (what events/guards/actions each construct implies).
 - Define **message type system** (schema ref, versioning rules, compatibility).
 - Define unified **TraceEvent algebra**:
   - protocol lifecycle,
@@ -55,6 +59,12 @@ Glossary (minimal):
 ### DoD (functional tests)
 - **F1.1 (spec conformance tests)**: a small suite of “protocol snippets” (fixtures) + expected trace properties:
   - For each fixture, there is an expected set of legal next steps (by role) and expected TraceEvent sequence shape.
+- **F1.0 (example corpus)**: `projects/reagent/examples/` contains fixtures that cover:
+  - `protocol` wrapper (participants, initiator, input message),
+  - child protocol invocation,
+  - imports of protocol libraries,
+  - alt (XOR), loop, par, await+timeout, spawn subagent, exception/compensation.
+  Each fixture declares expected trace shape and failure modes in comments.
 - **F1.2**: a “violation fixture” where an out-of-order `MessageReceived` yields `ProtocolViolated(ruleId=...)` in the expected trace.
 - **F1.3**: a “timeout fixture” where no message arrives and a `TimerFired` → `GuardTimedOut` (or equivalent) is produced.
 

@@ -1,0 +1,35 @@
+id: m1-violation-out-of-order
+description: Receiving a message that is not expected in current state must yield ProtocolViolated.
+
+spec:
+  specId: hello-protocol
+  specVersion: 0.0.1
+  roles: [A, B]
+  messageTypes:
+    - name: Ping
+      version: 1.0.0
+      compatPolicy: none
+      schemaRef: ./schemas/Ping.json
+
+bindings:
+  A: participant-a
+  B: participant-b
+
+scenario:
+  # Instance starts; then a Pong arrives even though no Ping was sent/awaited.
+  externalEvents:
+    - kind: MessageReceived
+      toRole: A
+      fromRole: B
+      messageType: Pong
+      version: 1.0.0
+
+expected:
+  mustContain:
+    - ProtocolStarted
+    - ProtocolViolated
+  violation:
+    ruleId: "unexpected-message"
+    evidence:
+      messageType: Pong
+

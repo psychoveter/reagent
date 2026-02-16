@@ -1,0 +1,36 @@
+id: m1-timeout
+description: Timer + guard timeout are first-class; absence of expected message yields GuardTimedOut.
+
+spec:
+  specId: await-message
+  specVersion: 0.0.1
+  roles: [A, B]
+  messageTypes:
+    - name: Ping
+      version: 1.0.0
+      compatPolicy: none
+      schemaRef: ./schemas/Ping.json
+
+bindings:
+  A: participant-a
+  B: participant-b
+
+scenario:
+  start:
+    await:
+      kind: MessageReceived
+      toRole: A
+      fromRole: B
+      messageType: Ping
+      version: 1.0.0
+      timeoutMs: 50
+
+expected:
+  traceShape:
+    - ProtocolStarted
+    - TimerScheduled
+    - TimerFired
+    - GuardTimedOut
+  invariants:
+    - "TimerFired must reference TimerScheduled (causality link)"
+

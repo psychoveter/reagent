@@ -1,0 +1,31 @@
+{
+  "name": "reagent-vscode",
+  "displayName": "Reagent (.rg) Syntax Highlighting",
+  "description": "Syntax highlighting for Reagent protocol DSL (.rg).",
+  "version": "0.0.1",
+  "publisher": "psychoveter",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "reagent",
+        "aliases": ["Reagent", "reagent"],
+        "extensions": [".rg"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "reagent",
+        "scopeName": "source.reagent",
+        "path": "./syntaxes/reagent.tmLanguage.json"
+      }
+    ]
+  }
+}
+

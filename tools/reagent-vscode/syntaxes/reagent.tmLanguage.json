@@ -1,0 +1,202 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Reagent",
+  "scopeName": "source.reagent",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#protocol" },
+    { "include": "#import" },
+    { "include": "#message" },
+    { "include": "#agentZone" },
+    { "include": "#reserved" },
+    { "include": "#objects" },
+    { "include": "#numbers" },
+    { "include": "#strings" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.reagent",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.reagent",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.reagent",
+          "match": "\\b(protocol|import|as|participants|initiator|input|alt|loop|par|wait|timeout|spawn|try|catch|invoke|emit|return|else)\\b"
+        }
+      ]
+    },
+    "protocol": {
+      "patterns": [
+        { "include": "#keywords" },
+        {
+          "name": "meta.definition.protocol.reagent",
+          "begin": "^\\s*(protocol)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*(\\{)",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.reagent" },
+            "2": { "name": "entity.name.type.protocol.reagent" },
+            "3": { "name": "punctuation.section.block.begin.reagent" }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.block.end.reagent" }
+          },
+          "patterns": [
+            { "include": "#comments" },
+            { "include": "#keywords" },
+            { "include": "#message" },
+            { "include": "#agentZone" },
+            { "include": "#reserved" },
+            { "include": "#objects" },
+            { "include": "#numbers" },
+            { "include": "#strings" }
+          ]
+        }
+      ]
+    },
+    "import": {
+      "patterns": [
+        {
+          "name": "meta.import.reagent",
+          "match": "^\\s*(import)\\s+((\"[^\"]*\")|('[^']*'))(\\s+(as)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*))?\\s*;?\\s*$",
+          "captures": {
+            "1": { "name": "keyword.control.reagent" },
+            "3": { "name": "string.quoted.double.reagent" },
+            "4": { "name": "string.quoted.single.reagent" },
+            "6": { "name": "keyword.control.reagent" },
+            "7": { "name": "entity.name.namespace.reagent" }
+          }
+        }
+      ]
+    },
+    "arrow": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arrow.reagent",
+          "match": "(-->>|->>|-->|->)"
+        }
+      ]
+    },
+    "message": {
+      "patterns": [
+        {
+          "name": "meta.message.reagent",
+          "match": "^\\s*([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*(-->>|->>|-->|->)\\s*([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*:\\s*([^=\\n]+?)\\s*(=)\\s*(\\{)",
+          "captures": {
+            "1": { "name": "variable.other.role.reagent" },
+            "2": { "name": "keyword.operator.arrow.reagent" },
+            "3": { "name": "variable.other.role.reagent" },
+            "4": { "name": "entity.name.function.message.reagent" },
+            "5": { "name": "keyword.operator.assignment.reagent" },
+            "6": { "name": "punctuation.section.block.begin.reagent" }
+          }
+        }
+      ]
+    },
+    "agentZone": {
+      "patterns": [
+        {
+          "name": "meta.agent.zone.reagent",
+          "begin": "^\\s*([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*(\\{)\\s*$",
+          "beginCaptures": {
+            "1": { "name": "entity.name.type.agent.reagent" },
+            "2": { "name": "punctuation.section.block.begin.reagent" }
+          },
+          "end": "^\\s*\\}\\s*$",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.block.end.reagent" }
+          },
+          "patterns": [
+            { "include": "#comments" },
+            { "include": "#strings" },
+            { "include": "#numbers" }
+          ]
+        }
+      ]
+    },
+    "reserved": {
+      "patterns": [
+        { "include": "#keywords" },
+        {
+          "name": "meta.reserved.invoke.reagent",
+          "begin": "^\\s*(invoke)\\b",
+          "beginCaptures": { "1": { "name": "keyword.control.reagent" } },
+          "end": "$",
+          "patterns": [
+            { "include": "#objects" },
+            { "include": "#strings" },
+            { "include": "#numbers" }
+          ]
+        },
+        {
+          "name": "meta.reserved.emit.reagent",
+          "match": "^\\s*(emit)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*(=)\\s*(\\{)",
+          "captures": {
+            "1": { "name": "keyword.control.reagent" },
+            "2": { "name": "entity.name.function.event.reagent" },
+            "3": { "name": "keyword.operator.assignment.reagent" },
+            "4": { "name": "punctuation.section.block.begin.reagent" }
+          }
+        }
+      ]
+    },
+    "objects": {
+      "patterns": [
+        {
+          "name": "punctuation.section.block.begin.reagent",
+          "match": "\\{"
+        },
+        {
+          "name": "punctuation.section.block.end.reagent",
+          "match": "\\}"
+        },
+        {
+          "name": "punctuation.separator.comma.reagent",
+          "match": ","
+        },
+        {
+          "name": "punctuation.separator.key-value.reagent",
+          "match": ":"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.reagent",
+          "match": "\\b-?(0|[1-9][0-9]*)(\\.[0-9]+)?\\b"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.reagent",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            { "name": "constant.character.escape.reagent", "match": "\\\\." }
+          ]
+        },
+        {
+          "name": "string.quoted.single.reagent",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            { "name": "constant.character.escape.reagent", "match": "\\\\." }
+          ]
+        }
+      ]
+    }
+  }
+}
+

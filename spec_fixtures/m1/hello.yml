@@ -1,0 +1,34 @@
+id: m1-hello
+description: Minimal happy-path fixture for TraceEvent + legality.
+
+spec:
+  specId: hello-protocol
+  specVersion: 0.0.1
+  roles: [A, B]
+  messageTypes:
+    - name: Ping
+      version: 1.0.0
+      compatPolicy: none
+      schemaRef: ./schemas/Ping.json
+    - name: Pong
+      version: 1.0.0
+      compatPolicy: none
+      schemaRef: ./schemas/Pong.json
+
+bindings:
+  A: participant-a
+  B: participant-b
+
+expected:
+  traceShape:
+    - ProtocolStarted
+    - MessageSent
+    - MessageReceived
+    - MessageSent
+    - MessageReceived
+    - ProtocolCompleted
+  invariants:
+    - "all events have instanceId"
+    - "eventId unique per instance"
+    - "MessageReceived must reference a prior MessageSent via correlationId/messageId"
+
