@@ -1,4 +1,4 @@
-## Reagent language spec (prototype, v0.1)
+## Reagent language spec (v0.0.4)
 
 This document defines the **Reagent protocol language**.
 
@@ -360,7 +360,7 @@ The engine is responsible for:
 
 ---
 
-## 2. EBNF (v0.1)
+## 2. EBNF (v0.0.4)
 
 ```
 Program         ::= (WS | Comment | ImportStmt | ProtocolDef)* EOF

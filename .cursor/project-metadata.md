@@ -1,133 +1,104 @@
-# Reagent — project metadata (prototype)
+# Reagent — project metadata
 
 Path: `/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent`
 
 ## Idea / purpose
 
-Reagent is a prototype of a **library + toolchain** for implementing *agentic / distributed protocols*.
+Reagent is a **language + toolchain** for implementing *agentic / distributed protocols*.
 
-Core problem it targets:
+Core problem:
 
-- In distributed programming there is often **no single artifact** that describes the distributed algorithm (“the protocol”).
-- Instead you typically have separate implementations per side/role (client/server/worker/etc.), which makes it harder to:
-  - review the whole protocol,
-  - render it,
-  - evolve it safely,
-  - reuse it as knowledge for planning/reasoning.
+- In distributed programming there is often **no single artifact** that describes the distributed algorithm ("the protocol").
+- Instead you typically have separate implementations per side/role, which makes it harder to review, debug, render, evolve, and reuse the protocol.
 
-Reagent’s approach:
+Approach:
 
-- Use a **single protocol artifact** written in a DSL that is both human-readable and renderable.
-- **Mermaid sequence diagrams** are a good fit as a base: syntax is compact, and there are many existing renderers.
-- Mix protocol text and code, “React-like”: **protocol + function blocks** in one file (analogy: `jsx` mixing HTML + JS).
+- Use a **single protocol artifact** written in a dedicated DSL that is both human-readable and renderable.
+- Mix protocol choreography and host-language code in one file ("React-like": `jsx` analogy).
+- Compile protocol → per-participant **agent-level state machines** (IR) executable by pluggable engines.
 
-## Protocol artifact (“reagent file”)
+## Current state (2026-02-17)
 
-A reagent protocol file defines:
+### Language: v0.0.4
 
-- **Roles/agents** (participants of the protocol).
-- The **protocol** itself as a sequence (Mermaid `sequenceDiagram`-like syntax).
-- Optional **code blocks** (functions/handlers) used by the protocol.
-- For each role: the **target language** for compilation (for MVP: **Python** as the main language).
+The Reagent DSL is defined in `lang-spec.md` (version header: v0.0.4).
 
-Conceptually:
+Key design commitments solidified:
+- **Meta-language**: Reagent describes choreography; actual computation lives in **agent zones** written in a host language (`ts`/`js`/`py`/`kt`).
+- **Protocol-as-function**: `protocol Name { participants: ..., initiator: ..., input: ... }`.
+- **Language tag on participants**: `comma [ts], sia [py]` — agent zones are bare `Name { ... }`.
+- **Hook zones**: `onSend { ... }` / `onReceive { ... }` inside message props.
+- **`reagent.*` runtime library**: `reagent.invoke`, `reagent.spawn`, `reagent.return`, `reagent.emit` — available in all agent zones, NOT protocol-level constructs.
+- **`$ctx`** — single runtime-injected binding (protocol instance context).
+- **Protocol-level control flow**: `alt`, `loop`, `par`, `wait`, `timeout`, `try/catch`.
+- **No `if/else`, `break`, `throw`, `spawn` at protocol level** — these are host-language constructs inside zones.
+- **Imports**: `.rg` = protocol imports, `.ts/.js/.py/.kt` = code module imports.
 
-- Protocol = *distributed algorithm specification*.
-- Functions = *local computations/tools used at steps*.
+### Examples corpus
 
-## Compilation model (key design)
+`projects/reagent/examples/` — 13 `.rg` fixtures covering:
+- `00` protocol wrapper
+- `01` basic task execution
+- `02` await/timeout/alt
+- `03` loop/retry/backoff
+- `04` parallel subtasks
+- `05` spawn subagent
+- `06` exception/abort/compensate
+- `07` child protocol invoke
+- `08` import and invoke
+- `09` multiparty child protocol
+- `10` external event start + emit
+- `11` LLM broker call and return
+- `task-execution` — legacy example
 
-Compiler responsibilities:
+### Tooling
 
-- Parse protocol DSL (+ code blocks).
-- Generate a **state machine per participant** (role) in the role’s target language.
-  - Each participant gets *its own* compiled artifact.
-  - The state machine encodes the local view of the global protocol:
-    - expected inbound/outbound messages,
-    - local actions to run (functions/tools/LLM calls),
-    - waits/guards/timeouts (as supported by DSL).
-- Optionally generate shared artifacts:
-  - protocol AST / IR,
-  - typed message schemas,
-  - test harness / simulators.
+| Module | Version | Path | Description |
+|---|---|---|---|
+| `reagent-vscode` | 0.1.0 | `tools/reagent-vscode/` | VSCode/Cursor extension: TextMate grammar + embedded language support for `.rg` files |
+| `reagentParser.ts` | — | `tools/reagent-vscode/src/reagentParser.ts` | Lightweight zone-extraction parser used by the extension (NOT the full AST parser) |
+| `reagent.tmLanguage.json` | — | `tools/reagent-vscode/syntaxes/` | TextMate grammar for syntax highlighting |
 
-Runtime responsibilities:
+### Specs / docs
 
-- Provide an **execution engine** that can consume the compiled state machine for a participant.
-- Integrate with:
-  - transport (in-process, IPC, network),
-  - tool/function invocation,
-  - (optional) LLM invocation,
-  - tracing/logging,
-  - persistence (session state).
+| Document | Path | Content |
+|---|---|---|
+| `lang-spec.md` | `projects/reagent/lang-spec.md` | Language spec v0.0.4: informal syntax + EBNF + reserved constructs |
+| `reagent-spec.md` | `projects/reagent/docs_v0.0.1/reagent-spec.md` | Core spec v0.0.1: layers, TraceEvent algebra, legality, runtime |
+| `reagent-losos-project-plan.md` | `.cursor/reagent-losos-project-plan.md` | Milestones plan (M0–M9) |
 
-For now, assume:
+## Architecture layers
 
-- **Python runtime** is the primary target (“main reagent language”).
+1. **Protocol level** — `.rg` files with DSL choreography + embedded host-language code.
+2. **Role level** — per-role message boundary interfaces (planned, not yet generated).
+3. **Agent level** — per-role state machines (IR). The key compilation target.
+4. **Execution level** — runtime engines that execute agent IR. Losos (Kotlin/etcd) is the primary target engine.
+
+## Next phase: AST + Parser + Translation (→ M2)
+
+The immediate next milestone is building a proper **TypeScript AST** and **parser** for the full Reagent language, and designing the **translation** from Reagent constructs to Losos agent-level primitives.
+
+Key deliverables:
+1. **TypeScript AST types** — typed node hierarchy covering all language constructs (`Program`, `ImportStmt`, `ProtocolDef`, `MessageStmt`, `AgentZone`, `AltStmt`, `LoopStmt`, `ParStmt`, `WaitStmt`, `TryStmt`, etc.) with source locations.
+2. **Parser** — recursive-descent parser in TypeScript producing the AST. Replaces the current regex-based zone extractor with a full parse.
+3. **IR design** — define the agent-level intermediate representation (`states/nodes → edges/transitions`) that captures per-role execution semantics.
+4. **Translation mapping** — how each Reagent construct maps to IR nodes and ultimately to Losos primitives (guards, actions, events).
+
+See `reagent-losos-project-plan.md` for detailed milestone breakdown.
 
 ## Intended use in CognOS
 
-Reagent is intended to be used in CognOS as:
+- **(a) Language for agent communication**: protocols define interaction patterns between angels/daemons.
+- **(b) Knowledge base for planning**: protocols as reusable "procedural knowledge" for agents like comma (communication) and plana (planning).
 
-- **(a) A language for angels communication**
-  - Protocols define allowed/expected interaction patterns between angels/daemons (and maybe proc).
-  - Helps keep coordination deterministic/auditable.
+## Version sync policy
 
-- **(b) A knowledge base used by angels**
-  - A “protocol database” can be queried/used by angels such as:
-    - **comma**: communication policies and interaction patterns.
-    - **plana**: planning templates / coordination plans.
-  - Protocols become re-usable “procedural knowledge” for planning (not just code).
+All Reagent modules share the language version as their baseline reference:
 
-## MVP scope (suggested)
-
-- **File format**:
-  - Mermaid-ish `sequenceDiagram` for protocol.
-  - Embedded `functions` blocks per role (Python first).
-  - Explicit role declarations: `role name`, `language`, (optional) capabilities.
-
-- **Compiler**:
-  - Parse -> IR -> generate Python state machine per role.
-  - Deterministic codegen (stable output).
-
-- **Runtime (Python)**:
-  - Load compiled state machine.
-  - Execute until “wait for message” / “wait for user input” / “done”.
-  - Pluggable invokers: `tool(name, input)`, `llm(prompt)`, `fn(name, args)`.
-  - Session state: vars + frame/pc per role.
-
-- **Rendering / UX**:
-  - Use Mermaid rendering for protocol visualization.
-
-## Open questions / design choices (capture early)
-
-- **Protocol DSL surface**:
-  - How to represent conditionals (`opt/alt`), loops, timeouts, retries?
-  - How to represent message schemas / validation (zod/pydantic-like)?
-
-- **Compilation semantics**:
-  - How to map global steps to per-role state transitions (especially for `alt/loop`)?
-  - How to represent “shared variables” vs role-local variables?
-
-- **Execution semantics**:
-  - Is runtime cooperative (step-by-step) or event-driven?
-  - What is the transport abstraction (channels, inbox/outbox, correlation ids)?
-
-- **Safety**:
-  - If LLM is used, what is allowed to be non-deterministic, and how is it bounded/audited?
-
-## References (existing prototype in this workspace)
-
-There is an existing TypeScript prototype inside:
-
-- `projects/obsidian-plugin/packages/reagent`
-
-It already demonstrates:
-
-- Mermaid `sequenceDiagram` parsing
-- `.mmdx` doc parsing (`<protocol>`, `<functions>`)
-- codegen of `.mmdx` → TS modules
-- a deterministic runner core in TS
-
-This `projects/reagent/` folder is the **separate** project space for the next iteration (Python-first compiler+runtime), with a clearer “protocol → per-participant state machines” goal.
-
+| Component | Current version | Sync rule |
+|---|---|---|
+| Language (lang-spec.md) | **v0.0.4** | Source of truth for language surface |
+| `reagent-vscode` extension | 0.1.0 | Tracks language changes; bump minor on syntax changes |
+| `reagent-spec.md` (core spec) | v0.0.1 | Bump when TraceEvent algebra / runtime contract changes |
+| AST / Parser (planned) | — | Will track language version directly |
+| IR / Compiler (planned) | — | Will have own version once M2 is reached |

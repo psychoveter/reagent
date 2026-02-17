@@ -14,7 +14,7 @@ Glossary (minimal):
 
 ---
 
-## M0 — Baseline: reproducible Losos test harness on etcd 3.6 (DONE)
+## M0 — Baseline: reproducible Losos test harness on etcd 3.6 ✅ DONE
 
 **Intent**: freeze a working, reproducible environment for Losos so future changes have a stable safety net.
 
@@ -32,74 +32,120 @@ Glossary (minimal):
 
 ---
 
-## M1 — Reagent spec hardening: formal core model + TraceEvent algebra + legality (SPEC)
+## M1 — Reagent language & spec hardening ✅ DONE (language v0.0.4)
 
-**Intent**: define what “engine must do” independently of Losos. This is the contract enabling multiple engines.
+**Intent**: define the Reagent DSL surface from examples-first, formalize the core model and TraceEvent algebra.
 
-### Tasks
-- Define **core entities** (ProtocolSpec, Role, ProtocolInstance, ParticipantId).
-- Specify **protocol-level language surface**:
-  - Build an **examples-first corpus** for CognOS under `projects/reagent/examples/` that covers all communicative acts (alt/loop/par/await/timeout/spawn/exception).
-  - Derive the initial DSL surface from the examples (message steps + control-flow constructs + zones).
-  - Document semantics at the boundary (what events/guards/actions each construct implies).
-- Define **message type system** (schema ref, versioning rules, compatibility).
-- Define unified **TraceEvent algebra**:
-  - protocol lifecycle,
-  - message send/receive,
-  - actions start/finish,
-  - guards open/satisfy/timeout,
-  - timer events,
-  - violation events.
-- Define **operational semantics** at the boundary:
-  - what transitions are legal from a given IR state,
-  - what constitutes a **ProtocolViolation**.
-- Define **time + failure model** (timeouts, retries, cancellation, at-least-once vs exactly-once claims).
-- Define **idempotency keys** for message and action events.
+**Status**: Language surface is stable at v0.0.4. Examples corpus covers all major constructs. Lang-spec has informal syntax + EBNF. Core spec (`reagent-spec.md`) has TraceEvent algebra and legality model.
 
-### DoD (functional tests)
-- **F1.1 (spec conformance tests)**: a small suite of “protocol snippets” (fixtures) + expected trace properties:
-  - For each fixture, there is an expected set of legal next steps (by role) and expected TraceEvent sequence shape.
-- **F1.0 (example corpus)**: `projects/reagent/examples/` contains fixtures that cover:
-  - `protocol` wrapper (participants, initiator, input message),
-  - child protocol invocation,
-  - imports of protocol libraries,
-  - alt (XOR), loop, par, await+timeout, spawn subagent, exception/compensation.
-  Each fixture declares expected trace shape and failure modes in comments.
-- **F1.2**: a “violation fixture” where an out-of-order `MessageReceived` yields `ProtocolViolated(ruleId=...)` in the expected trace.
-- **F1.3**: a “timeout fixture” where no message arrives and a `TimerFired` → `GuardTimedOut` (or equivalent) is produced.
+### Completed
+- ✅ **Examples corpus** (`projects/reagent/examples/`): 13 fixtures covering protocol wrapper, message steps, alt, loop, par, wait/timeout, spawn, invoke, try/catch, imports, external events, LLM broker.
+- ✅ **Language spec** (`lang-spec.md` v0.0.4): informal syntax + EBNF. Key decisions: meta-language, `$ctx`, `reagent.*` runtime library, hook zones, language tags on participants.
+- ✅ **Core spec** (`reagent-spec.md` v0.0.1): TraceEvent algebra, legality LTS, time/failure model, idempotency keys.
+- ✅ **Syntax highlighting** (`reagent-vscode` v0.1.0): TextMate grammar + embedded language support.
 
-Notes:
-- This milestone outputs spec text + fixtures; engines implement later milestones.
+### Remaining (deferred to later milestones)
+- Spec conformance test suite (F1.1, F1.2, F1.3) — will be built when parser+IR exist.
+- Formal violation/timeout fixtures — need IR execution to validate.
 
 ---
 
-## M2 — Reagent Agent IR v0: engine-neutral executable model (COMPILER OUTPUT)
+## M2 — TypeScript AST + Parser + IR design 🔜 NEXT
 
-**Intent**: make the agent-level layer concrete: `.rgxa` (or internal IR) becomes the stable input to engines.
+**Intent**: build the proper parsing infrastructure and design the agent-level IR. This is the bridge between "language on paper" and "compilable protocol".
 
-### Tasks
-- Define IR schema (JSON/proto) for:
-  - roles and bindings,
-  - states/nodes,
-  - edges/transitions labeled by event types,
-  - actions (callable blocks) and parameters,
-  - guards (predicates over events/slots),
-  - timers/timeouts,
-  - correlation/cause links.
-- Define compilation mapping from protocol-level constructs (`alt/loop/par`) to IR:
-  - token model for parallelism (or explicit concurrent branches),
-  - join semantics,
-  - XOR commit semantics for `alt`.
-- Add an **IR validator** (static checks):
-  - well-formed graph,
-  - no dangling references,
-  - deterministic constraints where required.
+### Phase 2a — TypeScript AST (typed node hierarchy)
 
-### DoD (functional tests)
-- **F2.1**: compile a “hello protocol” to IR; IR validates; IR can be rendered as a simple graph (snapshot test).
-- **F2.2**: compile `alt` protocol; IR expresses branch guards; IR validator accepts it.
-- **F2.3**: compile `par` protocol; IR produces two concurrent tokens/branches; join is explicit; validator accepts it.
-- **F2.4**: invalid protocol fixture produces a compiler error with stable error code + location.
+**Tasks**:
+1. Define AST node types in TypeScript covering the full language surface:
+   - `Program` (top-level: imports + protocol definitions)
+   - `ImportStmt` (protocol `.rg` imports + code module imports)
+   - `ProtocolDef` (header: participants, initiator, input + body)
+   - `ParticipantDecl` (name + language tag)
+   - `MessageStmt` (sender, arrow, receiver, message name, optional props)
+   - `MessageProps` (hook zones + key-value pairs)
+   - `HookZone` (`onSend` / `onReceive` with raw body text)
+   - `AgentZone` (standalone: role name + raw body text + resolved language)
+   - `AltStmt` (branches: message-guard / expression-guard / timeout-guard + body)
+   - `LoopStmt` (guard expression + body)
+   - `ParStmt` (branches separated by `and`)
+   - `WaitStmt` (duration literal)
+   - `TryStmt` (try body + catch label + catch body)
+   - `Comment` (line + block)
+2. Every node carries `SourceLocation` (`start: {line, col, offset}`, `end: {line, col, offset}`).
+3. Define AST in `projects/reagent/lang/ast.ts` (replace or supersede `lang/ast.schema.json` if it exists).
+4. Export AST types as a standalone module (no runtime deps).
+
+**DoD**:
+- **F2a.1**: AST types compile. Each example `.rg` file has a corresponding expected AST shape (snapshot fixtures).
+- **F2a.2**: AST covers all constructs used in examples `00`–`11`.
+
+### Phase 2b — Recursive-descent parser
+
+**Tasks**:
+1. Implement a **recursive-descent parser** in TypeScript: `string → AST`.
+   - Path: `projects/reagent/lang/parser.ts`.
+   - Hand-written (not generated) for full control over error recovery and source locations.
+   - Must handle: imports, protocol header, message steps (with optional props and hooks), agent zones (brace-balanced raw text), all control-flow constructs (`alt`, `loop`, `par`, `wait`, `try/catch`), comments.
+   - Zone bodies remain **raw text** (parser only balances braces, does not parse host language).
+2. Error reporting: each parser error carries `SourceLocation` + error code + human message.
+3. Roundtrip property: `parse(source).errors.length === 0` for all example files.
+4. Migrate `reagent-vscode` extension to use the new parser (replace regex-based `reagentParser.ts`).
+
+**DoD**:
+- **F2b.1**: All 13 example files parse without errors.
+- **F2b.2**: Parser produces AST matching snapshot fixtures from F2a.1.
+- **F2b.3**: Invalid input produces error with location and stable error code.
+- **F2b.4**: VSCode extension uses new parser for zone extraction.
+
+### Phase 2c — Agent IR v0 (per-role state machine model)
+
+**Tasks**:
+1. Define IR schema in TypeScript:
+   - **IRGraph**: per-role directed graph of states and transitions.
+   - **IRState**: node (types: `initial`, `send`, `receive`, `action`, `guard`, `join`, `final`, `error`).
+   - **IRTransition**: labeled edge (event type + guard predicate + actions).
+   - **IRAction**: callable block reference (zone body + language).
+   - **IRGuard**: predicate over `$ctx` / incoming message / timer.
+   - **IRTimer**: timeout configuration.
+2. Define compilation mapping from AST constructs to IR:
+   - `MessageStmt` → `send` state (for sender) + `receive` state (for receiver) + transitions.
+   - `AgentZone` → `action` state with zone body.
+   - `AltStmt` → branching with XOR guard semantics.
+   - `LoopStmt` → back-edge to guard state.
+   - `ParStmt` → fork into concurrent tokens + join state.
+   - `TryStmt` → normal path + error path with compensation.
+   - `WaitStmt` → timer state.
+3. Implement **IR emitter**: `AST → Map<RoleName, IRGraph>`.
+   - Path: `projects/reagent/lang/ir-emitter.ts`.
+   - One IRGraph per role = the **local view** of the global protocol.
+4. Implement **IR validator** (static checks): well-formed graph, no dangling refs, determinism where required.
+
+**DoD**:
+- **F2c.1**: Compile "hello protocol" (example `00`) → IR for each role; IR validates; snapshot test.
+- **F2c.2**: Compile `alt` protocol (example `02`) → IR with branch guards; validator accepts.
+- **F2c.3**: Compile `par` protocol (example `04`) → IR with concurrent branches + join; validator accepts.
+- **F2c.4**: Invalid protocol fixture → compiler error with stable error code + location.
+
+### Phase 2d — Translation design: Reagent IR → Losos primitives
+
+**Tasks**:
+1. Document the mapping from IR concepts to Losos runtime primitives:
+   - `IRState(receive)` → Losos **Guard** (await event on etcd key).
+   - `IRState(send)` → Losos **Action** (write message to etcd key).
+   - `IRState(action)` → Losos **Action** (invoke zone code).
+   - `IRGuard` → Losos guard predicate registration.
+   - `IRTimer` → Losos timer/TTL.
+   - `IRTransition` → Losos process state transition.
+   - `par` fork/join → Losos concurrent guard set + join action.
+   - `alt` XOR → Losos alternative guards (first-to-fire).
+   - `try/catch` → Losos error guard + compensation action.
+2. Identify **gaps** in current Losos that block faithful IR execution (input for M5).
+3. Write a design doc: `projects/reagent/docs/ir-to-losos-mapping.md`.
+
+**DoD**:
+- **F2d.1**: Design doc exists and covers all IR node types → Losos mapping.
+- **F2d.2**: Gap list identifies at least: multi-slot guards, timer support, XOR resolution.
 
 ---
 
@@ -120,7 +166,7 @@ Notes:
   - trace is **append-only** and **durable**,
   - at-least-once action execution semantics + idempotency keys,
   - ordering model (per-instance total order trace is recommended).
-- Provide **reference “in-memory engine”** (simulator) for deterministic tests.
+- Provide **reference "in-memory engine"** (simulator) for deterministic tests.
 
 ### DoD (functional tests)
 - **F3.1**: start instance, submit message events, observe trace stream containing expected `MessageReceived` events.
@@ -145,7 +191,7 @@ Notes:
   - include correlation ids.
 - Implement legality checking surface:
   - on each external event, either advance legally or emit `ProtocolViolated`.
-- Provide “Losos Engine Service” wrapper (local process) that implements Engine API (from M3).
+- Provide "Losos Engine Service" wrapper (local process) that implements Engine API (from M3).
 
 ### DoD (functional tests)
 - **F4.1**: run Engine API conformance suite against Losos engine (the same tests as F3.1–F3.4).
@@ -174,16 +220,16 @@ Notes:
   - what is recorded in trace.
 
 ### DoD (functional tests)
-- **F5.1**: IR fixture “wait for (A AND B)” only fires after both events; trace shows both receipts then guard satisfied.
-- **F5.2**: IR fixture “wait for (A OR B)” fires after first; second event later does not re-fire; trace shows closure semantics.
-- **F5.3**: IR fixture “ALT (XOR)” commits exactly one branch; competing branch arrival after commit yields either ignored-with-trace or violation (as specified).
+- **F5.1**: IR fixture "wait for (A AND B)" only fires after both events; trace shows both receipts then guard satisfied.
+- **F5.2**: IR fixture "wait for (A OR B)" fires after first; second event later does not re-fire; trace shows closure semantics.
+- **F5.3**: IR fixture "ALT (XOR)" commits exactly one branch; competing branch arrival after commit yields either ignored-with-trace or violation (as specified).
 - **F5.4**: timeout fixture: if event not received within T, timer fires and correct branch/violation is produced.
 
 ---
 
 ## M6 — Role boundary + typed messages: schema, versioning, harness (RUNTIME SAFETY)
 
-**Intent**: stop “protocol becomes chat” by making message contracts explicit and testable.
+**Intent**: stop "protocol becomes chat" by making message contracts explicit and testable.
 
 ### Tasks
 - Pick schema system for v0:
@@ -194,7 +240,7 @@ Notes:
   - `MessageSent` validated before emission,
   - `MessageReceived` validated before being accepted.
 - Add version/compat policy:
-  - explicit in spec and enforced at runtime (or explicit “no negotiation” rule).
+  - explicit in spec and enforced at runtime (or explicit "no negotiation" rule).
 - Generate:
   - role stubs,
   - protocol test harness that can simulate peer roles.
@@ -203,7 +249,7 @@ Notes:
 - **F6.1**: sending invalid payload (schema mismatch) fails locally and produces a trace violation.
 - **F6.2**: receiving invalid payload produces `ProtocolViolated(schema=...)`.
 - **F6.3**: version mismatch fixture is rejected per compat policy.
-- **F6.4**: generated harness can run protocol “sandbox” without LLM and detect:
+- **F6.4**: generated harness can run protocol "sandbox" without LLM and detect:
   - deadlock,
   - timeout,
   - illegal branch.
@@ -212,7 +258,7 @@ Notes:
 
 ## M7 — Multi-language execution: Python-first runtime uses Engine API (NON-KOTLIN PATH)
 
-**Intent**: Reagent’s primary target (Python) can run agent-level state machines by talking to an engine (Losos or others).
+**Intent**: Reagent's primary target (Python) can run agent-level state machines by talking to an engine (Losos or others).
 
 ### Tasks
 - Build Python runner that:
@@ -236,7 +282,7 @@ Notes:
 
 ## M8 — Observability + divergence detection: OTel + spec-vs-real validator (DEBUGGING CORE)
 
-**Intent**: make “legality + divergence” a first-class debugging product: traces are queryable, comparable, actionable.
+**Intent**: make "legality + divergence" a first-class debugging product: traces are queryable, comparable, actionable.
 
 ### Tasks
 - Standardize TraceEvent → OpenTelemetry mapping:
@@ -247,13 +293,13 @@ Notes:
     - first divergence point,
     - minimal counterexample.
 - Add queries:
-  - “show enabled steps at time t”,
-  - “why did we block”.
+  - "show enabled steps at time t",
+  - "why did we block".
 
 ### DoD (functional tests)
 - **F8.1**: known bad trace fixture yields deterministic divergence report.
 - **F8.2**: OTel exporter produces spans with required attributes (snapshot test).
-- **F8.3**: “blocked protocol” fixture yields actionable explanation (missing event, which role, which message type).
+- **F8.3**: "blocked protocol" fixture yields actionable explanation (missing event, which role, which message type).
 
 ---
 
@@ -271,6 +317,5 @@ Notes:
 
 ### DoD (functional tests)
 - **F9.1**: unauthorized Engine API calls are denied.
-- **F9.2**: per-tenant access: cannot read other tenant’s trace/state.
+- **F9.2**: per-tenant access: cannot read other tenant's trace/state.
 - **F9.3**: load test: N instances, bounded memory, bounded latency for trace streaming.
-
