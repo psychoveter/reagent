@@ -1,26 +1,30 @@
-// NOTE: This legacy file is kept for now, but it must also obey the rule:
-// protocol code cannot be outside `protocol { ... }`.
+// NOTE: Legacy example, kept for reference. Superseded by 01-task-execution-basic.rg.
 
 protocol TaskExecutionLegacy {
-  participants: user, comma, sia
+  participants: user [ts], comma [ts], sia [ts]
   initiator: user
   input: TaskRequest
 
-  user { ctx.taskText = $input.text }
+  user { $ctx.taskText = $ctx.input.text }
   user --> comma: TaskRequest = { }
 
   comma --> user: Greeting = {
-    onSend: { call: "comma.onAck", args: { text: "Hi! I'll do it now." } }
+    onSend {
+      console.log("Hi! I'll do it now.")
+    }
   }
 
   comma {
-    // internal step: turn user task into DSI/BSI
-    const dsiBsi = taskToDsiBsi(ctx.taskText)
+    const dsiBsi = taskToDsiBsi($ctx.taskText)
+    $ctx.dsiBsi = dsiBsi
   }
 
   comma --> sia: SubmitIntent = {
-    onSend: { call: "comma.onSubmitIntent", args: { ref: "$ctx.dsiBsi" } },
-    onReceive: { call: "sia.onIntent", args: { ref: "$msg.intent" } }
+    onSend {
+      $ctx.msg.ref = $ctx.dsiBsi
+    }
+    onReceive {
+      $ctx.intent = $ctx.msg.ref
+    }
   }
 }
-

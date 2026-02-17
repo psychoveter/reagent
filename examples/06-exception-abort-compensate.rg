@@ -1,18 +1,18 @@
 // Example 06: exception + abort + compensation
 // Intent: comma submits intent to sia; if downstream fails, run compensation and notify user.
-// Roles: user, comma, sia
+// Roles: user [ts], comma [ts], sia [ts]
 //
-// Required acts: try/catch (or abort handling), compensation hooks.
+// Required acts: try/catch, compensation hooks.
 
 protocol ExceptionAbortCompensate {
-  participants: user, comma, sia
+  participants: user [ts], comma [ts], sia [ts]
   initiator: user
   input: TaskRequest
 
   user {
-    ctx.taskText = $input.text
+    $ctx.taskText = $ctx.input.text
   }
-  comma --> user: Greeting = { }
+  user --> comma: TaskRequest = { }
 
   try {
     comma --> sia: SubmitIntent = { }
@@ -21,9 +21,12 @@ protocol ExceptionAbortCompensate {
   } catch (error) {
     comma {
       // compensate / rollback side-effects
-      compensate("sia.cancelIntent", { ref: "$ctx.intentRef" })
+      compensate("sia.cancelIntent", { ref: $ctx.intentRef })
     }
-    comma --> user: Failed = { onSend: { call: "comma.replyError", args: { message: "$error" } } }
+    comma --> user: Failed = {
+      onSend {
+        $ctx.msg.message = $ctx.error
+      }
+    }
   }
 }
-

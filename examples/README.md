@@ -9,27 +9,34 @@ Goals:
   - compiler-to-IR tests,
   - runtime legality/trace tests.
 
-Conventions (draft):
+Conventions (v0.1):
 - File extension: `.rg`
 - Comments: `// ...` (line) and `/* ... */` (block)
 - Top-level: only `import ...` and `protocol Name { ... }`
-- Each example states:
-  - intent,
-  - roles,
-  - success trace shape,
-  - failure/timeout trace shape (when applicable).
+- **Reagent is a meta-language**: agent zones contain code in a **host language** (ts/js/py/kt).
+- Language tag declared once per participant: `participants: comma [ts], sia [ts]`.
+- Standalone agent zone syntax: `RoleName { ... host-language code ... }` (bare, no lang tag).
+- **Hook zones**: `onSend { ... }` / `onReceive { ... }` inside message props open inline agent zones for the sender/receiver respectively.
+- `$ctx` is the only bridge between choreography and host code (injected by runtime).
+- `reagent.*` runtime library: `reagent.invoke`, `reagent.spawn`, `reagent.return`, `reagent.emit` — zone-only.
+- **No `if/else` at protocol level**: condition branching lives in agent zone code.
+- Imports: `.rg` files for protocols, `.ts/.js/.py/.kt` files for code modules.
 
-Current coverage (as of today):
-- `00-protocol-wrapper.rg`: `protocol { participants/initiator/input }`
+Current coverage:
+- `00-protocol-wrapper.rg`: `protocol { participants [lang] / initiator / input }`
 - `01-task-execution-basic.rg`: basic task execution
-- `02-await-timeout-and-alt.rg`: await + timeout + alt (provisional syntax)
-- `03-loop-retry-backoff.rg`: loop + retry/backoff (provisional syntax)
-- `04-parallel-subtasks.rg`: par + join (provisional syntax)
-- `05-spawn-subagent.rg`: spawn subagent (provisional syntax)
-- `06-exception-abort-compensate.rg`: try/catch + compensate (provisional syntax)
-- `07-child-protocol-invoke.rg`: define child protocol + invoke (provisional syntax)
-- `08-import-and-invoke.rg`: import protocols + invoke (provisional syntax)
-- `09-invoke-multiparty-child-protocol.rg`: invoke multi-party child protocol (provisional syntax)
-- `10-external-event-start-and-emit.rg`: start by external input (unknown sender) + `emit` outward events
-- `11-llmbroka-call-and-return.rg`: call `llmbroka` via `invoke` and get a returned value
+- `02-await-timeout-and-alt.rg`: await + timeout + alt (message-based branching)
+- `03-loop-retry-backoff.rg`: loop + retry/backoff
+- `04-parallel-subtasks.rg`: par + join
+- `05-spawn-subagent.rg`: spawn subagent
+- `06-exception-abort-compensate.rg`: try/catch + compensate
+- `07-child-protocol-invoke.rg`: define child protocol + invoke (zone-only)
+- `08-import-and-invoke.rg`: import protocols + invoke
+- `09-invoke-multiparty-child-protocol.rg`: invoke multi-party child protocol + alt-based routing
+- `10-external-event-start-and-emit.rg`: start by external input + `emit` (zone-only)
+- `11-llmbroka-call-and-return.rg`: call `llmbroka` via `invoke` and `return` value
 
+Library protocols:
+- `lib/call-llm.rg`: canonical LLM request/response via `llmbroka`
+- `lib/derive-dsi-bsi.rg`: derive DSI/BSI from task text
+- `lib/validate-intent-with-sia.rg`: multi-party validation (comma ↔ sia)

@@ -1,34 +1,33 @@
 // Example 02: Await + timeout + alt (XOR)
 // Intent: comma submits intent to sia; waits for either Accept or Reject within timeout.
 // If timeout → fallback branch.
-// Roles: comma, sia
+// Roles: comma [ts], sia [ts]
 //
 // Required acts: await, timeout, alt.
-//
-// NOTE: syntax is provisional; this example is here to drive design.
+// alt = message-based branching (reactive). NOT condition-based (that's host-language in zone).
 
 protocol AwaitTimeoutAlt {
-  participants: comma, sia
+  participants: comma [ts], sia [ts]
   initiator: comma
   input: SubmitIntent
 
   comma --> sia: SubmitIntent = {
-    onSend: { call: "comma.sendIntent", args: { intent: "$ctx.intent" } }
+    onSend {
+      $ctx.msg.intent = $ctx.intent
+    }
   }
 
   alt (sia --> comma: Accept = { }) {
     comma {
-      // happy path
-      ctx.status = "accepted"
+      $ctx.status = "accepted"
     }
   } else (sia --> comma: Reject = { }) {
     comma {
-      ctx.status = "rejected"
+      $ctx.status = "rejected"
     }
   } else (timeout 10s) {
     comma {
-      ctx.status = "timeout"
+      $ctx.status = "timeout"
     }
   }
 }
-

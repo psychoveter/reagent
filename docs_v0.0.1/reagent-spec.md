@@ -279,7 +279,7 @@ protocol TaskExecution {
   initiator: user
   input: TaskRequest
 
-  user { ctx.taskText = $input.text }
+  user { ctx.taskText = $ctx.input.text }
   user --> comma: TaskRequest = { }
 
 comma --> user: Greeting = {
@@ -293,12 +293,12 @@ comma {
 
 comma --> sia: SubmitIntent = {
   onSend: { call: "comma.onSubmitIntent", args: { ref: "$ctx.dsiBsi" } },
-  onReceive: { call: "sia.onIntent", args: { ref: "$msg.intent" } }
+  onReceive: { call: "sia.onIntent", args: { ref: "$ctx.msg.intent" } }
 }
 }
 ```
 
 Notes:
-- `$msg.*` and `$ctx.*` are placeholders for compile-time-defined variable binding rules (to be fixed in M2 IR).
+- `$ctx.*` is the protocol instance state. Message bindings use `$ctx.msg.*` (to be fixed more formally in M2 IR).
 - `comma { ... }` is an agent functional zone (stored as raw text in AST v0); it must compile into one or more `ActionStarted/ActionFinished` steps.
 

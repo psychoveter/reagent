@@ -1,8 +1,8 @@
 {
   "name": "reagent-vscode",
-  "displayName": "Reagent (.rg) Syntax Highlighting",
-  "description": "Syntax highlighting for Reagent protocol DSL (.rg).",
-  "version": "0.0.1",
+  "displayName": "Reagent Language Support",
+  "description": "Language support for Reagent protocol DSL (.rg) with embedded language intelligence in agent zones.",
+  "version": "0.1.0",
   "publisher": "psychoveter",
   "engines": {
     "vscode": "^1.80.0"
@@ -10,12 +10,21 @@
   "categories": [
     "Programming Languages"
   ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:reagent"
+  ],
   "contributes": {
     "languages": [
       {
         "id": "reagent",
-        "aliases": ["Reagent", "reagent"],
-        "extensions": [".rg"],
+        "aliases": [
+          "Reagent",
+          "reagent"
+        ],
+        "extensions": [
+          ".rg"
+        ],
         "configuration": "./language-configuration.json"
       }
     ],
@@ -26,6 +35,16 @@
         "path": "./syntaxes/reagent.tmLanguage.json"
       }
     ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "@types/vscode": "^1.80.0",
+    "@vscode/vsce": "^2.22.0",
+    "typescript": "^5.3.0"
   }
 }
-

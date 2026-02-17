@@ -1,13 +1,13 @@
 // Library protocol file to be imported.
 
 protocol DeriveDsiBsi {
-  participants: comma
+  participants: comma [ts]
   initiator: comma
   input: DeriveRequest
 
   comma {
-    const dsiBsi = taskToDsiBsi(ctx.taskText)
-    ctx.dsiBsi = dsiBsi
+    const dsiBsi = taskToDsiBsi($ctx.input.taskText)
+    $ctx.dsiBsi = dsiBsi
+    reagent.return($ctx.dsiBsi)
   }
 }
-

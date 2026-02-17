@@ -2,34 +2,40 @@
 //
 // This is the canonical top-level structure we want.
 // The protocol block contains:
-// - participants: roles involved
+// - participants: roles involved (each with a language tag)
 // - initiator: which role starts the protocol
 // - input: which inbound message triggers ProtocolStarted (delivered to initiator)
+//
+// Language tag is declared once per participant: comma [ts].
+// Agent zones use bare role name: comma { ... }
+// $ctx is injected by the runtime as the protocol instance context.
+// onSend / onReceive in message props open inline agent zones for the sender / receiver.
 
 protocol TaskExecution {
-  participants: user, comma, sia
+  participants: user [ts], comma [ts], sia [ts]
   initiator: user
   input: TaskRequest
 
   // Input message is delivered to initiator (user). Sender is unknown/out-of-scope.
   user {
-    // forward user intent to comma
-    // $input is the protocol input message
-    ctx.taskText = $input.text
+    $ctx.taskText = $ctx.input.text
   }
   user --> comma: TaskRequest = { }
 
   comma --> user: Greeting = {
-    onSend: { call: "comma.onAck", args: { text: "Hi! I'll do it now." } }
+    onSend {
+      console.log("Hi! I'll do it now.")
+    }
   }
 
   comma {
-    const dsiBsi = taskToDsiBsi(ctx.taskText)
-    ctx.dsiBsi = dsiBsi
+    const dsiBsi = taskToDsiBsi($ctx.taskText)
+    $ctx.dsiBsi = dsiBsi
   }
 
   comma --> sia: SubmitIntent = {
-    onSend: { call: "comma.onSubmitIntent", args: { ref: "$ctx.dsiBsi" } }
+    onSend {
+      $ctx.msg.ref = $ctx.dsiBsi
+    }
   }
 }
-

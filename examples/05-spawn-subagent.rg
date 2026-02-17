@@ -1,29 +1,36 @@
 // Example 05: spawn subagent (subprotocol / agent creation)
 // Intent: comma spawns a subagent to do planning (DSI/BSI), then continues with result.
-// Roles: user, comma, planner
+// Roles: user [ts], comma [ts], planner [ts]
 //
-// Required acts: spawn/subagent creation, child instance correlation, await child completion.
+// spawn is zone-only (like invoke). It creates an independent (fire-and-forget) protocol instance.
+// The spawned agent communicates back via messages.
 
 protocol SpawnSubagent {
-  participants: user, comma, planner
+  participants: user [ts], comma [ts], planner [ts]
   initiator: user
   input: TaskRequest
 
   user {
-    ctx.taskText = $input.text
+    $ctx.taskText = $ctx.input.text
   }
+  user --> comma: TaskRequest = { }
+
   comma --> user: Greeting = { }
 
-  spawn planner as Subagent = {
-    role: "planner",
-    input: { text: "$ctx.taskText" },
-    onSpawn: { call: "comma.onSpawnPlanner", args: { parent: "$instanceId" } }
+  comma {
+    $ctx.plannerHandle = reagent.spawn(Subagent, { planner: planner }, { text: $ctx.taskText })
   }
 
   planner --> comma: PlanReady = {
-    onReceive: { call: "comma.onPlanReady", args: { dsi: "$msg.dsi", bsi: "$msg.bsi" } }
+    onReceive {
+      $ctx.dsi = $ctx.msg.dsi
+      $ctx.bsi = $ctx.msg.bsi
+    }
   }
 
-  comma --> user: Done = { onSend: { call: "comma.replyDone", args: { ok: true } } }
+  comma --> user: Done = {
+    onSend {
+      $ctx.msg.ok = true
+    }
+  }
 }
-

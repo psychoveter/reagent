@@ -6,7 +6,8 @@
     { "include": "#comments" },
     { "include": "#protocol" },
     { "include": "#import" },
-    { "include": "#message" },
+    { "include": "#messageWithProps" },
+    { "include": "#messageBare" },
     { "include": "#agentZone" },
     { "include": "#reserved" },
     { "include": "#objects" },
@@ -31,7 +32,15 @@
       "patterns": [
         {
           "name": "keyword.control.reagent",
-          "match": "\\b(protocol|import|as|participants|initiator|input|alt|loop|par|wait|timeout|spawn|try|catch|invoke|emit|return|else)\\b"
+          "match": "\\b(protocol|import|as|participants|initiator|input|alt|loop|par|wait|timeout|try|catch|else|and)\\b"
+        }
+      ]
+    },
+    "langTag": {
+      "patterns": [
+        {
+          "name": "storage.type.language.reagent",
+          "match": "\\[(ts|js|py|kt)\\]"
         }
       ]
     },
@@ -46,16 +55,19 @@
             "2": { "name": "entity.name.type.protocol.reagent" },
             "3": { "name": "punctuation.section.block.begin.reagent" }
           },
-          "end": "\\}",
+          "end": "^\\}",
           "endCaptures": {
             "0": { "name": "punctuation.section.block.end.reagent" }
           },
           "patterns": [
             { "include": "#comments" },
             { "include": "#keywords" },
-            { "include": "#message" },
+            { "include": "#langTag" },
+            { "include": "#messageWithProps" },
+            { "include": "#messageBare" },
             { "include": "#agentZone" },
             { "include": "#reserved" },
+            { "include": "#hookZone" },
             { "include": "#objects" },
             { "include": "#numbers" },
             { "include": "#strings" }
@@ -86,19 +98,67 @@
         }
       ]
     },
-    "message": {
+    "messageWithProps": {
       "patterns": [
         {
           "name": "meta.message.reagent",
-          "match": "^\\s*([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*(-->>|->>|-->|->)\\s*([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*:\\s*([^=\\n]+?)\\s*(=)\\s*(\\{)",
-          "captures": {
+          "begin": "^\\s*([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*(-->>|->>|-->|->)\\s*([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*:\\s*([^=\\n]+?)\\s*(=)\\s*(\\{)",
+          "beginCaptures": {
             "1": { "name": "variable.other.role.reagent" },
             "2": { "name": "keyword.operator.arrow.reagent" },
             "3": { "name": "variable.other.role.reagent" },
             "4": { "name": "entity.name.function.message.reagent" },
             "5": { "name": "keyword.operator.assignment.reagent" },
             "6": { "name": "punctuation.section.block.begin.reagent" }
+          },
+          "end": "^\\s*\\}",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.block.end.reagent" }
+          },
+          "patterns": [
+            { "include": "#comments" },
+            { "include": "#hookZone" },
+            { "include": "#zoneKeywords" },
+            { "include": "#objects" },
+            { "include": "#strings" },
+            { "include": "#numbers" }
+          ]
+        }
+      ]
+    },
+    "messageBare": {
+      "patterns": [
+        {
+          "name": "meta.message.bare.reagent",
+          "match": "^\\s*([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*(-->>|->>|-->|->)\\s*([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*:\\s*([^=\\n{]+?)\\s*$",
+          "captures": {
+            "1": { "name": "variable.other.role.reagent" },
+            "2": { "name": "keyword.operator.arrow.reagent" },
+            "3": { "name": "variable.other.role.reagent" },
+            "4": { "name": "entity.name.function.message.reagent" }
           }
+        }
+      ]
+    },
+    "hookZone": {
+      "patterns": [
+        {
+          "name": "meta.hook.zone.reagent",
+          "begin": "\\b(onSend|onReceive)\\s*(\\{)",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.hook.reagent" },
+            "2": { "name": "punctuation.section.block.begin.reagent" }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.block.end.reagent" }
+          },
+          "patterns": [
+            { "include": "#comments" },
+            { "include": "#zoneKeywords" },
+            { "include": "#strings" },
+            { "include": "#numbers" }
+          ]
         }
       ]
     },
@@ -117,36 +177,32 @@
           },
           "patterns": [
             { "include": "#comments" },
+            { "include": "#zoneKeywords" },
             { "include": "#strings" },
             { "include": "#numbers" }
           ]
         }
       ]
     },
-    "reserved": {
+    "zoneKeywords": {
       "patterns": [
-        { "include": "#keywords" },
         {
-          "name": "meta.reserved.invoke.reagent",
-          "begin": "^\\s*(invoke)\\b",
-          "beginCaptures": { "1": { "name": "keyword.control.reagent" } },
-          "end": "$",
-          "patterns": [
-            { "include": "#objects" },
-            { "include": "#strings" },
-            { "include": "#numbers" }
-          ]
+          "name": "support.function.reagent-runtime.reagent",
+          "match": "\\breagent\\.(invoke|spawn|return|emit)\\b"
         },
         {
-          "name": "meta.reserved.emit.reagent",
-          "match": "^\\s*(emit)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*(=)\\s*(\\{)",
-          "captures": {
-            "1": { "name": "keyword.control.reagent" },
-            "2": { "name": "entity.name.function.event.reagent" },
-            "3": { "name": "keyword.operator.assignment.reagent" },
-            "4": { "name": "punctuation.section.block.begin.reagent" }
-          }
+          "name": "variable.language.reagent-module.reagent",
+          "match": "\\breagent\\b"
+        },
+        {
+          "name": "variable.language.context.reagent",
+          "match": "\\$ctx\\b"
         }
+      ]
+    },
+    "reserved": {
+      "patterns": [
+        { "include": "#keywords" }
       ]
     },
     "objects": {
@@ -199,4 +255,3 @@
     }
   }
 }
-

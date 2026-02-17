@@ -1,21 +1,22 @@
 // Example 10: protocol start by external input (unknown sender) + emitting events
 //
 // Requirement:
-// - protocol can start on an external input message (unknown sender)
-// - events can be emitted outward (reserved statement `emit`)
+// - protocol starts on an external input message (unknown sender)
+// - events can be emitted outward (via reagent.emit() inside an agent zone)
 
 protocol TaskExecutionFromEvent {
-  participants: comma, sia
+  participants: comma [ts], sia [ts]
   initiator: comma
   input: TaskRequested
 
   comma {
-    ctx.taskText = $input.text
+    $ctx.taskText = $ctx.input.text
   }
 
   comma --> sia: SubmitIntent = { }
 
   // Emit event outward for tracing/observability/other agents.
-  emit TaskSubmitted = { kind: "task.submitted", ref: "$ctx.intent" }
+  comma {
+    reagent.emit("TaskSubmitted", { kind: "task.submitted", ref: $ctx.intent })
+  }
 }
-
