@@ -1,14 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://psychoveter.github.io/reagent/schemas/lang/ast.v0.json",
-  "title": "Reagent Language AST (v0)",
+  "$id": "https://psychoveter.github.io/reagent/schemas/lang/ast.v0.0.4.json",
+  "title": "Reagent Language AST (v0.0.4)",
+  "description": "Full AST for the Reagent protocol language, covering all constructs from lang-spec v0.0.4.",
   "type": "object",
   "required": ["kind", "items"],
   "properties": {
     "kind": { "const": "Program" },
     "items": {
       "type": "array",
-      "items": { "$ref": "#/$defs/Item" }
+      "items": { "$ref": "#/$defs/TopLevelItem" }
     }
   },
   "$defs": {
@@ -31,7 +32,7 @@
       },
       "additionalProperties": false
     },
-    "Item": {
+    "TopLevelItem": {
       "oneOf": [
         { "$ref": "#/$defs/ImportStmt" },
         { "$ref": "#/$defs/ProtocolDef" }
@@ -50,25 +51,25 @@
     },
     "ProtocolDef": {
       "type": "object",
-      "required": ["kind", "name", "participants", "initiator", "on", "body", "loc"],
+      "required": ["kind", "name", "participants", "initiator", "input", "body", "loc"],
       "properties": {
         "kind": { "const": "ProtocolDef" },
         "name": { "type": "string", "minLength": 1 },
-        "participants": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "initiator": { "type": "string", "minLength": 1 },
-        "on": { "$ref": "#/$defs/MessageSig" },
+        "participants": { "type": "array", "items": { "$ref": "#/$defs/ParticipantDecl" } },
+        "initiator": { "type": "string" },
+        "input": { "type": "string" },
         "body": { "type": "array", "items": { "$ref": "#/$defs/ProtocolItem" } },
         "loc": { "$ref": "#/$defs/Loc" }
       },
       "additionalProperties": false
     },
-    "MessageSig": {
+    "ParticipantDecl": {
       "type": "object",
-      "required": ["from", "to", "name", "loc"],
+      "required": ["kind", "name", "lang", "loc"],
       "properties": {
-        "from": { "type": "string", "minLength": 1 },
-        "to": { "type": "string", "minLength": 1 },
+        "kind": { "const": "ParticipantDecl" },
         "name": { "type": "string", "minLength": 1 },
+        "lang": { "enum": ["ts", "js", "py", "kt"] },
         "loc": { "$ref": "#/$defs/Loc" }
       },
       "additionalProperties": false
@@ -77,134 +78,203 @@
       "oneOf": [
         { "$ref": "#/$defs/MessageStmt" },
         { "$ref": "#/$defs/AgentZone" },
-        { "$ref": "#/$defs/RawStmt" }
+        { "$ref": "#/$defs/AltStmt" },
+        { "$ref": "#/$defs/LoopStmt" },
+        { "$ref": "#/$defs/ParStmt" },
+        { "$ref": "#/$defs/WaitStmt" },
+        { "$ref": "#/$defs/TryStmt" }
       ]
     },
     "MessageStmt": {
       "type": "object",
-      "required": ["kind", "from", "to", "name", "props", "loc"],
+      "required": ["kind", "from", "arrow", "to", "messageName", "loc"],
       "properties": {
         "kind": { "const": "MessageStmt" },
         "from": { "type": "string", "minLength": 1 },
+        "arrow": { "enum": ["-->", "->", "->>", "-->>"] },
         "to": { "type": "string", "minLength": 1 },
-        "name": { "type": "string", "minLength": 1 },
-        "props": { "$ref": "#/$defs/ObjectValue" },
+        "messageName": { "type": "string", "minLength": 1 },
+        "props": { "$ref": "#/$defs/MessageProps" },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "MessageProps": {
+      "type": "object",
+      "required": ["kind", "hooks", "pairs", "loc"],
+      "properties": {
+        "kind": { "const": "MessageProps" },
+        "hooks": { "type": "array", "items": { "$ref": "#/$defs/HookZone" } },
+        "pairs": { "type": "array", "items": { "$ref": "#/$defs/PropPair" } },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "HookZone": {
+      "type": "object",
+      "required": ["kind", "hookType", "body", "loc"],
+      "properties": {
+        "kind": { "const": "HookZone" },
+        "hookType": { "enum": ["onSend", "onReceive"] },
+        "body": { "type": "string" },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "PropPair": {
+      "type": "object",
+      "required": ["kind", "key", "value", "loc"],
+      "properties": {
+        "kind": { "const": "PropPair" },
+        "key": { "type": "string" },
+        "value": { "type": "string" },
         "loc": { "$ref": "#/$defs/Loc" }
       },
       "additionalProperties": false
     },
     "AgentZone": {
       "type": "object",
-      "required": ["kind", "agent", "body", "loc"],
+      "required": ["kind", "agent", "lang", "body", "loc"],
       "properties": {
         "kind": { "const": "AgentZone" },
         "agent": { "type": "string", "minLength": 1 },
+        "lang": { "enum": ["ts", "js", "py", "kt"] },
         "body": { "type": "string" },
         "loc": { "$ref": "#/$defs/Loc" }
       },
       "additionalProperties": false
     },
-    "RawStmt": {
+    "AltStmt": {
       "type": "object",
-      "required": ["kind", "text", "loc"],
+      "required": ["kind", "branches", "loc"],
       "properties": {
-        "kind": { "const": "RawStmt" },
-        "text": { "type": "string" },
+        "kind": { "const": "AltStmt" },
+        "branches": { "type": "array", "items": { "$ref": "#/$defs/AltBranch" } },
         "loc": { "$ref": "#/$defs/Loc" }
       },
       "additionalProperties": false
     },
-    "Value": {
+    "AltBranch": {
+      "type": "object",
+      "required": ["kind", "guard", "body", "loc"],
+      "properties": {
+        "kind": { "const": "AltBranch" },
+        "guard": { "$ref": "#/$defs/AltGuard" },
+        "body": { "type": "array", "items": { "$ref": "#/$defs/ProtocolItem" } },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "AltGuard": {
       "oneOf": [
-        { "$ref": "#/$defs/NullValue" },
-        { "$ref": "#/$defs/BoolValue" },
-        { "$ref": "#/$defs/NumberValue" },
-        { "$ref": "#/$defs/StringValue" },
-        { "$ref": "#/$defs/IdentValue" },
-        { "$ref": "#/$defs/ObjectValue" },
-        { "$ref": "#/$defs/ArrayValue" }
+        { "$ref": "#/$defs/AltMessageGuard" },
+        { "$ref": "#/$defs/AltExprGuard" },
+        { "$ref": "#/$defs/AltTimeoutGuard" },
+        { "$ref": "#/$defs/AltElseGuard" }
       ]
     },
-    "NullValue": {
+    "AltMessageGuard": {
       "type": "object",
-      "required": ["type", "loc"],
+      "required": ["kind", "from", "arrow", "to", "messageName", "loc"],
       "properties": {
-        "type": { "const": "null" },
+        "kind": { "const": "AltMessageGuard" },
+        "from": { "type": "string" },
+        "arrow": { "enum": ["-->", "->", "->>", "-->>"] },
+        "to": { "type": "string" },
+        "messageName": { "type": "string" },
+        "props": { "$ref": "#/$defs/MessageProps" },
         "loc": { "$ref": "#/$defs/Loc" }
       },
       "additionalProperties": false
     },
-    "BoolValue": {
+    "AltExprGuard": {
       "type": "object",
-      "required": ["type", "value", "loc"],
+      "required": ["kind", "expr", "loc"],
       "properties": {
-        "type": { "const": "bool" },
-        "value": { "type": "boolean" },
+        "kind": { "const": "AltExprGuard" },
+        "expr": { "type": "string" },
         "loc": { "$ref": "#/$defs/Loc" }
       },
       "additionalProperties": false
     },
-    "NumberValue": {
+    "AltTimeoutGuard": {
       "type": "object",
-      "required": ["type", "value", "loc"],
+      "required": ["kind", "duration", "loc"],
       "properties": {
-        "type": { "const": "number" },
+        "kind": { "const": "AltTimeoutGuard" },
+        "duration": { "$ref": "#/$defs/Duration" },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "AltElseGuard": {
+      "type": "object",
+      "required": ["kind", "loc"],
+      "properties": {
+        "kind": { "const": "AltElseGuard" },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "LoopStmt": {
+      "type": "object",
+      "required": ["kind", "guard", "body", "loc"],
+      "properties": {
+        "kind": { "const": "LoopStmt" },
+        "guard": { "type": "string" },
+        "body": { "type": "array", "items": { "$ref": "#/$defs/ProtocolItem" } },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "ParStmt": {
+      "type": "object",
+      "required": ["kind", "branches", "loc"],
+      "properties": {
+        "kind": { "const": "ParStmt" },
+        "branches": { "type": "array", "items": { "$ref": "#/$defs/ParBranch" } },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "ParBranch": {
+      "type": "object",
+      "required": ["kind", "body", "loc"],
+      "properties": {
+        "kind": { "const": "ParBranch" },
+        "body": { "type": "array", "items": { "$ref": "#/$defs/ProtocolItem" } },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "WaitStmt": {
+      "type": "object",
+      "required": ["kind", "duration", "loc"],
+      "properties": {
+        "kind": { "const": "WaitStmt" },
+        "duration": { "$ref": "#/$defs/Duration" },
+        "loc": { "$ref": "#/$defs/Loc" }
+      },
+      "additionalProperties": false
+    },
+    "Duration": {
+      "type": "object",
+      "required": ["value", "unit", "loc"],
+      "properties": {
         "value": { "type": "number" },
+        "unit": { "enum": ["ms", "s", "m", "h"] },
         "loc": { "$ref": "#/$defs/Loc" }
       },
       "additionalProperties": false
     },
-    "StringValue": {
+    "TryStmt": {
       "type": "object",
-      "required": ["type", "value", "loc"],
+      "required": ["kind", "tryBody", "catchLabel", "catchBody", "loc"],
       "properties": {
-        "type": { "const": "string" },
-        "value": { "type": "string" },
-        "loc": { "$ref": "#/$defs/Loc" }
-      },
-      "additionalProperties": false
-    },
-    "IdentValue": {
-      "type": "object",
-      "required": ["type", "name", "loc"],
-      "properties": {
-        "type": { "const": "ident" },
-        "name": { "type": "string", "minLength": 1 },
-        "loc": { "$ref": "#/$defs/Loc" }
-      },
-      "additionalProperties": false
-    },
-    "ObjectValue": {
-      "type": "object",
-      "required": ["type", "entries", "loc"],
-      "properties": {
-        "type": { "const": "object" },
-        "entries": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["key", "value", "loc"],
-            "properties": {
-              "key": { "type": "string" },
-              "value": { "$ref": "#/$defs/Value" },
-              "loc": { "$ref": "#/$defs/Loc" }
-            },
-            "additionalProperties": false
-          }
-        },
-        "loc": { "$ref": "#/$defs/Loc" }
-      },
-      "additionalProperties": false
-    },
-    "ArrayValue": {
-      "type": "object",
-      "required": ["type", "items", "loc"],
-      "properties": {
-        "type": { "const": "array" },
-        "items": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/Value" }
-        },
+        "kind": { "const": "TryStmt" },
+        "tryBody": { "type": "array", "items": { "$ref": "#/$defs/ProtocolItem" } },
+        "catchLabel": { "type": "string" },
+        "catchBody": { "type": "array", "items": { "$ref": "#/$defs/ProtocolItem" } },
         "loc": { "$ref": "#/$defs/Loc" }
       },
       "additionalProperties": false
@@ -212,4 +282,3 @@
   },
   "additionalProperties": false
 }
-

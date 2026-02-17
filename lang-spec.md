@@ -1,4 +1,4 @@
-## Reagent language spec (v0.0.4)
+## Reagent language spec (v0.0.5)
 
 This document defines the **Reagent protocol language**.
 
@@ -358,12 +358,63 @@ The engine is responsible for:
 - Bridging host-language `break`/`throw` to protocol-level `loop`/`try` semantics.
 - Enforcing message ordering and protocol semantics.
 
----
+### 1.13 Agent definition
 
-## 2. EBNF (v0.0.4)
+An **agent** is a named entity that participates in one or more protocols under specific roles. Agents have:
+- **Own persistent state** (`$self`) — survives across protocol instances.
+- **Host language** (`[langTag]`) — all agent zones execute in this language.
+- **Protocol bindings** (`plays Proto as role`) — declares which role this agent plays in each protocol.
+- **Init block** (`init { ... }`) — runs once when the agent starts.
+- **Lifecycle handlers** (`on <event>(<Proto>) { ... }`) — react to protocol events.
+
+Syntax:
 
 ```
-Program         ::= (WS | Comment | ImportStmt | ProtocolDef)* EOF
+agent Comma [ts] {
+  plays TaskExecution as comma
+  plays HealthCheck as comma
+
+  init {
+    $self.ready = true
+    $self.tasksCompleted = 0
+  }
+
+  on protocolCompleted(TaskExecution) {
+    $self.tasksCompleted += 1
+  }
+
+  on protocolFailed(TaskExecution) {
+    $self.lastError = $ctx.error
+  }
+}
+```
+
+**`$self` vs `$ctx`**:
+- `$self` is the agent-level persistent state. It is accessible in `init`, `on` handlers, and also inside protocol zones where this agent participates. `$self` is scoped to the agent lifetime.
+- `$ctx` is the per-protocol-instance context (unchanged from v0.0.4). `$ctx` is scoped to a single protocol run.
+- Inside a protocol zone, both `$self` and `$ctx` are available, allowing the protocol to read agent config (`$self.config`) or write results back (`$self.lastResult = $ctx.result`).
+
+**Lifecycle events**:
+| Event | When |
+|---|---|
+| `protocolStarted(Proto)` | A protocol instance this agent participates in has started |
+| `protocolCompleted(Proto)` | Protocol completed normally |
+| `protocolFailed(Proto)` | Protocol ended with an error |
+| `protocolEvent(eventName)` | Custom event emitted via `reagent.emit()` from any protocol this agent plays |
+
+**Constraints**:
+- An agent cannot play two different roles in the same protocol.
+- Each `plays` directive binds exactly one role in exactly one protocol.
+- The `init` block is optional; at most one per agent.
+- Multiple `on` handlers for the same event are allowed (they run sequentially).
+- `reagent.spawn()` inside an `on` handler starts a new protocol instance.
+
+---
+
+## 2. EBNF (v0.0.5)
+
+```
+Program         ::= (WS | Comment | ImportStmt | ProtocolDef | AgentDef)* EOF
 
 ImportStmt      ::= "import" WS+ String (WS+ "as" WS+ Ident)? WS* (";" WS*)?
 
@@ -393,6 +444,14 @@ MessageNameChar ::= any char except '\n' and '='
 AgentZone       ::= Ident WS* "{" ZoneBody "}"
 ZoneBody        ::= BalancedText   // raw host-language code; braces balanced, strings/comments skipped
                                    // language is determined by the participant's [LangTag] declaration
+
+AgentDef        ::= "agent" WS+ Ident WS* "[" LangTag "]" WS* "{" AgentBody "}"
+AgentBody       ::= (WS | Comment | PlaysStmt | AgentInitBlock | AgentOnHandler)*
+PlaysStmt       ::= "plays" WS+ Ident WS+ "as" WS+ Ident
+AgentInitBlock  ::= "init" WS* "{" ZoneBody "}"
+AgentOnHandler  ::= "on" WS+ AgentEvent WS* "{" ZoneBody "}"
+AgentEvent      ::= ("protocolStarted" | "protocolCompleted" | "protocolFailed") "(" Ident ")"
+                  | "protocolEvent" "(" Ident ")"
 
 ReservedStmt    ::= AltStmt | LoopStmt | ParStmt | WaitStmt | TryStmt
 AltStmt         ::= "alt" .*
@@ -441,6 +500,13 @@ WS              ::= (" " | "\t" | "\r" | "\n")+
 - `reagent.*` runtime library replaces magic keywords in zones (`reagent.invoke`, `reagent.spawn`, `reagent.return`, `reagent.emit`).
 - `break`, `throw` are host-language constructs bridged by the runtime.
 
+**Changes in v0.0.5**:
+- `AgentDef` added as a new top-level construct (`agent Name [langTag] { ... }`).
+- `PlaysStmt` binds an agent to a protocol role (`plays Proto as role`).
+- `AgentInitBlock` and `AgentOnHandler` provide agent lifecycle logic.
+- `$self` variable added for agent-level persistent state (accessible in agent zones and protocol zones).
+- `Program` production now includes `AgentDef` alongside `ImportStmt` and `ProtocolDef`.
+
 ---
 
 ## 3. Example: task execution protocol (user → comma → sia)
@@ -449,11 +515,46 @@ See `projects/reagent/examples/01-task-execution-basic.rg`.
 
 ---
 
-## 4. AST JSON Schema (v0)
+## 4. AST and Parser (v0.0.5)
 
-The parser MUST output an AST conforming to the schema at `lang/ast.schema.json`.
+The parser MUST output an AST conforming to the TypeScript types at `lang/src/ast.ts` and the JSON schema at `lang/ast.schema.json`.
 
-**Important:** the current AST schema and hand-written parser only cover `MessageStmt` and `AgentZone`.
-`protocol` / `import` / control-flow constructs are being added **via examples first** and will be formalized into AST in the next iteration.
+The full AST covers all language constructs:
+- `Program` (top-level: imports + protocol definitions + agent definitions)
+- `ImportStmt` (protocol `.rg` imports + code module imports)
+- `ProtocolDef` (header + body), `ParticipantDecl` (name + `LangTag`)
+- `MessageStmt` (sender, arrow, receiver, message name, optional `MessageProps` with `HookZone` and `PropPair`)
+- `AgentZone` (standalone: role name + `lang` resolved from participants + raw body text)
+- `AltStmt` (branches with `AltMessageGuard` / `AltExprGuard` / `AltTimeoutGuard` / `AltElseGuard`)
+- `LoopStmt` (guard expression + body)
+- `ParStmt` (branches separated by `and`)
+- `WaitStmt` (duration literal)
+- `TryStmt` (try body + catch label + catch body)
+- `AgentDef` (agent name + lang + plays bindings + init block + lifecycle handlers)
+- `PlaysDecl` (protocol name + role name)
+- `AgentInitBlock` (raw zone body)
+- `AgentOnHandler` (event name + optional protocol filter + raw zone body)
 
-The `AgentZone` AST node includes a `lang: string` field, resolved from the `participants:` declaration.
+Every node carries `Loc` (source location: `start: {index, line, col}`, `end: {index, line, col}`).
+
+The parser is a hand-written **recursive-descent parser** in TypeScript (`lang/src/parser.ts`).
+Zone bodies remain **raw text** (parser only balances braces, does not parse host language).
+
+### Agent IR (v0.0.5)
+
+The compiler also produces per-role **Protocol IR** — directed graphs of states and transitions:
+- `IRGraph` per role (local view of the global protocol)
+- `IRState` types: `initial`, `send`, `receive`, `action`, `guard`, `fork`, `join`, `timer`, `terminal`, `error`
+- `IRTransition` labels: `default`, `message`, `timeout`, `expression`, `else`, `error`, `branch`
+
+### Agent IR (v0.0.5)
+
+The compiler also produces per-agent **Agent IR** — agent-level metadata that ties protocols together:
+- `AgentIR`: agent name, language tag, plays bindings, init action body, lifecycle handler action bodies.
+- `AgentPlaysBinding`: protocol name → role name mapping.
+- `AgentLifecycleHandler`: event type + optional protocol filter + action body.
+- References to protocol `IRGraph`s for each role the agent plays.
+
+See `lang/src/ir.ts` for the IR type definitions, `lang/src/ir-emitter.ts` for the AST→IR compiler, and `lang/src/ir-validator.ts` for static validation.
+
+For the mapping from IR to Losos runtime primitives, see `docs/ir-to-losos-mapping.md`.

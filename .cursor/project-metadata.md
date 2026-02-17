@@ -19,9 +19,9 @@ Approach:
 
 ## Current state (2026-02-17)
 
-### Language: v0.0.4
+### Language: v0.0.5
 
-The Reagent DSL is defined in `lang-spec.md` (version header: v0.0.4).
+The Reagent DSL is defined in `lang-spec.md` (version header: v0.0.5).
 
 Key design commitments solidified:
 - **Meta-language**: Reagent describes choreography; actual computation lives in **agent zones** written in a host language (`ts`/`js`/`py`/`kt`).
@@ -29,14 +29,16 @@ Key design commitments solidified:
 - **Language tag on participants**: `comma [ts], sia [py]` — agent zones are bare `Name { ... }`.
 - **Hook zones**: `onSend { ... }` / `onReceive { ... }` inside message props.
 - **`reagent.*` runtime library**: `reagent.invoke`, `reagent.spawn`, `reagent.return`, `reagent.emit` — available in all agent zones, NOT protocol-level constructs.
-- **`$ctx`** — single runtime-injected binding (protocol instance context).
+- **`$ctx`** — per-protocol-instance runtime-injected binding (protocol instance context).
+- **`$self`** — agent-level persistent state, accessible in agent zones and protocol zones.
+- **Agent definition**: `agent Name [langTag] { plays Proto as role; init { ... }; on event(Proto) { ... } }`.
 - **Protocol-level control flow**: `alt`, `loop`, `par`, `wait`, `timeout`, `try/catch`.
 - **No `if/else`, `break`, `throw`, `spawn` at protocol level** — these are host-language constructs inside zones.
 - **Imports**: `.rg` = protocol imports, `.ts/.js/.py/.kt` = code module imports.
 
 ### Examples corpus
 
-`projects/reagent/examples/` — 13 `.rg` fixtures covering:
+`projects/reagent/examples/` — 14 `.rg` fixtures covering:
 - `00` protocol wrapper
 - `01` basic task execution
 - `02` await/timeout/alt
@@ -49,6 +51,7 @@ Key design commitments solidified:
 - `09` multiparty child protocol
 - `10` external event start + emit
 - `11` LLM broker call and return
+- `12` agent multi-protocol (agent definition with plays, init, lifecycle handlers)
 - `task-execution` — legacy example
 
 ### Tooling
@@ -63,7 +66,7 @@ Key design commitments solidified:
 
 | Document | Path | Content |
 |---|---|---|
-| `lang-spec.md` | `projects/reagent/lang-spec.md` | Language spec v0.0.4: informal syntax + EBNF + reserved constructs |
+| `lang-spec.md` | `projects/reagent/lang-spec.md` | Language spec v0.0.5: informal syntax + EBNF + agent definition |
 | `reagent-spec.md` | `projects/reagent/docs_v0.0.1/reagent-spec.md` | Core spec v0.0.1: layers, TraceEvent algebra, legality, runtime |
 | `reagent-losos-project-plan.md` | `.cursor/reagent-losos-project-plan.md` | Milestones plan (M0–M9) |
 
@@ -74,15 +77,21 @@ Key design commitments solidified:
 3. **Agent level** — per-role state machines (IR). The key compilation target.
 4. **Execution level** — runtime engines that execute agent IR. Losos (Kotlin/etcd) is the primary target engine.
 
-## Next phase: AST + Parser + Translation (→ M2)
+## M2 status: AST + Parser + IR (DONE)
 
-The immediate next milestone is building a proper **TypeScript AST** and **parser** for the full Reagent language, and designing the **translation** from Reagent constructs to Losos agent-level primitives.
+The TypeScript AST, recursive-descent parser, IR types, IR emitter, and IR validator are implemented:
 
-Key deliverables:
-1. **TypeScript AST types** — typed node hierarchy covering all language constructs (`Program`, `ImportStmt`, `ProtocolDef`, `MessageStmt`, `AgentZone`, `AltStmt`, `LoopStmt`, `ParStmt`, `WaitStmt`, `TryStmt`, etc.) with source locations.
-2. **Parser** — recursive-descent parser in TypeScript producing the AST. Replaces the current regex-based zone extractor with a full parse.
-3. **IR design** — define the agent-level intermediate representation (`states/nodes → edges/transitions`) that captures per-role execution semantics.
-4. **Translation mapping** — how each Reagent construct maps to IR nodes and ultimately to Losos primitives (guards, actions, events).
+| Component | Version | Path |
+|---|---|---|
+| AST types | v0.0.5 | `lang/src/ast.ts` |
+| Parser | v0.0.5 | `lang/src/parser.ts` |
+| IR types (Protocol + Agent) | v0.0.5 | `lang/src/ir.ts` |
+| IR emitter | v0.0.5 | `lang/src/ir-emitter.ts` |
+| IR validator | v0.0.5 | `lang/src/ir-validator.ts` |
+| IR → Losos mapping (design) | v0.0.5 | `docs/ir-to-losos-mapping.md` |
+| `@reagent/lang` package | 0.0.5 | `lang/package.json` |
+
+All 14 example files parse and validate successfully.
 
 See `reagent-losos-project-plan.md` for detailed milestone breakdown.
 
@@ -97,8 +106,7 @@ All Reagent modules share the language version as their baseline reference:
 
 | Component | Current version | Sync rule |
 |---|---|---|
-| Language (lang-spec.md) | **v0.0.4** | Source of truth for language surface |
+| Language (lang-spec.md) | **v0.0.5** | Source of truth for language surface |
+| `@reagent/lang` package | 0.0.5 | Tracks language version directly |
 | `reagent-vscode` extension | 0.1.0 | Tracks language changes; bump minor on syntax changes |
 | `reagent-spec.md` (core spec) | v0.0.1 | Bump when TraceEvent algebra / runtime contract changes |
-| AST / Parser (planned) | — | Will track language version directly |
-| IR / Compiler (planned) | — | Will have own version once M2 is reached |

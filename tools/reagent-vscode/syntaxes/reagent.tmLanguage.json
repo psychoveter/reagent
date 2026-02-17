@@ -5,6 +5,7 @@
   "patterns": [
     { "include": "#comments" },
     { "include": "#protocol" },
+    { "include": "#agentDef" },
     { "include": "#import" },
     { "include": "#messageWithProps" },
     { "include": "#messageBare" },
@@ -32,7 +33,7 @@
       "patterns": [
         {
           "name": "keyword.control.reagent",
-          "match": "\\b(protocol|import|as|participants|initiator|input|alt|loop|par|wait|timeout|try|catch|else|and)\\b"
+          "match": "\\b(protocol|import|as|participants|initiator|input|alt|loop|par|wait|timeout|try|catch|else|and|agent|plays|init|on)\\b"
         }
       ]
     },
@@ -71,6 +72,96 @@
             { "include": "#objects" },
             { "include": "#numbers" },
             { "include": "#strings" }
+          ]
+        }
+      ]
+    },
+    "agentDef": {
+      "patterns": [
+        {
+          "name": "meta.definition.agent.reagent",
+          "begin": "^\\s*(agent)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*(\\[(ts|js|py|kt)\\])\\s*(\\{)",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.reagent" },
+            "2": { "name": "entity.name.type.agent.reagent" },
+            "3": { "name": "storage.type.language.reagent" },
+            "5": { "name": "punctuation.section.block.begin.reagent" }
+          },
+          "end": "^\\}",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.block.end.reagent" }
+          },
+          "patterns": [
+            { "include": "#comments" },
+            { "include": "#agentPlays" },
+            { "include": "#agentInitBlock" },
+            { "include": "#agentOnHandler" },
+            { "include": "#keywords" },
+            { "include": "#zoneKeywords" },
+            { "include": "#strings" },
+            { "include": "#numbers" }
+          ]
+        }
+      ]
+    },
+    "agentPlays": {
+      "patterns": [
+        {
+          "name": "meta.plays.reagent",
+          "match": "\\b(plays)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s+(as)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)",
+          "captures": {
+            "1": { "name": "keyword.control.reagent" },
+            "2": { "name": "entity.name.type.protocol.reagent" },
+            "3": { "name": "keyword.control.reagent" },
+            "4": { "name": "variable.other.role.reagent" }
+          }
+        }
+      ]
+    },
+    "agentInitBlock": {
+      "patterns": [
+        {
+          "name": "meta.agent.init.reagent",
+          "begin": "\\b(init)\\s*(\\{)",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.reagent" },
+            "2": { "name": "punctuation.section.block.begin.reagent" }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.block.end.reagent" }
+          },
+          "patterns": [
+            { "include": "#comments" },
+            { "include": "#zoneKeywords" },
+            { "include": "#strings" },
+            { "include": "#numbers" }
+          ]
+        }
+      ]
+    },
+    "agentOnHandler": {
+      "patterns": [
+        {
+          "name": "meta.agent.on-handler.reagent",
+          "begin": "\\b(on)\\s+(protocolStarted|protocolCompleted|protocolFailed|protocolEvent)(\\()([A-Za-z_][A-Za-z0-9_\\-\\.]*)(\\))\\s*(\\{)",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.reagent" },
+            "2": { "name": "support.function.lifecycle-event.reagent" },
+            "3": { "name": "punctuation.paren.open.reagent" },
+            "4": { "name": "entity.name.type.protocol.reagent" },
+            "5": { "name": "punctuation.paren.close.reagent" },
+            "6": { "name": "punctuation.section.block.begin.reagent" }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.block.end.reagent" }
+          },
+          "patterns": [
+            { "include": "#comments" },
+            { "include": "#zoneKeywords" },
+            { "include": "#strings" },
+            { "include": "#numbers" }
           ]
         }
       ]
@@ -197,6 +288,10 @@
         {
           "name": "variable.language.context.reagent",
           "match": "\\$ctx\\b"
+        },
+        {
+          "name": "variable.language.self.reagent",
+          "match": "\\$self\\b"
         }
       ]
     },

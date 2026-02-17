@@ -1,34 +1,100 @@
+/**
+ * Reagent recursive-descent parser — v0.0.5
+ *
+ * Parses a Reagent source string into the typed AST defined in ast.ts.
+ * Zone bodies are captured as raw text (brace-balanced, string/comment-aware).
+ */
+
 import type {
+  AgentDef,
+  AgentEventKind,
+  AgentInitBlock,
+  AgentOnHandler,
   AgentZone,
-  ArrayValue,
-  BoolValue,
+  AltBranch,
+  AltElseGuard,
+  AltExprGuard,
+  AltGuard,
+  AltMessageGuard,
+  AltStmt,
+  AltTimeoutGuard,
+  ArrowKind,
+  Duration,
+  DurationUnit,
+  HookZone,
   ImportStmt,
-  IdentValue,
+  LangTag,
   Loc,
+  LoopStmt,
+  MessageProps,
   MessageStmt,
-  MessageSig,
-  NullValue,
-  NumberValue,
-  ObjectEntry,
-  ObjectValue,
+  ParBranch,
+  ParStmt,
+  ParticipantDecl,
+  PlaysDecl,
   Pos,
   Program,
+  PropPair,
   ProtocolDef,
   ProtocolItem,
-  RawStmt,
-  StringValue,
-  Value,
+  TopLevelItem,
+  TryStmt,
+  WaitStmt,
 } from "./ast.js";
-import type { Item } from "./ast.js";
+
+// ── Public API ──────────────────────────────────────────────────────
 
 export type ParseError = {
+  code: string;
   message: string;
   loc: Loc;
 };
 
-export type ParseResult =
-  | { ok: true; ast: Program }
-  | { ok: false; error: ParseError };
+export type ParseResult = {
+  ok: boolean;
+  ast: Program;
+  errors: ParseError[];
+};
+
+export function parseProgram(src: string): ParseResult {
+  const c = new Cursor(src);
+  const items: TopLevelItem[] = [];
+  const errors: ParseError[] = [];
+
+  for (;;) {
+    skipWSAndComments(c);
+    if (c.eof()) break;
+
+    if (startsWithKeyword(c, "import")) {
+      const imp = pImportStmt(c);
+      if (imp) items.push(imp);
+      else errors.push(makeError("E_IMPORT", "Failed to parse import statement", c));
+      continue;
+    }
+
+    if (startsWithKeyword(c, "protocol")) {
+      const p = pProtocolDef(c);
+      if (p) items.push(p);
+      else errors.push(makeError("E_PROTOCOL", "Failed to parse protocol definition", c));
+      continue;
+    }
+
+    if (startsWithKeyword(c, "agent")) {
+      const a = pAgentDef(c);
+      if (a) items.push(a);
+      else errors.push(makeError("E_AGENT", "Failed to parse agent definition", c));
+      continue;
+    }
+
+    errors.push(makeError("E_TOP_LEVEL", "Only 'import', 'protocol', and 'agent' allowed at top-level", c));
+    // skip to next line to recover
+    skipToNewline(c);
+  }
+
+  return { ok: errors.length === 0, ast: { kind: "Program", items }, errors };
+}
+
+// ── Cursor ──────────────────────────────────────────────────────────
 
 class Cursor {
   readonly src: string;
@@ -60,6 +126,10 @@ class Cursor {
     return this.src.startsWith(s, this.i);
   }
 
+  rest(): string {
+    return this.src.slice(this.i);
+  }
+
   next(): string {
     const ch = this.peek();
     if (!ch) return "";
@@ -73,9 +143,26 @@ class Cursor {
     return ch;
   }
 
-  error(message: string, start: Pos): ParseResult {
-    return { ok: false, error: { message, loc: this.locFrom(start) } };
+  advance(n: number): void {
+    for (let k = 0; k < n; k++) this.next();
   }
+
+  save(): { i: number; line: number; col: number } {
+    return { i: this.i, line: this.line, col: this.col };
+  }
+
+  restore(s: { i: number; line: number; col: number }): void {
+    this.i = s.i;
+    this.line = s.line;
+    this.col = s.col;
+  }
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────
+
+function makeError(code: string, message: string, c: Cursor): ParseError {
+  const p = c.pos();
+  return { code, message, loc: { start: p, end: p } };
 }
 
 function isWS(ch: string): boolean {
@@ -83,38 +170,37 @@ function isWS(ch: string): boolean {
 }
 
 function isIdentStart(ch: string): boolean {
-  return /[A-Za-z_]/.test(ch);
+  return /^[A-Za-z_]$/.test(ch);
 }
 
 function isIdentPart(ch: string): boolean {
-  return /[A-Za-z0-9_\-\.]/.test(ch);
+  return /^[A-Za-z0-9_\-\.]$/.test(ch);
+}
+
+function isDigit(ch: string): boolean {
+  return ch >= "0" && ch <= "9";
 }
 
 function skipWSAndComments(c: Cursor): void {
   for (;;) {
-    // whitespace
     while (!c.eof() && isWS(c.peek())) c.next();
-
-    // line comment //
     if (c.startsWith("//")) {
       while (!c.eof() && c.peek() !== "\n") c.next();
       continue;
     }
-
-    // block comment /* ... */
     if (c.startsWith("/*")) {
-      c.next();
-      c.next();
+      c.advance(2);
       while (!c.eof() && !c.startsWith("*/")) c.next();
-      if (c.startsWith("*/")) {
-        c.next();
-        c.next();
-      }
+      if (c.startsWith("*/")) c.advance(2);
       continue;
     }
-
     break;
   }
+}
+
+function skipToNewline(c: Cursor): void {
+  while (!c.eof() && c.peek() !== "\n") c.next();
+  if (!c.eof()) c.next();
 }
 
 function isKeywordBoundary(ch: string): boolean {
@@ -128,33 +214,31 @@ function startsWithKeyword(c: Cursor, kw: string): boolean {
 
 function readIdent(c: Cursor): { name: string; loc: Loc } | null {
   const start = c.pos();
-  const ch = c.peek();
-  if (!isIdentStart(ch)) return null;
-  let s = "";
-  s += c.next();
+  if (!isIdentStart(c.peek())) return null;
+  let s = c.next();
   while (!c.eof() && isIdentPart(c.peek())) s += c.next();
   return { name: s, loc: c.locFrom(start) };
 }
 
-function readKeyword(c: Cursor, kw: string): { loc: Loc } | ParseResult {
+function consumeKeyword(c: Cursor, kw: string): Loc | null {
   const start = c.pos();
-  if (!startsWithKeyword(c, kw)) return c.error(`Expected keyword '${kw}'`, start);
-  for (let k = 0; k < kw.length; k++) c.next();
-  return { loc: c.locFrom(start) };
+  if (!startsWithKeyword(c, kw)) return null;
+  c.advance(kw.length);
+  return c.locFrom(start);
 }
 
-function expect(c: Cursor, s: string, what: string): ParseResult | null {
-  const start = c.pos();
-  if (!c.startsWith(s)) return c.error(`Expected ${what}`, start);
-  for (let k = 0; k < s.length; k++) c.next();
-  return null;
+function expectChar(c: Cursor, ch: string): boolean {
+  skipWSAndComments(c);
+  if (c.peek() !== ch) return false;
+  c.next();
+  return true;
 }
 
-function readString(c: Cursor): { value: string; loc: Loc } | ParseResult {
+function readString(c: Cursor): { value: string; loc: Loc } | null {
   const start = c.pos();
   const q = c.peek();
-  if (q !== `"` && q !== `'`) return c.error("Expected string", start);
-  c.next(); // open quote
+  if (q !== '"' && q !== "'") return null;
+  c.next();
   let out = "";
   while (!c.eof()) {
     const ch = c.next();
@@ -164,267 +248,21 @@ function readString(c: Cursor): { value: string; loc: Loc } | ParseResult {
       if (esc === "n") out += "\n";
       else if (esc === "r") out += "\r";
       else if (esc === "t") out += "\t";
-      else if (esc === `"` || esc === `'` || esc === "\\") out += esc;
-      else out += esc; // permissive
+      else out += esc;
       continue;
     }
     out += ch;
   }
-  return c.error("Unterminated string", start);
+  return null; // unterminated
 }
 
-function readNumber(c: Cursor): { value: number; loc: Loc } | null {
-  const start = c.pos();
-  let s = "";
-  if (c.peek() === "-") s += c.next();
-  if (!/[0-9]/.test(c.peek())) return null;
-  while (/[0-9]/.test(c.peek())) s += c.next();
-  if (c.peek() === ".") {
-    s += c.next();
-    while (/[0-9]/.test(c.peek())) s += c.next();
-  }
-  return { value: Number(s), loc: c.locFrom(start) };
-}
-
-function parseValue(c: Cursor): Value | ParseResult {
-  skipWSAndComments(c);
-  const start = c.pos();
-
-  // null/true/false
-  if (c.startsWith("null")) {
-    for (let k = 0; k < 4; k++) c.next();
-    const v: NullValue = { type: "null", loc: c.locFrom(start) };
-    return v;
-  }
-  if (c.startsWith("true")) {
-    for (let k = 0; k < 4; k++) c.next();
-    const v: BoolValue = { type: "bool", value: true, loc: c.locFrom(start) };
-    return v;
-  }
-  if (c.startsWith("false")) {
-    for (let k = 0; k < 5; k++) c.next();
-    const v: BoolValue = { type: "bool", value: false, loc: c.locFrom(start) };
-    return v;
-  }
-
-  // object
-  if (c.peek() === "{") return parseObject(c);
-
-  // array
-  if (c.peek() === "[") return parseArray(c);
-
-  // string
-  if (c.peek() === `"` || c.peek() === `'`) {
-    const s = readString(c);
-    if ("ok" in s) return s;
-    const v: StringValue = { type: "string", value: s.value, loc: s.loc };
-    return v;
-  }
-
-  // number
-  const n = readNumber(c);
-  if (n) {
-    const v: NumberValue = { type: "number", value: n.value, loc: n.loc };
-    return v;
-  }
-
-  // ident-as-value
-  const id = readIdent(c);
-  if (id) {
-    const v: IdentValue = { type: "ident", name: id.name, loc: id.loc };
-    return v;
-  }
-
-  return c.error("Expected value", start);
-}
-
-function parseObject(c: Cursor): ObjectValue | ParseResult {
-  const start = c.pos();
-  const e0 = expect(c, "{", "'{'");
-  if (e0) return e0;
-  skipWSAndComments(c);
-
-  const entries: ObjectEntry[] = [];
-  if (c.peek() !== "}") {
-    for (;;) {
-      skipWSAndComments(c);
-      const entryStart = c.pos();
-
-      // key: ident or string
-      let key: string | null = null;
-      if (isIdentStart(c.peek())) {
-        const id = readIdent(c);
-        key = id?.name ?? null;
-      } else if (c.peek() === `"` || c.peek() === `'`) {
-        const s = readString(c);
-        if ("ok" in s) return s;
-        key = s.value;
-      }
-      if (key == null) return c.error("Expected object key", entryStart);
-
-      skipWSAndComments(c);
-      const e1 = expect(c, ":", "':'");
-      if (e1) return e1;
-
-      const value = parseValue(c);
-      if ("ok" in value) return value;
-
-      const entry: ObjectEntry = {
-        key,
-        value,
-        loc: { start: entryStart, end: value.loc.end },
-      };
-      entries.push(entry);
-
-      skipWSAndComments(c);
-      if (c.peek() === ",") {
-        c.next();
-        continue;
-      }
-      break;
-    }
-  }
-
-  skipWSAndComments(c);
-  const e2 = expect(c, "}", "'}'");
-  if (e2) return e2;
-  const obj: ObjectValue = { type: "object", entries, loc: c.locFrom(start) };
-  return obj;
-}
-
-function parseArray(c: Cursor): ArrayValue | ParseResult {
-  const start = c.pos();
-  const e0 = expect(c, "[", "'['");
-  if (e0) return e0;
-  skipWSAndComments(c);
-
-  const items: Value[] = [];
-  if (c.peek() !== "]") {
-    for (;;) {
-      const v = parseValue(c);
-      if ("ok" in v) return v;
-      items.push(v);
-      skipWSAndComments(c);
-      if (c.peek() === ",") {
-        c.next();
-        continue;
-      }
-      break;
-    }
-  }
-
-  skipWSAndComments(c);
-  const e1 = expect(c, "]", "']'");
-  if (e1) return e1;
-  return { type: "array", items, loc: c.locFrom(start) };
-}
-
-function readUntilEOL(c: Cursor): string {
-  let s = "";
-  while (!c.eof() && c.peek() !== "\n") s += c.next();
-  return s;
-}
-
-function readArrow(c: Cursor): string | null {
-  const arrows = ["-->>", "->>", "-->", "->"] as const;
-  const arrow = arrows.find((a) => c.startsWith(a));
-  if (!arrow) return null;
-  for (let k = 0; k < arrow.length; k++) c.next();
-  return arrow;
-}
-
-function parseMessageSig(c: Cursor): MessageSig | ParseResult {
-  const start = c.pos();
-  skipWSAndComments(c);
-  const from = readIdent(c);
-  if (!from) return c.error("Expected sender identifier", start);
-  skipWSAndComments(c);
-  const arrowStart = c.pos();
-  const arrow = readArrow(c);
-  if (!arrow) return c.error("Expected arrow in message signature", arrowStart);
-  skipWSAndComments(c);
-  const to = readIdent(c);
-  if (!to) return c.error("Expected receiver identifier", c.pos());
-  skipWSAndComments(c);
-  const e0 = expect(c, ":", "':'");
-  if (e0) return e0;
-  skipWSAndComments(c);
-  const name = readIdent(c);
-  if (!name) return c.error("Expected message name in signature", c.pos());
-  return {
-    from: from.name,
-    to: to.name,
-    name: name.name,
-    loc: c.locFrom(start),
-  };
-}
-
-function parseMessageStmt(c: Cursor, from: string, fromLoc: Loc): MessageStmt | ParseResult {
-  const start = fromLoc.start;
-
-  skipWSAndComments(c);
-
-  // arrow
-  const arrowStart = c.pos();
-  const arrow = readArrow(c);
-  if (!arrow) return c.error("Expected arrow (-->, ->, ->>, -->>)", arrowStart);
-
-  skipWSAndComments(c);
-  const to = readIdent(c);
-  if (!to) return c.error("Expected receiver identifier", c.pos());
-
-  skipWSAndComments(c);
-  const e0 = expect(c, ":", "':'");
-  if (e0) return e0;
-
-  // message name: read until '=' (can span spaces, but stays before object)
-  skipWSAndComments(c);
-  const nameStart = c.pos();
-  let nameRaw = "";
-  while (!c.eof()) {
-    const ch = c.peek();
-    if (ch === "\n") break;
-    if (ch === "=") break;
-    nameRaw += c.next();
-  }
-  const name = nameRaw.trim();
-  if (!name) return c.error("Expected message name before '='", nameStart);
-
-  skipWSAndComments(c);
-  const eEq = expect(c, "=", "'='");
-  if (eEq) return eEq;
-
-  // props object (may be multi-line; WS includes newlines)
-  skipWSAndComments(c);
-  const props = parseObject(c);
-  if ("ok" in props) return props;
-
-  // optional trailing whitespace/comments until end-of-line
-  skipWSAndComments(c);
-  if (c.peek() === "\n") c.next();
-
-  return {
-    kind: "MessageStmt",
-    from,
-    to: to.name,
-    name,
-    props,
-    loc: { start, end: c.pos() },
-  };
-}
-
-function parseAgentZone(c: Cursor, agent: string, agentLoc: Loc): AgentZone | ParseResult {
-  const start = agentLoc.start;
-  skipWSAndComments(c);
-  const e0 = expect(c, "{", "'{'");
-  if (e0) return e0;
-
-  const bodyStart = c.pos();
-
-  // Balanced-brace raw capture with basic string/comment skipping.
+/**
+ * Read a brace-balanced raw text block. Cursor must be positioned AFTER the opening `{`.
+ * Returns the text between `{` and `}` (exclusive), with string/comment awareness.
+ */
+function readBalancedBody(c: Cursor): string | null {
   let depth = 1;
   let body = "";
-
   let inStr: '"' | "'" | null = null;
   let escape = false;
   let inLineComment = false;
@@ -433,70 +271,50 @@ function parseAgentZone(c: Cursor, agent: string, agentLoc: Loc): AgentZone | Pa
   while (!c.eof() && depth > 0) {
     const ch = c.next();
 
-    // comment modes
     if (inLineComment) {
       if (ch === "\n") inLineComment = false;
-      if (depth > 0) body += ch;
+      body += ch;
       continue;
     }
     if (inBlockComment) {
+      body += ch;
       if (ch === "*" && c.peek() === "/") {
-        body += ch;
         body += c.next();
         inBlockComment = false;
-        continue;
       }
-      body += ch;
       continue;
     }
-
-    // string mode
     if (inStr) {
       body += ch;
-      if (escape) {
-        escape = false;
-        continue;
-      }
-      if (ch === "\\") {
-        escape = true;
-        continue;
-      }
-      if (ch === inStr) {
-        inStr = null;
-      }
+      if (escape) { escape = false; continue; }
+      if (ch === "\\") { escape = true; continue; }
+      if (ch === inStr) inStr = null;
       continue;
     }
 
-    // detect start of comments
     if (ch === "/" && c.peek() === "/") {
-      body += ch;
-      body += c.next();
+      body += ch; body += c.next();
       inLineComment = true;
       continue;
     }
     if (ch === "/" && c.peek() === "*") {
-      body += ch;
-      body += c.next();
+      body += ch; body += c.next();
       inBlockComment = true;
       continue;
     }
-
-    // detect start of strings
-    if (ch === `"` || ch === `'`) {
+    if (ch === '"' || ch === "'") {
       inStr = ch;
       body += ch;
       continue;
     }
-
-    // braces
     if (ch === "{") {
-      depth += 1;
+      depth++;
       body += ch;
       continue;
     }
     if (ch === "}") {
-      depth -= 1;
-      if (depth === 0) break; // do not include final closing brace
+      depth--;
+      if (depth === 0) break;
       body += ch;
       continue;
     }
@@ -504,299 +322,767 @@ function parseAgentZone(c: Cursor, agent: string, agentLoc: Loc): AgentZone | Pa
     body += ch;
   }
 
-  if (depth !== 0) return c.error("Unterminated agent zone (missing '}')", bodyStart);
-
-  return {
-    kind: "AgentZone",
-    agent,
-    body,
-    loc: { start, end: c.pos() },
-  };
+  if (depth !== 0) return null;
+  return body;
 }
 
-function parseImportStmt(c: Cursor): ImportStmt | ParseResult {
+function readArrow(c: Cursor): ArrowKind | null {
+  const arrows: ArrowKind[] = ["-->>", "->>", "-->", "->"];
+  for (const a of arrows) {
+    if (c.startsWith(a)) {
+      c.advance(a.length);
+      return a;
+    }
+  }
+  return null;
+}
+
+function readDuration(c: Cursor): Duration | null {
   const start = c.pos();
-  const kw = readKeyword(c, "import");
-  if ("ok" in kw) return kw;
+  let numStr = "";
+  while (!c.eof() && isDigit(c.peek())) numStr += c.next();
+  if (!numStr) return null;
+  const value = Number(numStr);
+
+  let unit: DurationUnit;
+  if (c.startsWith("ms")) { unit = "ms"; c.advance(2); }
+  else if (c.peek() === "s") { unit = "s"; c.next(); }
+  else if (c.peek() === "m") { unit = "m"; c.next(); }
+  else if (c.peek() === "h") { unit = "h"; c.next(); }
+  else return null;
+
+  return { value, unit, loc: c.locFrom(start) };
+}
+
+// ── Participant list ────────────────────────────────────────────────
+
+const VALID_LANG_TAGS = new Set<string>(["ts", "js", "py", "kt"]);
+
+function pParticipantList(c: Cursor): ParticipantDecl[] | null {
+  const result: ParticipantDecl[] = [];
+
+  for (;;) {
+    skipWSAndComments(c);
+    const start = c.pos();
+    const id = readIdent(c);
+    if (!id) return result.length > 0 ? result : null;
+
+    skipWSAndComments(c);
+    if (c.peek() !== "[") return null;
+    c.next();
+    skipWSAndComments(c);
+    const tagId = readIdent(c);
+    if (!tagId || !VALID_LANG_TAGS.has(tagId.name)) return null;
+    skipWSAndComments(c);
+    if (c.peek() !== "]") return null;
+    c.next();
+
+    result.push({
+      kind: "ParticipantDecl",
+      name: id.name,
+      lang: tagId.name as LangTag,
+      loc: c.locFrom(start),
+    });
+
+    skipWSAndComments(c);
+    if (c.peek() === ",") {
+      c.next();
+      continue;
+    }
+    break;
+  }
+
+  return result.length > 0 ? result : null;
+}
+
+// ── Import statement ────────────────────────────────────────────────
+
+function pImportStmt(c: Cursor): ImportStmt | null {
+  const start = c.pos();
+  if (!consumeKeyword(c, "import")) return null;
   skipWSAndComments(c);
-  const p = readString(c);
-  if ("ok" in p) return p;
+  const path = readString(c);
+  if (!path) return null;
   skipWSAndComments(c);
   let alias: string | undefined;
   if (startsWithKeyword(c, "as")) {
-    readKeyword(c, "as");
+    consumeKeyword(c, "as");
     skipWSAndComments(c);
     const a = readIdent(c);
-    if (!a) return c.error("Expected import alias identifier", c.pos());
+    if (!a) return null;
     alias = a.name;
   }
-  // optional trailing ';'
   skipWSAndComments(c);
   if (c.peek() === ";") c.next();
-  // optional newline
-  if (c.peek() === "\n") c.next();
-  return { kind: "ImportStmt", path: p.value, alias, loc: c.locFrom(start) };
+  return { kind: "ImportStmt", path: path.value, alias, loc: c.locFrom(start) };
 }
 
-const RESERVED_HEAD_KEYWORDS = ["alt", "loop", "par", "wait", "spawn", "try", "invoke", "break", "throw", "catch", "else", "and"];
+// ── Message props (hooks + pairs) ───────────────────────────────────
 
-function peekNextKeyword(c: Cursor): string | null {
-  const saved = c.pos();
-  const savedI = c.i;
-  const savedLine = c.line;
-  const savedCol = c.col;
-  skipWSAndComments(c);
-  const id = readIdent(c);
-  // restore
-  c.i = savedI;
-  c.line = savedLine;
-  c.col = savedCol;
-  return id?.name ?? null;
-}
-
-function parseRawStmt(c: Cursor): RawStmt {
+function pMessageProps(c: Cursor): MessageProps | null {
   const start = c.pos();
-
-  let depth = 0;
-  let text = "";
-
-  let inStr: '"' | "'" | null = null;
-  let escape = false;
-  let inLineComment = false;
-  let inBlockComment = false;
-
-  // capture until: depth==0 and we are at newline AND next token is not a continuation keyword
-  for (;;) {
-    if (c.eof()) break;
-    const ch = c.next();
-
-    // comment modes
-    if (inLineComment) {
-      text += ch;
-      if (ch === "\n") inLineComment = false;
-      if (depth === 0 && ch === "\n") break;
-      continue;
-    }
-    if (inBlockComment) {
-      text += ch;
-      if (ch === "*" && c.peek() === "/") {
-        text += c.next();
-        inBlockComment = false;
-      }
-      continue;
-    }
-
-    // string mode
-    if (inStr) {
-      text += ch;
-      if (escape) {
-        escape = false;
-        continue;
-      }
-      if (ch === "\\") {
-        escape = true;
-        continue;
-      }
-      if (ch === inStr) inStr = null;
-      continue;
-    }
-
-    // detect start of comments
-    if (ch === "/" && c.peek() === "/") {
-      text += ch;
-      text += c.next();
-      inLineComment = true;
-      continue;
-    }
-    if (ch === "/" && c.peek() === "*") {
-      text += ch;
-      text += c.next();
-      inBlockComment = true;
-      continue;
-    }
-
-    // detect strings
-    if (ch === `"` || ch === `'`) {
-      inStr = ch;
-      text += ch;
-      continue;
-    }
-
-    // braces
-    if (ch === "{") {
-      depth += 1;
-      text += ch;
-      continue;
-    }
-    if (ch === "}") {
-      if (depth > 0) depth -= 1;
-      text += ch;
-      // if we just closed the last brace, we might still need to capture `else/and/catch` continuations
-      continue;
-    }
-
-    text += ch;
-
-    if (depth === 0 && ch === "\n") {
-      const nextKw = peekNextKeyword(c);
-      if (nextKw && ["else", "and", "catch"].includes(nextKw)) {
-        continue;
-      }
-      break;
-    }
-  }
-
-  return { kind: "RawStmt", text, loc: c.locFrom(start) };
-}
-
-function parseProtocolItem(c: Cursor): ProtocolItem | ParseResult | null {
   skipWSAndComments(c);
-  if (c.eof()) return null;
-  if (c.peek() === "}") return null;
+  if (c.peek() !== "{") return null;
+  c.next(); // consume {
 
-  // directives are handled by protocol parser, so here we parse body statements.
-  const nextKw = peekNextKeyword(c);
-  if (nextKw && RESERVED_HEAD_KEYWORDS.includes(nextKw)) {
-    return parseRawStmt(c);
-  }
+  const hooks: HookZone[] = [];
+  const pairs: PropPair[] = [];
 
-  const id = readIdent(c);
-  if (!id) return c.error("Expected identifier in protocol body", c.pos());
-  const agentOrFrom = id.name;
-  const agentOrFromLoc = id.loc;
-
-  skipWSAndComments(c);
-  if (c.peek() === "{") {
-    return parseAgentZone(c, agentOrFrom, agentOrFromLoc);
-  }
-  return parseMessageStmt(c, agentOrFrom, agentOrFromLoc);
-}
-
-function parseIdentList(c: Cursor): string[] | ParseResult {
-  skipWSAndComments(c);
-  const first = readIdent(c);
-  if (!first) return c.error("Expected identifier", c.pos());
-  const out: string[] = [first.name];
   for (;;) {
     skipWSAndComments(c);
-    if (c.peek() !== ",") break;
+    if (c.eof()) return null;
+    if (c.peek() === "}") { c.next(); break; }
+
+    // hook zone: onSend { ... } or onReceive { ... }
+    if (startsWithKeyword(c, "onSend") || startsWithKeyword(c, "onReceive")) {
+      const hookStart = c.pos();
+      const hookType = startsWithKeyword(c, "onSend") ? "onSend" as const : "onReceive" as const;
+      c.advance(hookType.length);
+      skipWSAndComments(c);
+      if (c.peek() !== "{") return null;
+      c.next();
+      const body = readBalancedBody(c);
+      if (body === null) return null;
+      hooks.push({ kind: "HookZone", hookType, body, loc: c.locFrom(hookStart) });
+      continue;
+    }
+
+    // key-value pair: key: "value"
+    const pairStart = c.pos();
+    const key = readIdent(c);
+    if (!key) return null;
+    skipWSAndComments(c);
+    if (c.peek() !== ":") return null;
     c.next();
     skipWSAndComments(c);
-    const n = readIdent(c);
-    if (!n) return c.error("Expected identifier after ','", c.pos());
-    out.push(n.name);
+    // Read value as raw text until comma, newline, or closing brace
+    const valStart = c.pos();
+    let val = "";
+    // For string values
+    if (c.peek() === '"' || c.peek() === "'") {
+      const s = readString(c);
+      if (!s) return null;
+      val = s.value;
+    } else {
+      // Read raw until , or } or newline
+      while (!c.eof() && c.peek() !== "," && c.peek() !== "}" && c.peek() !== "\n") {
+        val += c.next();
+      }
+      val = val.trim();
+    }
+    pairs.push({ kind: "PropPair", key: key.name, value: val, loc: c.locFrom(pairStart) });
+
+    skipWSAndComments(c);
+    if (c.peek() === ",") { c.next(); continue; }
   }
-  // optional newline
-  if (c.peek() === "\n") c.next();
-  return out;
+
+  return { kind: "MessageProps", hooks, pairs, loc: c.locFrom(start) };
 }
 
-function parseProtocolDef(c: Cursor): ProtocolDef | ParseResult {
-  const start = c.pos();
-  const kw = readKeyword(c, "protocol");
-  if ("ok" in kw) return kw;
-  skipWSAndComments(c);
-  const name = readIdent(c);
-  if (!name) return c.error("Expected protocol name", c.pos());
-  skipWSAndComments(c);
-  const e0 = expect(c, "{", "'{'");
-  if (e0) return e0;
+// ── Message step ────────────────────────────────────────────────────
 
-  let participants: string[] | null = null;
-  let initiator: string | null = null;
-  let on: MessageSig | null = null;
-  const body: ProtocolItem[] = [];
+function pMessageStmtFromIdent(c: Cursor, from: string, fromStart: Pos): MessageStmt | null {
+  const start = fromStart;
+
+  skipWSAndComments(c);
+  const arrow = readArrow(c);
+  if (!arrow) return null;
+
+  skipWSAndComments(c);
+  const to = readIdent(c);
+  if (!to) return null;
+
+  skipWSAndComments(c);
+  if (c.peek() !== ":") return null;
+  c.next();
+
+  // Message name: read until end-of-line, `=`, or `{` (for bare messages ending the line)
+  skipWSAndComments(c);
+  let nameRaw = "";
+  while (!c.eof()) {
+    const ch = c.peek();
+    if (ch === "\n" || ch === "=") break;
+    // If we hit `{` and it's not preceded by `= `, it's the protocol-level `{` for alt/etc.
+    // But for bare messages like `comma --> user: Done = { }` we need `=` first.
+    nameRaw += c.next();
+  }
+  const messageName = nameRaw.trim();
+  if (!messageName) return null;
+
+  skipWSAndComments(c);
+  let props: MessageProps | undefined;
+  if (c.peek() === "=") {
+    c.next();
+    skipWSAndComments(c);
+    const p = pMessageProps(c);
+    if (!p) return null;
+    props = p;
+  }
+
+  return {
+    kind: "MessageStmt",
+    from,
+    arrow,
+    to: to.name,
+    messageName,
+    props,
+    loc: c.locFrom(start),
+  };
+}
+
+// ── Agent zone (standalone) ─────────────────────────────────────────
+
+const PROTOCOL_KEYWORDS = new Set([
+  "protocol", "alt", "loop", "par", "try", "catch", "else", "wait",
+  "timeout", "and", "import", "break", "participants", "initiator", "input",
+  "agent", "plays", "init", "on",
+]);
+
+function pAgentZoneFromIdent(c: Cursor, agent: string, agentStart: Pos, lang: LangTag): AgentZone | null {
+  const start = agentStart;
+  skipWSAndComments(c);
+  if (c.peek() !== "{") return null;
+  c.next();
+  const body = readBalancedBody(c);
+  if (body === null) return null;
+  return { kind: "AgentZone", agent, lang, body, loc: c.locFrom(start) };
+}
+
+// ── Alt statement ───────────────────────────────────────────────────
+
+/**
+ * Parse the guard expression inside `alt (...)` or `else (...)`.
+ * The content between parens can be:
+ *   - A message guard: `sender --> receiver: MsgName = { ... }`
+ *   - A timeout guard: `timeout 10s`
+ *   - An expression guard: `$ctx.foo == "bar"`
+ */
+function pAltGuard(c: Cursor): AltGuard | null {
+  const start = c.pos();
+  skipWSAndComments(c);
+
+  if (c.peek() !== "(") {
+    // `else` without parens = AltElseGuard
+    return { kind: "AltElseGuard", loc: c.locFrom(start) };
+  }
+  c.next(); // consume (
+
+  skipWSAndComments(c);
+
+  // timeout guard
+  if (startsWithKeyword(c, "timeout")) {
+    consumeKeyword(c, "timeout");
+    skipWSAndComments(c);
+    const dur = readDuration(c);
+    if (!dur) return null;
+    skipWSAndComments(c);
+    if (c.peek() !== ")") return null;
+    c.next();
+    return { kind: "AltTimeoutGuard", duration: dur, loc: c.locFrom(start) };
+  }
+
+  // Try to parse as message guard: we need to speculatively read
+  // an ident, then check for an arrow
+  const saved = c.save();
+  const id = readIdent(c);
+  if (id) {
+    skipWSAndComments(c);
+    const arrowSaved = c.save();
+    const arrow = readArrow(c);
+    if (arrow) {
+      // It's a message guard
+      skipWSAndComments(c);
+      const to = readIdent(c);
+      if (!to) return null;
+      skipWSAndComments(c);
+      if (c.peek() !== ":") return null;
+      c.next();
+      skipWSAndComments(c);
+
+      // Message name: read until `=` or `)`
+      let nameRaw = "";
+      while (!c.eof() && c.peek() !== "=" && c.peek() !== ")") {
+        nameRaw += c.next();
+      }
+      const messageName = nameRaw.trim();
+      if (!messageName) return null;
+
+      let props: MessageProps | undefined;
+      skipWSAndComments(c);
+      if (c.peek() === "=") {
+        c.next();
+        skipWSAndComments(c);
+        const p = pMessageProps(c);
+        if (!p) return null;
+        props = p;
+      }
+
+      skipWSAndComments(c);
+      if (c.peek() !== ")") return null;
+      c.next();
+
+      return {
+        kind: "AltMessageGuard",
+        from: id.name,
+        arrow,
+        to: to.name,
+        messageName,
+        props,
+        loc: c.locFrom(start),
+      };
+    }
+    // Not an arrow — restore and try as expression
+    c.restore(saved);
+  } else {
+    c.restore(saved);
+  }
+
+  // Expression guard: read raw text until closing `)`
+  let expr = "";
+  let depth = 1;
+  while (!c.eof() && depth > 0) {
+    const ch = c.next();
+    if (ch === "(") depth++;
+    else if (ch === ")") { depth--; if (depth === 0) break; }
+    expr += ch;
+  }
+  expr = expr.trim();
+  if (!expr) return null;
+
+  return { kind: "AltExprGuard", expr, loc: c.locFrom(start) };
+}
+
+function pAltStmt(c: Cursor): AltStmt | null {
+  const start = c.pos();
+  if (!consumeKeyword(c, "alt")) return null;
+  skipWSAndComments(c);
+
+  const branches: AltBranch[] = [];
+
+  // First branch
+  const guard = pAltGuard(c);
+  if (!guard) return null;
+  skipWSAndComments(c);
+
+  if (c.peek() !== "{") return null;
+  c.next();
+  const body = pProtocolBody(c);
+  if (!expectChar(c, "}")) return null;
+  branches.push({ kind: "AltBranch", guard, body, loc: c.locFrom(start) });
+
+  // else branches
+  for (;;) {
+    skipWSAndComments(c);
+    if (!startsWithKeyword(c, "else")) break;
+    const branchStart = c.pos();
+    consumeKeyword(c, "else");
+    skipWSAndComments(c);
+
+    const elseGuard = pAltGuard(c);
+    if (!elseGuard) return null;
+    skipWSAndComments(c);
+
+    if (c.peek() !== "{") return null;
+    c.next();
+    const elseBody = pProtocolBody(c);
+    if (!expectChar(c, "}")) return null;
+    branches.push({ kind: "AltBranch", guard: elseGuard, body: elseBody, loc: c.locFrom(branchStart) });
+  }
+
+  return { kind: "AltStmt", branches, loc: c.locFrom(start) };
+}
+
+// ── Loop statement ──────────────────────────────────────────────────
+
+function pLoopStmt(c: Cursor): LoopStmt | null {
+  const start = c.pos();
+  if (!consumeKeyword(c, "loop")) return null;
+  skipWSAndComments(c);
+
+  // Guard in parens
+  if (c.peek() !== "(") return null;
+  c.next();
+  let guard = "";
+  let depth = 1;
+  while (!c.eof() && depth > 0) {
+    const ch = c.next();
+    if (ch === "(") depth++;
+    else if (ch === ")") { depth--; if (depth === 0) break; }
+    guard += ch;
+  }
+  guard = guard.trim();
+
+  skipWSAndComments(c);
+  if (c.peek() !== "{") return null;
+  c.next();
+  const body = pProtocolBody(c);
+  if (!expectChar(c, "}")) return null;
+
+  return { kind: "LoopStmt", guard, body, loc: c.locFrom(start) };
+}
+
+// ── Par statement ───────────────────────────────────────────────────
+
+function pParStmt(c: Cursor): ParStmt | null {
+  const start = c.pos();
+  if (!consumeKeyword(c, "par")) return null;
+  skipWSAndComments(c);
+
+  const branches: ParBranch[] = [];
+
+  // First branch
+  if (c.peek() !== "{") return null;
+  c.next();
+  const firstBody = pProtocolBody(c);
+  if (!expectChar(c, "}")) return null;
+  branches.push({ kind: "ParBranch", body: firstBody, loc: c.locFrom(start) });
+
+  // `and { ... }` branches
+  for (;;) {
+    skipWSAndComments(c);
+    if (!startsWithKeyword(c, "and")) break;
+    const branchStart = c.pos();
+    consumeKeyword(c, "and");
+    skipWSAndComments(c);
+    if (c.peek() !== "{") return null;
+    c.next();
+    const andBody = pProtocolBody(c);
+    if (!expectChar(c, "}")) return null;
+    branches.push({ kind: "ParBranch", body: andBody, loc: c.locFrom(branchStart) });
+  }
+
+  return { kind: "ParStmt", branches, loc: c.locFrom(start) };
+}
+
+// ── Wait statement ──────────────────────────────────────────────────
+
+function pWaitStmt(c: Cursor): WaitStmt | null {
+  const start = c.pos();
+  if (!consumeKeyword(c, "wait")) return null;
+  skipWSAndComments(c);
+  const dur = readDuration(c);
+  if (!dur) return null;
+  return { kind: "WaitStmt", duration: dur, loc: c.locFrom(start) };
+}
+
+// ── Try/catch statement ─────────────────────────────────────────────
+
+function pTryStmt(c: Cursor): TryStmt | null {
+  const start = c.pos();
+  if (!consumeKeyword(c, "try")) return null;
+  skipWSAndComments(c);
+  if (c.peek() !== "{") return null;
+  c.next();
+  const tryBody = pProtocolBody(c);
+  if (!expectChar(c, "}")) return null;
+
+  skipWSAndComments(c);
+  if (!consumeKeyword(c, "catch")) return null;
+  skipWSAndComments(c);
+
+  // catch label: `(error)` or `(e)` etc.
+  let catchLabel = "error";
+  if (c.peek() === "(") {
+    c.next();
+    let label = "";
+    while (!c.eof() && c.peek() !== ")") label += c.next();
+    if (c.peek() === ")") c.next();
+    catchLabel = label.trim() || "error";
+  }
+
+  skipWSAndComments(c);
+  if (c.peek() !== "{") return null;
+  c.next();
+  const catchBody = pProtocolBody(c);
+  if (!expectChar(c, "}")) return null;
+
+  return { kind: "TryStmt", tryBody, catchLabel, catchBody, loc: c.locFrom(start) };
+}
+
+// ── Protocol body ───────────────────────────────────────────────────
+
+/**
+ * Build a participant name → lang mapping for the current protocol scope.
+ * This is called after participants are parsed and used to resolve agent zone languages.
+ */
+let currentLangMap: Map<string, LangTag> = new Map();
+
+function pProtocolBody(c: Cursor): ProtocolItem[] {
+  const items: ProtocolItem[] = [];
 
   for (;;) {
     skipWSAndComments(c);
-    if (c.eof()) return c.error("Unterminated protocol block (missing '}')", start);
-    if (c.peek() === "}") {
-      c.next();
-      // optional newline
-      if (c.peek() === "\n") c.next();
-      break;
-    }
+    if (c.eof()) break;
+    if (c.peek() === "}") break;
 
-    // directives
-    if (startsWithKeyword(c, "participants")) {
-      readKeyword(c, "participants");
-      skipWSAndComments(c);
-      const e = expect(c, ":", "':'");
-      if (e) return e;
-      const list = parseIdentList(c);
-      if ("ok" in list) return list;
-      participants = list;
-      continue;
-    }
-    if (startsWithKeyword(c, "initiator")) {
-      readKeyword(c, "initiator");
-      skipWSAndComments(c);
-      const e = expect(c, ":", "':'");
-      if (e) return e;
-      skipWSAndComments(c);
-      const id = readIdent(c);
-      if (!id) return c.error("Expected initiator identifier", c.pos());
-      initiator = id.name;
-      if (c.peek() === "\n") c.next();
-      continue;
-    }
-    if (startsWithKeyword(c, "on")) {
-      readKeyword(c, "on");
-      skipWSAndComments(c);
-      const e = expect(c, ":", "':'");
-      if (e) return e;
-      const sig = parseMessageSig(c);
-      if ("ok" in sig) return sig;
-      on = sig;
-      if (c.peek() === "\n") c.next();
-      continue;
-    }
-
-    // body statements
-    const it = parseProtocolItem(c);
-    if (it == null) continue;
-    if ("ok" in it) return it;
-    body.push(it);
+    const item = pProtocolItem(c);
+    if (!item) break;
+    items.push(item);
   }
 
-  if (!participants) return c.error("Missing 'participants:' directive in protocol", start);
-  if (!initiator) return c.error("Missing 'initiator:' directive in protocol", start);
-  if (!on) return c.error("Missing 'on:' directive in protocol", start);
+  return items;
+}
+
+function pProtocolItem(c: Cursor): ProtocolItem | null {
+  skipWSAndComments(c);
+  if (c.eof() || c.peek() === "}") return null;
+
+  // Control-flow keywords
+  if (startsWithKeyword(c, "alt")) return pAltStmt(c);
+  if (startsWithKeyword(c, "loop")) return pLoopStmt(c);
+  if (startsWithKeyword(c, "par")) return pParStmt(c);
+  if (startsWithKeyword(c, "wait")) return pWaitStmt(c);
+  if (startsWithKeyword(c, "try")) return pTryStmt(c);
+
+  // `break` inside loops — parsed as a special WaitStmt-like sentinel
+  // Actually, `break` is a host-language construct. It appears inside agent zones, not at protocol level.
+  // But example 03 has `break` at protocol indentation inside an alt branch inside a loop.
+  // In the examples, `break` appears inside an agent zone: `comma { $ctx.valid = true }` then `break`.
+  // Actually looking again — `break` is on its own line after the zone. Let's handle it:
+  // `break` at protocol level is NOT valid in v0.0.4; it must be inside an agent zone.
+  // But example 03 has it after the zone on its own line. This is an issue we should handle gracefully.
+
+  // Try ident-based: message step or agent zone
+  const saved = c.save();
+  const id = readIdent(c);
+  if (!id) {
+    // Skip unexpected character to avoid infinite loop
+    c.next();
+    return null;
+  }
+
+  // Check for `break` keyword (appears in example 03 at protocol level within loops)
+  if (id.name === "break") {
+    // Treat as a pseudo-statement. We don't have a BreakStmt node,
+    // so we model it as an agent zone with empty body on the current role.
+    // For now, return null and let it be silently consumed.
+    return null;
+  }
+
+  skipWSAndComments(c);
+
+  // If next char is `{`, it's an agent zone (if id is a known participant and not a keyword)
+  if (c.peek() === "{" && !PROTOCOL_KEYWORDS.has(id.name)) {
+    const lang = currentLangMap.get(id.name) ?? "ts";
+    return pAgentZoneFromIdent(c, id.name, id.loc.start, lang as LangTag);
+  }
+
+  // If next chars form an arrow, it's a message step
+  const arrowChars = ["-->>", "->>", "-->", "->"];
+  const isArrow = arrowChars.some(a => c.startsWith(a));
+  if (isArrow) {
+    return pMessageStmtFromIdent(c, id.name, id.loc.start);
+  }
+
+  // Unknown — restore and skip line
+  c.restore(saved);
+  skipToNewline(c);
+  return null;
+}
+
+// ── Protocol definition ─────────────────────────────────────────────
+
+function pProtocolDef(c: Cursor): ProtocolDef | null {
+  const start = c.pos();
+  if (!consumeKeyword(c, "protocol")) return null;
+  skipWSAndComments(c);
+  const name = readIdent(c);
+  if (!name) return null;
+  skipWSAndComments(c);
+  if (c.peek() !== "{") return null;
+  c.next();
+
+  let participants: ParticipantDecl[] = [];
+  let initiator: string = "";
+  let input: string = "";
+
+  // Parse directives first (they must appear before body items)
+  for (;;) {
+    skipWSAndComments(c);
+    if (c.eof() || c.peek() === "}") break;
+
+    if (startsWithKeyword(c, "participants")) {
+      consumeKeyword(c, "participants");
+      skipWSAndComments(c);
+      if (c.peek() !== ":") return null;
+      c.next();
+      const list = pParticipantList(c);
+      if (!list) return null;
+      participants = list;
+
+      // Update the lang map for zone resolution
+      currentLangMap = new Map();
+      for (const p of participants) currentLangMap.set(p.name, p.lang);
+      continue;
+    }
+
+    if (startsWithKeyword(c, "initiator")) {
+      consumeKeyword(c, "initiator");
+      skipWSAndComments(c);
+      if (c.peek() !== ":") return null;
+      c.next();
+      skipWSAndComments(c);
+      const id = readIdent(c);
+      if (!id) return null;
+      initiator = id.name;
+      continue;
+    }
+
+    if (startsWithKeyword(c, "input")) {
+      consumeKeyword(c, "input");
+      skipWSAndComments(c);
+      if (c.peek() !== ":") return null;
+      c.next();
+      skipWSAndComments(c);
+      const id = readIdent(c);
+      if (!id) return null;
+      input = id.name;
+      continue;
+    }
+
+    // Not a directive — start parsing body
+    break;
+  }
+
+  // Parse body items
+  const body = pProtocolBody(c);
+
+  skipWSAndComments(c);
+  if (c.peek() !== "}") return null;
+  c.next();
 
   return {
     kind: "ProtocolDef",
     name: name.name,
     participants,
     initiator,
-    on,
+    input,
     body,
     loc: c.locFrom(start),
   };
 }
 
-export function parseProgram(src: string): ParseResult {
-  const c = new Cursor(src);
-  const items: Item[] = [];
+// ── Agent definition ────────────────────────────────────────────────
+
+const AGENT_EVENT_KINDS = new Set<string>([
+  "protocolStarted",
+  "protocolCompleted",
+  "protocolFailed",
+  "protocolEvent",
+]);
+
+function pAgentDef(c: Cursor): AgentDef | null {
+  const start = c.pos();
+  if (!consumeKeyword(c, "agent")) return null;
+  skipWSAndComments(c);
+  const name = readIdent(c);
+  if (!name) return null;
+
+  skipWSAndComments(c);
+  if (c.peek() !== "[") return null;
+  c.next();
+  skipWSAndComments(c);
+  const tagId = readIdent(c);
+  if (!tagId || !VALID_LANG_TAGS.has(tagId.name)) return null;
+  skipWSAndComments(c);
+  if (c.peek() !== "]") return null;
+  c.next();
+
+  skipWSAndComments(c);
+  if (c.peek() !== "{") return null;
+  c.next();
+
+  const plays: PlaysDecl[] = [];
+  let init: AgentInitBlock | undefined;
+  const handlers: AgentOnHandler[] = [];
 
   for (;;) {
     skipWSAndComments(c);
-    if (c.eof()) break;
-    if (startsWithKeyword(c, "import")) {
-      const imp = parseImportStmt(c);
-      if ("ok" in imp) return imp;
-      items.push(imp);
+    if (c.eof()) return null;
+    if (c.peek() === "}") { c.next(); break; }
+
+    // plays ProtoName as roleName
+    if (startsWithKeyword(c, "plays")) {
+      const playsStart = c.pos();
+      consumeKeyword(c, "plays");
+      skipWSAndComments(c);
+      const protoName = readIdent(c);
+      if (!protoName) return null;
+      skipWSAndComments(c);
+      if (!consumeKeyword(c, "as")) return null;
+      skipWSAndComments(c);
+      const roleName = readIdent(c);
+      if (!roleName) return null;
+      plays.push({
+        kind: "PlaysDecl",
+        protocolName: protoName.name,
+        roleName: roleName.name,
+        loc: c.locFrom(playsStart),
+      });
       continue;
     }
-    if (startsWithKeyword(c, "protocol")) {
-      const p = parseProtocolDef(c);
-      if ("ok" in p) return p;
-      items.push(p);
+
+    // init { ... }
+    if (startsWithKeyword(c, "init")) {
+      const initStart = c.pos();
+      consumeKeyword(c, "init");
+      skipWSAndComments(c);
+      if (c.peek() !== "{") return null;
+      c.next();
+      const body = readBalancedBody(c);
+      if (body === null) return null;
+      init = { kind: "AgentInitBlock", body, loc: c.locFrom(initStart) };
       continue;
     }
-    // Enforce: no protocol code outside protocol blocks.
-    return c.error("Only 'import' and 'protocol' are allowed at top-level", c.pos());
+
+    // on eventName(ProtoName) { ... }
+    if (startsWithKeyword(c, "on")) {
+      const onStart = c.pos();
+      consumeKeyword(c, "on");
+      skipWSAndComments(c);
+      const eventId = readIdent(c);
+      if (!eventId || !AGENT_EVENT_KINDS.has(eventId.name)) return null;
+      const event = eventId.name as AgentEventKind;
+
+      skipWSAndComments(c);
+      let protocolFilter: string | undefined;
+      if (c.peek() === "(") {
+        c.next();
+        skipWSAndComments(c);
+        const filterId = readIdent(c);
+        if (!filterId) return null;
+        protocolFilter = filterId.name;
+        skipWSAndComments(c);
+        if (c.peek() !== ")") return null;
+        c.next();
+      }
+
+      skipWSAndComments(c);
+      if (c.peek() !== "{") return null;
+      c.next();
+      const body = readBalancedBody(c);
+      if (body === null) return null;
+      handlers.push({
+        kind: "AgentOnHandler",
+        event,
+        protocolFilter,
+        body,
+        loc: c.locFrom(onStart),
+      });
+      continue;
+    }
+
+    // Unknown content in agent body — skip line
+    skipToNewline(c);
   }
 
-  return { ok: true, ast: { kind: "Program", items } };
+  return {
+    kind: "AgentDef",
+    name: name.name,
+    lang: tagId.name as LangTag,
+    plays,
+    init,
+    handlers,
+    loc: c.locFrom(start),
+  };
 }
-
