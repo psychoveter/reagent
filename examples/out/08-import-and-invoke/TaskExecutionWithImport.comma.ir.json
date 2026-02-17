@@ -1,0 +1,85 @@
+{
+  "protocolName": "TaskExecutionWithImport",
+  "role": "comma",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_5",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_6",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "user",
+        "arrow": "-->",
+        "messageName": "TaskRequest"
+      }
+    },
+    {
+      "id": "act_7",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.dsiBsi = reagent.invoke(derive.DeriveDsiBsi, { taskText: $ctx.taskText })\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_8",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "sia",
+        "arrow": "-->",
+        "messageName": "SubmitIntent"
+      }
+    },
+    {
+      "id": "end_9",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_5",
+      "to": "recv_6",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_6",
+      "to": "act_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_7",
+      "to": "send_8",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_8",
+      "to": "end_9",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_5",
+  "terminalStateIds": [
+    "end_9"
+  ]
+}

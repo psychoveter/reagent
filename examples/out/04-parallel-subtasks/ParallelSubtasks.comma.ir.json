@@ -1,0 +1,195 @@
+{
+  "protocolName": "ParallelSubtasks",
+  "role": "comma",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "send_2",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "worker1",
+        "arrow": "-->",
+        "messageName": "Subtask",
+        "preSendZone": "\n      $ctx.msg.id = \"a\"\n    "
+      }
+    },
+    {
+      "id": "send_3",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "worker2",
+        "arrow": "-->",
+        "messageName": "Subtask",
+        "preSendZone": "\n      $ctx.msg.id = \"b\"\n    "
+      }
+    },
+    {
+      "id": "fork_4",
+      "kind": "fork",
+      "data": {
+        "kind": "fork",
+        "branchStartIds": [
+          "par_entry_6",
+          "par_entry_8"
+        ]
+      }
+    },
+    {
+      "id": "par_entry_6",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "recv_7",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "worker1",
+        "arrow": "-->",
+        "messageName": "SubtaskDone",
+        "postReceiveZone": "\n        $ctx.subtaskA = $ctx.msg\n      "
+      }
+    },
+    {
+      "id": "par_entry_8",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "recv_9",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "worker2",
+        "arrow": "-->",
+        "messageName": "SubtaskDone",
+        "postReceiveZone": "\n        $ctx.subtaskB = $ctx.msg\n      "
+      }
+    },
+    {
+      "id": "join_5",
+      "kind": "join",
+      "data": {
+        "kind": "join",
+        "branchCount": 2
+      }
+    },
+    {
+      "id": "act_10",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.result = merge($ctx.subtaskA, $ctx.subtaskB)\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "end_11",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "send_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_2",
+      "to": "send_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_3",
+      "to": "fork_4",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "fork_4",
+      "to": "par_entry_6",
+      "label": {
+        "kind": "branch",
+        "branchIndex": 0
+      }
+    },
+    {
+      "from": "par_entry_6",
+      "to": "recv_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_7",
+      "to": "join_5",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "fork_4",
+      "to": "par_entry_8",
+      "label": {
+        "kind": "branch",
+        "branchIndex": 1
+      }
+    },
+    {
+      "from": "par_entry_8",
+      "to": "recv_9",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_9",
+      "to": "join_5",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "join_5",
+      "to": "act_10",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_10",
+      "to": "end_11",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_11"
+  ]
+}

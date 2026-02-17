@@ -1,321 +1,281 @@
-## Reagent ↔ Losos: project plan (milestones)
+## Reagent project plan (milestones)
 
-Goal: make **Losos** one of the **Reagent Agent Runtime engines** (etcd-backed, Kotlin implementation) while keeping Reagent **engine-neutral** and enabling **multiple engines** and **multiple target languages** (Python-first for Reagent MVP).
+Goal: build a **language + reference runtimes + production engine** stack for agentic protocols.
 
-This plan is written as a sequence of milestones. For each milestone:
-- **Tasks**: ordered work items.
-- **DoD**: crisp acceptance criteria expressible as functional tests (black-box where possible).
+- **Reagent** is the language and compiler (`lang/`).
+- **Reference runners** (TS + Python over NATS) are the test-driven development target.
+- **Losos** (Kotlin/etcd) is the future production engine.
 
-Glossary (minimal):
-- **Protocol artifact**: the user-authored Reagent file (protocol + optional code blocks).
-- **IR (Agent-level)**: compiled, engine-neutral representation of per-role executable state machine.
-- **Engine**: runtime backend that executes IR and emits an append-only trace.
-- **TraceEvent**: engine-emitted event in a unified algebra (used for legality checks and debugging).
+Development is **E2E test-driven**: each feature starts with a `.rg` example, compiles to IR, runs on reference runners, and is validated by trace assertions.
 
 ---
 
 ## M0 — Baseline: reproducible Losos test harness on etcd 3.6 ✅ DONE
 
-**Intent**: freeze a working, reproducible environment for Losos so future changes have a stable safety net.
-
-### Tasks
-- Keep docker-compose harness for etcd `v3.6.0` + Gradle test runner.
-- Ensure etcd endpoints are configurable for tests.
-- Ensure secure-cluster test is skipped by default.
-- Ensure test logs are persisted to `projects/losos/tmp/`.
-
-### DoD (functional tests)
-- **F0.1**: `docker compose up --abort-on-container-exit --exit-code-from tests` exits with code `0`.
-- **F0.2**: `projects/losos/tmp/process-test.log` exists after the run and contains:
-  - all tests are `PASSED`,
-  - at least one Losos test log line (e.g. `io.losos.process.LososPlatformTest`).
+Frozen working environment for Losos. Docker-compose harness, etcd v3.6.0.
 
 ---
 
 ## M1 — Reagent language & spec hardening ✅ DONE (language v0.0.4)
 
-**Intent**: define the Reagent DSL surface from examples-first, formalize the core model and TraceEvent algebra.
-
-**Status**: Language surface is stable at v0.0.4. Examples corpus covers all major constructs. Lang-spec has informal syntax + EBNF. Core spec (`reagent-spec.md`) has TraceEvent algebra and legality model.
-
-### Completed
-- ✅ **Examples corpus** (`projects/reagent/examples/`): 13 fixtures covering protocol wrapper, message steps, alt, loop, par, wait/timeout, spawn, invoke, try/catch, imports, external events, LLM broker.
-- ✅ **Language spec** (`lang-spec.md` v0.0.4): informal syntax + EBNF. Key decisions: meta-language, `$ctx`, `reagent.*` runtime library, hook zones, language tags on participants.
-- ✅ **Core spec** (`reagent-spec.md` v0.0.1): TraceEvent algebra, legality LTS, time/failure model, idempotency keys.
-- ✅ **Syntax highlighting** (`reagent-vscode` v0.1.0): TextMate grammar + embedded language support.
-
-### Remaining (deferred to later milestones)
-- Spec conformance test suite (F1.1, F1.2, F1.3) — will be built when parser+IR exist.
-- Formal violation/timeout fixtures — need IR execution to validate.
+Language surface stable. 13 examples, lang-spec with EBNF, core spec with TraceEvent algebra.
 
 ---
 
-## M2 — TypeScript AST + Parser + IR design 🔜 NEXT
+## M2 — TypeScript AST + Parser + IR design ✅ DONE (v0.0.5)
 
-**Intent**: build the proper parsing infrastructure and design the agent-level IR. This is the bridge between "language on paper" and "compilable protocol".
+Full compiler pipeline: AST types → recursive-descent parser → IR emitter (Protocol IR + Agent IR) → IR validator → CLI.
 
-### Phase 2a — TypeScript AST (typed node hierarchy)
+| Component | Path |
+|---|---|
+| AST types | `lang/src/ast.ts` |
+| Parser | `lang/src/parser.ts` |
+| IR types | `lang/src/ir.ts` |
+| IR emitter | `lang/src/ir-emitter.ts` |
+| IR validator | `lang/src/ir-validator.ts` |
+| CLI | `lang/src/cli.ts` |
 
-**Tasks**:
-1. Define AST node types in TypeScript covering the full language surface:
-   - `Program` (top-level: imports + protocol definitions)
-   - `ImportStmt` (protocol `.rg` imports + code module imports)
-   - `ProtocolDef` (header: participants, initiator, input + body)
-   - `ParticipantDecl` (name + language tag)
-   - `MessageStmt` (sender, arrow, receiver, message name, optional props)
-   - `MessageProps` (hook zones + key-value pairs)
-   - `HookZone` (`onSend` / `onReceive` with raw body text)
-   - `AgentZone` (standalone: role name + raw body text + resolved language)
-   - `AltStmt` (branches: message-guard / expression-guard / timeout-guard + body)
-   - `LoopStmt` (guard expression + body)
-   - `ParStmt` (branches separated by `and`)
-   - `WaitStmt` (duration literal)
-   - `TryStmt` (try body + catch label + catch body)
-   - `Comment` (line + block)
-2. Every node carries `SourceLocation` (`start: {line, col, offset}`, `end: {line, col, offset}`).
-3. Define AST in `projects/reagent/lang/ast.ts` (replace or supersede `lang/ast.schema.json` if it exists).
-4. Export AST types as a standalone module (no runtime deps).
-
-**DoD**:
-- **F2a.1**: AST types compile. Each example `.rg` file has a corresponding expected AST shape (snapshot fixtures).
-- **F2a.2**: AST covers all constructs used in examples `00`–`11`.
-
-### Phase 2b — Recursive-descent parser
-
-**Tasks**:
-1. Implement a **recursive-descent parser** in TypeScript: `string → AST`.
-   - Path: `projects/reagent/lang/parser.ts`.
-   - Hand-written (not generated) for full control over error recovery and source locations.
-   - Must handle: imports, protocol header, message steps (with optional props and hooks), agent zones (brace-balanced raw text), all control-flow constructs (`alt`, `loop`, `par`, `wait`, `try/catch`), comments.
-   - Zone bodies remain **raw text** (parser only balances braces, does not parse host language).
-2. Error reporting: each parser error carries `SourceLocation` + error code + human message.
-3. Roundtrip property: `parse(source).errors.length === 0` for all example files.
-4. Migrate `reagent-vscode` extension to use the new parser (replace regex-based `reagentParser.ts`).
-
-**DoD**:
-- **F2b.1**: All 13 example files parse without errors.
-- **F2b.2**: Parser produces AST matching snapshot fixtures from F2a.1.
-- **F2b.3**: Invalid input produces error with location and stable error code.
-- **F2b.4**: VSCode extension uses new parser for zone extraction.
-
-### Phase 2c — Agent IR v0 (per-role state machine model)
-
-**Tasks**:
-1. Define IR schema in TypeScript:
-   - **IRGraph**: per-role directed graph of states and transitions.
-   - **IRState**: node (types: `initial`, `send`, `receive`, `action`, `guard`, `join`, `final`, `error`).
-   - **IRTransition**: labeled edge (event type + guard predicate + actions).
-   - **IRAction**: callable block reference (zone body + language).
-   - **IRGuard**: predicate over `$ctx` / incoming message / timer.
-   - **IRTimer**: timeout configuration.
-2. Define compilation mapping from AST constructs to IR:
-   - `MessageStmt` → `send` state (for sender) + `receive` state (for receiver) + transitions.
-   - `AgentZone` → `action` state with zone body.
-   - `AltStmt` → branching with XOR guard semantics.
-   - `LoopStmt` → back-edge to guard state.
-   - `ParStmt` → fork into concurrent tokens + join state.
-   - `TryStmt` → normal path + error path with compensation.
-   - `WaitStmt` → timer state.
-3. Implement **IR emitter**: `AST → Map<RoleName, IRGraph>`.
-   - Path: `projects/reagent/lang/ir-emitter.ts`.
-   - One IRGraph per role = the **local view** of the global protocol.
-4. Implement **IR validator** (static checks): well-formed graph, no dangling refs, determinism where required.
-
-**DoD**:
-- **F2c.1**: Compile "hello protocol" (example `00`) → IR for each role; IR validates; snapshot test.
-- **F2c.2**: Compile `alt` protocol (example `02`) → IR with branch guards; validator accepts.
-- **F2c.3**: Compile `par` protocol (example `04`) → IR with concurrent branches + join; validator accepts.
-- **F2c.4**: Invalid protocol fixture → compiler error with stable error code + location.
-
-### Phase 2d — Translation design: Reagent IR → Losos primitives
-
-**Tasks**:
-1. Document the mapping from IR concepts to Losos runtime primitives:
-   - `IRState(receive)` → Losos **Guard** (await event on etcd key).
-   - `IRState(send)` → Losos **Action** (write message to etcd key).
-   - `IRState(action)` → Losos **Action** (invoke zone code).
-   - `IRGuard` → Losos guard predicate registration.
-   - `IRTimer` → Losos timer/TTL.
-   - `IRTransition` → Losos process state transition.
-   - `par` fork/join → Losos concurrent guard set + join action.
-   - `alt` XOR → Losos alternative guards (first-to-fire).
-   - `try/catch` → Losos error guard + compensation action.
-2. Identify **gaps** in current Losos that block faithful IR execution (input for M5).
-3. Write a design doc: `projects/reagent/docs/ir-to-losos-mapping.md`.
-
-**DoD**:
-- **F2d.1**: Design doc exists and covers all IR node types → Losos mapping.
-- **F2d.2**: Gap list identifies at least: multi-slot guards, timer support, XOR resolution.
+All 16 examples compile and validate. Agent IR emitted for examples 12–14.
 
 ---
 
-## M3 — Engine API v0: language-neutral runtime contract (MULTI-ENGINE ENABLER)
+## M-RT — Reference runtimes v0 ✅ DONE
 
-**Intent**: a stable interface so engines can be swapped and non-Kotlin languages can integrate.
+Lightweight TS + Python AgentRunners interpreting IR JSON over NATS.
 
-### Tasks
-- Specify an **Engine API** (suggested: gRPC + protobuf; alternative: HTTP+JSON):
-  - `StartInstance(IR, bindings) -> instanceId`
-  - `SubmitExternalEvent(instanceId, event)` (message arrivals, custom events)
-  - `Poll(instanceId)` / `StreamTrace(instanceId)` for trace consumption
-  - `GetNextEnabledSteps(instanceId, role)` (optional but powerful for debugging/UI)
-  - `ExecuteAction(instanceId, actionId, input, idempotencyKey)`
-  - `Cancel(instanceId, reason)`
-  - `Snapshot(instanceId)` / `Restore(snapshot)`
-- Define engine obligations:
-  - trace is **append-only** and **durable**,
-  - at-least-once action execution semantics + idempotency keys,
-  - ordering model (per-instance total order trace is recommended).
-- Provide **reference "in-memory engine"** (simulator) for deterministic tests.
+**Implemented:**
+- AgentRunner (agent lifecycle, $self, message routing, lifecycle handlers)
+- ProtocolInstance (IRGraph state machine interpreter)
+- Zone execution (eval/exec with $ctx + $self + reagent)
+- NATS transport, message envelope, trace events
+- Orchestrator (compile + launch + trace collection)
+- CLI: `reagent-lang compile <file.rg> <out-dir>`
+- 5 E2E tests passing (linear, alt-accept, alt-reject, cross-lang IR, $self persistence)
 
-### DoD (functional tests)
-- **F3.1**: start instance, submit message events, observe trace stream containing expected `MessageReceived` events.
-- **F3.2**: execute the same action twice with same idempotency key → second call is deduped; trace shows one logical completion.
-- **F3.3**: crash/restart the reference engine process → instance restored; trace continues without losing prior events.
-- **F3.4**: `GetNextEnabledSteps` matches expected set for a known IR fixture.
+**Supported IR states:** `initial`, `send`, `receive`, `action`, `guard(xor/expression)`, `terminal`.
+
+**Not yet supported:** `loop`, `par`/`fork`/`join`, `wait`/`timer`, `try`/`catch`/`error`, `reagent.invoke`, `reagent.spawn`, `reagent.return`, `reagent.emit` (real implementations).
 
 ---
 
-## M4 — Losos Engine Adapter v0: execute Reagent IR on Losos (KOTLIN ENGINE)
+## M1-RT — Reference runners: full spec support ⬜ NEXT
 
-**Intent**: map Reagent IR semantics to Losos primitives (Guard–Action network + etcd keyspace).
+**Intent**: incrementally add every remaining Reagent construct to the reference runners, each driven by a new `.rg` example + E2E tests.
 
-### Tasks
-- Define Losos ↔ Reagent mapping:
-  - IR state → Losos process state + guard registrations,
-  - TraceEvent → etcd append-only trace keys (per instance),
-  - external message arrival → Losos event write,
-  - action execution → Losos action invocation records + completion writes.
-- Implement trace persistence as first-class:
-  - per-instance `trace/` prefix with monotonic sequence numbers or etcd revisions,
-  - include correlation ids.
-- Implement legality checking surface:
-  - on each external event, either advance legally or emit `ProtocolViolated`.
-- Provide "Losos Engine Service" wrapper (local process) that implements Engine API (from M3).
+### Phase A: loop + wait
 
-### DoD (functional tests)
-- **F4.1**: run Engine API conformance suite against Losos engine (the same tests as F3.1–F3.4).
-- **F4.2**: restart Losos engine service (and/or the node) mid-instance:
-  - instance resumes,
-  - trace remains append-only and consistent.
-- **F4.3**: inject out-of-order message → trace contains `ProtocolViolated` with evidence referencing msgId/correlationId.
-- **F4.4**: two concurrent `par` branches both complete → join transition fires exactly once (no double-commit).
+1. Write `15-loop-and-wait-demo.rg` with loop + wait constructs and agent definitions.
+2. Compile to IR, verify IRGraph contains loop back-edges and timer states.
+3. Implement `loop` in ProtocolInstance: back-edge traversal, guard re-evaluation.
+4. Implement `wait`/`timer` in ProtocolInstance: setTimeout-based delay (TS) / asyncio.sleep (Python).
+5. E2E tests:
+   - **T6**: Loop executes N iterations then exits.
+   - **T7**: Wait delays execution by specified duration.
+   - **T8**: $self accumulates state across loop iterations.
 
----
+### Phase B: par (fork/join)
 
-## M5 — Guards 2.0 in Losos: multi-slot, OR/AND/XOR, timeouts (SEMANTICS GAP CLOSURE)
+1. Write `16-parallel-demo.rg` with `par { ... } and { ... }` and agent definitions.
+2. Implement `fork`/`join` in ProtocolInstance: concurrent branch execution via Promise.all (TS) / asyncio.gather (Python).
+3. E2E tests:
+   - **T9**: Two parallel branches both complete, join fires once.
+   - **T10**: Parallel branches interact with different agents.
 
-**Intent**: remove current Losos limitations that block faithful compilation of Reagent protocols.
+### Phase C: try/catch
 
-### Tasks
-- Extend guard model:
-  - allow guards to depend on **multiple slots/events**,
-  - implement explicit boolean structure (AND/OR/XOR) in runtime semantics.
-- Add first-class timers:
-  - schedule timer,
-  - produce `TimerFired` events,
-  - support guard timeouts leading to alternative branches / violations.
-- Define deterministic resolution rules for XOR:
-  - when one branch commits, how others are cancelled/closed,
-  - what is recorded in trace.
+1. Write `17-try-catch-demo.rg` with try/catch and agent definitions.
+2. Implement `error` state and catch routing in ProtocolInstance.
+3. Zone exceptions (`throw` in JS, `raise` in Python) trigger error path.
+4. `$ctx.error` bound in catch block.
+5. E2E tests:
+   - **T11**: Zone throws → catch block executes → protocol completes.
+   - **T12**: No error → try body completes normally, catch skipped.
 
-### DoD (functional tests)
-- **F5.1**: IR fixture "wait for (A AND B)" only fires after both events; trace shows both receipts then guard satisfied.
-- **F5.2**: IR fixture "wait for (A OR B)" fires after first; second event later does not re-fire; trace shows closure semantics.
-- **F5.3**: IR fixture "ALT (XOR)" commits exactly one branch; competing branch arrival after commit yields either ignored-with-trace or violation (as specified).
-- **F5.4**: timeout fixture: if event not received within T, timer fires and correct branch/violation is produced.
+### Phase D: reagent.invoke (child protocols)
 
----
+1. Write `18-invoke-demo.rg` with parent protocol calling `reagent.invoke(ChildProto, input)`.
+2. `reagent.invoke` suspends the calling zone, starts a child ProtocolInstance, resumes with the return value.
+3. Implement `reagent.return` to send value back to invoker.
+4. E2E tests:
+   - **T13**: Parent invokes child → child completes → parent receives return value.
+   - **T14**: Child failure propagates as error to parent.
 
-## M6 — Role boundary + typed messages: schema, versioning, harness (RUNTIME SAFETY)
+### Phase E: reagent.spawn + reagent.emit
 
-**Intent**: stop "protocol becomes chat" by making message contracts explicit and testable.
+1. Write `19-spawn-emit-demo.rg`.
+2. `reagent.spawn` creates an independent ProtocolInstance (no blocking).
+3. `reagent.emit` publishes a named event to NATS trace/lifecycle subjects.
+4. Agent `on protocolEvent(name)` handlers fire on matching emit.
+5. E2E tests:
+   - **T15**: Spawn starts child instance, parent continues without waiting.
+   - **T16**: Emit triggers agent lifecycle handler.
 
-### Tasks
-- Pick schema system for v0:
-  - JSON Schema (engine-neutral) or Protobuf (stronger, also fits gRPC).
-- Add schema registry concept (per protocol artifact):
-  - msgType → schemaRef + version.
-- Implement validation hooks:
-  - `MessageSent` validated before emission,
-  - `MessageReceived` validated before being accepted.
-- Add version/compat policy:
-  - explicit in spec and enforced at runtime (or explicit "no negotiation" rule).
-- Generate:
-  - role stubs,
-  - protocol test harness that can simulate peer roles.
+### Phase F: cross-language E2E
 
-### DoD (functional tests)
-- **F6.1**: sending invalid payload (schema mismatch) fails locally and produces a trace violation.
-- **F6.2**: receiving invalid payload produces `ProtocolViolated(schema=...)`.
-- **F6.3**: version mismatch fixture is rejected per compat policy.
-- **F6.4**: generated harness can run protocol "sandbox" without LLM and detect:
-  - deadlock,
-  - timeout,
-  - illegal branch.
+1. Use `13-cross-lang-demo.rg` (BrowserAgent [ts] + ServerAgent [py]).
+2. Orchestrator launches both TS and Python agent processes.
+3. E2E tests:
+   - **T17**: TS → Python → TS message flow, both agents complete.
+   - **T18**: Python agent's $self state persists, lifecycle handler fires.
+
+### Phase G: trace validation + legality
+
+1. Build trace validator: given IR + collected trace, check legality (message ordering, completeness, correct transitions).
+2. Integrate into E2E test harness.
+3. E2E tests:
+   - **T19**: Inject illegal message → validator detects violation.
+   - **T20**: Missing message → validator detects incomplete trace.
+
+### DoD (overall)
+- T6–T20 pass.
+- All Reagent spec constructs are executable on reference runners.
 
 ---
 
-## M7 — Multi-language execution: Python-first runtime uses Engine API (NON-KOTLIN PATH)
+## M2-RT — Protocol debugger: UI + debug server for the VSCode extension ⬜
 
-**Intent**: Reagent's primary target (Python) can run agent-level state machines by talking to an engine (Losos or others).
+**Intent**: build a protocol debugging experience inside Cursor/VSCode. The extension connects to a running (or stepping) reference runtime, collects execution traces in real time, and visualizes the protocol state machine with agent states overlaid.
 
-### Tasks
-- Build Python runner that:
-  - loads compiled per-role artifact (or IR + bindings),
-  - communicates with Engine API,
-  - executes local code blocks/tools,
-  - emits/receives boundary message events.
-- Define tool invocation protocol (engine-neutral):
-  - action request → tool call → action completion.
-- Add TS/Go minimal clients (optional, after Python).
+### Why
 
-### DoD (functional tests)
-- **F7.1**: run a 2-role protocol where role A is Python runner, role B is simulated:
-  - A progresses, sends message, awaits reply, completes.
-- **F7.2**: restart Python runner mid-instance:
-  - continues from trace/state (no duplicated side-effects due to idempotency keys).
-- **F7.3**: run same IR on two different engines (in-memory vs Losos):
-  - traces are equivalent up to allowed nondeterminism (ordering rules specified in M1).
+Right now we can run protocols and assert on traces in tests, but there is no way to **see** what's happening: which state each agent is in, what messages are in flight, what `$ctx` and `$self` contain at each step. For a distributed protocol language, visual debugging is essential — both for language development and for end users.
+
+### Architecture
+
+```
+┌──────────────────────────────────────────────────┐
+│  Cursor / VSCode                                 │
+│  ┌────────────────────────────────────────────┐  │
+│  │  reagent-vscode extension                  │  │
+│  │  ┌──────────┐  ┌───────────────────────┐   │  │
+│  │  │ .rg      │  │ Debug Panel (webview) │   │  │
+│  │  │ editor + │  │ - protocol graph      │   │  │
+│  │  │ syntax   │  │ - agent state cards   │   │  │
+│  │  │ highlight│  │ - trace timeline      │   │  │
+│  │  └──────────┘  │ - $ctx / $self viewer │   │  │
+│  │                │ - message log         │   │  │
+│  │                └───────┬───────────────┘   │  │
+│  └────────────────────────┼───────────────────┘  │
+│                           │ WebSocket / DAP       │
+└───────────────────────────┼──────────────────────┘
+                            │
+               ┌────────────▼────────────┐
+               │  Reagent Debug Server   │
+               │  (Node.js process)      │
+               │                         │
+               │  - Loads IR + deployment │
+               │  - Runs AgentRunners    │
+               │  - Controls stepping    │
+               │  - Streams traces       │
+               │  - Exposes agent state  │
+               └────────────┬────────────┘
+                            │ NATS
+               ┌────────────▼────────────┐
+               │  NATS Server            │
+               └─────────────────────────┘
+```
+
+### Phase 1: Debug server (headless)
+
+A standalone Node.js process that wraps the existing reference runtime with debug controls:
+
+1. **Debug server** (`runtime/debug-server.ts`):
+   - Compiles `.rg` → IR.
+   - Creates AgentRunners in-process (all TS for v0; Python via child process later).
+   - Exposes a WebSocket API for debug clients.
+   - Supports execution modes:
+     - **Run** — normal execution, streams trace events in real time.
+     - **Step** — pause before each state transition; client sends `step` / `stepOver` / `continue`.
+     - **Breakpoints** — pause when a named state / message / agent zone is reached.
+   - Exposes introspection:
+     - Current state per agent per protocol instance.
+     - `$ctx` and `$self` snapshots at any pause point.
+     - Message queue (pending receives).
+     - Full trace so far.
+
+2. **Debug protocol** (WebSocket JSON messages):
+   - Client → Server: `launch`, `step`, `stepOver`, `continue`, `pause`, `setBreakpoints`, `getState`, `getTrace`.
+   - Server → Client: `stopped` (at breakpoint/step), `traceEvent`, `agentStateChanged`, `protocolCompleted`, `error`.
+
+3. E2E tests for debug server:
+   - **T21**: Launch protocol in step mode, step through 3 transitions, verify state after each.
+   - **T22**: Set breakpoint on message name, run, verify execution pauses at correct point.
+   - **T23**: Inspect `$ctx` and `$self` at pause point, verify values match expected.
+
+### Phase 2: VSCode debug panel (webview)
+
+Extend `reagent-vscode` with a debug experience:
+
+1. **Protocol graph visualization**:
+   - Render the IRGraph as a visual state machine (nodes = states, edges = transitions).
+   - Highlight the current state per agent in real time.
+   - Color-code: active (running), paused (at breakpoint), completed, failed.
+
+2. **Agent state cards**:
+   - One card per agent showing: name, language, current protocol instance(s), `$self` snapshot.
+   - Click to expand: `$ctx` for each active instance.
+
+3. **Trace timeline**:
+   - Vertical timeline of trace events (ProtocolStarted, MessageSent, ActionStarted, ...).
+   - Click on event to see full payload.
+   - Filter by agent, by event kind, by protocol instance.
+
+4. **Message log**:
+   - All messages in flight and delivered.
+   - From/to (agent + role), payload, timestamp.
+
+5. **Breakpoint integration**:
+   - Set breakpoints in `.rg` source (on message steps, agent zones, alt branches).
+   - Extension maps `.rg` source locations to IR state IDs.
+   - Gutter markers in `.rg` editor for breakpoints.
+
+6. **Launch configuration**:
+   - `launch.json` support: specify `.rg` file, input, NATS URL.
+   - "Debug Protocol" button in `.rg` editor title bar.
+
+### Phase 3: Source mapping and step-through in `.rg` editor
+
+1. **Source map**: compiler emits a map from IR state IDs back to `.rg` source locations.
+2. **Step-through**: when paused, highlight the current line in the `.rg` editor.
+3. **Inline values**: show `$ctx.foo = "bar"` as inline decorations next to the corresponding `.rg` line (similar to debugger inline values).
+
+### DoD
+- Debug server runs a protocol with step/continue/breakpoints.
+- VSCode panel shows live protocol graph, agent states, trace timeline.
+- Breakpoints set in `.rg` source pause execution at the correct IR state.
+- T21–T23 pass.
 
 ---
 
-## M8 — Observability + divergence detection: OTel + spec-vs-real validator (DEBUGGING CORE)
+## Future work (backlog)
 
-**Intent**: make "legality + divergence" a first-class debugging product: traces are queryable, comparable, actionable.
+Ideas and milestones considered but not yet scheduled. Will be prioritized after M2-RT.
 
-### Tasks
-- Standardize TraceEvent → OpenTelemetry mapping:
-  - trace/span ids, attributes, links.
-- Implement trace validator:
-  - given ProtocolSpec/IR and a trace, produce:
-    - violations,
-    - first divergence point,
-    - minimal counterexample.
-- Add queries:
-  - "show enabled steps at time t",
-  - "why did we block".
-
-### DoD (functional tests)
-- **F8.1**: known bad trace fixture yields deterministic divergence report.
-- **F8.2**: OTel exporter produces spans with required attributes (snapshot test).
-- **F8.3**: "blocked protocol" fixture yields actionable explanation (missing event, which role, which message type).
+- **Engine API v0**: extract a formal language-neutral runtime contract from reference runners. Define `StartInstance`, `SubmitEvent`, `StreamTrace`, `ExecuteAction`, `Cancel`. Reference runners become the reference implementation.
+- **Losos engine adapter**: map Reagent IR to Losos Guard-Action network + etcd keyspace. Run Engine API conformance suite against Losos.
+- **Losos Guards 2.0**: multi-slot, OR/AND/XOR, timeouts — close semantic gaps between IR and Losos.
+- **Typed messages + role stubs**: message schemas (JSON Schema / Protobuf), versioning, validation hooks, generated role stubs and test harnesses.
+- **Multi-language execution via Engine API**: Python runner talks to Losos engine through Engine API.
+- **Observability**: TraceEvent → OpenTelemetry mapping, trace divergence detection, "why blocked" queries.
+- **Production hardening**: AuthN/AuthZ, quotas, backpressure, operational tooling, crash recovery.
 
 ---
 
-## M9 — Production hardening (SECURITY + OPERATIONS)
+## Reference runner feature matrix
 
-**Intent**: make Losos engine service safe to run as shared infrastructure.
-
-### Tasks
-- AuthN/AuthZ for Engine API (mTLS/JWT) + per-tenant isolation.
-- Quotas, backpressure, max trace size / retention policies.
-- Operational tooling:
-  - migrations,
-  - compatibility checks,
-  - upgrade playbooks.
-
-### DoD (functional tests)
-- **F9.1**: unauthorized Engine API calls are denied.
-- **F9.2**: per-tenant access: cannot read other tenant's trace/state.
-- **F9.3**: load test: N instances, bounded memory, bounded latency for trace streaming.
+| Construct | IR state(s) | Milestone | E2E tests |
+|---|---|---|---|
+| Message send/receive | `send`, `receive` | M-RT ✅ | T1 |
+| Agent zone (action) | `action` | M-RT ✅ | T1 |
+| Alt (expression guard) | `guard(xor)` | M-RT ✅ | T2, T3 |
+| Agent $self + lifecycle | AgentIR | M-RT ✅ | T5 |
+| Loop | `guard(expression)` + back-edge | M1-RT / A | T6, T8 |
+| Wait/timer | `timer` | M1-RT / A | T7 |
+| Par (fork/join) | `fork`, `join` | M1-RT / B | T9, T10 |
+| Try/catch | `error` + catch routing | M1-RT / C | T11, T12 |
+| reagent.invoke | zone → child instance → return | M1-RT / D | T13, T14 |
+| reagent.spawn + emit | zone → independent instance | M1-RT / E | T15, T16 |
+| Cross-language (TS↔Py) | all | M1-RT / F | T17, T18 |
+| Trace validation | post-hoc IR check | M1-RT / G | T19, T20 |
+| Debug server | step, breakpoints, inspect | M2-RT | T21–T23 |
+| Debug UI (VSCode) | graph, timeline, state cards | M2-RT | — |

@@ -1,0 +1,141 @@
+{
+  "protocolName": "ParallelSubtasks",
+  "role": "worker2",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_20",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_21",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "comma",
+        "arrow": "-->",
+        "messageName": "Subtask"
+      }
+    },
+    {
+      "id": "fork_22",
+      "kind": "fork",
+      "data": {
+        "kind": "fork",
+        "branchStartIds": [
+          "par_entry_24",
+          "par_entry_25"
+        ]
+      }
+    },
+    {
+      "id": "par_entry_24",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "par_entry_25",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "send_26",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "comma",
+        "arrow": "-->",
+        "messageName": "SubtaskDone"
+      }
+    },
+    {
+      "id": "join_23",
+      "kind": "join",
+      "data": {
+        "kind": "join",
+        "branchCount": 2
+      }
+    },
+    {
+      "id": "end_27",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_20",
+      "to": "recv_21",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_21",
+      "to": "fork_22",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "fork_22",
+      "to": "par_entry_24",
+      "label": {
+        "kind": "branch",
+        "branchIndex": 0
+      }
+    },
+    {
+      "from": "par_entry_24",
+      "to": "join_23",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "fork_22",
+      "to": "par_entry_25",
+      "label": {
+        "kind": "branch",
+        "branchIndex": 1
+      }
+    },
+    {
+      "from": "par_entry_25",
+      "to": "send_26",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_26",
+      "to": "join_23",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "join_23",
+      "to": "end_27",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_20",
+  "terminalStateIds": [
+    "end_27"
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "protocolName": "TaskExecutionLegacy",
+  "role": "sia",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_12",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_13",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "comma",
+        "arrow": "-->",
+        "messageName": "SubmitIntent",
+        "postReceiveZone": "\n      $ctx.intent = $ctx.msg.ref\n    "
+      }
+    },
+    {
+      "id": "end_14",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_12",
+      "to": "recv_13",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_13",
+      "to": "end_14",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_12",
+  "terminalStateIds": [
+    "end_14"
+  ]
+}

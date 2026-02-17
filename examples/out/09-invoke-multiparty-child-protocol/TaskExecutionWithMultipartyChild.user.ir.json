@@ -1,0 +1,171 @@
+{
+  "protocolName": "TaskExecutionWithMultipartyChild",
+  "role": "user",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.taskText = $ctx.input.text\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_3",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "comma",
+        "arrow": "-->",
+        "messageName": "TaskRequest"
+      }
+    },
+    {
+      "id": "xor_4",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "xor"
+      }
+    },
+    {
+      "id": "guard_6",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression",
+        "expr": "$ctx.outcome == \"done\""
+      }
+    },
+    {
+      "id": "recv_7",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "comma",
+        "arrow": "-->",
+        "messageName": "Done"
+      }
+    },
+    {
+      "id": "else_8",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "recv_9",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "comma",
+        "arrow": "-->",
+        "messageName": "Failed"
+      }
+    },
+    {
+      "id": "merge_5",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "end_10",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "act_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_2",
+      "to": "send_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_3",
+      "to": "xor_4",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_4",
+      "to": "guard_6",
+      "label": {
+        "kind": "expression",
+        "expr": "$ctx.outcome == \"done\""
+      }
+    },
+    {
+      "from": "guard_6",
+      "to": "recv_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_7",
+      "to": "merge_5",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_4",
+      "to": "else_8",
+      "label": {
+        "kind": "else"
+      }
+    },
+    {
+      "from": "else_8",
+      "to": "recv_9",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_9",
+      "to": "merge_5",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "merge_5",
+      "to": "end_10",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_10"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "agents": [
+    {
+      "agentName": "ClientAgent",
+      "lang": "ts",
+      "agentIRFile": "ClientAgent.agent.json",
+      "roles": [
+        {
+          "protocolName": "TsDemo",
+          "roleName": "client",
+          "irGraphFile": "TsDemo.client.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "HandlerAgent",
+      "lang": "ts",
+      "agentIRFile": "HandlerAgent.agent.json",
+      "roles": [
+        {
+          "protocolName": "TsDemo",
+          "roleName": "handler",
+          "irGraphFile": "TsDemo.handler.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "TsDemo.client": "ClientAgent",
+    "TsDemo.handler": "HandlerAgent"
+  }
+}

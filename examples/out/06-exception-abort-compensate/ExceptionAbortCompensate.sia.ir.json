@@ -1,0 +1,106 @@
+{
+  "protocolName": "ExceptionAbortCompensate",
+  "role": "sia",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_19",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_20",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "comma",
+        "arrow": "-->",
+        "messageName": "SubmitIntent"
+      }
+    },
+    {
+      "id": "send_21",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "comma",
+        "arrow": "-->",
+        "messageName": "Accepted"
+      }
+    },
+    {
+      "id": "catch_23",
+      "kind": "error",
+      "data": {
+        "kind": "error",
+        "label": "error"
+      }
+    },
+    {
+      "id": "try_merge_22",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "end_24",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_19",
+      "to": "recv_20",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_20",
+      "to": "send_21",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_21",
+      "to": "try_merge_22",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "init_19",
+      "to": "catch_23",
+      "label": {
+        "kind": "error"
+      }
+    },
+    {
+      "from": "catch_23",
+      "to": "try_merge_22",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "try_merge_22",
+      "to": "end_24",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_19",
+  "terminalStateIds": [
+    "end_24"
+  ]
+}

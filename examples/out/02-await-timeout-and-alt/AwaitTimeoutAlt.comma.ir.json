@@ -1,0 +1,231 @@
+{
+  "protocolName": "AwaitTimeoutAlt",
+  "role": "comma",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "send_2",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "sia",
+        "arrow": "-->",
+        "messageName": "SubmitIntent",
+        "preSendZone": "\n      $ctx.msg.intent = $ctx.intent\n    "
+      }
+    },
+    {
+      "id": "xor_3",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "xor"
+      }
+    },
+    {
+      "id": "recv_5",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "sia",
+        "arrow": "-->",
+        "messageName": "Accept",
+        "pattern": {}
+      }
+    },
+    {
+      "id": "act_6",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n      $ctx.status = \"accepted\"\n    ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "recv_7",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "sia",
+        "arrow": "-->",
+        "messageName": "Reject",
+        "pattern": {}
+      }
+    },
+    {
+      "id": "act_8",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n      $ctx.status = \"rejected\"\n    ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "timer_9",
+      "kind": "timer",
+      "data": {
+        "kind": "timer",
+        "duration": {
+          "value": 10,
+          "unit": "s",
+          "loc": {
+            "start": {
+              "index": 732,
+              "line": 28,
+              "col": 19
+            },
+            "end": {
+              "index": 735,
+              "line": 28,
+              "col": 22
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "act_10",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n      $ctx.status = \"timeout\"\n    ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "merge_4",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "end_11",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "send_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_2",
+      "to": "xor_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_3",
+      "to": "recv_5",
+      "label": {
+        "kind": "message",
+        "messageName": "Accept",
+        "pattern": {}
+      }
+    },
+    {
+      "from": "recv_5",
+      "to": "act_6",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_6",
+      "to": "merge_4",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_3",
+      "to": "recv_7",
+      "label": {
+        "kind": "message",
+        "messageName": "Reject",
+        "pattern": {}
+      }
+    },
+    {
+      "from": "recv_7",
+      "to": "act_8",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_8",
+      "to": "merge_4",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_3",
+      "to": "timer_9",
+      "label": {
+        "kind": "timeout",
+        "duration": {
+          "value": 10,
+          "unit": "s",
+          "loc": {
+            "start": {
+              "index": 732,
+              "line": 28,
+              "col": 19
+            },
+            "end": {
+              "index": 735,
+              "line": 28,
+              "col": 22
+            }
+          }
+        }
+      }
+    },
+    {
+      "from": "timer_9",
+      "to": "act_10",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_10",
+      "to": "merge_4",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "merge_4",
+      "to": "end_11",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_11"
+  ]
+}

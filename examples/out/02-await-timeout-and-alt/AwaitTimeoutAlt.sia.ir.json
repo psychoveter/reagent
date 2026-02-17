@@ -1,0 +1,180 @@
+{
+  "protocolName": "AwaitTimeoutAlt",
+  "role": "sia",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_12",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_13",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "comma",
+        "arrow": "-->",
+        "messageName": "SubmitIntent"
+      }
+    },
+    {
+      "id": "xor_14",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "xor"
+      }
+    },
+    {
+      "id": "send_16",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "comma",
+        "arrow": "-->",
+        "messageName": "Accept"
+      }
+    },
+    {
+      "id": "send_17",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "comma",
+        "arrow": "-->",
+        "messageName": "Reject"
+      }
+    },
+    {
+      "id": "timer_18",
+      "kind": "timer",
+      "data": {
+        "kind": "timer",
+        "duration": {
+          "value": 10,
+          "unit": "s",
+          "loc": {
+            "start": {
+              "index": 732,
+              "line": 28,
+              "col": 19
+            },
+            "end": {
+              "index": 735,
+              "line": 28,
+              "col": 22
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "merge_15",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "end_19",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_12",
+      "to": "recv_13",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_13",
+      "to": "xor_14",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_14",
+      "to": "send_16",
+      "label": {
+        "kind": "message",
+        "messageName": "Accept",
+        "pattern": {}
+      }
+    },
+    {
+      "from": "send_16",
+      "to": "merge_15",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_14",
+      "to": "send_17",
+      "label": {
+        "kind": "message",
+        "messageName": "Reject",
+        "pattern": {}
+      }
+    },
+    {
+      "from": "send_17",
+      "to": "merge_15",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_14",
+      "to": "timer_18",
+      "label": {
+        "kind": "timeout",
+        "duration": {
+          "value": 10,
+          "unit": "s",
+          "loc": {
+            "start": {
+              "index": 732,
+              "line": 28,
+              "col": 19
+            },
+            "end": {
+              "index": 735,
+              "line": 28,
+              "col": 22
+            }
+          }
+        }
+      }
+    },
+    {
+      "from": "timer_18",
+      "to": "merge_15",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "merge_15",
+      "to": "end_19",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_12",
+  "terminalStateIds": [
+    "end_19"
+  ]
+}

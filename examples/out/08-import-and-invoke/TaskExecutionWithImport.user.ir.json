@@ -1,0 +1,68 @@
+{
+  "protocolName": "TaskExecutionWithImport",
+  "role": "user",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.taskText = $ctx.input.text\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_3",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "comma",
+        "arrow": "-->",
+        "messageName": "TaskRequest"
+      }
+    },
+    {
+      "id": "end_4",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "act_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_2",
+      "to": "send_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_3",
+      "to": "end_4",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_4"
+  ]
+}

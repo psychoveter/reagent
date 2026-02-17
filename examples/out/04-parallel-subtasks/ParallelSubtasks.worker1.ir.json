@@ -1,0 +1,141 @@
+{
+  "protocolName": "ParallelSubtasks",
+  "role": "worker1",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_12",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_13",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "comma",
+        "arrow": "-->",
+        "messageName": "Subtask"
+      }
+    },
+    {
+      "id": "fork_14",
+      "kind": "fork",
+      "data": {
+        "kind": "fork",
+        "branchStartIds": [
+          "par_entry_16",
+          "par_entry_18"
+        ]
+      }
+    },
+    {
+      "id": "par_entry_16",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "send_17",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "comma",
+        "arrow": "-->",
+        "messageName": "SubtaskDone"
+      }
+    },
+    {
+      "id": "par_entry_18",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "join_15",
+      "kind": "join",
+      "data": {
+        "kind": "join",
+        "branchCount": 2
+      }
+    },
+    {
+      "id": "end_19",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_12",
+      "to": "recv_13",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_13",
+      "to": "fork_14",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "fork_14",
+      "to": "par_entry_16",
+      "label": {
+        "kind": "branch",
+        "branchIndex": 0
+      }
+    },
+    {
+      "from": "par_entry_16",
+      "to": "send_17",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_17",
+      "to": "join_15",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "fork_14",
+      "to": "par_entry_18",
+      "label": {
+        "kind": "branch",
+        "branchIndex": 1
+      }
+    },
+    {
+      "from": "par_entry_18",
+      "to": "join_15",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "join_15",
+      "to": "end_19",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_12",
+  "terminalStateIds": [
+    "end_19"
+  ]
+}

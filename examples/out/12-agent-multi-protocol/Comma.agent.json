@@ -1,0 +1,44 @@
+{
+  "agentName": "Comma",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "TaskExecution",
+      "roleName": "comma"
+    },
+    {
+      "protocolName": "HealthCheck",
+      "roleName": "comma"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.ready = true\n    $self.tasksCompleted = 0\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolCompleted",
+      "protocolFilter": "TaskExecution",
+      "action": {
+        "body": "\n    $self.tasksCompleted += 1\n    reagent.emit(\"AgentStats\", { completed: $self.tasksCompleted })\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "event": "protocolFailed",
+      "protocolFilter": "TaskExecution",
+      "action": {
+        "body": "\n    $self.lastError = $ctx.error\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "event": "protocolStarted",
+      "protocolFilter": "HealthCheck",
+      "action": {
+        "body": "\n    $self.lastHealthCheck = Date.now()\n  ",
+        "lang": "ts"
+      }
+    }
+  ]
+}

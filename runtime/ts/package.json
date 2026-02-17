@@ -1,0 +1,21 @@
+{
+  "name": "@reagent/agent-runtime",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "reagent-agent": "./dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "nats": "^2.29.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "typescript": "^5.8.2"
+  }
+}

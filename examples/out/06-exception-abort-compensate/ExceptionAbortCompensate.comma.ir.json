@@ -1,0 +1,174 @@
+{
+  "protocolName": "ExceptionAbortCompensate",
+  "role": "comma",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_9",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_10",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "user",
+        "arrow": "-->",
+        "messageName": "TaskRequest"
+      }
+    },
+    {
+      "id": "send_11",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "sia",
+        "arrow": "-->",
+        "messageName": "SubmitIntent"
+      }
+    },
+    {
+      "id": "recv_12",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "sia",
+        "arrow": "-->",
+        "messageName": "Accepted"
+      }
+    },
+    {
+      "id": "send_13",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "user",
+        "arrow": "-->",
+        "messageName": "Done"
+      }
+    },
+    {
+      "id": "catch_15",
+      "kind": "error",
+      "data": {
+        "kind": "error",
+        "label": "error"
+      }
+    },
+    {
+      "id": "act_16",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n      // compensate / rollback side-effects\n      compensate(\"sia.cancelIntent\", { ref: $ctx.intentRef })\n    ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_17",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "user",
+        "arrow": "-->",
+        "messageName": "Failed",
+        "preSendZone": "\n        $ctx.msg.message = $ctx.error\n      "
+      }
+    },
+    {
+      "id": "try_merge_14",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "end_18",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_9",
+      "to": "recv_10",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_10",
+      "to": "send_11",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_11",
+      "to": "recv_12",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_12",
+      "to": "send_13",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_13",
+      "to": "try_merge_14",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_10",
+      "to": "catch_15",
+      "label": {
+        "kind": "error"
+      }
+    },
+    {
+      "from": "catch_15",
+      "to": "act_16",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_16",
+      "to": "send_17",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_17",
+      "to": "try_merge_14",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "try_merge_14",
+      "to": "end_18",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_9",
+  "terminalStateIds": [
+    "end_18"
+  ]
+}

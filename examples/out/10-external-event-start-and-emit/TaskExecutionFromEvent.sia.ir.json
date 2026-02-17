@@ -1,0 +1,52 @@
+{
+  "protocolName": "TaskExecutionFromEvent",
+  "role": "sia",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_6",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_7",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "comma",
+        "arrow": "-->",
+        "messageName": "SubmitIntent"
+      }
+    },
+    {
+      "id": "end_8",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_6",
+      "to": "recv_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_7",
+      "to": "end_8",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_6",
+  "terminalStateIds": [
+    "end_8"
+  ]
+}

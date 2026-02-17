@@ -1,0 +1,52 @@
+{
+  "protocolName": "TaskExecutionWithImport",
+  "role": "sia",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_10",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_11",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "comma",
+        "arrow": "-->",
+        "messageName": "SubmitIntent"
+      }
+    },
+    {
+      "id": "end_12",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_10",
+      "to": "recv_11",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_11",
+      "to": "end_12",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_10",
+  "terminalStateIds": [
+    "end_12"
+  ]
+}

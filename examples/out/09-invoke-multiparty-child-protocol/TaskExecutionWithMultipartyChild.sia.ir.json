@@ -1,0 +1,104 @@
+{
+  "protocolName": "TaskExecutionWithMultipartyChild",
+  "role": "sia",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_22",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "xor_23",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "xor"
+      }
+    },
+    {
+      "id": "guard_25",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression",
+        "expr": "$ctx.outcome == \"done\""
+      }
+    },
+    {
+      "id": "else_26",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "merge_24",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "end_27",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_22",
+      "to": "xor_23",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_23",
+      "to": "guard_25",
+      "label": {
+        "kind": "expression",
+        "expr": "$ctx.outcome == \"done\""
+      }
+    },
+    {
+      "from": "guard_25",
+      "to": "merge_24",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_23",
+      "to": "else_26",
+      "label": {
+        "kind": "else"
+      }
+    },
+    {
+      "from": "else_26",
+      "to": "merge_24",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "merge_24",
+      "to": "end_27",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_22",
+  "terminalStateIds": [
+    "end_27"
+  ]
+}

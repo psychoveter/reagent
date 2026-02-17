@@ -1,0 +1,104 @@
+{
+  "protocolName": "TaskExecution",
+  "role": "comma",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_6",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_7",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "user",
+        "arrow": "-->",
+        "messageName": "TaskRequest"
+      }
+    },
+    {
+      "id": "send_8",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "user",
+        "arrow": "-->",
+        "messageName": "Greeting",
+        "preSendZone": "\n      console.log(\"Hi! I'll do it now.\")\n    "
+      }
+    },
+    {
+      "id": "act_9",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    const dsiBsi = taskToDsiBsi($ctx.taskText)\n    $ctx.dsiBsi = dsiBsi\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_10",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "sia",
+        "arrow": "-->",
+        "messageName": "SubmitIntent",
+        "preSendZone": "\n      $ctx.msg.ref = $ctx.dsiBsi\n    "
+      }
+    },
+    {
+      "id": "end_11",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_6",
+      "to": "recv_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_7",
+      "to": "send_8",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_8",
+      "to": "act_9",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_9",
+      "to": "send_10",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_10",
+      "to": "end_11",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_6",
+  "terminalStateIds": [
+    "end_11"
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "protocolName": "SpawnSubagent",
+  "role": "planner",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_14",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "send_15",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "comma",
+        "arrow": "-->",
+        "messageName": "PlanReady"
+      }
+    },
+    {
+      "id": "end_16",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_14",
+      "to": "send_15",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_15",
+      "to": "end_16",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_14",
+  "terminalStateIds": [
+    "end_16"
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "protocolName": "SpawnSubagent",
+  "role": "user",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.taskText = $ctx.input.text\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_3",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "comma",
+        "arrow": "-->",
+        "messageName": "TaskRequest"
+      }
+    },
+    {
+      "id": "recv_4",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "comma",
+        "arrow": "-->",
+        "messageName": "Greeting"
+      }
+    },
+    {
+      "id": "recv_5",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "comma",
+        "arrow": "-->",
+        "messageName": "Done"
+      }
+    },
+    {
+      "id": "end_6",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "act_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_2",
+      "to": "send_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_3",
+      "to": "recv_4",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_4",
+      "to": "recv_5",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_5",
+      "to": "end_6",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_6"
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "protocolName": "TaskExecutionFromEvent",
+  "role": "comma",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.taskText = $ctx.input.text\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_3",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "sia",
+        "arrow": "-->",
+        "messageName": "SubmitIntent"
+      }
+    },
+    {
+      "id": "act_4",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    reagent.emit(\"TaskSubmitted\", { kind: \"task.submitted\", ref: $ctx.intent })\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "end_5",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "act_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_2",
+      "to": "send_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_3",
+      "to": "act_4",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_4",
+      "to": "end_5",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_5"
+  ]
+}

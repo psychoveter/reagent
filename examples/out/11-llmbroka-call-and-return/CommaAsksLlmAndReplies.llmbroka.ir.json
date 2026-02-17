@@ -1,0 +1,35 @@
+{
+  "protocolName": "CommaAsksLlmAndReplies",
+  "role": "llmbroka",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_13",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "end_14",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_13",
+      "to": "end_14",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_13",
+  "terminalStateIds": [
+    "end_14"
+  ]
+}

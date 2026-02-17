@@ -1,0 +1,51 @@
+{
+  "protocolName": "DeriveDsiBsi",
+  "role": "comma",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    const dsiBsi = taskToDsiBsi($ctx.input.taskText)\n    $ctx.dsiBsi = dsiBsi\n    reagent.return($ctx.dsiBsi)\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "end_3",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "act_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_2",
+      "to": "end_3",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_3"
+  ]
+}

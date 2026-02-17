@@ -1,0 +1,24 @@
+{
+  "agentName": "ServerAgent",
+  "lang": "py",
+  "plays": [
+    {
+      "protocolName": "CrossLangDemo",
+      "roleName": "server"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.queriesHandled = 0\n  ",
+    "lang": "py"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolCompleted",
+      "protocolFilter": "CrossLangDemo",
+      "action": {
+        "body": "\n    $self.lastCompletedAt = Date.now()\n  ",
+        "lang": "py"
+      }
+    }
+  ]
+}

@@ -1,0 +1,297 @@
+{
+  "protocolName": "LoopRetryBackoff",
+  "role": "comma",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.attempt = 0\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "loop_guard_3",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression",
+        "expr": "$ctx.attempt < 3"
+      }
+    },
+    {
+      "id": "send_5",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "sia",
+        "arrow": "-->",
+        "messageName": "ValidateIntent",
+        "preSendZone": "\n        $ctx.msg.ref = $ctx.intent\n      "
+      }
+    },
+    {
+      "id": "xor_6",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "xor"
+      }
+    },
+    {
+      "id": "recv_8",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "sia",
+        "arrow": "-->",
+        "messageName": "ValidationOk",
+        "pattern": {}
+      }
+    },
+    {
+      "id": "act_9",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": " $ctx.valid = true ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "recv_10",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "sia",
+        "arrow": "-->",
+        "messageName": "ValidationError",
+        "pattern": {
+          "code": "TRANSIENT"
+        }
+      }
+    },
+    {
+      "id": "act_11",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": " $ctx.attempt = $ctx.attempt + 1 ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "timer_12",
+      "kind": "timer",
+      "data": {
+        "kind": "timer",
+        "duration": {
+          "value": 1,
+          "unit": "s",
+          "loc": {
+            "start": {
+              "index": 877,
+              "line": 30,
+              "col": 12
+            },
+            "end": {
+              "index": 879,
+              "line": 30,
+              "col": 14
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "recv_13",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "sia",
+        "arrow": "-->",
+        "messageName": "ValidationError",
+        "pattern": {
+          "code": "FATAL"
+        }
+      }
+    },
+    {
+      "id": "act_14",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": " throw \"fatal_validation_error\" ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "merge_7",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "loop_exit_4",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "end_15",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "act_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_2",
+      "to": "loop_guard_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "loop_guard_3",
+      "to": "send_5",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_5",
+      "to": "xor_6",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_6",
+      "to": "recv_8",
+      "label": {
+        "kind": "message",
+        "messageName": "ValidationOk",
+        "pattern": {}
+      }
+    },
+    {
+      "from": "recv_8",
+      "to": "act_9",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_9",
+      "to": "merge_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_6",
+      "to": "recv_10",
+      "label": {
+        "kind": "message",
+        "messageName": "ValidationError",
+        "pattern": {
+          "code": "TRANSIENT"
+        }
+      }
+    },
+    {
+      "from": "recv_10",
+      "to": "act_11",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_11",
+      "to": "timer_12",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "timer_12",
+      "to": "merge_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_6",
+      "to": "recv_13",
+      "label": {
+        "kind": "message",
+        "messageName": "ValidationError",
+        "pattern": {
+          "code": "FATAL"
+        }
+      }
+    },
+    {
+      "from": "recv_13",
+      "to": "act_14",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_14",
+      "to": "merge_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "merge_7",
+      "to": "loop_guard_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "loop_guard_3",
+      "to": "loop_exit_4",
+      "label": {
+        "kind": "else"
+      }
+    },
+    {
+      "from": "loop_exit_4",
+      "to": "end_15",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_15"
+  ]
+}

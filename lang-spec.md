@@ -511,13 +511,15 @@ WS              ::= (" " | "\t" | "\r" | "\n")+
 
 ## 3. Example: task execution protocol (user → comma → sia)
 
-See `projects/reagent/examples/01-task-execution-basic.rg`.
+See `projects/reagent/examples/src/01-task-execution-basic.rg`.
 
 ---
 
-## 4. AST and Parser (v0.0.5)
+## 4. Compiler and tooling (v0.0.5)
 
-The parser MUST output an AST conforming to the TypeScript types at `lang/src/ast.ts` and the JSON schema at `lang/ast.schema.json`.
+### 4.1 AST
+
+The parser outputs an AST conforming to the TypeScript types at `lang/src/ast.ts`.
 
 The full AST covers all language constructs:
 - `Program` (top-level: imports + protocol definitions + agent definitions)
@@ -537,17 +539,19 @@ The full AST covers all language constructs:
 
 Every node carries `Loc` (source location: `start: {index, line, col}`, `end: {index, line, col}`).
 
-The parser is a hand-written **recursive-descent parser** in TypeScript (`lang/src/parser.ts`).
+### 4.2 Parser
+
+Hand-written **recursive-descent parser** in TypeScript (`lang/src/parser.ts`).
 Zone bodies remain **raw text** (parser only balances braces, does not parse host language).
 
-### Agent IR (v0.0.5)
+### 4.3 Protocol IR (v0.0.5)
 
-The compiler also produces per-role **Protocol IR** — directed graphs of states and transitions:
+The compiler produces per-role **Protocol IR** — directed graphs of states and transitions:
 - `IRGraph` per role (local view of the global protocol)
 - `IRState` types: `initial`, `send`, `receive`, `action`, `guard`, `fork`, `join`, `timer`, `terminal`, `error`
 - `IRTransition` labels: `default`, `message`, `timeout`, `expression`, `else`, `error`, `branch`
 
-### Agent IR (v0.0.5)
+### 4.4 Agent IR (v0.0.5)
 
 The compiler also produces per-agent **Agent IR** — agent-level metadata that ties protocols together:
 - `AgentIR`: agent name, language tag, plays bindings, init action body, lifecycle handler action bodies.
@@ -555,6 +559,33 @@ The compiler also produces per-agent **Agent IR** — agent-level metadata that 
 - `AgentLifecycleHandler`: event type + optional protocol filter + action body.
 - References to protocol `IRGraph`s for each role the agent plays.
 
-See `lang/src/ir.ts` for the IR type definitions, `lang/src/ir-emitter.ts` for the AST→IR compiler, and `lang/src/ir-validator.ts` for static validation.
+See `lang/src/ir.ts` for IR type definitions, `lang/src/ir-emitter.ts` for AST→IR, and `lang/src/ir-validator.ts` for validation.
+
+### 4.5 CLI (`reagent-lang`)
+
+The `@reagent/lang` package provides a CLI (`lang/dist/cli.js`) for compiling `.rg` files:
+
+```
+reagent-lang parse    <file.rg>               — parse and print AST as JSON
+reagent-lang ir       <file.rg> [role]         — emit IR to stdout (optionally filter by role)
+reagent-lang validate <file.rg> [role]         — emit IR, validate, print diagnostics
+reagent-lang compile  <file.rg> <out-dir>      — compile to per-role and per-agent IR JSON files
+```
+
+The `compile` command produces:
+- `<Proto>.<role>.ir.json` — one IRGraph per role in each protocol
+- `<Agent>.agent.json` — one AgentIR per agent definition
+- `deployment.json` — deployment plan mapping agents to roles and IR files
+
+### 4.6 Reference runtimes
+
+Lightweight **reference runners** (TypeScript and Python) interpret IR JSON directly over NATS:
+
+- **AgentRunner** — one instance per agent. Manages `$self`, lifecycle handlers, message routing to ProtocolInstances.
+- **ProtocolInstance** — interprets one IRGraph state machine per protocol instance. Has its own `$ctx`.
+- **Zone Executor** — executes raw zone body strings with `$ctx`, `$self`, `reagent` in scope.
+- **NATS transport** — message subjects: `reagent.msg.<instanceId>.<toAgent>.<messageName>`.
+
+See `runtime/ts/` (TypeScript) and `runtime/py/` (Python) for implementations.
 
 For the mapping from IR to Losos runtime primitives, see `docs/ir-to-losos-mapping.md`.
