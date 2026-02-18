@@ -1,7 +1,7 @@
 {
   "protocolName": "TaskExecutionWithChild",
   "role": "sia",
-  "lang": "ts",
+  "lang": "*",
   "states": [
     {
       "id": "init_10",

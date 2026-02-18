@@ -1,0 +1,63 @@
+[
+  {
+    "name": "GetState",
+    "fields": [
+      {
+        "name": "agentName",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "StateSnapshot",
+    "fields": [
+      {
+        "name": "stateId",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      },
+      {
+        "name": "ctx",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "self",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "pendingMessages",
+        "type": {
+          "kind": "ArrayType",
+          "element": {
+            "kind": "ScalarType",
+            "name": "string"
+          }
+        },
+        "optional": false
+      },
+      {
+        "name": "recentTraces",
+        "type": {
+          "kind": "ArrayType",
+          "element": {
+            "kind": "AnyType"
+          }
+        },
+        "optional": false
+      }
+    ]
+  }
+]

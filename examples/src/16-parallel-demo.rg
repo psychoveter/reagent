@@ -7,6 +7,12 @@
 // Protocol: coordinator sends tasks to two workers in parallel,
 // waits for both to complete (join), then sends a summary.
 
+message TaskA {}
+message TaskB {}
+message ResultA {}
+message ResultB {}
+message Summary {}
+
 protocol ParDemo {
   participants: coordinator [ts], workerA [ts], workerB [ts]
   initiator: coordinator

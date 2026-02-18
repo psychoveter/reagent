@@ -1,0 +1,121 @@
+[
+  {
+    "name": "Compile",
+    "fields": [
+      {
+        "name": "rgSource",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      },
+      {
+        "name": "fileName",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "CompileSuccess",
+    "fields": [
+      {
+        "name": "irGraphs",
+        "type": {
+          "kind": "ArrayType",
+          "element": {
+            "kind": "AnyType"
+          }
+        },
+        "optional": false
+      },
+      {
+        "name": "agentIRs",
+        "type": {
+          "kind": "ArrayType",
+          "element": {
+            "kind": "AnyType"
+          }
+        },
+        "optional": false
+      },
+      {
+        "name": "deployment",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "sourceMap",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "CompileError",
+    "fields": [
+      {
+        "name": "errors",
+        "type": {
+          "kind": "ArrayType",
+          "element": {
+            "kind": "ObjectType",
+            "fields": [
+              {
+                "kind": "FieldDef",
+                "name": "line",
+                "type": {
+                  "kind": "ScalarType",
+                  "name": "number"
+                },
+                "optional": false,
+                "loc": {
+                  "start": {
+                    "index": 292,
+                    "line": 17,
+                    "col": 13
+                  },
+                  "end": {
+                    "index": 304,
+                    "line": 17,
+                    "col": 25
+                  }
+                }
+              },
+              {
+                "kind": "FieldDef",
+                "name": "message",
+                "type": {
+                  "kind": "ScalarType",
+                  "name": "string"
+                },
+                "optional": false,
+                "loc": {
+                  "start": {
+                    "index": 306,
+                    "line": 17,
+                    "col": 27
+                  },
+                  "end": {
+                    "index": 321,
+                    "line": 17,
+                    "col": 42
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "optional": false
+      }
+    ]
+  }
+]

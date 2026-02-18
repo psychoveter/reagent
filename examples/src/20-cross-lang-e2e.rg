@@ -3,6 +3,9 @@
 // A TS agent and a Python agent exchange messages over NATS.
 // No opaque function calls — only $ctx/$self operations.
 
+message Greeting {}
+message Reply {}
+
 protocol CrossLangE2E {
   participants: tsRole [ts], pyRole [py]
   initiator: tsRole

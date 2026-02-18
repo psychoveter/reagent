@@ -3,8 +3,12 @@
 // Intent: comma asks sia to validate an intent; sia replies OK or Error.
 // This protocol is meant to be *invoked* from a parent protocol.
 
+message ValidateIntent {}
+message ValidationOk {}
+message ValidationError {}
+
 protocol ValidateIntentWithSia {
-  participants: comma [ts], sia [ts]
+  participants: comma [ts], sia [*]
   initiator: comma
   input: ValidateIntent
 

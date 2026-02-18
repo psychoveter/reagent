@@ -34,5 +34,6 @@
     "InvokeDemo.caller": "CallerAgent",
     "InvokeDemo.responder": "ResponderAgent",
     "ComputeSquare.worker": "ResponderAgent"
-  }
+  },
+  "messages": "messages.json"
 }

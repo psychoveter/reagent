@@ -9,6 +9,10 @@
 // Responder replies with Pong. Loop runs 3 times, with a short wait between iterations.
 // After loop exits, poller sends Done.
 
+message Ping {}
+message Pong {}
+message Done {}
+
 protocol LoopWaitDemo {
   participants: poller [ts], responder [ts]
   initiator: poller

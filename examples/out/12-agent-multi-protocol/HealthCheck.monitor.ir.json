@@ -1,7 +1,7 @@
 {
   "protocolName": "HealthCheck",
   "role": "monitor",
-  "lang": "ts",
+  "lang": "*",
   "states": [
     {
       "id": "init_1",

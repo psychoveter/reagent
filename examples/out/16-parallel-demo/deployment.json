@@ -41,5 +41,6 @@
     "ParDemo.coordinator": "CoordinatorAgent",
     "ParDemo.workerA": "WorkerAAgent",
     "ParDemo.workerB": "WorkerBAgent"
-  }
+  },
+  "messages": "messages.json"
 }

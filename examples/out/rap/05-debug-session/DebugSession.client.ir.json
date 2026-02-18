@@ -1,0 +1,69 @@
+{
+  "protocolName": "DebugSession",
+  "role": "client",
+  "lang": "*",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "send_2",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "orchestrator",
+        "arrow": "-->",
+        "messageName": "DebugCommand"
+      }
+    },
+    {
+      "id": "recv_3",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "orchestrator",
+        "arrow": "-->",
+        "messageName": "Stopped"
+      }
+    },
+    {
+      "id": "end_4",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "send_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_2",
+      "to": "recv_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_3",
+      "to": "end_4",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_4"
+  ]
+}

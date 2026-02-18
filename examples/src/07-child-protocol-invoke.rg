@@ -1,3 +1,6 @@
+message TaskRequest {}
+message SubmitIntent {}
+
 // Example 07: child protocol invocation
 //
 // reagent.invoke() and reagent.return() are functions from the `reagent` runtime library,
@@ -18,7 +21,7 @@ protocol DeriveDsiBsi {
 }
 
 protocol TaskExecutionWithChild {
-  participants: user [ts], comma [ts], sia [ts]
+  participants: user [ts], comma [ts], sia [*]
   initiator: user
   input: TaskRequest
 

@@ -1,3 +1,7 @@
+message TaskRequest {}
+message Greeting {}
+message SubmitIntent {}
+
 // Example 00: protocol wrapper + participants + initiator + input(start)
 //
 // This is the canonical top-level structure we want.
@@ -12,7 +16,7 @@
 // onSend / onReceive in message props open inline agent zones for the sender / receiver.
 
 protocol TaskExecution {
-  participants: user [ts], comma [ts], sia [ts]
+  participants: user [ts], comma [ts], sia [*]
   initiator: user
   input: TaskRequest
 

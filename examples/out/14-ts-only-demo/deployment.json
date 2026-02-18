@@ -28,5 +28,6 @@
   "roleToAgent": {
     "TsDemo.client": "ClientAgent",
     "TsDemo.handler": "HandlerAgent"
-  }
+  },
+  "messages": "messages.json"
 }

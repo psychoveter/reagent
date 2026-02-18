@@ -4,6 +4,9 @@
 // ComputeSquare is a single-agent protocol that computes the square of input
 // and returns via reagent.return(). The parent receives the value synchronously.
 
+message ComputeRequest {}
+message ComputeResult {}
+
 protocol ComputeSquare {
   participants: worker [ts]
   initiator: worker

@@ -4,6 +4,7 @@
   "scopeName": "source.reagent",
   "patterns": [
     { "include": "#comments" },
+    { "include": "#messageDef" },
     { "include": "#protocol" },
     { "include": "#agentDef" },
     { "include": "#import" },
@@ -33,7 +34,7 @@
       "patterns": [
         {
           "name": "keyword.control.reagent",
-          "match": "\\b(protocol|import|as|participants|initiator|input|alt|loop|par|wait|timeout|try|catch|else|and|agent|plays|init|on)\\b"
+          "match": "\\b(protocol|import|as|participants|initiator|input|alt|loop|par|wait|timeout|try|catch|else|and|agent|plays|init|on|message)\\b"
         }
       ]
     },
@@ -41,7 +42,44 @@
       "patterns": [
         {
           "name": "storage.type.language.reagent",
-          "match": "\\[(ts|js|py|kt)\\]"
+          "match": "\\[(ts|js|py|kt|\\*)\\]"
+        }
+      ]
+    },
+    "messageDef": {
+      "patterns": [
+        {
+          "name": "meta.definition.message.reagent",
+          "begin": "^\\s*(message)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*(\\{)",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.reagent" },
+            "2": { "name": "entity.name.type.message.reagent" },
+            "3": { "name": "punctuation.section.block.begin.reagent" }
+          },
+          "end": "^\\s*\\}",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.block.end.reagent" }
+          },
+          "patterns": [
+            { "include": "#comments" },
+            { "include": "#messageFieldType" },
+            {
+              "name": "variable.other.field.reagent",
+              "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\??"
+            }
+          ]
+        }
+      ]
+    },
+    "messageFieldType": {
+      "patterns": [
+        {
+          "name": "support.type.reagent",
+          "match": "\\b(string|number|boolean|any)\\b"
+        },
+        {
+          "name": "punctuation.bracket.square.reagent",
+          "match": "\\[\\]"
         }
       ]
     },
@@ -80,7 +118,7 @@
       "patterns": [
         {
           "name": "meta.definition.agent.reagent",
-          "begin": "^\\s*(agent)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*(\\[(ts|js|py|kt)\\])\\s*(\\{)",
+          "begin": "^\\s*(agent)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*(\\[(ts|js|py|kt|\\*)\\])\\s*(\\{)",
           "beginCaptures": {
             "1": { "name": "keyword.control.reagent" },
             "2": { "name": "entity.name.type.agent.reagent" },

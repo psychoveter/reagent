@@ -9,10 +9,14 @@
 // - Child protocol returns answer via reagent.return().
 // - Parent receives that answer as a local $ctx binding.
 
+message TaskRequest {}
+message Greeting {}
+message LlmPlan {}
+
 import "./lib/call-llm.rg" as llm
 
 protocol CommaAsksLlmAndReplies {
-  participants: user [ts], comma [ts], llmbroka [ts]
+  participants: user [ts], comma [ts], llmbroka [*]
   initiator: user
   input: TaskRequest
 

@@ -1,3 +1,6 @@
+message Subtask {}
+message SubtaskDone {}
+
 // Example 04: par (parallel branches) + join
 // Intent: comma decomposes a task into two subtasks, runs them in parallel, then joins results.
 // Roles: comma [ts], worker1 [ts], worker2 [ts]

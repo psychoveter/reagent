@@ -21,11 +21,13 @@ import type {
   ArrowKind,
   Duration,
   DurationUnit,
+  FieldDef,
   HookZone,
   ImportStmt,
   LangTag,
   Loc,
   LoopStmt,
+  MessageDef,
   MessageProps,
   MessageStmt,
   ParBranch,
@@ -39,6 +41,7 @@ import type {
   ProtocolItem,
   TopLevelItem,
   TryStmt,
+  TypeExpr,
   WaitStmt,
 } from "./ast.js";
 
@@ -86,7 +89,14 @@ export function parseProgram(src: string): ParseResult {
       continue;
     }
 
-    errors.push(makeError("E_TOP_LEVEL", "Only 'import', 'protocol', and 'agent' allowed at top-level", c));
+    if (startsWithKeyword(c, "message")) {
+      const m = pMessageDef(c);
+      if (m) items.push(m);
+      else errors.push(makeError("E_MESSAGE", "Failed to parse message definition", c));
+      continue;
+    }
+
+    errors.push(makeError("E_TOP_LEVEL", "Only 'import', 'protocol', 'agent', and 'message' allowed at top-level", c));
     // skip to next line to recover
     skipToNewline(c);
   }
@@ -356,7 +366,7 @@ function readDuration(c: Cursor): Duration | null {
 
 // ── Participant list ────────────────────────────────────────────────
 
-const VALID_LANG_TAGS = new Set<string>(["ts", "js", "py", "kt"]);
+const VALID_LANG_TAGS = new Set<string>(["ts", "js", "py", "kt", "*"]);
 
 function pParticipantList(c: Cursor): ParticipantDecl[] | null {
   const result: ParticipantDecl[] = [];
@@ -371,8 +381,15 @@ function pParticipantList(c: Cursor): ParticipantDecl[] | null {
     if (c.peek() !== "[") return null;
     c.next();
     skipWSAndComments(c);
-    const tagId = readIdent(c);
-    if (!tagId || !VALID_LANG_TAGS.has(tagId.name)) return null;
+    let langTagName: string;
+    if (c.peek() === "*") {
+      langTagName = "*";
+      c.next();
+    } else {
+      const tagId = readIdent(c);
+      if (!tagId || !VALID_LANG_TAGS.has(tagId.name)) return null;
+      langTagName = tagId.name;
+    }
     skipWSAndComments(c);
     if (c.peek() !== "]") return null;
     c.next();
@@ -380,7 +397,7 @@ function pParticipantList(c: Cursor): ParticipantDecl[] | null {
     result.push({
       kind: "ParticipantDecl",
       name: id.name,
-      lang: tagId.name as LangTag,
+      lang: langTagName as LangTag,
       loc: c.locFrom(start),
     });
 
@@ -983,7 +1000,7 @@ function pAgentDef(c: Cursor): AgentDef | null {
   c.next();
   skipWSAndComments(c);
   const tagId = readIdent(c);
-  if (!tagId || !VALID_LANG_TAGS.has(tagId.name)) return null;
+  if (!tagId || !VALID_LANG_TAGS.has(tagId.name) || tagId.name === "*") return null;
   skipWSAndComments(c);
   if (c.peek() !== "]") return null;
   c.next();
@@ -1083,6 +1100,115 @@ function pAgentDef(c: Cursor): AgentDef | null {
     plays,
     init,
     handlers,
+    loc: c.locFrom(start),
+  };
+}
+
+// ── Message definition (typed payload) ─────────────────────────────
+
+const SCALAR_TYPES = new Set(["string", "number", "boolean"]);
+
+function pTypeExpr(c: Cursor): TypeExpr | null {
+  skipWSAndComments(c);
+
+  if (c.peek() === "{") {
+    c.next();
+    const fields = pFieldList(c);
+    if (!fields) return null;
+    skipWSAndComments(c);
+    if (c.peek() !== "}") return null;
+    c.next();
+    let te: TypeExpr = { kind: "ObjectType", fields };
+    while (c.peek() === "[" && c.peek(1) === "]") {
+      c.next(); c.next();
+      te = { kind: "ArrayType", element: te };
+    }
+    return te;
+  }
+
+  const id = readIdent(c);
+  if (!id) return null;
+
+  if (id.name === "any") {
+    let te: TypeExpr = { kind: "AnyType" };
+    while (c.peek() === "[" && c.peek(1) === "]") {
+      c.next(); c.next();
+      te = { kind: "ArrayType", element: te };
+    }
+    return te;
+  }
+
+  if (!SCALAR_TYPES.has(id.name)) return null;
+
+  let te: TypeExpr = { kind: "ScalarType", name: id.name as "string" | "number" | "boolean" };
+  while (c.peek() === "[" && c.peek(1) === "]") {
+    c.next(); c.next();
+    te = { kind: "ArrayType", element: te };
+  }
+  return te;
+}
+
+function pFieldList(c: Cursor): FieldDef[] | null {
+  const fields: FieldDef[] = [];
+
+  for (;;) {
+    skipWSAndComments(c);
+    if (c.eof() || c.peek() === "}") break;
+
+    const start = c.pos();
+    const name = readIdent(c);
+    if (!name) break;
+
+    let optional = false;
+    if (c.peek() === "?") {
+      optional = true;
+      c.next();
+    }
+
+    skipWSAndComments(c);
+    if (c.peek() !== ":") return null;
+    c.next();
+
+    skipWSAndComments(c);
+    const type = pTypeExpr(c);
+    if (!type) return null;
+
+    fields.push({
+      kind: "FieldDef",
+      name: name.name,
+      type,
+      optional,
+      loc: c.locFrom(start),
+    });
+
+    skipWSAndComments(c);
+    if (c.peek() === ",") c.next();
+  }
+
+  return fields;
+}
+
+function pMessageDef(c: Cursor): MessageDef | null {
+  const start = c.pos();
+  if (!consumeKeyword(c, "message")) return null;
+  skipWSAndComments(c);
+  const name = readIdent(c);
+  if (!name) return null;
+  skipWSAndComments(c);
+  if (c.peek() !== "{") return null;
+  c.next();
+
+  const fields = pFieldList(c);
+  if (!fields) return null;
+
+  skipWSAndComments(c);
+  if (c.peek() !== "}") return null;
+  c.next();
+
+  return {
+    kind: "MessageDef",
+    name: name.name,
+    fields,
     loc: c.locFrom(start),
   };
 }

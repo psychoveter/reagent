@@ -28,5 +28,6 @@
   "roleToAgent": {
     "TryCatchDemo.sender": "SenderAgent",
     "TryCatchDemo.processor": "ProcessorAgent"
-  }
+  },
+  "messages": "messages.json"
 }

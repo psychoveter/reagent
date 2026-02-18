@@ -1,0 +1,18 @@
+[
+  {
+    "name": "TaskRequest",
+    "fields": []
+  },
+  {
+    "name": "Greeting",
+    "fields": []
+  },
+  {
+    "name": "PlanReady",
+    "fields": []
+  },
+  {
+    "name": "Done",
+    "fields": []
+  }
+]

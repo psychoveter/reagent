@@ -14,10 +14,15 @@
 // - $self is the agent's own state, accessible in init, on, and protocol zones.
 // - $ctx remains scoped to a protocol instance as before.
 
+message TaskRequest {}
+message SubmitIntent {}
+message Ping {}
+message Pong {}
+
 import "./lib/derive-dsi-bsi.rg" as derive
 
 protocol TaskExecution {
-  participants: user [ts], comma [ts], sia [ts]
+  participants: user [ts], comma [ts], sia [*]
   initiator: user
   input: TaskRequest
 
@@ -39,7 +44,7 @@ protocol TaskExecution {
 }
 
 protocol HealthCheck {
-  participants: monitor [ts], comma [ts]
+  participants: monitor [*], comma [ts]
   initiator: monitor
   input: Ping
 

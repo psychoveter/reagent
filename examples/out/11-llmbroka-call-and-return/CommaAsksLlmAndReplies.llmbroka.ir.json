@@ -1,7 +1,7 @@
 {
   "protocolName": "CommaAsksLlmAndReplies",
   "role": "llmbroka",
-  "lang": "ts",
+  "lang": "*",
   "states": [
     {
       "id": "init_13",

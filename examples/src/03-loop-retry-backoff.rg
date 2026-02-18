@@ -1,3 +1,7 @@
+message ValidateIntent {}
+message ValidationOk {}
+message ValidationError {}
+
 // Example 03: loop + retry/backoff
 // Intent: comma asks sia to validate DSI/BSI; retries up to N times with backoff on transient failure.
 // Roles: comma [ts], sia [ts]
@@ -7,7 +11,7 @@
 // break/throw inside zones are host-language constructs bridged by the reagent runtime library.
 
 protocol LoopRetryBackoff {
-  participants: comma [ts], sia [ts]
+  participants: comma [ts], sia [*]
   initiator: comma
   input: ValidateIntent
 

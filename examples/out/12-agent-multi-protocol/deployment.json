@@ -21,5 +21,6 @@
   "roleToAgent": {
     "TaskExecution.comma": "Comma",
     "HealthCheck.comma": "Comma"
-  }
+  },
+  "messages": "messages.json"
 }

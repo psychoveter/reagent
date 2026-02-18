@@ -1,0 +1,141 @@
+[
+  {
+    "name": "SetBreakpointsRequest",
+    "fields": [
+      {
+        "name": "sourceLocations",
+        "type": {
+          "kind": "ArrayType",
+          "element": {
+            "kind": "ObjectType",
+            "fields": [
+              {
+                "kind": "FieldDef",
+                "name": "file",
+                "type": {
+                  "kind": "ScalarType",
+                  "name": "string"
+                },
+                "optional": false,
+                "loc": {
+                  "start": {
+                    "index": 180,
+                    "line": 5,
+                    "col": 22
+                  },
+                  "end": {
+                    "index": 192,
+                    "line": 5,
+                    "col": 34
+                  }
+                }
+              },
+              {
+                "kind": "FieldDef",
+                "name": "line",
+                "type": {
+                  "kind": "ScalarType",
+                  "name": "number"
+                },
+                "optional": false,
+                "loc": {
+                  "start": {
+                    "index": 194,
+                    "line": 5,
+                    "col": 36
+                  },
+                  "end": {
+                    "index": 206,
+                    "line": 5,
+                    "col": 48
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "BreakpointsResolved",
+    "fields": [
+      {
+        "name": "breakpoints",
+        "type": {
+          "kind": "ArrayType",
+          "element": {
+            "kind": "ObjectType",
+            "fields": [
+              {
+                "kind": "FieldDef",
+                "name": "stateId",
+                "type": {
+                  "kind": "ScalarType",
+                  "name": "string"
+                },
+                "optional": false,
+                "loc": {
+                  "start": {
+                    "index": 261,
+                    "line": 9,
+                    "col": 18
+                  },
+                  "end": {
+                    "index": 276,
+                    "line": 9,
+                    "col": 33
+                  }
+                }
+              },
+              {
+                "kind": "FieldDef",
+                "name": "file",
+                "type": {
+                  "kind": "ScalarType",
+                  "name": "string"
+                },
+                "optional": false,
+                "loc": {
+                  "start": {
+                    "index": 278,
+                    "line": 9,
+                    "col": 35
+                  },
+                  "end": {
+                    "index": 290,
+                    "line": 9,
+                    "col": 47
+                  }
+                }
+              },
+              {
+                "kind": "FieldDef",
+                "name": "line",
+                "type": {
+                  "kind": "ScalarType",
+                  "name": "number"
+                },
+                "optional": false,
+                "loc": {
+                  "start": {
+                    "index": 292,
+                    "line": 9,
+                    "col": 49
+                  },
+                  "end": {
+                    "index": 304,
+                    "line": 9,
+                    "col": 61
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "optional": false
+      }
+    ]
+  }
+]

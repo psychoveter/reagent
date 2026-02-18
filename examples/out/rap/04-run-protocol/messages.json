@@ -1,0 +1,72 @@
+[
+  {
+    "name": "RunStart",
+    "fields": [
+      {
+        "name": "instanceId",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      },
+      {
+        "name": "protocolName",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      },
+      {
+        "name": "input",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "mode",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "RunCompleted",
+    "fields": [
+      {
+        "name": "status",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      },
+      {
+        "name": "returnValue",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": true
+      },
+      {
+        "name": "finalCtx",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": true
+      },
+      {
+        "name": "finalSelf",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": true
+      }
+    ]
+  }
+]

@@ -1,0 +1,69 @@
+{
+  "protocolName": "RunProtocol",
+  "role": "adapter",
+  "lang": "*",
+  "states": [
+    {
+      "id": "init_5",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_6",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "orchestrator",
+        "arrow": "-->",
+        "messageName": "RunStart"
+      }
+    },
+    {
+      "id": "send_7",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "orchestrator",
+        "arrow": "-->",
+        "messageName": "RunCompleted"
+      }
+    },
+    {
+      "id": "end_8",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_5",
+      "to": "recv_6",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_6",
+      "to": "send_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_7",
+      "to": "end_8",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_5",
+  "terminalStateIds": [
+    "end_8"
+  ]
+}

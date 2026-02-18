@@ -4,6 +4,9 @@
 //   T15: Spawn starts child instance, parent continues without waiting
 //   T16: Emit triggers agent lifecycle handler (protocolEvent)
 
+message WorkRequest {}
+message WorkResult {}
+
 protocol BackgroundTask {
   participants: worker [ts]
   initiator: worker

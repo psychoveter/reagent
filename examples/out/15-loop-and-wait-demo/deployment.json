@@ -28,5 +28,6 @@
   "roleToAgent": {
     "LoopWaitDemo.poller": "PollerAgent",
     "LoopWaitDemo.responder": "ResponderAgent"
-  }
+  },
+  "messages": "messages.json"
 }

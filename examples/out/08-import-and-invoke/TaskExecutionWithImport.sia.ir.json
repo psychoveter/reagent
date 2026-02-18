@@ -1,7 +1,7 @@
 {
   "protocolName": "TaskExecutionWithImport",
   "role": "sia",
-  "lang": "ts",
+  "lang": "*",
   "states": [
     {
       "id": "init_10",

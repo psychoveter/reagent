@@ -8,6 +8,10 @@
 // If input says "fail", processor throws in the try body.
 // Catch block sends a Failure message. Otherwise normal Result message.
 
+message Request {}
+message Result {}
+message Failure {}
+
 protocol TryCatchDemo {
   participants: sender [ts], processor [ts]
   initiator: sender

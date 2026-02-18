@@ -28,5 +28,6 @@
   "roleToAgent": {
     "CrossLangE2E.tsRole": "TsAgent",
     "CrossLangE2E.pyRole": "PyAgent"
-  }
+  },
+  "messages": "messages.json"
 }

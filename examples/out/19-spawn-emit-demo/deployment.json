@@ -34,5 +34,6 @@
     "SpawnEmitDemo.orchestrator": "OrchestratorAgent",
     "BackgroundTask.worker": "OrchestratorAgent",
     "SpawnEmitDemo.helper": "HelperAgent"
-  }
+  },
+  "messages": "messages.json"
 }

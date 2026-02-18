@@ -1,0 +1,125 @@
+{
+  "protocolName": "AdapterHandshake",
+  "role": "orchestrator",
+  "lang": "*",
+  "states": [
+    {
+      "id": "init_8",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_9",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "adapter",
+        "arrow": "-->",
+        "messageName": "Register"
+      }
+    },
+    {
+      "id": "xor_10",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "xor"
+      }
+    },
+    {
+      "id": "send_12",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "adapter",
+        "arrow": "-->",
+        "messageName": "Accepted"
+      }
+    },
+    {
+      "id": "send_13",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "adapter",
+        "arrow": "-->",
+        "messageName": "Rejected"
+      }
+    },
+    {
+      "id": "merge_11",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "end_14",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_8",
+      "to": "recv_9",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_9",
+      "to": "xor_10",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_10",
+      "to": "send_12",
+      "label": {
+        "kind": "message",
+        "messageName": "Accepted"
+      }
+    },
+    {
+      "from": "send_12",
+      "to": "merge_11",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_10",
+      "to": "send_13",
+      "label": {
+        "kind": "message",
+        "messageName": "Rejected"
+      }
+    },
+    {
+      "from": "send_13",
+      "to": "merge_11",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "merge_11",
+      "to": "end_14",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_8",
+  "terminalStateIds": [
+    "end_14"
+  ]
+}

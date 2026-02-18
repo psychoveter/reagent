@@ -1,0 +1,22 @@
+[
+  {
+    "name": "TaskRequest",
+    "fields": []
+  },
+  {
+    "name": "SubmitIntent",
+    "fields": []
+  },
+  {
+    "name": "Accepted",
+    "fields": []
+  },
+  {
+    "name": "Done",
+    "fields": []
+  },
+  {
+    "name": "Failed",
+    "fields": []
+  }
+]

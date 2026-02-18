@@ -1,7 +1,7 @@
 {
   "protocolName": "TaskExecutionWithMultipartyChild",
   "role": "sia",
-  "lang": "ts",
+  "lang": "*",
   "states": [
     {
       "id": "init_22",

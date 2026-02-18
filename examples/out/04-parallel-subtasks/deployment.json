@@ -1,4 +1,5 @@
 {
   "agents": [],
-  "roleToAgent": {}
+  "roleToAgent": {},
+  "messages": "messages.json"
 }

@@ -17,7 +17,7 @@ export type Program = {
   items: TopLevelItem[];
 };
 
-export type TopLevelItem = ImportStmt | ProtocolDef | AgentDef;
+export type TopLevelItem = ImportStmt | ProtocolDef | AgentDef | MessageDef;
 
 // ── Import ──────────────────────────────────────────────────────────
 
@@ -40,7 +40,7 @@ export type ProtocolDef = {
   loc: Loc;
 };
 
-export type LangTag = "ts" | "js" | "py" | "kt";
+export type LangTag = "ts" | "js" | "py" | "kt" | "*";
 
 export type ParticipantDecl = {
   kind: "ParticipantDecl";
@@ -243,4 +243,46 @@ export type AgentOnHandler = {
   protocolFilter?: string;
   body: string;
   loc: Loc;
+};
+
+// ── Message definition (typed message payload) ──────────────────────
+
+export type MessageDef = {
+  kind: "MessageDef";
+  name: string;
+  fields: FieldDef[];
+  loc: Loc;
+};
+
+export type FieldDef = {
+  kind: "FieldDef";
+  name: string;
+  type: TypeExpr;
+  optional: boolean;
+  loc: Loc;
+};
+
+export type TypeExpr =
+  | ScalarType
+  | ArrayType
+  | ObjectType
+  | AnyType;
+
+export type ScalarType = {
+  kind: "ScalarType";
+  name: "string" | "number" | "boolean";
+};
+
+export type ArrayType = {
+  kind: "ArrayType";
+  element: TypeExpr;
+};
+
+export type ObjectType = {
+  kind: "ObjectType";
+  fields: FieldDef[];
+};
+
+export type AnyType = {
+  kind: "AnyType";
 };

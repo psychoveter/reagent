@@ -12,7 +12,7 @@
  *    its init action, and lifecycle event handlers.
  */
 
-import type { AgentEventKind, ArrowKind, Duration, LangTag } from "./ast.js";
+import type { AgentEventKind, ArrowKind, Duration, LangTag, TypeExpr } from "./ast.js";
 
 // ── IR Graph (per-role) ─────────────────────────────────────────────
 
@@ -165,4 +165,17 @@ export type AgentLifecycleHandler = {
   event: AgentEventKind;
   protocolFilter?: string;
   action: AgentAction;
+};
+
+// ── Message Schema IR ────────────────────────────────────────────────
+
+export type IRMessageSchema = {
+  name: string;
+  fields: IRFieldSchema[];
+};
+
+export type IRFieldSchema = {
+  name: string;
+  type: TypeExpr;
+  optional: boolean;
 };

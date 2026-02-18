@@ -1,3 +1,8 @@
+message TaskRequest {}
+message Greeting {}
+message PlanReady {}
+message Done {}
+
 // Example 05: spawn subagent (subprotocol / agent creation)
 // Intent: comma spawns a subagent to do planning (DSI/BSI), then continues with result.
 // Roles: user [ts], comma [ts], planner [ts]

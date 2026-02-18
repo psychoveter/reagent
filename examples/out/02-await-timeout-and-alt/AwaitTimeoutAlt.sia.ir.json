@@ -1,7 +1,7 @@
 {
   "protocolName": "AwaitTimeoutAlt",
   "role": "sia",
-  "lang": "ts",
+  "lang": "*",
   "states": [
     {
       "id": "init_12",
@@ -58,13 +58,13 @@
           "unit": "s",
           "loc": {
             "start": {
-              "index": 732,
-              "line": 28,
+              "index": 792,
+              "line": 32,
               "col": 19
             },
             "end": {
-              "index": 735,
-              "line": 28,
+              "index": 795,
+              "line": 32,
               "col": 22
             }
           }
@@ -145,13 +145,13 @@
           "unit": "s",
           "loc": {
             "start": {
-              "index": 732,
-              "line": 28,
+              "index": 792,
+              "line": 32,
               "col": 19
             },
             "end": {
-              "index": 735,
-              "line": 28,
+              "index": 795,
+              "line": 32,
               "col": 22
             }
           }

@@ -6,6 +6,10 @@
 //   T3: alt-reject path
 //   T5: $self state across multiple instances
 
+message Query {}
+message Accept {}
+message Reject {}
+
 protocol TsDemo {
   participants: client [ts], handler [ts]
   initiator: client

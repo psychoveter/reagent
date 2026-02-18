@@ -128,115 +128,146 @@ Lightweight TS + Python AgentRunners interpreting IR JSON over NATS.
 
 ---
 
-## M2-RT — Protocol debugger: UI + debug server for the VSCode extension ⬜ NEXT
+## M2-LANG — Language v0.1: wildcard lang tag, typed messages, RAP specs ✅ DONE
 
-**Intent**: build a protocol debugging experience inside Cursor/VSCode. The extension connects to a running (or stepping) reference runtime, collects execution traces in real time, and visualizes the protocol state machine with agent states overlaid.
+**Intent**: extend the Reagent language with two features needed for describing wire-only protocols (RAP, A2A), then update all existing examples and write the RAP sub-protocol specs. Bumps language to v0.1.
 
-### Why
+### Phase A: `[*]` wildcard lang tag
 
-Right now we can run protocols and assert on traces in tests, but there is no way to **see** what's happening: which state each agent is in, what messages are in flight, what `$ctx` and `$self` contain at each step. For a distributed protocol language, visual debugging is essential — both for language development and for end users.
+**Syntax**: `participants: adapter [*], orchestrator [*]`
 
-### Architecture
+**Semantics**: `[*]` = language not fixed by the protocol. Zone blocks and `onSend`/`onReceive` hooks are forbidden for `[*]` roles. IR emits `lang: "*"`.
 
-```
-┌──────────────────────────────────────────────────┐
-│  Cursor / VSCode                                 │
-│  ┌────────────────────────────────────────────┐  │
-│  │  reagent-vscode extension                  │  │
-│  │  ┌──────────┐  ┌───────────────────────┐   │  │
-│  │  │ .rg      │  │ Debug Panel (webview) │   │  │
-│  │  │ editor + │  │ - protocol graph      │   │  │
-│  │  │ syntax   │  │ - agent state cards   │   │  │
-│  │  │ highlight│  │ - trace timeline      │   │  │
-│  │  └──────────┘  │ - $ctx / $self viewer │   │  │
-│  │                │ - message log         │   │  │
-│  │                └───────┬───────────────┘   │  │
-│  └────────────────────────┼───────────────────┘  │
-│                           │ WebSocket / DAP       │
-└───────────────────────────┼──────────────────────┘
-                            │
-               ┌────────────▼────────────┐
-               │  Reagent Debug Server   │
-               │  (Node.js process)      │
-               │                         │
-               │  - Loads IR + deployment │
-               │  - Runs AgentRunners    │
-               │  - Controls stepping    │
-               │  - Streams traces       │
-               │  - Exposes agent state  │
-               └────────────┬────────────┘
-                            │ NATS
-               ┌────────────▼────────────┐
-               │  NATS Server            │
-               └─────────────────────────┘
-```
+**Changes**:
+- `lang/src/parser.ts`: accept `*` as valid lang tag token
+- `lang/src/ir.ts`: `LangTag` type gets `"*"` variant
+- `lang/src/ir-emitter.ts`: emit `lang: "*"`, skip zone emission for `[*]` roles
+- `lang/src/ir-validator.ts`: reject zone blocks on `[*]` roles
+- `lang-spec.md`: document in §1.1, update EBNF `LangTag` production
+- `tools/reagent-vscode/`: update TextMate grammar
 
-### Phase 1: Debug server (headless)
+### Phase B: typed messages
 
-A standalone Node.js process that wraps the existing reference runtime with debug controls:
+**Syntax**: `message Register { adapterId: string, capabilities: string[] }`
 
-1. **Debug server** (`runtime/debug-server.ts`):
-   - Compiles `.rg` → IR.
-   - Creates AgentRunners in-process (all TS for v0; Python via child process later).
-   - Exposes a WebSocket API for debug clients.
-   - Supports execution modes:
-     - **Run** — normal execution, streams trace events in real time.
-     - **Step** — pause before each state transition; client sends `step` / `stepOver` / `continue`.
-     - **Breakpoints** — pause when a named state / message / agent zone is reached.
-   - Exposes introspection:
-     - Current state per agent per protocol instance.
-     - `$ctx` and `$self` snapshots at any pause point.
-     - Message queue (pending receives).
-     - Full trace so far.
+**Semantics**: top-level `message` construct defines payload shape. System fields (`instanceId`, `protocolName`, etc.) are implicit (envelope). Types: `string`, `number`, `boolean`, `any`, `type[]`, `{ field: type }`, `type?`. Duck typing. Backward compatible — untyped messages remain valid.
 
-2. **Debug protocol** (WebSocket JSON messages):
-   - Client → Server: `launch`, `step`, `stepOver`, `continue`, `pause`, `setBreakpoints`, `getState`, `getTrace`.
-   - Server → Client: `stopped` (at breakpoint/step), `traceEvent`, `agentStateChanged`, `protocolCompleted`, `error`.
+**Changes**:
+- `lang/src/parser.ts`: parse `message Name { fields }`
+- `lang/src/ast.ts`: `MessageDef`, `FieldDef`, `TypeExpr` nodes
+- `lang/src/ir-emitter.ts`: emit `IRMessageSchema[]` alongside graphs
+- `lang/src/ir-validator.ts`: warn on undeclared message names (not error)
+- `lang-spec.md`: new §1.14 "Message types", update EBNF
 
-3. E2E tests for debug server:
-   - **T21**: Launch protocol in step mode, step through 3 transitions, verify state after each.
-   - **T22**: Set breakpoint on message name, run, verify execution pauses at correct point.
-   - **T23**: Inspect `$ctx` and `$self` at pause point, verify values match expected.
+### Phase C: update existing examples (22 files)
 
-### Phase 2: VSCode debug panel (webview)
+Migrate all `.rg` examples to use the new features where appropriate:
 
-Extend `reagent-vscode` with a debug experience:
+**`[*]` wildcard** — 13 files have roles with no zones:
+- `sia [ts]` → `sia [*]` in: 00, 01, 02, 03, 06, 07, 08, 09, 10, 12, task-execution
+- `worker1 [ts]`, `worker2 [ts]` → `[*]` in: 04
+- `planner [ts]` → `planner [*]` in: 05
+- `llmbroka [ts]` → `llmbroka [*]` in: 11
+- `monitor [ts]` → `monitor [*]` in: 12 (HealthCheck)
+- Files 13-20: all roles have zones — keep concrete lang tags
 
-1. **Protocol graph visualization**:
-   - Render the IRGraph as a visual state machine (nodes = states, edges = transitions).
-   - Highlight the current state per agent in real time.
-   - Color-code: active (running), paused (at breakpoint), completed, failed.
+**Typed messages** — add `message` definitions for all 22 files. Every `MessageName` used in `A --> B: MessageName` gets a `message` declaration with typed fields.
 
-2. **Agent state cards**:
-   - One card per agent showing: name, language, current protocol instance(s), `$self` snapshot.
-   - Click to expand: `$ctx` for each active instance.
+**Recompile all**: verify all 22 examples compile, IR is valid, existing E2E tests T1-T20 still pass.
 
-3. **Trace timeline**:
-   - Vertical timeline of trace events (ProtocolStarted, MessageSent, ActionStarted, ...).
-   - Click on event to see full payload.
-   - Filter by agent, by event kind, by protocol instance.
+### Phase D: RAP sub-protocol specs
 
-4. **Message log**:
-   - All messages in flight and delivered.
-   - From/to (agent + role), payload, timestamp.
+Write 7 RAP `.rg` files in `examples/rap/` using `[*]` and typed messages:
+- `AdapterHandshake.rg`
+- `CompileRequest.rg`
+- `DeployAgent.rg`
+- `RunProtocol.rg`
+- `DebugSession.rg`
+- `InspectState.rg`
+- `SetBreakpoints.rg`
 
-5. **Breakpoint integration**:
-   - Set breakpoints in `.rg` source (on message steps, agent zones, alt branches).
-   - Extension maps `.rg` source locations to IR state IDs.
-   - Gutter markers in `.rg` editor for breakpoints.
+Compile all to IR. Derive JSON wire format schema from IR message definitions.
 
-6. **Launch configuration**:
-   - `launch.json` support: specify `.rg` file, input, NATS URL.
-   - "Debug Protocol" button in `.rg` editor title bar.
+### Results
 
-### Phase 3: Source mapping and step-through in `.rg` editor
+**Phase A** ✅ — `[*]` wildcard lang tag:
+- `ast.ts`: `LangTag` union extended with `"*"`
+- `parser.ts`: `VALID_LANG_TAGS` includes `"*"`, special-case token parsing for `*` (not a valid ident char), `[*]` rejected in `agent` definitions
+- `ir-emitter.ts`: zone blocks on `[*]` roles produce a compile error
+- `lang-spec.md` §1.1 + EBNF updated
+- `reagent.tmLanguage.json`: langTag + agentDef patterns updated
 
-1. **Source map**: compiler emits a map from IR state IDs back to `.rg` source locations.
-2. **Step-through**: when paused, highlight the current line in the `.rg` editor.
-3. **Inline values**: show `$ctx.foo = "bar"` as inline decorations next to the corresponding `.rg` line (similar to debugger inline values).
+**Phase B** ✅ — typed messages:
+- `ast.ts`: `MessageDef`, `FieldDef`, `TypeExpr` (`ScalarType`/`ArrayType`/`ObjectType`/`AnyType`) types added, `TopLevelItem` extended
+- `parser.ts`: `pMessageDef`, `pFieldList`, `pTypeExpr` functions; `parseProgram` dispatches `message` keyword; comma-separated and newline-separated fields supported
+- `ir.ts`: `IRMessageSchema`, `IRFieldSchema` types
+- `ir-emitter.ts`: `emitMessageSchema()` function
+- `cli.ts`: compile outputs `messages.json`, deployment manifest references it
+- `lang-spec.md` §1.14 + EBNF updated; v0.1.0 changelog added
+- `reagent.tmLanguage.json`: `messageDef` + `messageFieldType` rules, `message` added to keywords
+
+**Phase C** ✅ — 25 files updated (22 examples + 3 libs):
+- 14 `[*]` wildcard substitutions across 13 files (sia, monitor, llmbroka)
+- `message` definitions added to all 25 files
+- All recompiled to `examples/out/`; validation passes on all
+
+**Phase D** ✅ — 7 RAP sub-protocol specs:
+- `examples/src/rap/01-adapter-handshake.rg` (2 roles, 3 messages, alt branching)
+- `examples/src/rap/02-compile-request.rg` (2 roles, 3 messages, alt branching)
+- `examples/src/rap/03-deploy-agent.rg` (2 roles, 3 messages, alt branching)
+- `examples/src/rap/04-run-protocol.rg` (2 roles, 2 messages, linear)
+- `examples/src/rap/05-debug-session.rg` (3 roles, 2 messages, relay pattern)
+- `examples/src/rap/06-inspect-state.rg` (3 roles, 2 messages, relay pattern)
+- `examples/src/rap/07-set-breakpoints.rg` (2 roles, 2 messages, linear)
+- All compile to IR + message schemas in `examples/out/rap/`
+
+---
+
+## M3-RT — Multi-runtime orchestrator and debugger ⬜ NEXT
+
+**Intent**: build the orchestration and debug infrastructure based on the RAP specs from M2-LANG. Replaces the old M2-RT plan with the new architecture (ROS + RAP adapters + unified debug protocol).
+
+See [multi-runtime debug architecture plan](../.cursor/plans/multi-runtime_debug_architecture_d3fed9bd.plan.md) for full design.
+
+### Phase 1: ROS (Reagent Orchestrator Server)
+
+Node.js process with WebSocket server:
+- Adapter registration (`AdapterHandshake` RAP sub-protocol)
+- Compilation on demand (`CompileRequest`)
+- Session management (deploy, start, trace aggregation)
+- Source map management (IR state ID → `.rg` line)
+- Breakpoint resolution
+
+### Phase 2: TS + Python reference adapters
+
+Extract `AgentRunner` into adapter processes with WebSocket RAP clients:
+- `SteppableProtocolInstance` wrapper: `beforeAdvance` hook for step/breakpoint
+- State inspection (already exists: `getTraces()`, `getSelf()`, `ctx`)
+- Extend `TraceEventKind` with debug events: `Paused`, `Resumed`, `StateSnapshot`, `BreakpointHit`
+
+E2E tests:
+- **T21**: Launch protocol in step mode, step through 3 transitions, verify state after each.
+- **T22**: Set breakpoint on message name, run, verify execution pauses at correct point.
+- **T23**: Inspect `$ctx` and `$self` at pause point, verify values match expected.
+
+### Phase 3: VSCode extension (RAP client)
+
+WebSocket client + debug panel webview:
+- IR graph visualization (render IRGraph as interactive state machine, highlight current state)
+- Trace timeline (real-time event stream, filterable)
+- Agent state cards (`$ctx` + `$self` viewers)
+- Breakpoint gutter markers in `.rg` editor
+- `launch.json` integration, "Debug Protocol" button
+
+### Phase 4: Source mapping and step-through
+
+- Compiler emits IR state ID → `.rg` source location map
+- Step-through highlights current `.rg` line when paused
+- Inline value decorations (`$ctx.foo = "bar"`)
 
 ### DoD
-- Debug server runs a protocol with step/continue/breakpoints.
+- ROS runs, adapters connect via RAP WebSocket.
+- Debug server supports step/continue/breakpoints via RAP sub-protocols.
 - VSCode panel shows live protocol graph, agent states, trace timeline.
 - Breakpoints set in `.rg` source pause execution at the correct IR state.
 - T21–T23 pass.
@@ -245,12 +276,12 @@ Extend `reagent-vscode` with a debug experience:
 
 ## Future work (backlog)
 
-Ideas and milestones considered but not yet scheduled. Will be prioritized after M2-RT.
+Ideas and milestones considered but not yet scheduled.
 
+- **Role multiplicity** (`many` / `foreach`): dynamic participant sets, fan-out/fan-in, subset selection. Needed for auction/CFP protocols. Significant language extension — requires research on dynamic fork/join, convergence semantics.
 - **Engine API v0**: extract a formal language-neutral runtime contract from reference runners. Define `StartInstance`, `SubmitEvent`, `StreamTrace`, `ExecuteAction`, `Cancel`. Reference runners become the reference implementation.
 - **Losos engine adapter**: map Reagent IR to Losos Guard-Action network + etcd keyspace. Run Engine API conformance suite against Losos.
 - **Losos Guards 2.0**: multi-slot, OR/AND/XOR, timeouts — close semantic gaps between IR and Losos.
-- **Typed messages + role stubs**: message schemas (JSON Schema / Protobuf), versioning, validation hooks, generated role stubs and test harnesses.
 - **Multi-language execution via Engine API**: Python runner talks to Losos engine through Engine API.
 - **Observability**: TraceEvent → OpenTelemetry mapping, trace divergence detection, "why blocked" queries.
 - **Production hardening**: AuthN/AuthZ, quotas, backpressure, operational tooling, crash recovery.
@@ -273,5 +304,9 @@ Ideas and milestones considered but not yet scheduled. Will be prioritized after
 | reagent.spawn + emit | zone → independent instance | M1-RT / E ✅ | T15, T16 |
 | Cross-language (TS↔Py) | all | M1-RT / F ✅ | T17, T18 |
 | Trace validation | post-hoc IR check | M1-RT / G ✅ | T19, T20 |
-| Debug server | step, breakpoints, inspect | M2-RT | T21–T23 |
-| Debug UI (VSCode) | graph, timeline, state cards | M2-RT | — |
+| `[*]` wildcard lang tag | `lang: "*"` in IR | M2-LANG / A ✅ | — |
+| Typed messages | `IRMessageSchema` | M2-LANG / B ✅ | — |
+| Examples updated (22+3) | `[*]` + `message` defs | M2-LANG / C ✅ | — |
+| RAP sub-protocols | 7 `.rg` specs | M2-LANG / D ✅ | — |
+| Debug server (ROS) | step, breakpoints, inspect | M3-RT / 1-2 | T21–T23 |
+| Debug UI (VSCode) | graph, timeline, state cards | M3-RT / 3-4 | — |

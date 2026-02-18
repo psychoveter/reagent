@@ -1,3 +1,7 @@
+message SubmitIntent {}
+message Accept {}
+message Reject {}
+
 // Example 02: Await + timeout + alt (XOR)
 // Intent: comma submits intent to sia; waits for either Accept or Reject within timeout.
 // If timeout → fallback branch.
@@ -7,7 +11,7 @@
 // alt = message-based branching (reactive). NOT condition-based (that's host-language in zone).
 
 protocol AwaitTimeoutAlt {
-  participants: comma [ts], sia [ts]
+  participants: comma [ts], sia [*]
   initiator: comma
   input: SubmitIntent
 

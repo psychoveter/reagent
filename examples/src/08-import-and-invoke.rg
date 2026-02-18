@@ -1,3 +1,6 @@
+message TaskRequest {}
+message SubmitIntent {}
+
 // Example 08: imports of protocols + invoke
 //
 // Requirement:
@@ -8,7 +11,7 @@
 import "./lib/derive-dsi-bsi.rg" as derive
 
 protocol TaskExecutionWithImport {
-  participants: user [ts], comma [ts], sia [ts]
+  participants: user [ts], comma [ts], sia [*]
   initiator: user
   input: TaskRequest
 

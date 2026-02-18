@@ -1,0 +1,103 @@
+{
+  "protocolName": "DebugSession",
+  "role": "orchestrator",
+  "lang": "*",
+  "states": [
+    {
+      "id": "init_5",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_6",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "client",
+        "arrow": "-->",
+        "messageName": "DebugCommand"
+      }
+    },
+    {
+      "id": "send_7",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "adapter",
+        "arrow": "-->",
+        "messageName": "DebugCommand"
+      }
+    },
+    {
+      "id": "recv_8",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "adapter",
+        "arrow": "-->",
+        "messageName": "Stopped"
+      }
+    },
+    {
+      "id": "send_9",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "client",
+        "arrow": "-->",
+        "messageName": "Stopped"
+      }
+    },
+    {
+      "id": "end_10",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_5",
+      "to": "recv_6",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_6",
+      "to": "send_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_7",
+      "to": "recv_8",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_8",
+      "to": "send_9",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_9",
+      "to": "end_10",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_5",
+  "terminalStateIds": [
+    "end_10"
+  ]
+}

@@ -10,6 +10,10 @@
 //   BrowserAgent [ts] — plays `browser` role
 //   ServerAgent  [py] — plays `server` role
 
+message Query {}
+message Accept {}
+message Reject {}
+
 protocol CrossLangDemo {
   participants: browser [ts], server [py]
   initiator: browser

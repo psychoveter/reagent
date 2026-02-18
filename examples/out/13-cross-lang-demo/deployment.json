@@ -28,5 +28,6 @@
   "roleToAgent": {
     "CrossLangDemo.browser": "BrowserAgent",
     "CrossLangDemo.server": "ServerAgent"
-  }
+  },
+  "messages": "messages.json"
 }

@@ -10,10 +10,14 @@
 //
 // Note: no protocol-level `if/else`. Condition branching happens inside agent zone.
 
+message TaskRequest {}
+message Done {}
+message Failed {}
+
 import "./lib/validate-intent-with-sia.rg" as v
 
 protocol TaskExecutionWithMultipartyChild {
-  participants: user [ts], comma [ts], sia [ts]
+  participants: user [ts], comma [ts], sia [*]
   initiator: user
   input: TaskRequest
 

@@ -1,9 +1,9 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseProgram } from "./parser.js";
-import { emitIR, emitAgentIR, resetIdCounter } from "./ir-emitter.js";
+import { emitIR, emitAgentIR, emitMessageSchema, resetIdCounter } from "./ir-emitter.js";
 import { validateIRGraph } from "./ir-validator.js";
-import type { AgentDef, ProtocolDef } from "./ast.js";
+import type { AgentDef, MessageDef, ProtocolDef } from "./ast.js";
 
 function usage(): never {
   console.error("reagent-lang — Reagent compiler CLI\n");
@@ -41,6 +41,10 @@ function getAgents(res: ReturnType<typeof parseProgram>) {
   return res.ast.items.filter((i): i is AgentDef => i.kind === "AgentDef");
 }
 
+function getMessages(res: ReturnType<typeof parseProgram>) {
+  return res.ast.items.filter((i): i is MessageDef => i.kind === "MessageDef");
+}
+
 // ── parse ───────────────────────────────────────────────────────────
 
 function cmdParse(file: string) {
@@ -56,6 +60,10 @@ function cmdIR(file: string, roleFilter?: string) {
   for (const proto of getProtocols(res)) {
     resetIdCounter();
     const result = emitIR(proto);
+    if (!result.ok) {
+      console.error(`\nIR errors in protocol ${proto.name}:`);
+      for (const e of result.errors) console.error(`  ${e}`);
+    }
     for (const [role, graph] of result.graphs) {
       if (roleFilter && role !== roleFilter) continue;
       console.log(`\n=== ${proto.name} / ${role} ===`);
@@ -78,6 +86,10 @@ function cmdValidate(file: string, roleFilter?: string) {
   for (const proto of getProtocols(res)) {
     resetIdCounter();
     const result = emitIR(proto);
+    if (!result.ok) {
+      console.error(`\nIR emit errors in protocol ${proto.name}:`);
+      for (const e of result.errors) console.error(`  ${e}`);
+    }
     for (const [role, graph] of result.graphs) {
       if (roleFilter && role !== roleFilter) continue;
       const v = validateIRGraph(graph);
@@ -202,11 +214,19 @@ function cmdCompile(file: string, outDir: string) {
     deploymentAgents.push(da);
   }
 
-  const deployment = { agents: deploymentAgents, roleToAgent };
+  // Emit message schemas
+  const messages = getMessages(res);
+  const schemas = messages.map(m => emitMessageSchema(m));
+  if (schemas.length > 0) {
+    writeFileSync(join(outDir, "messages.json"), JSON.stringify(schemas, null, 2) + "\n");
+    console.log("  messages.json");
+  }
+
+  const deployment = { agents: deploymentAgents, roleToAgent, messages: schemas.length > 0 ? "messages.json" : undefined };
   writeFileSync(join(outDir, "deployment.json"), JSON.stringify(deployment, null, 2) + "\n");
   console.log("  deployment.json");
 
-  console.log(`\n${roleCount} role IR(s), ${agentCount} agent IR(s) → ${outDir}`);
+  console.log(`\n${roleCount} role IR(s), ${agentCount} agent IR(s), ${schemas.length} message schema(s) → ${outDir}`);
 
   if (hasErrors) {
     console.error("\nCompilation completed with errors.");

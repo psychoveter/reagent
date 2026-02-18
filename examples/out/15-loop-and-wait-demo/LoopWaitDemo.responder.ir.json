@@ -60,13 +60,13 @@
           "unit": "ms",
           "loc": {
             "start": {
-              "index": 1157,
-              "line": 50,
+              "index": 1316,
+              "line": 54,
               "col": 10
             },
             "end": {
-              "index": 1161,
-              "line": 50,
+              "index": 1320,
+              "line": 54,
               "col": 14
             }
           }

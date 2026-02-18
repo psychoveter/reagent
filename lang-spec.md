@@ -36,8 +36,11 @@ protocol Name {
 ```
 
 - `participants` lists roles. Each role MUST have a **language tag** in `[brackets]`.
-  Supported tags (v0): `ts`, `js`, `py`, `kt`.
+  Supported tags (v0): `ts`, `js`, `py`, `kt`, `*`.
   The language tag declares which host language the agent's zones are written in.
+- `[*]` is the **wildcard lang tag**: it marks a role as **language-agnostic**.
+  Wildcard participants participate in the choreography (sending/receiving messages) but MUST NOT have agent zone blocks (standalone or inline via `onSend`/`onReceive` hooks).
+  Use `[*]` for roles whose implementation language is not fixed by the protocol — e.g. wire-only control protocols, adapters, or roles that will be bound to a concrete language at deployment time.
 - `initiator` is the role that receives the external `input` message.
 - `input: SomeMessage` declares the protocol's input type (protocol-as-function).
 
@@ -409,12 +412,53 @@ agent Comma [ts] {
 - Multiple `on` handlers for the same event are allowed (they run sequentially).
 - `reagent.spawn()` inside an `on` handler starts a new protocol instance.
 
+### 1.14 Message types (typed payloads)
+
+`message` is a **top-level construct** that defines the payload schema for a message exchanged in protocols.
+
+```
+message Register {
+  adapterId: string
+  capabilities: string[]
+  maxAgents: number
+}
+
+message Accepted {}
+
+message Rejected {
+  reason: string
+}
+```
+
+- `message Name { ... }` declares a named payload schema.
+- Fields are `name: type` (one per line, optional trailing comma).
+- Empty bodies (`message Ack {}`) declare a message with no user-defined payload.
+
+**Type system (minimal)**:
+- Scalars: `string`, `number`, `boolean`
+- Escape hatch: `any` (gradual typing — no static checks)
+- Array: `type[]` (e.g. `string[]`, `{ id: number }[]`)
+- Inline object: `{ field: type, ... }`
+- Optional: `name?: type` (field may be absent / null)
+
+**Structural (duck) typing**: compatibility is structural, not nominal. A message with `{ amount: number, winner: boolean }` is compatible with a receiver expecting `{ amount: number }`.
+
+**System fields**: every message on the wire carries system fields (`instanceId`, `protocolName`, `from`, `to`, `messageName`, `ts`, `idempotencyKey`). These are implicit — the `message` definition specifies only the **user-defined payload**, the envelope is injected by the runtime.
+
+**Backward compatible**: messages without a `message` declaration remain valid — payload is `Record<string, unknown>`. Typing is opt-in. Existing untyped protocols continue to work.
+
+**What it enables**:
+- JSON Schema generation from `message` definitions (wire validation)
+- Code generation: TypeScript interfaces, Python dataclasses, Kotlin data classes from `.rg`
+- The `.rg` file becomes a self-contained wire format spec
+- Future: `$ctx.msg.` autocomplete in IDE
+
 ---
 
 ## 2. EBNF (v0.0.5)
 
 ```
-Program         ::= (WS | Comment | ImportStmt | ProtocolDef | AgentDef)* EOF
+Program         ::= (WS | Comment | ImportStmt | ProtocolDef | AgentDef | MessageDef)* EOF
 
 ImportStmt      ::= "import" WS+ String (WS+ "as" WS+ Ident)? WS* (";" WS*)?
 
@@ -425,7 +469,7 @@ ProtocolDirective ::= ParticipantsStmt | InitiatorStmt | InputStmt
 ParticipantsStmt  ::= "participants" WS* ":" WS* ParticipantList
 ParticipantList   ::= Participant (WS* "," WS* Participant)*
 Participant       ::= Ident (WS* "[" LangTag "]")?
-LangTag           ::= "ts" | "js" | "py" | "kt"
+LangTag           ::= "ts" | "js" | "py" | "kt" | "*"
 InitiatorStmt     ::= "initiator" WS* ":" WS* Ident
 InputStmt         ::= "input" WS* ":" WS* Ident
 
@@ -452,6 +496,14 @@ AgentInitBlock  ::= "init" WS* "{" ZoneBody "}"
 AgentOnHandler  ::= "on" WS+ AgentEvent WS* "{" ZoneBody "}"
 AgentEvent      ::= ("protocolStarted" | "protocolCompleted" | "protocolFailed") "(" Ident ")"
                   | "protocolEvent" "(" Ident ")"
+
+MessageDef      ::= "message" WS+ Ident WS* "{" FieldList "}"
+FieldList       ::= (WS | Comment | FieldDef (",")?)*
+FieldDef        ::= Ident "?"? WS* ":" WS* TypeExpr
+TypeExpr        ::= ScalarType ("[]")*
+                  | "any" ("[]")*
+                  | "{" FieldList "}" ("[]")*
+ScalarType      ::= "string" | "number" | "boolean"
 
 ReservedStmt    ::= AltStmt | LoopStmt | ParStmt | WaitStmt | TryStmt
 AltStmt         ::= "alt" .*
@@ -507,6 +559,11 @@ WS              ::= (" " | "\t" | "\r" | "\n")+
 - `$self` variable added for agent-level persistent state (accessible in agent zones and protocol zones).
 - `Program` production now includes `AgentDef` alongside `ImportStmt` and `ProtocolDef`.
 
+**Changes in v0.1.0 (M2-LANG)**:
+- `[*]` **wildcard lang tag**: marks a participant as language-agnostic. Zone blocks are forbidden for `[*]` roles. Enables wire-only protocol specs (RAP, A2A).
+- `MessageDef` added as a new top-level construct (`message Name { fields }`). Defines typed payload schemas with minimal type system (`string`, `number`, `boolean`, `any`, `type[]`, `{ ... }`, `name?: type`). Backward compatible — untyped messages remain valid.
+- `Program` production now includes `MessageDef`.
+
 ---
 
 ## 3. Example: task execution protocol (user → comma → sia)
@@ -536,6 +593,9 @@ The full AST covers all language constructs:
 - `PlaysDecl` (protocol name + role name)
 - `AgentInitBlock` (raw zone body)
 - `AgentOnHandler` (event name + optional protocol filter + raw zone body)
+- `MessageDef` (message name + field definitions — typed payload schema)
+- `FieldDef` (field name + type expression + optional flag)
+- `TypeExpr` (`ScalarType` | `ArrayType` | `ObjectType` | `AnyType`)
 
 Every node carries `Loc` (source location: `start: {index, line, col}`, `end: {index, line, col}`).
 

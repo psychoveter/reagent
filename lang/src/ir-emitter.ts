@@ -13,6 +13,7 @@ import type {
   AltStmt,
   LangTag,
   LoopStmt,
+  MessageDef,
   MessageStmt,
   ParStmt,
   ParticipantDecl,
@@ -26,7 +27,9 @@ import type {
   AgentIR,
   AgentLifecycleHandler,
   AgentPlaysBinding,
+  IRFieldSchema,
   IRGraph,
+  IRMessageSchema,
   IRState,
   IRStateData,
   IRTransition,
@@ -54,7 +57,18 @@ export function emitIR(protocol: ProtocolDef): EmitResult {
     const builder = new GraphBuilder(protocol.name, p.name, p.lang, langMap);
     builder.emitBody(protocol.body);
     builder.finalize();
-    graphs.set(p.name, builder.toGraph());
+    const graph = builder.toGraph();
+
+    if (p.lang === "*") {
+      for (const s of graph.states) {
+        if (s.data.kind === "action") {
+          errors.push(`Zone block forbidden for wildcard [*] participant "${p.name}" in protocol "${protocol.name}"`);
+          break;
+        }
+      }
+    }
+
+    graphs.set(p.name, graph);
   }
 
   return { ok: errors.length === 0, graphs, errors };
@@ -96,6 +110,19 @@ export function emitAgentIR(agent: AgentDef): AgentEmitResult {
       lifecycleHandlers,
     },
     errors,
+  };
+}
+
+// ── Message Schema Emitter ─────────────────────────────────────────
+
+export function emitMessageSchema(msg: MessageDef): IRMessageSchema {
+  return {
+    name: msg.name,
+    fields: msg.fields.map((f): IRFieldSchema => ({
+      name: f.name,
+      type: f.type,
+      optional: f.optional,
+    })),
   };
 }
 

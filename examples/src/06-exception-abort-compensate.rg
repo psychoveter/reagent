@@ -1,3 +1,9 @@
+message TaskRequest {}
+message SubmitIntent {}
+message Accepted {}
+message Done {}
+message Failed {}
+
 // Example 06: exception + abort + compensation
 // Intent: comma submits intent to sia; if downstream fails, run compensation and notify user.
 // Roles: user [ts], comma [ts], sia [ts]
@@ -5,7 +11,7 @@
 // Required acts: try/catch, compensation hooks.
 
 protocol ExceptionAbortCompensate {
-  participants: user [ts], comma [ts], sia [ts]
+  participants: user [ts], comma [ts], sia [*]
   initiator: user
   input: TaskRequest
 

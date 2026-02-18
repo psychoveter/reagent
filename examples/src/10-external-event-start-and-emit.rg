@@ -4,8 +4,10 @@
 // - protocol starts on an external input message (unknown sender)
 // - events can be emitted outward (via reagent.emit() inside an agent zone)
 
+message SubmitIntent {}
+
 protocol TaskExecutionFromEvent {
-  participants: comma [ts], sia [ts]
+  participants: comma [ts], sia [*]
   initiator: comma
   input: TaskRequested
 

@@ -6,6 +6,9 @@
 // - llmbroka returns a response message.
 // - Protocol returns the response value to the invoker (via reagent.return()).
 
+message LlmPrompt {}
+message LlmAnswer {}
+
 protocol CallLlm {
   participants: caller [ts], llmbroka [ts]
   initiator: caller
