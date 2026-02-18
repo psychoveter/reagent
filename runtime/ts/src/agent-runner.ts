@@ -1,24 +1,25 @@
 /**
  * AgentRunner — the top-level runtime for a Reagent agent.
  *
- * One OS process per agent. Manages:
+ * Manages:
  * - Agent-level $self state
  * - Lifecycle handlers (on protocolCompleted, etc.)
  * - Protocol instances (one per active protocol run)
- * - Message routing from NATS to correct ProtocolInstance
+ * - Message routing from ReagentTransport to correct ProtocolInstance
  */
 
 import type { AgentIR, IRGraph, MessageEnvelope, ProtocolTrigger } from "./types.js";
-import { msgSubscribePattern, triggerSubject } from "./types.js";
-import { NatsTransport } from "./nats-transport.js";
 import { ProtocolInstance, type InstanceConfig, type InstanceStatus } from "./protocol-instance.js";
 import { executeZone, createReagentStub } from "./zone-executor.js";
+import type { ReagentTransport } from "./transport.js";
+import type { TraceHook } from "./interceptor.js";
 
 export type AgentRunnerConfig = {
   agentIR: AgentIR;
   graphs: Map<string, IRGraph>;
-  natsUrl: string;
+  transport: ReagentTransport;
   roleToAgent: Record<string, string>;
+  traceHook?: TraceHook;
 };
 
 export class AgentRunner {
@@ -26,8 +27,9 @@ export class AgentRunner {
 
   private agentIR: AgentIR;
   private graphs: Map<string, IRGraph>;
-  private transport: NatsTransport;
+  private transport: ReagentTransport;
   private roleToAgent: Record<string, string>;
+  private traceHook?: TraceHook;
 
   private self: Record<string, unknown> = {};
   private instances: Map<string, ProtocolInstance> = new Map();
@@ -38,33 +40,23 @@ export class AgentRunner {
     this.agentName = config.agentIR.agentName;
     this.agentIR = config.agentIR;
     this.graphs = config.graphs;
-    this.transport = new NatsTransport(config.natsUrl);
+    this.transport = config.transport;
     this.roleToAgent = config.roleToAgent;
+    this.traceHook = config.traceHook;
   }
 
   async start(): Promise<void> {
-    await this.transport.connect();
-
     if (this.agentIR.initAction) {
       const reagent = createReagentStub();
       executeZone(this.agentIR.initAction.body, {}, this.self, reagent);
     }
 
-    this.transport.subscribe(
-      msgSubscribePattern(this.agentName),
-      (data, _subject) => this.handleMessage(data as MessageEnvelope, _subject),
-    );
+    this.transport.onMessage((env) => this.handleMessage(env));
 
-    this.transport.subscribe(
-      triggerSubject(this.agentName),
-      (data) => this.handleTrigger(data as ProtocolTrigger),
-    );
-
-    console.log(`[${this.agentName}] Agent started, subscribed to messages`);
+    console.log(`[${this.agentName}] Agent started`);
   }
 
   async stop(): Promise<void> {
-    await this.transport.close();
     console.log(`[${this.agentName}] Agent stopped`);
   }
 
@@ -96,26 +88,32 @@ export class AgentRunner {
     return this.instances;
   }
 
-  getTransport(): NatsTransport {
+  getTransport(): ReagentTransport {
     return this.transport;
   }
 
-  private handleMessage(env: MessageEnvelope, _subject: string): void {
-    const instance = this.instances.get(env.instanceId);
-    if (!instance) {
-      console.warn(`[${this.agentName}] No instance for ${env.instanceId}, ignoring message ${env.messageName}`);
-      return;
-    }
-    instance.dispatchMessage(env);
+  /** Dispatch an inbound message to the appropriate ProtocolInstance by instanceId. */
+  dispatchMessage(env: MessageEnvelope): void {
+    this.handleMessage(env);
   }
 
-  private handleTrigger(trigger: ProtocolTrigger): void {
+  /** Trigger a protocol instance (external entry point, e.g. from RC). */
+  triggerProtocol(trigger: ProtocolTrigger): void {
     this.startProtocolInstance(
       trigger.instanceId,
       trigger.protocolName,
       trigger.input,
       trigger.roleToAgent,
     );
+  }
+
+  private handleMessage(env: MessageEnvelope): void {
+    const instance = this.instances.get(env.instanceId);
+    if (!instance) {
+      console.warn(`[${this.agentName}] No instance for ${env.instanceId}, ignoring message ${env.messageName}`);
+      return;
+    }
+    instance.dispatchMessage(env);
   }
 
   startProtocolInstance(
@@ -146,6 +144,7 @@ export class AgentRunner {
       roleName: binding.roleName,
       roleToAgent: rta,
       input,
+      traceHook: this.traceHook,
     };
 
     const instance = new ProtocolInstance(graph, this.transport, this.self, instanceConfig);
@@ -172,13 +171,6 @@ export class AgentRunner {
     return instance;
   }
 
-  /**
-   * Invoke a child protocol synchronously (from within reagent.invoke()).
-   * Creates a child ProtocolInstance, runs it to completion, and returns its return value.
-   */
-  /**
-   * Spawn a child protocol fire-and-forget (from within reagent.spawn()).
-   */
   private spawnChildProtocol(childProtoName: string, childInput?: Record<string, unknown>): void {
     const childInstanceId = `${Date.now()}-spawn-${Math.random().toString(36).slice(2, 8)}`;
     const instance = this.startProtocolInstance(childInstanceId, childProtoName, childInput);
@@ -187,32 +179,18 @@ export class AgentRunner {
     }
   }
 
-  /**
-   * Handle reagent.emit() from within a protocol zone.
-   * Publishes event to NATS and fires matching lifecycle handlers.
-   */
   private handleEmit(
     protocolName: string,
     _instanceId: string,
     eventName: string,
     data?: Record<string, unknown>,
   ): void {
-    // Fire matching protocolEvent handlers
     for (const handler of this.agentIR.lifecycleHandlers) {
       if (handler.event === "protocolEvent" && handler.protocolFilter === eventName) {
         const reagent = createReagentStub();
         executeZone(handler.action.body, { eventName, data }, this.self, reagent);
       }
     }
-
-    // Publish event to NATS for observability
-    this.transport.publish(`reagent.event.${this.agentName}.${eventName}`, {
-      agentName: this.agentName,
-      protocolName,
-      eventName,
-      data,
-      timestamp: Date.now(),
-    });
   }
 
   private async invokeChildProtocol(
@@ -239,6 +217,7 @@ export class AgentRunner {
       roleName: binding.roleName,
       roleToAgent: this.roleToAgent,
       input: childInput,
+      traceHook: this.traceHook,
     };
 
     const childInstance = new ProtocolInstance(graph, this.transport, this.self, childConfig);

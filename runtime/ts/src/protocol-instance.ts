@@ -3,7 +3,7 @@
  *
  * Each instance has its own $ctx and walks the state machine by:
  *   - Executing zone code at action/send/receive states
- *   - Publishing messages via NATS
+ *   - Sending messages via ReagentTransport (AgentRef)
  *   - Waiting for incoming messages (dispatched by AgentRunner)
  */
 
@@ -17,11 +17,10 @@ import type {
 import {
   createMessageEnvelope,
   createTraceEvent,
-  msgSubject,
-  traceSubject,
 } from "./types.js";
 import { executeZone, InvokeRequest, ReturnValue, type ReagentStub } from "./zone-executor.js";
-import type { NatsTransport } from "./nats-transport.js";
+import type { ReagentTransport } from "./transport.js";
+import type { TraceHook } from "./interceptor.js";
 
 export type InstanceConfig = {
   instanceId: string;
@@ -30,6 +29,7 @@ export type InstanceConfig = {
   roleName: string;
   roleToAgent: Record<string, string>;
   input?: Record<string, unknown>;
+  traceHook?: TraceHook;
 };
 
 export type InstanceStatus = "running" | "completed" | "failed";
@@ -41,7 +41,7 @@ export class ProtocolInstance {
   readonly roleName: string;
 
   private graph: IRGraph;
-  private transport: NatsTransport;
+  private transport: ReagentTransport;
   private config: InstanceConfig;
 
   private ctx: Record<string, unknown>;
@@ -75,7 +75,7 @@ export class ProtocolInstance {
 
   constructor(
     graph: IRGraph,
-    transport: NatsTransport,
+    transport: ReagentTransport,
     selfState: Record<string, unknown>,
     config: InstanceConfig,
   ) {
@@ -342,10 +342,7 @@ export class ProtocolInstance {
       toRole: data.to,
     });
 
-    this.transport.publish(
-      msgSubject(this.instanceId, toAgent, data.messageName),
-      env,
-    );
+    this.transport.ref(toAgent).sendEnvelope(env);
 
     delete this.ctx.msg;
   }
@@ -810,7 +807,7 @@ export class ProtocolInstance {
       },
     );
     this.traces.push(te);
-    this.transport.publish(traceSubject(this.instanceId), te);
+    this.config.traceHook?.(te);
   }
 }
 
@@ -860,7 +857,7 @@ function durationToMs(duration: { value: number; unit: string }): number {
 class BranchRunner {
   constructor(
     private graph: IRGraph,
-    private transport: NatsTransport,
+    private transport: ReagentTransport,
     private selfRef: Record<string, unknown>,
     private config: InstanceConfig,
     private ctx: Record<string, unknown>,
@@ -900,7 +897,7 @@ class BranchRunner {
             toAgent, data.to, data.messageName, payload,
           );
           this.emitTrace("MessageSent", { messageName: data.messageName, to: toAgent, toRole: data.to });
-          this.transport.publish(msgSubject(this.config.instanceId, toAgent, data.messageName), env);
+          this.transport.ref(toAgent).sendEnvelope(env);
           delete this.ctx.msg;
           currentId = this.followDefault(currentId);
           break;

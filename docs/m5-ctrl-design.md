@@ -29,6 +29,61 @@ This design introduces core abstractions that decouple the runtime from any spec
 6. **Platform abstraction**: the `ReagentController` delegates agent creation to an opaque `AgentNode` that knows how to map IR to its hidden agent runtime. The RC knows nothing about agent internals.
 7. **Self-describing infrastructure**: Reagent's own infrastructure (tracing, debug, orchestration) can be described as Reagent protocols with dedicated agents, not as a separate hidden system.
 
+### Definition of Done
+
+M5-CTRL is **done** when all of the following hold:
+
+**Interfaces and types**:
+- [ ] `NodeRef`, `AgentRef`, `ReagentTransport`, `NodeLink` interfaces defined in `transport.ts`.
+- [ ] `AgentNode`, `AgentHandle` interfaces defined in `agent-node.ts`.
+- [ ] `InterceptorFn`, `InterceptorContext` defined in `interceptor.ts`.
+- [ ] `AddressPage` type defined.
+
+**Core components implemented**:
+- [ ] `ReagentController` implements agent registry, routing table, `NodeRef`/`AgentRef` factory, interceptor chain, `NodeLink` management, `createTransport()`, `triggerProtocol()`, `applyAddressPage()`.
+- [ ] `NativeAgentNode` wraps `AgentRunner` as `AgentHandle`. `createAgent()` takes `ReagentTransport`, returns working `AgentHandle`.
+- [ ] `InMemoryNodeLink` implements `NodeLink` for in-process envelope dispatch (tests).
+
+**Refactored runtime**:
+- [ ] `ProtocolInstance` uses `ReagentTransport` (not `NatsTransport`). Sends via `ref.send(messageName, payload)`. No subject construction. No direct trace publishing — trace emission via `TraceHook` callback.
+- [ ] `AgentRunner` accepts `ReagentTransport` in config (not `natsUrl`). Demuxes inbound messages by `instanceId`.
+- [ ] `roleToAgent` is loaded by `AgentRunner`, not passed through the RC.
+
+**Single-node mode working**:
+- [ ] All 20 existing E2E tests (T1–T20) pass using `ReagentController` + `NativeAgentNode` + loopback (no NATS, no `NodeLink`). This is the primary validation: the new architecture reproduces all existing behavior.
+- [ ] Single-node startup from `deployment.json` (no `nodes` section) works — backward compatible.
+
+**Multi-node mode working**:
+- [ ] Routing table populated from static `AddressPage`.
+
+**Orchestrator updated**:
+- [ ] `orchestrator.ts` creates `ReagentController` + `NativeAgentNode` in single-node mode.
+- [ ] `main.ts` uses the new startup flow.
+
+**Functional E2E tests** (new tests validating M5-CTRL-specific behavior):
+
+| Test | What it validates |
+|---|---|
+| C1: Single-node loopback | Two agents on one node, message round-trip via loopback. No `NodeLink`. Verifies `AgentRef` → RC → loopback `NodeRef` → `dispatchMessage` path. |
+| C2: Multi-node via InMemoryNodeLink | Two agents on **separate** nodes connected via `InMemoryNodeLink`. Message sent from node-1 agent, received by node-2 agent. Verifies remote `NodeRef` → `NodeLink` → remote RC → dispatch path. |
+| C3: Message-level interceptor | Single-node, two agents. A spy interceptor records all envelopes. After protocol completes, assert the spy captured the expected messages (correct `from`, `to`, `messageName`, `direction`). |
+| C4: Interceptor drops message | A conditional interceptor that does **not** call `next()` for a specific `messageName`. Verify the target agent never receives the dropped message (timeout or protocol stalls as expected). |
+| C5: TraceHook fires | Single-node protocol run. A `TraceHook` spy records all `TraceEvent`s. Assert it captured `ProtocolStarted`, `MessageSent`, `MessageReceived`, `ActionStarted`, `ActionFinished`, `ProtocolCompleted` in the expected order. |
+| C6: AgentRef.send convenience | Verify that `ref.send(messageName, payload)` constructs a valid `MessageEnvelope` with correct `from.agent`, `to.agent`, `instanceId`, `ts`, `idempotencyKey` — fields populated automatically, not by the caller. |
+| C7: Routing table from AddressPage | Two nodes. Node-1 receives an `AddressPage` mapping agent "B" to node-2. Node-1 agent sends to "B" — verify it routes through the `NodeLink` to node-2 (not local dispatch). |
+| C8: Dynamic agent spawn | Agent A runs a protocol that calls `rc.spawnAgent()`. Verify the new agent is registered, reachable via loopback `AgentRef`, and can receive messages. |
+| C9: External trigger via RC API | Call `rc.triggerProtocol("AgentName", trigger)`. Verify the agent's protocol instance starts and runs to completion. |
+| C10: Multi-protocol on single node | Two different protocols running concurrently on the same node. Messages for each protocol route to the correct `ProtocolInstance` by `instanceId`. No cross-talk. |
+| C11: Agent in multiple protocols | One agent plays roles in **two different protocols** concurrently (e.g., `WorkerAgent` plays `TaskProcessing.worker` and `HealthCheck.node`). Both protocols trigger, run, and complete. Verify: messages for each protocol reach the correct `ProtocolInstance` inside the same `AgentRunner`; `$self` state is shared across both; lifecycle handlers (`protocolCompleted`) fire for each. Requires a dedicated `.rg` example (e.g., `22-multi-protocol-agent.rg`). |
+
+**Not required for Done (deferred)**:
+- `NatsNodeLink` (can be a fast follow — existing NATS tests keep working via the compatibility shim until then).
+- Multi-`AgentNode` per RC (multi-language on one node).
+- Delivery guarantees / retries.
+- P2P gossip / dynamic discovery.
+- Cross-agent spawn (case b in §6.3).
+- Debug/telemetry/RAP interceptors (only test spy required).
+
 ---
 
 ## 2. Core concepts

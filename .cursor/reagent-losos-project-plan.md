@@ -323,49 +323,73 @@ Compile all to IR. Derive JSON wire format schema from IR message definitions.
 
 ## M5-CTRL — Reagent Connectivity Layer ⬜ NEXT
 
-**Intent**: decouple the runtime from NATS, introduce multi-agent nodes with loopback routing, a pluggable interceptor chain, and the adapter pattern for alternative runtimes. See [full design doc](../docs/m5-ctrl-design.md).
+**Intent**: decouple the runtime from NATS, introduce multi-agent nodes with loopback routing, a pluggable interceptor chain, and the platform abstraction for alternative runtimes. No separate messaging system underneath — Reagent is the messaging system.
+
+Full design: [m5-ctrl-design.md (draft-3)](../docs/m5-ctrl-design.md).
 
 ### Core concepts
 
-- **AgentNode**: a process hosting multiple named agents. Agent identity is scoped: `nodeId/agentName`.
-- **ReagentTransport**: interface extracted from `NatsTransport` (`connect`, `close`, `publish`, `subscribe`). Implementations: `NatsTransport` (existing), `LoopbackTransport` (local), `InMemoryTransport` (tests).
-- **ReagentController (RC)**: one per node. Owns agent registry, routing (local vs. remote), transport proxy, and interceptor chain. All messages pass through interceptors regardless of routing.
-- **ReagentAdapter (RA)**: maps IR to a runtime. `NativeAdapter` wraps current `AgentRunner`. Future: `LososAdapter`, `LangGraphAdapter`.
-- **Interceptor chain**: `TraceInterceptor`, `DebugInterceptor`, `TelemetryInterceptor`, `RAPBridge`.
+- **NodeRef / AgentRef**: two-level addressing. `NodeRef` knows how to deliver to a node; `AgentRef` composes `NodeRef` + agent name. `AgentRef` is the single addressing primitive (ActorRef pattern). `ref.send(messageName, payload)` constructs the envelope automatically.
+- **ReagentTransport**: per-agent context from the RC. `transport.ref(agentName)` → `AgentRef`. `transport.onMessage(handler)` for inbound.
+- **NodeLink**: thin bidirectional envelope pipe between nodes. No subjects, no pub/sub — just serialized envelopes. Implementations: `InMemoryNodeLink` (tests), `NatsNodeLink` (NATS-backed), `WsNodeLink`, `TcpNodeLink`.
+- **ReagentController (RC)**: one per node process. Agent registry, routing table (`agentName → NodeRef`), `AgentRef`/`NodeRef` factory, interceptor chain, `NodeLink` management. Does not know agent internals.
+- **AgentNode**: platform abstraction (replaces old "ReagentAdapter"). Knows how to create agents from IR. RC calls `createAgent()`, gets opaque `AgentHandle`. Implementations: `NativeAgentNode` (wraps `AgentRunner`), future `LososAgentNode`, `LangGraphAgentNode`.
+- **Two-level interception**: message-level interceptors (RC, observes `MessageEnvelope` traffic) + agent-level trace hooks (`TraceHook` callback, observes internal state machine events like `ProtocolStarted`, `ActionFinished`).
+- **Address pages**: static routing info distributed by orchestrator. Future: P2P gossip.
 
-### Phase A: Extract ReagentTransport interface
+### Phase A: Define interfaces + refactor transport usage
 
-- Define `ReagentTransport` + `TransportSubscription` interfaces.
-- `NatsTransport` implements `ReagentTransport`.
-- `ProtocolInstance` and `AgentRunner` accept interface, not concrete type.
-- `AgentRunnerConfig.natsUrl` replaced by `transport: ReagentTransport`.
+- Define `NodeRef`, `AgentRef`, `ReagentTransport`, `NodeLink` in `transport.ts`.
+- Define `AgentNode`, `AgentHandle` in `agent-node.ts`.
+- Define `InterceptorFn`, `InterceptorContext` in `interceptor.ts`.
+- Refactor `ProtocolInstance`: use `ReagentTransport`, send via `ref.send()`, trace via `TraceHook`.
+- Refactor `AgentRunner`: accept `ReagentTransport` in config. `roleToAgent` loaded by `AgentRunner`, not passed through RC.
+- Thin compatibility shim wraps old `NatsTransport` as `ReagentTransport` for interim E2E.
 
-### Phase B: LoopbackTransport + InMemoryTransport
+### Phase B: InMemoryNodeLink + ReagentController
 
-- `LoopbackTransport`: local dispatch by subject-pattern matching, no serialization.
-- `InMemoryTransport`: for tests without NATS.
+- `InMemoryNodeLink`: in-process envelope dispatch for tests.
+- `ReagentController`: agent registry, routing table, ref factory, interceptor chain, `NodeLink` management, `createTransport()`, `triggerProtocol()`, `applyAddressPage()`.
 
-### Phase C: ReagentController + NativeAdapter + AgentNode
+### Phase C: NativeAgentNode + wiring
 
-- RC with agent registry, transport proxy, interceptor chain, routing.
-- `NativeAdapter` wraps `AgentRunner` as `AgentHandle`.
-- `AgentNode` ties RC + adapter, reads deployment plan, manages lifecycle.
-- `main.ts` updated to create `AgentNode` instead of raw `AgentRunner`.
+- `NativeAgentNode` wraps `AgentRunner` as `AgentHandle`.
+- Node startup code: reads deployment plan, creates RC + `NativeAgentNode` + `NodeLink`s, registers agents.
+- `main.ts` and `orchestrator.ts` updated.
 
-### Phase D: Deployment plan extension + E2E validation
+### Phase D: E2E validation + multi-node
 
-- `deployment.json` gains optional `nodes` section mapping agents to nodes.
-- Backward compatible: absent `nodes` = single node with all agents.
-- Existing 20 E2E tests pass on new architecture.
-- New tests for loopback routing and interceptor chain.
+- All 20 existing E2E tests (T1–T20) pass on new architecture (single-node, all loopback).
+- `deployment.json` extended with optional `nodes` section. Backward compatible.
+- New `.rg` example: `22-multi-protocol-agent.rg` (one agent in two concurrent protocols).
+- 11 new functional E2E tests (C1–C11).
+
+### Functional E2E tests
+
+| Test | What it validates |
+|---|---|
+| C1: Single-node loopback | Two agents, message round-trip via loopback `NodeRef`. |
+| C2: Multi-node InMemoryNodeLink | Two agents on separate nodes, message via `NodeLink`. |
+| C3: Interceptor spy | Spy interceptor records envelopes, asserts `from`/`to`/`direction`. |
+| C4: Interceptor drop | Interceptor skips `next()` → message never delivered. |
+| C5: TraceHook fires | `TraceHook` spy captures `ProtocolStarted`, `MessageSent`, etc. |
+| C6: AgentRef.send envelope | `ref.send()` auto-populates `from`, `to`, `instanceId`, `ts`, `key`. |
+| C7: AddressPage routing | Node-1 routes to "B" on node-2 via `AddressPage` + `NodeLink`. |
+| C8: Dynamic spawn | `rc.spawnAgent()` → new agent reachable via loopback. |
+| C9: External trigger | `rc.triggerProtocol()` starts and completes a protocol. |
+| C10: Multi-protocol node | Two protocols on one node, correct `instanceId` demuxing. |
+| C11: Agent in multiple protocols | One agent plays roles in two protocols concurrently. Shared `$self`, lifecycle handlers fire for each. Example: `22-multi-protocol-agent.rg`. |
 
 ### DoD
 
-- `ReagentTransport` interface decouples all runtime code from NATS.
-- Multiple agents run in one `AgentNode` process, communicate via loopback.
-- Interceptor chain observes all traffic (local + remote).
-- `NativeAdapter` wraps existing `AgentRunner` without behavioral changes.
-- All 20+ E2E tests pass.
+- All interfaces and types defined (`NodeRef`, `AgentRef`, `ReagentTransport`, `NodeLink`, `AgentNode`, `AgentHandle`, `InterceptorFn`, `AddressPage`).
+- `ReagentController`, `NativeAgentNode`, `InMemoryNodeLink` implemented.
+- `ProtocolInstance` and `AgentRunner` refactored to use `ReagentTransport`. Trace emission via `TraceHook`.
+- All 20 existing E2E tests (T1–T20) pass on new architecture (single-node loopback, no NATS).
+- Multi-node routing via `InMemoryNodeLink` + `AddressPage` working.
+- `orchestrator.ts` and `main.ts` use new startup flow.
+- All 11 new functional E2E tests (C1–C11) pass.
+- `NatsNodeLink` deferred (fast follow). Existing NATS tests work via compatibility shim until then.
 
 ---
 
@@ -430,7 +454,11 @@ Ideas and milestones considered but not yet scheduled.
 - **Losos Guards 2.0**: multi-slot, OR/AND/XOR, timeouts — close semantic gaps between IR and Losos.
 - **Multi-language execution via Engine API**: Python runner talks to Losos engine through Engine API.
 - **Observability**: TraceEvent → OpenTelemetry mapping, trace divergence detection, "why blocked" queries.
-- **Production hardening**: AuthN/AuthZ, quotas, backpressure, operational tooling, crash recovery.
+- **Delivery guarantees / protocol decorators**: `AgentRef.send()` is fire-and-forget today. At-least-once delivery with retries should be a **protocol decorator** — a standard-library Reagent protocol that wraps user protocols with retry/ack logic. Keeps retry composable, not baked into transport.
+- **P2P gossip for node discovery**: nodes exchange `AddressPage`s directly, converging to consistent cluster view without central orchestrator.
+- **NatsNodeLink**: wrap NATS as a `NodeLink` implementation. Single subject per node-pair. Fast follow after M5-CTRL.
+- **Cross-language loopback**: TS + Python agents on same node via IPC `NodeLink`. Overlaps with multi-`AgentNode` support.
+- **Production hardening**: AuthN/AuthZ on `NodeLink` connections (TLS, mTLS, token auth), quotas, backpressure, operational tooling, crash recovery.
 
 ---
 
@@ -459,8 +487,13 @@ Ideas and milestones considered but not yet scheduled.
 | Role-centric design | `role` primary, `agent` thin | M4-LANG ✅ | — |
 | Role `extends` | inheritance: plays/init/handlers merged | M4-LANG ✅ | — |
 | `agent runs` | deployment binding | M4-LANG ✅ | — |
-| ReagentTransport interface | transport decoupling | M5-CTRL / A | — |
-| LoopbackTransport | local intra-node routing | M5-CTRL / B | — |
-| ReagentController + AgentNode | multi-agent node, interceptors | M5-CTRL / C | — |
+| NodeRef + AgentRef + ReagentTransport | transport decoupling, ActorRef pattern | M5-CTRL / A | C1, C6 |
+| NodeLink + InMemoryNodeLink | inter-node envelope pipe | M5-CTRL / B | C2, C7 |
+| ReagentController | routing, interceptors, ref factory | M5-CTRL / B | C3, C4, C9 |
+| NativeAgentNode | AgentRunner as AgentHandle | M5-CTRL / C | C1–C11 |
+| Loopback routing | co-located agent direct dispatch | M5-CTRL / D | C1, C8 |
+| Multi-level interception | message interceptors + TraceHook | M5-CTRL / D | C3, C4, C5 |
+| AddressPage + routing table | static discovery | M5-CTRL / D | C7 |
+| Multi-protocol agent | one agent, multiple concurrent protocols | M5-CTRL / D | C11 |
 | Debug server (ROS) | step, breakpoints, inspect | M6-RT / 1-2 | T21–T23 |
 | Debug UI (VSCode) | graph, timeline, state cards | M6-RT / 3-4 | — |

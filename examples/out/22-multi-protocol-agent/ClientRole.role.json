@@ -1,0 +1,24 @@
+{
+  "roleName": "ClientRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "TaskProcessing",
+      "roleName": "client"
+    }
+  ],
+  "initAction": {
+    "body": " $self.requestsSent = 0 ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolCompleted",
+      "protocolFilter": "TaskProcessing",
+      "action": {
+        "body": "\n    $self.requestsSent = ($self.requestsSent || 0) + 1\n  ",
+        "lang": "ts"
+      }
+    }
+  ]
+}

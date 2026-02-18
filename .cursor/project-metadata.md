@@ -189,9 +189,9 @@ All IR constructs supported at runtime: `initial`, `send`, `receive`, `action`, 
 3. **Behavioral level** — role definitions (RoleIR: rich behavioral contracts with lifecycle, init, handlers, extends).
 4. **Agent level** — per-agent IR (AgentIR: thin deployment binding referencing a role) + resolved behavioral data from RoleIR.
 5. **Message level** — typed message schemas (IRMessageSchema) compiled alongside IR.
-6. **Connectivity level** (M5-CTRL, planned) — ReagentController + AgentNode: transport abstraction, multi-agent nodes, loopback routing, interceptor chain, adapter pattern. See [design doc](../docs/m5-ctrl-design.md).
-7. **Execution level** — runtime engines that interpret agent IR via ReagentAdapter. NativeAdapter wraps reference runners (TS/Python). Losos (Kotlin/etcd) as future production adapter.
-8. **Control level** (M6-RT, planned) — Reagent Orchestrator Server (ROS) coordinating adapters via RAP over WebSocket.
+6. **Connectivity level** (M5-CTRL, planned) — `ReagentController` + `AgentNode` + `NodeLink`: `AgentRef`/`NodeRef` addressing (ActorRef pattern), multi-agent nodes, loopback routing, message-level interceptors + agent-level `TraceHook`, static discovery via `AddressPage`. No separate messaging layer — Reagent is the messaging system. See [design doc (draft-3)](../docs/m5-ctrl-design.md).
+7. **Execution level** — runtime engines that interpret agent IR via `AgentNode` platform abstraction. `NativeAgentNode` wraps reference runners (TS/Python). Future: `LososAgentNode` (Kotlin/etcd), `LangGraphAgentNode`.
+8. **Control level** (M6-RT, planned) — Reagent Orchestrator Server (ROS), itself evolving into a Reagent node with infrastructure agents. RAP as a Reagent protocol.
 
 ## Milestone status
 
@@ -205,7 +205,7 @@ All IR constructs supported at runtime: `initial`, `send`, `receive`, `action`, 
 | M2-LANG | ✅ DONE | Language v0.1: `[*]` wildcard, typed messages, 25 examples updated, 7 RAP specs |
 | M3-LANG | ✅ DONE | Language v0.0.6: `role` construct + `implements` keyword |
 | M4-LANG | ✅ DONE | Language v0.0.7: role-centric refactoring (`extends`, `runs`, role as primary contract) |
-| M5-CTRL | ⬜ NEXT | Connectivity layer: ReagentTransport interface, AgentNode (multi-agent), LoopbackTransport, ReagentController + interceptors, NativeAdapter. [Design doc](../docs/m5-ctrl-design.md). Phases: A (transport interface), B (loopback + inmemory), C (RC + adapter + node), D (deployment + E2E) |
+| M5-CTRL | ⬜ NEXT | Connectivity layer: `AgentRef`/`NodeRef` addressing, `NodeLink`, `ReagentController`, `NativeAgentNode`, loopback, interceptors + `TraceHook`, `AddressPage`. [Design (draft-3)](../docs/m5-ctrl-design.md). Phases: A (interfaces + refactor), B (InMemoryNodeLink + RC), C (NativeAgentNode + wiring), D (E2E: T1–T20 regression + C1–C11 new) |
 | M6-RT | ⬜ backlog | Multi-runtime orchestrator (ROS) + debugger + VSCode extension |
 
 ## Development workflow

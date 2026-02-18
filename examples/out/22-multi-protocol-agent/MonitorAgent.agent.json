@@ -1,0 +1,6 @@
+{
+  "agentName": "MonitorAgent",
+  "lang": "ts",
+  "roleName": "MonitorRole",
+  "roleFile": "MonitorRole.role.json"
+}

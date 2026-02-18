@@ -3,11 +3,15 @@
  *
  * Usage:
  *   node main.js --agent <agent-ir.json> --graphs <graph1.json> [<graph2.json> ...] --nats <nats-url> --role-map <deployment.json>
+ *
+ * Uses NatsCompatTransport to bridge the NATS connection to the ReagentTransport interface.
  */
 
 import { readFileSync } from "node:fs";
 import { AgentRunner, type AgentRunnerConfig } from "./agent-runner.js";
-import type { AgentIR, IRGraph, DeploymentPlan } from "./types.js";
+import type { AgentIR, IRGraph, DeploymentPlan, ProtocolTrigger } from "./types.js";
+import { NatsTransport } from "./nats-transport.js";
+import { NatsCompatTransport } from "./nats-compat-transport.js";
 
 function parseArgs(): {
   agentFile: string;
@@ -61,25 +65,34 @@ async function main() {
     graphs.set(key, graph);
   }
 
+  const nats = new NatsTransport(natsUrl);
+  await nats.connect();
+
+  const transport = new NatsCompatTransport(agentIR.agentName, nats);
+
   const config: AgentRunnerConfig = {
     agentIR,
     graphs,
-    natsUrl,
+    transport,
     roleToAgent: deployment.roleToAgent,
   };
 
   const runner = new AgentRunner(config);
+
+  transport.subscribeTriggers((data) => {
+    runner.triggerProtocol(data as ProtocolTrigger);
+  });
+
   await runner.start();
 
-  process.on("SIGTERM", async () => {
+  const shutdown = async () => {
     await runner.stop();
+    await nats.close();
     process.exit(0);
-  });
+  };
 
-  process.on("SIGINT", async () => {
-    await runner.stop();
-    process.exit(0);
-  });
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
 }
 
 main().catch((err) => {
