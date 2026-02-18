@@ -1,24 +1,6 @@
 {
   "agentName": "ProcessorAgent",
   "lang": "ts",
-  "plays": [
-    {
-      "protocolName": "TryCatchDemo",
-      "roleName": "processor"
-    }
-  ],
-  "initAction": {
-    "body": "\n    $self.processed = 0\n  ",
-    "lang": "ts"
-  },
-  "lifecycleHandlers": [
-    {
-      "event": "protocolCompleted",
-      "protocolFilter": "TryCatchDemo",
-      "action": {
-        "body": "\n    $self.processed = ($self.processed || 0) + 1\n  ",
-        "lang": "ts"
-      }
-    }
-  ]
+  "roleName": "ProcessorRole",
+  "roleFile": "ProcessorRole.role.json"
 }

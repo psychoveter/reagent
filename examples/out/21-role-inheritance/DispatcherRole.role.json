@@ -1,0 +1,15 @@
+{
+  "roleName": "DispatcherRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "TaskProcessing",
+      "roleName": "dispatcher"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.lastResult = \"\"\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": []
+}

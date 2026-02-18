@@ -1,24 +1,6 @@
 {
   "agentName": "CoordinatorAgent",
   "lang": "ts",
-  "plays": [
-    {
-      "protocolName": "ParDemo",
-      "roleName": "coordinator"
-    }
-  ],
-  "initAction": {
-    "body": "\n    $self.protocolsCoordinated = 0\n  ",
-    "lang": "ts"
-  },
-  "lifecycleHandlers": [
-    {
-      "event": "protocolCompleted",
-      "protocolFilter": "ParDemo",
-      "action": {
-        "body": "\n    $self.lastCompletedAt = Date.now()\n  ",
-        "lang": "ts"
-      }
-    }
-  ]
+  "roleName": "CoordinatorRole",
+  "roleFile": "CoordinatorRole.role.json"
 }

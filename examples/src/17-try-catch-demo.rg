@@ -64,7 +64,7 @@ protocol TryCatchDemo {
   }
 }
 
-agent SenderAgent [ts] {
+role SenderRole [ts] {
   plays TryCatchDemo as sender
 
   init {
@@ -77,7 +77,7 @@ agent SenderAgent [ts] {
   }
 }
 
-agent ProcessorAgent [ts] {
+role ProcessorRole [ts] {
   plays TryCatchDemo as processor
 
   init {
@@ -88,3 +88,6 @@ agent ProcessorAgent [ts] {
     $self.processed = ($self.processed || 0) + 1
   }
 }
+
+agent SenderAgent runs SenderRole
+agent ProcessorAgent runs ProcessorRole

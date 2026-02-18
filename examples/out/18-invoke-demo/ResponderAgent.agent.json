@@ -1,15 +1,6 @@
 {
   "agentName": "ResponderAgent",
   "lang": "ts",
-  "plays": [
-    {
-      "protocolName": "InvokeDemo",
-      "roleName": "responder"
-    },
-    {
-      "protocolName": "ComputeSquare",
-      "roleName": "worker"
-    }
-  ],
-  "lifecycleHandlers": []
+  "roleName": "ResponderRole",
+  "roleFile": "ResponderRole.role.json"
 }

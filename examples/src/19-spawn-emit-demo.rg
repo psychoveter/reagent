@@ -52,7 +52,7 @@ protocol SpawnEmitDemo {
   }
 }
 
-agent OrchestratorAgent [ts] {
+role OrchestratorRole [ts] {
   plays SpawnEmitDemo as orchestrator
   plays BackgroundTask as worker
 
@@ -63,7 +63,7 @@ agent OrchestratorAgent [ts] {
   }
 }
 
-agent HelperAgent [ts] {
+role HelperRole [ts] {
   plays SpawnEmitDemo as helper
 
   init {
@@ -74,3 +74,6 @@ agent HelperAgent [ts] {
     $self.eventsHandled = ($self.eventsHandled || 0) + 1
   }
 }
+
+agent OrchestratorAgent runs OrchestratorRole
+agent HelperAgent runs HelperRole

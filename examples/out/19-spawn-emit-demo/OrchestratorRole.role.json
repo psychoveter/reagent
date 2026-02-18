@@ -1,0 +1,19 @@
+{
+  "roleName": "OrchestratorRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "SpawnEmitDemo",
+      "roleName": "orchestrator"
+    },
+    {
+      "protocolName": "BackgroundTask",
+      "roleName": "worker"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.spawned = 0\n    $self.bgTasksCompleted = 0\n    $self.lastResult = \"\"\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": []
+}

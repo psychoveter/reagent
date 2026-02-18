@@ -84,7 +84,7 @@ protocol ParDemo {
   }
 }
 
-agent CoordinatorAgent [ts] {
+role CoordinatorRole [ts] {
   plays ParDemo as coordinator
 
   init {
@@ -96,7 +96,7 @@ agent CoordinatorAgent [ts] {
   }
 }
 
-agent WorkerAAgent [ts] {
+role WorkerARole [ts] {
   plays ParDemo as workerA
 
   init {
@@ -108,7 +108,7 @@ agent WorkerAAgent [ts] {
   }
 }
 
-agent WorkerBAgent [ts] {
+role WorkerBRole [ts] {
   plays ParDemo as workerB
 
   init {
@@ -119,3 +119,7 @@ agent WorkerBAgent [ts] {
     $self.lastCompletedAt = Date.now()
   }
 }
+
+agent CoordinatorAgent runs CoordinatorRole
+agent WorkerAAgent runs WorkerARole
+agent WorkerBAgent runs WorkerBRole

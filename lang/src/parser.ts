@@ -1,5 +1,5 @@
 /**
- * Reagent recursive-descent parser — v0.0.5
+ * Reagent recursive-descent parser — v0.0.7
  *
  * Parses a Reagent source string into the typed AST defined in ast.ts.
  * Zone bodies are captured as raw text (brace-balanced, string/comment-aware).
@@ -7,9 +7,6 @@
 
 import type {
   AgentDef,
-  AgentEventKind,
-  AgentInitBlock,
-  AgentOnHandler,
   AgentZone,
   AltBranch,
   AltElseGuard,
@@ -40,6 +37,9 @@ import type {
   ProtocolDef,
   ProtocolItem,
   RoleDef,
+  RoleEventKind,
+  RoleInitBlock,
+  RoleOnHandler,
   TopLevelItem,
   TryStmt,
   TypeExpr,
@@ -987,14 +987,8 @@ function pProtocolDef(c: Cursor): ProtocolDef | null {
   };
 }
 
-// ── Agent definition ────────────────────────────────────────────────
-
-const AGENT_EVENT_KINDS = new Set<string>([
-  "protocolStarted",
-  "protocolCompleted",
-  "protocolFailed",
-  "protocolEvent",
-]);
+// ── Agent definition (thin deployment binding) ─────────────────────
+// agent Name [lang]? runs RoleName
 
 function pAgentDef(c: Cursor): AgentDef | null {
   const start = c.pos();
@@ -1004,40 +998,87 @@ function pAgentDef(c: Cursor): AgentDef | null {
   if (!name) return null;
 
   skipWSAndComments(c);
-  if (c.peek() !== "[") return null;
-  c.next();
+
+  let lang: LangTag | undefined;
+  if (c.peek() === "[") {
+    c.next();
+    skipWSAndComments(c);
+    const tagId = readIdent(c);
+    if (!tagId || !VALID_LANG_TAGS.has(tagId.name) || tagId.name === "*") return null;
+    lang = tagId.name as LangTag;
+    skipWSAndComments(c);
+    if (c.peek() !== "]") return null;
+    c.next();
+    skipWSAndComments(c);
+  }
+
+  if (!consumeKeyword(c, "runs")) return null;
   skipWSAndComments(c);
-  const tagId = readIdent(c);
-  if (!tagId || !VALID_LANG_TAGS.has(tagId.name) || tagId.name === "*") return null;
+  const roleName = readIdent(c);
+  if (!roleName) return null;
+
+  return {
+    kind: "AgentDef",
+    name: name.name,
+    lang,
+    runs: roleName.name,
+    loc: c.locFrom(start),
+  };
+}
+
+// ── Role definition (primary behavioral contract) ──────────────────
+
+const ROLE_EVENT_KINDS = new Set<string>([
+  "protocolStarted",
+  "protocolCompleted",
+  "protocolFailed",
+  "protocolEvent",
+]);
+
+function pRoleDef(c: Cursor): RoleDef | null {
+  const start = c.pos();
+  if (!consumeKeyword(c, "role")) return null;
   skipWSAndComments(c);
-  if (c.peek() !== "]") return null;
-  c.next();
+  const name = readIdent(c);
+  if (!name) return null;
 
   skipWSAndComments(c);
+
+  let lang: LangTag | undefined;
+  if (c.peek() === "[") {
+    c.next();
+    skipWSAndComments(c);
+    const tagId = readIdent(c);
+    if (!tagId || !VALID_LANG_TAGS.has(tagId.name)) return null;
+    lang = tagId.name as LangTag;
+    skipWSAndComments(c);
+    if (c.peek() !== "]") return null;
+    c.next();
+    skipWSAndComments(c);
+  }
+
+  let extendsRole: string | undefined;
+  if (startsWithKeyword(c, "extends")) {
+    consumeKeyword(c, "extends");
+    skipWSAndComments(c);
+    const parentId = readIdent(c);
+    if (!parentId) return null;
+    extendsRole = parentId.name;
+    skipWSAndComments(c);
+  }
+
   if (c.peek() !== "{") return null;
   c.next();
 
-  const implementsList: string[] = [];
   const plays: PlaysDecl[] = [];
-  let init: AgentInitBlock | undefined;
-  const handlers: AgentOnHandler[] = [];
+  let init: RoleInitBlock | undefined;
+  const handlers: RoleOnHandler[] = [];
 
   for (;;) {
     skipWSAndComments(c);
     if (c.eof()) return null;
     if (c.peek() === "}") { c.next(); break; }
 
-    // implements RoleName
-    if (startsWithKeyword(c, "implements")) {
-      consumeKeyword(c, "implements");
-      skipWSAndComments(c);
-      const roleId = readIdent(c);
-      if (!roleId) return null;
-      implementsList.push(roleId.name);
-      continue;
-    }
-
-    // plays ProtoName as roleName
     if (startsWithKeyword(c, "plays")) {
       const playsStart = c.pos();
       consumeKeyword(c, "plays");
@@ -1058,7 +1099,6 @@ function pAgentDef(c: Cursor): AgentDef | null {
       continue;
     }
 
-    // init { ... }
     if (startsWithKeyword(c, "init")) {
       const initStart = c.pos();
       consumeKeyword(c, "init");
@@ -1067,18 +1107,17 @@ function pAgentDef(c: Cursor): AgentDef | null {
       c.next();
       const body = readBalancedBody(c);
       if (body === null) return null;
-      init = { kind: "AgentInitBlock", body, loc: c.locFrom(initStart) };
+      init = { kind: "RoleInitBlock", body, loc: c.locFrom(initStart) };
       continue;
     }
 
-    // on eventName(ProtoName) { ... }
     if (startsWithKeyword(c, "on")) {
       const onStart = c.pos();
       consumeKeyword(c, "on");
       skipWSAndComments(c);
       const eventId = readIdent(c);
-      if (!eventId || !AGENT_EVENT_KINDS.has(eventId.name)) return null;
-      const event = eventId.name as AgentEventKind;
+      if (!eventId || !ROLE_EVENT_KINDS.has(eventId.name)) return null;
+      const event = eventId.name as RoleEventKind;
 
       skipWSAndComments(c);
       let protocolFilter: string | undefined;
@@ -1099,67 +1138,11 @@ function pAgentDef(c: Cursor): AgentDef | null {
       const body = readBalancedBody(c);
       if (body === null) return null;
       handlers.push({
-        kind: "AgentOnHandler",
+        kind: "RoleOnHandler",
         event,
         protocolFilter,
         body,
         loc: c.locFrom(onStart),
-      });
-      continue;
-    }
-
-    // Unknown content in agent body — skip line
-    skipToNewline(c);
-  }
-
-  return {
-    kind: "AgentDef",
-    name: name.name,
-    lang: tagId.name as LangTag,
-    implements: implementsList,
-    plays,
-    init,
-    handlers,
-    loc: c.locFrom(start),
-  };
-}
-
-// ── Role definition ────────────────────────────────────────────────
-
-function pRoleDef(c: Cursor): RoleDef | null {
-  const start = c.pos();
-  if (!consumeKeyword(c, "role")) return null;
-  skipWSAndComments(c);
-  const name = readIdent(c);
-  if (!name) return null;
-
-  skipWSAndComments(c);
-  if (c.peek() !== "{") return null;
-  c.next();
-
-  const plays: PlaysDecl[] = [];
-
-  for (;;) {
-    skipWSAndComments(c);
-    if (c.eof()) return null;
-    if (c.peek() === "}") { c.next(); break; }
-
-    if (startsWithKeyword(c, "plays")) {
-      const playsStart = c.pos();
-      consumeKeyword(c, "plays");
-      skipWSAndComments(c);
-      const protoName = readIdent(c);
-      if (!protoName) return null;
-      skipWSAndComments(c);
-      if (!consumeKeyword(c, "as")) return null;
-      skipWSAndComments(c);
-      const roleName = readIdent(c);
-      if (!roleName) return null;
-      plays.push({
-        kind: "PlaysDecl",
-        protocolName: protoName.name,
-        roleName: roleName.name,
-        loc: c.locFrom(playsStart),
       });
       continue;
     }
@@ -1170,7 +1153,11 @@ function pRoleDef(c: Cursor): RoleDef | null {
   return {
     kind: "RoleDef",
     name: name.name,
+    lang,
+    extends: extendsRole,
     plays,
+    init,
+    handlers,
     loc: c.locFrom(start),
   };
 }

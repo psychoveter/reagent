@@ -1,24 +1,6 @@
 {
   "agentName": "SenderAgent",
   "lang": "ts",
-  "plays": [
-    {
-      "protocolName": "TryCatchDemo",
-      "roleName": "sender"
-    }
-  ],
-  "initAction": {
-    "body": "\n    $self.successCount = 0\n    $self.failureCount = 0\n  ",
-    "lang": "ts"
-  },
-  "lifecycleHandlers": [
-    {
-      "event": "protocolCompleted",
-      "protocolFilter": "TryCatchDemo",
-      "action": {
-        "body": "\n    $self.lastCompletedAt = Date.now()\n  ",
-        "lang": "ts"
-      }
-    }
-  ]
+  "roleName": "SenderRole",
+  "roleFile": "SenderRole.role.json"
 }

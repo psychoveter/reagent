@@ -1,4 +1,4 @@
-## Reagent language spec (v0.0.6)
+## Reagent language spec (v0.0.7)
 
 This document defines the **Reagent protocol language**.
 
@@ -361,56 +361,27 @@ The engine is responsible for:
 - Bridging host-language `break`/`throw` to protocol-level `loop`/`try` semantics.
 - Enforcing message ordering and protocol semantics.
 
-### 1.13 Agent definition
+### 1.13 Agent definition (deployment binding)
 
-An **agent** is a named entity that participates in one or more protocols under specific roles. Agents have:
-- **Own persistent state** (`$self`) — survives across protocol instances.
-- **Host language** (`[langTag]`) — all agent zones execute in this language.
-- **Protocol bindings** (`plays Proto as role`) — declares which role this agent plays in each protocol.
-- **Init block** (`init { ... }`) — runs once when the agent starts.
-- **Lifecycle handlers** (`on <event>(<Proto>) { ... }`) — react to protocol events.
-
-Syntax:
+An **agent** is a thin deployment binding that associates a process name with a role:
 
 ```
-agent Comma [ts] {
-  plays TaskExecution as comma
-  plays HealthCheck as comma
-
-  init {
-    $self.ready = true
-    $self.tasksCompleted = 0
-  }
-
-  on protocolCompleted(TaskExecution) {
-    $self.tasksCompleted += 1
-  }
-
-  on protocolFailed(TaskExecution) {
-    $self.lastError = $ctx.error
-  }
-}
+agent Comma runs CommaRole
 ```
 
-**`$self` vs `$ctx`**:
-- `$self` is the agent-level persistent state. It is accessible in `init`, `on` handlers, and also inside protocol zones where this agent participates. `$self` is scoped to the agent lifetime.
-- `$ctx` is the per-protocol-instance context (unchanged from v0.0.4). `$ctx` is scoped to a single protocol run.
-- Inside a protocol zone, both `$self` and `$ctx` are available, allowing the protocol to read agent config (`$self.config`) or write results back (`$self.lastResult = $ctx.result`).
+The `runs` keyword references a defined `role` (see §1.15). The agent inherits all behavior (plays, init, handlers, $self) from its role.
 
-**Lifecycle events**:
-| Event | When |
-|---|---|
-| `protocolStarted(Proto)` | A protocol instance this agent participates in has started |
-| `protocolCompleted(Proto)` | Protocol completed normally |
-| `protocolFailed(Proto)` | Protocol ended with an error |
-| `protocolEvent(eventName)` | Custom event emitted via `reagent.emit()` from any protocol this agent plays |
+An optional lang tag overrides the role's language when the role uses `[*]`:
+
+```
+agent Comma [ts] runs CommaRole
+```
 
 **Constraints**:
-- An agent cannot play two different roles in the same protocol.
-- Each `plays` directive binds exactly one role in exactly one protocol.
-- The `init` block is optional; at most one per agent.
-- Multiple `on` handlers for the same event are allowed (they run sequentially).
-- `reagent.spawn()` inside an `on` handler starts a new protocol instance.
+- If the agent specifies a lang tag and the role also specifies a concrete lang tag, they must match.
+- If the role has `[*]`, the agent may provide a concrete lang tag for deployment.
+- If neither specifies a lang tag, the effective lang is `*` (language-agnostic).
+- The agent has no body — no plays, no init, no handlers. All behavior comes from the role.
 
 ### 1.14 Message types (typed payloads)
 
@@ -453,44 +424,84 @@ message Rejected {
 - The `.rg` file becomes a self-contained wire format spec
 - Future: `$ctx.msg.` autocomplete in IDE
 
-### 1.15 Role definition
+### 1.15 Role definition (primary behavioral contract)
 
-A **role** bundles one or more `plays` bindings into a named multi-protocol interface contract:
+A **role** is the primary behavioral construct in Reagent. It defines the interaction contract: which protocols to play, persistent state, initialization, and lifecycle event handlers.
 
 ```
-role CoordinatorRole {
-  plays AuctionProtocol as auctioneer
-  plays SettlementProtocol as settler
+role CommaRole [ts] {
+  plays TaskExecution as comma
+  plays HealthCheck as comma
+
+  init {
+    $self.ready = true
+    $self.tasksCompleted = 0
+  }
+
+  on protocolCompleted(TaskExecution) {
+    $self.tasksCompleted += 1
+    reagent.emit("AgentStats", { completed: $self.tasksCompleted })
+  }
+
+  on protocolFailed(TaskExecution) {
+    $self.lastError = $ctx.error
+  }
 }
 ```
 
-- `role Name { plays Proto as roleName ... }` defines a named interface.
-- A role has **no lang tag**, no lifecycle handlers, no init block — it is a pure contract.
-- Agents reference roles via `implements RoleName` (see below).
+- `role Name [langTag]? { ... }` declares a named behavioral contract with an optional host language.
+- `plays Proto as roleName` binds the role to a participant in a protocol.
+- `init { ... }` runs once when an agent running this role starts (optional; at most one).
+- `on <event>(<Proto>) { ... }` reacts to lifecycle events (multiple handlers allowed).
+- `$self` is the role's persistent state, accessible in init, on handlers, and protocol zones.
 
-### 1.16 `implements` keyword in agent definitions
+**`$self` vs `$ctx`**:
+- `$self` is the role-level persistent state. It survives across protocol instances and is scoped to the agent's lifetime.
+- `$ctx` is the per-protocol-instance context. It is scoped to a single protocol run.
+- Inside a protocol zone, both `$self` and `$ctx` are available.
 
-An agent can declare that it implements one or more roles:
+**Lifecycle events**:
+| Event | When |
+|---|---|
+| `protocolStarted(Proto)` | A protocol instance this role participates in has started |
+| `protocolCompleted(Proto)` | Protocol completed normally |
+| `protocolFailed(Proto)` | Protocol ended with an error |
+| `protocolEvent(eventName)` | Custom event emitted via `reagent.emit()` from any protocol this role plays |
+
+### 1.16 Role inheritance via `extends`
+
+A role can extend another role to inherit its plays, init, and handlers:
 
 ```
-agent MyCoordinator [ts] {
-  implements CoordinatorRole
+role BaseMonitored [ts] {
+  plays HealthCheck as node
 
-  init { ... }
-  on protocolCompleted(AuctionProtocol) { ... }
+  init { $self.healthy = true }
+  on protocolFailed(HealthCheck) { $self.healthy = false }
+}
+
+role WorkerRole [ts] extends BaseMonitored {
+  plays TaskProcessing as worker
+
+  init { $self.tasksCompleted = 0 }
+  on protocolCompleted(TaskProcessing) { $self.uptime += 1 }
 }
 ```
 
-- `implements RoleName` expands to the `plays` bindings declared in that role.
-- An agent may combine `implements` with explicit `plays` statements.
-- Duplicate bindings (same protocol + role from both explicit `plays` and `implements`) are deduplicated.
-- If `RoleName` is not defined, the compiler emits an error.
+**Inheritance semantics**:
+- `plays` bindings are merged (parent first, child appended, deduped by protocol+role).
+- `init` blocks are chained: parent init runs first, then child init.
+- `on` handlers from both parent and child fire for matching events (parent first).
+- Lang tag must be consistent: child must match parent, or parent uses `[*]`.
+- Single inheritance only (no diamond). Multiple inheritance is deferred.
+- If the parent role is not defined, the compiler emits an error.
+- Circular extends chains are detected and reported as errors.
 
-**Design note**: the compiled IR artifacts (`RoleName.role.json`, `AgentIR` with expanded plays) are formal intermediate representations with a documented schema. They are also designed to be self-describing enough for **coding agents** (LLMs) to produce correct agent implementations from IR alone, without reading `.rg` source.
+**Design note**: the compiled IR artifacts (`RoleName.role.json` with full behavioral contract, `AgentName.agent.json` as thin deployment binding referencing the role) are formal intermediate representations with a documented schema. They are also designed to be self-describing enough for **coding agents** (LLMs) to produce correct agent implementations from IR alone, without reading `.rg` source.
 
 ---
 
-## 2. EBNF (v0.0.6)
+## 2. EBNF (v0.0.7)
 
 ```
 Program         ::= (WS | Comment | ImportStmt | ProtocolDef | AgentDef | MessageDef | RoleDef)* EOF
@@ -524,17 +535,15 @@ AgentZone       ::= Ident WS* "{" ZoneBody "}"
 ZoneBody        ::= BalancedText   // raw host-language code; braces balanced, strings/comments skipped
                                    // language is determined by the participant's [LangTag] declaration
 
-AgentDef        ::= "agent" WS+ Ident WS* "[" LangTag "]" WS* "{" AgentBody "}"
-AgentBody       ::= (WS | Comment | ImplementsStmt | PlaysStmt | AgentInitBlock | AgentOnHandler)*
-ImplementsStmt  ::= "implements" WS+ Ident
+RoleDef         ::= "role" WS+ Ident (WS* "[" LangTag "]")? (WS+ "extends" WS+ Ident)? WS* "{" RoleBody "}"
+RoleBody        ::= (WS | Comment | PlaysStmt | RoleInitBlock | RoleOnHandler)*
 PlaysStmt       ::= "plays" WS+ Ident WS+ "as" WS+ Ident
-AgentInitBlock  ::= "init" WS* "{" ZoneBody "}"
-AgentOnHandler  ::= "on" WS+ AgentEvent WS* "{" ZoneBody "}"
-AgentEvent      ::= ("protocolStarted" | "protocolCompleted" | "protocolFailed") "(" Ident ")"
+RoleInitBlock   ::= "init" WS* "{" ZoneBody "}"
+RoleOnHandler   ::= "on" WS+ RoleEvent WS* "{" ZoneBody "}"
+RoleEvent       ::= ("protocolStarted" | "protocolCompleted" | "protocolFailed") "(" Ident ")"
                   | "protocolEvent" "(" Ident ")"
 
-RoleDef         ::= "role" WS+ Ident WS* "{" RoleBody "}"
-RoleBody        ::= (WS | Comment | PlaysStmt)*
+AgentDef        ::= "agent" WS+ Ident (WS* "[" LangTag "]")? WS+ "runs" WS+ Ident
 
 MessageDef      ::= "message" WS+ Ident WS* "{" FieldList "}"
 FieldList       ::= (WS | Comment | FieldDef (",")?)*
@@ -604,12 +613,20 @@ WS              ::= (" " | "\t" | "\r" | "\n")+
 - `Program` production now includes `MessageDef`.
 
 **Changes in v0.0.6 (M3-LANG)**:
-- `RoleDef` added as a new top-level construct (`role Name { plays Proto as role ... }`). A role is a named multi-protocol interface contract with no lang tag or lifecycle.
-- `implements RoleName` added inside `AgentDef` body. Expands to the `plays` bindings from the referenced role. Duplicates are deduplicated.
-- `AgentIR` now includes an optional `implements` field listing role names. `plays` in AgentIR is the fully expanded set (explicit + inherited from roles).
-- `RoleIR` added to IR: `{ roleName, plays }` — emitted as `<RoleName>.role.json`.
-- **IR design note**: IR remains a formal intermediate representation with a documented schema. It is also designed for consumption by coding agents (LLMs generating agent implementations).
-- `Program` production now includes `RoleDef`.
+- `RoleDef` added as a new top-level construct (`role Name { plays Proto as role ... }`). A role was a named multi-protocol interface contract with no lang tag or lifecycle.
+- `implements RoleName` added inside `AgentDef` body.
+- `RoleIR` added to IR.
+
+**Changes in v0.0.7 (M4-LANG — role-centric refactoring)**:
+- **Role becomes the primary behavioral contract**: `role Name [langTag]? { plays, init, on ... }` now carries lifecycle (init block, event handlers), persistent state (`$self`), and a host-language tag.
+- **Role inheritance**: `role Child [lang] extends Parent { ... }` — single inheritance. Plays merged, init chained (parent first), handlers merged (both fire).
+- **Agent becomes a deployment binding**: `agent Name [lang]? runs RoleName` — no body, no plays, no init, no handlers. All behavior comes from the role.
+- `implements` keyword removed. `plays`, `init`, `on` removed from `AgentDef`.
+- `extends` and `runs` added as new keywords.
+- `AgentIR` is now a thin deployment binding: `agentName`, `lang`, `roleName`, `roleFile`. No behavioral duplication.
+- `RoleIR` is the single source of truth for behavioral data: lang, extends, plays, initAction, lifecycleHandlers.
+- The runtime resolves `AgentIR` + `RoleIR` at load time to obtain the full behavioral contract.
+- **Breaking change**: old `agent Name [lang] { plays ... init ... on ... }` syntax is removed.
 
 ---
 
@@ -619,7 +636,7 @@ See `projects/reagent/examples/src/01-task-execution-basic.rg`.
 
 ---
 
-## 4. Compiler and tooling (v0.0.6)
+## 4. Compiler and tooling (v0.0.7)
 
 ### 4.1 AST
 
@@ -636,11 +653,11 @@ The full AST covers all language constructs:
 - `ParStmt` (branches separated by `and`)
 - `WaitStmt` (duration literal)
 - `TryStmt` (try body + catch label + catch body)
-- `AgentDef` (agent name + lang + implements list + plays bindings + init block + lifecycle handlers)
-- `RoleDef` (role name + plays bindings — multi-protocol interface contract)
+- `RoleDef` (role name + optional lang tag + optional extends + plays bindings + init block + lifecycle handlers — **primary behavioral contract**)
+- `AgentDef` (agent name + optional lang tag + `runs` role name — **thin deployment binding**)
 - `PlaysDecl` (protocol name + role name)
-- `AgentInitBlock` (raw zone body)
-- `AgentOnHandler` (event name + optional protocol filter + raw zone body)
+- `RoleInitBlock` (raw zone body)
+- `RoleOnHandler` (event name + optional protocol filter + raw zone body)
 - `MessageDef` (message name + field definitions — typed payload schema)
 - `FieldDef` (field name + type expression + optional flag)
 - `TypeExpr` (`ScalarType` | `ArrayType` | `ObjectType` | `AnyType`)
@@ -652,27 +669,26 @@ Every node carries `Loc` (source location: `start: {index, line, col}`, `end: {i
 Hand-written **recursive-descent parser** in TypeScript (`lang/src/parser.ts`).
 Zone bodies remain **raw text** (parser only balances braces, does not parse host language).
 
-### 4.3 Protocol IR (v0.0.6)
+### 4.3 Protocol IR (v0.0.7)
 
 The compiler produces per-role **Protocol IR** — directed graphs of states and transitions:
 - `IRGraph` per role (local view of the global protocol)
 - `IRState` types: `initial`, `send`, `receive`, `action`, `guard`, `fork`, `join`, `timer`, `terminal`, `error`
 - `IRTransition` labels: `default`, `message`, `timeout`, `expression`, `else`, `error`, `branch`
 
-### 4.4 Agent IR (v0.0.6)
+### 4.4 Role IR (v0.0.7)
 
-The compiler also produces per-agent **Agent IR** — agent-level metadata that ties protocols together:
-- `AgentIR`: agent name, language tag, optional `implements` list, plays bindings (expanded), init action body, lifecycle handler action bodies.
-- `AgentPlaysBinding`: protocol name → role name mapping.
-- `AgentLifecycleHandler`: event type + optional protocol filter + action body.
-- References to protocol `IRGraph`s for each role the agent plays.
-
-### 4.5 Role IR (v0.0.6)
-
-The compiler produces per-role-definition **Role IR** — a named interface contract:
-- `RoleIR`: role name + plays bindings (protocol → role mappings).
+The compiler produces per-role-definition **Role IR** — the rich behavioral contract:
+- `RoleIR`: role name, optional lang tag, optional extends reference, plays bindings, init action (chained from extends), lifecycle handlers (merged from extends).
 - Emitted as `<RoleName>.role.json`.
-- Designed as a formal IR artifact that is also self-describing for coding agents.
+- `extends` is resolved at compile time: the emitted `RoleIR` is the fully flattened behavioral contract.
+
+### 4.5 Agent IR (v0.0.7)
+
+The compiler produces per-agent **Agent IR** — a thin deployment binding that references the role:
+- `AgentIR`: agent name, language tag, role name, role file path. No behavioral data (plays, init, handlers).
+- The runtime loads `AgentIR` and then resolves the referenced `RoleIR` to obtain the full behavioral contract (plays, init, lifecycle handlers).
+- This eliminates redundancy: behavioral data lives in `RoleIR` only, and `AgentIR` is a pure deployment artifact.
 
 See `lang/src/ir.ts` for IR type definitions, `lang/src/ir-emitter.ts` for AST→IR, and `lang/src/ir-validator.ts` for validation.
 
@@ -689,8 +705,8 @@ reagent-lang compile  <file.rg> <out-dir>      — compile to per-role and per-a
 
 The `compile` command produces:
 - `<Proto>.<role>.ir.json` — one IRGraph per role in each protocol
-- `<Agent>.agent.json` — one AgentIR per agent definition (with expanded `implements`)
-- `<RoleName>.role.json` — one RoleIR per role definition
+- `<RoleName>.role.json` — one RoleIR per role definition (rich behavioral contract)
+- `<Agent>.agent.json` — one AgentIR per agent (thin binding referencing role)
 - `messages.json` — message schemas (if any `message` definitions exist)
 - `deployment.json` — deployment plan mapping agents to roles, role defs, and IR files
 

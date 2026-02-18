@@ -1,24 +1,6 @@
 {
   "agentName": "HelperAgent",
   "lang": "ts",
-  "plays": [
-    {
-      "protocolName": "SpawnEmitDemo",
-      "roleName": "helper"
-    }
-  ],
-  "initAction": {
-    "body": "\n    $self.eventsHandled = 0\n  ",
-    "lang": "ts"
-  },
-  "lifecycleHandlers": [
-    {
-      "event": "protocolEvent",
-      "protocolFilter": "TaskProcessed",
-      "action": {
-        "body": "\n    $self.eventsHandled = ($self.eventsHandled || 0) + 1\n  ",
-        "lang": "ts"
-      }
-    }
-  ]
+  "roleName": "HelperRole",
+  "roleFile": "HelperRole.role.json"
 }

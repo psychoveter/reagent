@@ -3,7 +3,9 @@
     {
       "agentName": "Comma",
       "lang": "ts",
+      "roleName": "CommaRole",
       "agentIRFile": "Comma.agent.json",
+      "roleIRFile": "CommaRole.role.json",
       "roles": [
         {
           "protocolName": "TaskExecution",
@@ -22,5 +24,11 @@
     "TaskExecution.comma": "Comma",
     "HealthCheck.comma": "Comma"
   },
+  "roles": [
+    {
+      "name": "CommaRole",
+      "file": "CommaRole.role.json"
+    }
+  ],
   "messages": "messages.json"
 }

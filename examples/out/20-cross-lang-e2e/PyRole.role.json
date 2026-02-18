@@ -1,0 +1,24 @@
+{
+  "roleName": "PyRole",
+  "lang": "py",
+  "plays": [
+    {
+      "protocolName": "CrossLangE2E",
+      "roleName": "pyRole"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.messagesProcessed = 0\n  ",
+    "lang": "py"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolCompleted",
+      "protocolFilter": "CrossLangE2E",
+      "action": {
+        "body": "\n    $self.completedCount = ($self.completedCount or 0) + 1\n  ",
+        "lang": "py"
+      }
+    }
+  ]
+}

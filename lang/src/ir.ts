@@ -1,18 +1,20 @@
 /**
- * Reagent IR — v0.0.6
+ * Reagent IR — v0.0.7
  *
- * Two levels of IR:
+ * Three levels of IR:
  *
  * 1. Protocol IR (IRGraph) — per-role state machine representation.
  *    Each role in a protocol gets its own IRGraph — the local view of the global choreography.
  *    The IR is a directed graph: states (nodes) connected by transitions (edges).
  *
- * 2. Agent IR (AgentIR) — per-agent metadata that ties protocols together.
- *    Each agent gets an AgentIR describing which protocols it plays,
- *    its init action, and lifecycle event handlers.
+ * 2. Role IR (RoleIR) — per-role behavioral contract with lifecycle.
+ *    Rich representation of the role: plays, init, handlers, inheritance chain.
+ *
+ * 3. Agent IR (AgentIR) — thin per-agent deployment binding.
+ *    References the role it runs; the runtime resolves behavioral details from RoleIR.
  */
 
-import type { AgentEventKind, ArrowKind, Duration, LangTag, TypeExpr } from "./ast.js";
+import type { RoleEventKind, ArrowKind, Duration, LangTag, TypeExpr } from "./ast.js";
 
 // ── IR Graph (per-role) ─────────────────────────────────────────────
 
@@ -141,15 +143,24 @@ export type IRTransitionLabel =
   | { kind: "error" }
   | { kind: "branch"; branchIndex: number };
 
-// ── Agent IR (per-agent) ────────────────────────────────────────────
+// ── Role IR (primary behavioral contract) ───────────────────────────
+
+export type RoleIR = {
+  roleName: string;
+  lang?: LangTag;
+  extends?: string;
+  plays: AgentPlaysBinding[];
+  initAction?: AgentAction;
+  lifecycleHandlers: AgentLifecycleHandler[];
+};
+
+// ── Agent IR (thin deployment binding — references its role) ────────
 
 export type AgentIR = {
   agentName: string;
   lang: LangTag;
-  implements?: string[];
-  plays: AgentPlaysBinding[];
-  initAction?: AgentAction;
-  lifecycleHandlers: AgentLifecycleHandler[];
+  roleName: string;
+  roleFile: string;
 };
 
 export type AgentPlaysBinding = {
@@ -163,16 +174,9 @@ export type AgentAction = {
 };
 
 export type AgentLifecycleHandler = {
-  event: AgentEventKind;
+  event: RoleEventKind;
   protocolFilter?: string;
   action: AgentAction;
-};
-
-// ── Role IR (multi-protocol interface contract) ─────────────────────
-
-export type RoleIR = {
-  roleName: string;
-  plays: AgentPlaysBinding[];
 };
 
 // ── Message Schema IR ────────────────────────────────────────────────

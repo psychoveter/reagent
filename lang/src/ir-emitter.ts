@@ -1,9 +1,10 @@
 /**
- * Reagent IR Emitter — v0.0.6
+ * Reagent IR Emitter — v0.0.7
  *
  * Transforms AST nodes into IR:
  * - ProtocolDef → set of IRGraphs (one per role)
- * - AgentDef → AgentIR (agent metadata, lifecycle handlers)
+ * - RoleDef → RoleIR (rich behavioral contract with lifecycle)
+ * - AgentDef → AgentIR (thin deployment binding referencing a role)
  */
 
 import type {
@@ -25,6 +26,7 @@ import type {
 } from "./ast.js";
 
 import type {
+  AgentAction,
   AgentIR,
   AgentLifecycleHandler,
   AgentPlaysBinding,
@@ -76,54 +78,29 @@ export function emitIR(protocol: ProtocolDef): EmitResult {
   return { ok: errors.length === 0, graphs, errors };
 }
 
-// ── Agent IR Emitter ────────────────────────────────────────────────
+// ── Role IR Emitter ─────────────────────────────────────────────────
 
-export type AgentEmitResult = {
+export type RoleEmitResult = {
   ok: boolean;
-  agentIR: AgentIR;
+  roleIR: RoleIR;
   errors: string[];
 };
 
-export function emitAgentIR(agent: AgentDef, roles?: Map<string, RoleDef>): AgentEmitResult {
+/**
+ * Flatten a role's `extends` chain and produce a resolved RoleIR.
+ * Plays are merged (parent first, deduped). Init bodies are chained (parent first).
+ * Handlers from parent and child both fire.
+ */
+export function emitRoleIR(role: RoleDef, roleMap?: Map<string, RoleDef>): RoleEmitResult {
   const errors: string[] = [];
-
-  const plays: AgentPlaysBinding[] = agent.plays.map(p => ({
-    protocolName: p.protocolName,
-    roleName: p.roleName,
-  }));
-
-  for (const roleName of agent.implements) {
-    const roleDef = roles?.get(roleName);
-    if (!roleDef) {
-      errors.push(`Agent "${agent.name}" implements unknown role "${roleName}"`);
-      continue;
-    }
-    for (const rp of roleDef.plays) {
-      const dup = plays.find(
-        p => p.protocolName === rp.protocolName && p.roleName === rp.roleName,
-      );
-      if (!dup) {
-        plays.push({ protocolName: rp.protocolName, roleName: rp.roleName });
-      }
-    }
-  }
-
-  const initAction = agent.init
-    ? { body: agent.init.body, lang: agent.lang }
-    : undefined;
-
-  const lifecycleHandlers: AgentLifecycleHandler[] = agent.handlers.map(h => ({
-    event: h.event,
-    protocolFilter: h.protocolFilter,
-    action: { body: h.body, lang: agent.lang },
-  }));
+  const { plays, initAction, lifecycleHandlers, lang } = flattenRole(role, roleMap, errors, new Set());
 
   return {
     ok: errors.length === 0,
-    agentIR: {
-      agentName: agent.name,
-      lang: agent.lang,
-      implements: agent.implements.length > 0 ? agent.implements : undefined,
+    roleIR: {
+      roleName: role.name,
+      lang,
+      extends: role.extends,
       plays,
       initAction,
       lifecycleHandlers,
@@ -132,15 +109,112 @@ export function emitAgentIR(agent: AgentDef, roles?: Map<string, RoleDef>): Agen
   };
 }
 
-// ── Role IR Emitter ───────────────────────────────────────────────
+type FlatRole = {
+  plays: AgentPlaysBinding[];
+  initAction?: AgentAction;
+  lifecycleHandlers: AgentLifecycleHandler[];
+  lang?: LangTag;
+};
 
-export function emitRoleIR(role: RoleDef): RoleIR {
+function flattenRole(
+  role: RoleDef,
+  roleMap: Map<string, RoleDef> | undefined,
+  errors: string[],
+  visited: Set<string>,
+): FlatRole {
+  if (visited.has(role.name)) {
+    errors.push(`Circular extends chain detected involving role "${role.name}"`);
+    return { plays: [], lifecycleHandlers: [], lang: role.lang };
+  }
+  visited.add(role.name);
+
+  let parentFlat: FlatRole | undefined;
+  if (role.extends) {
+    const parentDef = roleMap?.get(role.extends);
+    if (!parentDef) {
+      errors.push(`Role "${role.name}" extends unknown role "${role.extends}"`);
+    } else {
+      parentFlat = flattenRole(parentDef, roleMap, errors, visited);
+      if (role.lang && parentFlat.lang && parentFlat.lang !== "*" && role.lang !== parentFlat.lang) {
+        errors.push(`Role "${role.name}" lang [${role.lang}] conflicts with parent "${role.extends}" lang [${parentFlat.lang}]`);
+      }
+    }
+  }
+
+  const parentPlays = parentFlat?.plays ?? [];
+  const ownPlays: AgentPlaysBinding[] = role.plays.map(p => ({
+    protocolName: p.protocolName,
+    roleName: p.roleName,
+  }));
+  const plays = [...parentPlays];
+  for (const op of ownPlays) {
+    if (!plays.find(p => p.protocolName === op.protocolName && p.roleName === op.roleName)) {
+      plays.push(op);
+    }
+  }
+
+  const effectiveLang = role.lang ?? parentFlat?.lang;
+
+  const parentInit = parentFlat?.initAction;
+  const ownInit = role.init ? { body: role.init.body, lang: effectiveLang ?? ("*" as LangTag) } : undefined;
+  let initAction: AgentAction | undefined;
+  if (parentInit && ownInit) {
+    initAction = { body: parentInit.body + "\n" + ownInit.body, lang: ownInit.lang };
+  } else {
+    initAction = ownInit ?? parentInit;
+  }
+
+  const parentHandlers = parentFlat?.lifecycleHandlers ?? [];
+  const ownHandlers: AgentLifecycleHandler[] = role.handlers.map(h => ({
+    event: h.event,
+    protocolFilter: h.protocolFilter,
+    action: { body: h.body, lang: effectiveLang ?? ("*" as LangTag) },
+  }));
+  const lifecycleHandlers = [...parentHandlers, ...ownHandlers];
+
+  return { plays, initAction, lifecycleHandlers, lang: effectiveLang };
+}
+
+// ── Agent IR Emitter ────────────────────────────────────────────────
+
+export type AgentEmitResult = {
+  ok: boolean;
+  agentIR: AgentIR;
+  errors: string[];
+};
+
+/**
+ * Produce a thin AgentIR that just references the role it runs.
+ * Validates the role exists and lang tags are compatible.
+ */
+export function emitAgentIR(agent: AgentDef, roleMap: Map<string, RoleDef>): AgentEmitResult {
+  const errors: string[] = [];
+  const roleFile = `${agent.runs}.role.json`;
+
+  const roleDef = roleMap.get(agent.runs);
+  if (!roleDef) {
+    errors.push(`Agent "${agent.name}" runs unknown role "${agent.runs}"`);
+    const lang = agent.lang ?? ("*" as LangTag);
+    return {
+      ok: false,
+      agentIR: { agentName: agent.name, lang, roleName: agent.runs, roleFile },
+      errors,
+    };
+  }
+
+  const roleResult = emitRoleIR(roleDef, roleMap);
+  errors.push(...roleResult.errors);
+  const rIR = roleResult.roleIR;
+
+  const lang = agent.lang ?? rIR.lang ?? ("*" as LangTag);
+  if (agent.lang && rIR.lang && rIR.lang !== "*" && agent.lang !== rIR.lang) {
+    errors.push(`Agent "${agent.name}" lang [${agent.lang}] conflicts with role "${agent.runs}" lang [${rIR.lang}]`);
+  }
+
   return {
-    roleName: role.name,
-    plays: role.plays.map(p => ({
-      protocolName: p.protocolName,
-      roleName: p.roleName,
-    })),
+    ok: errors.length === 0,
+    agentIR: { agentName: agent.name, lang, roleName: agent.runs, roleFile },
+    errors,
   };
 }
 

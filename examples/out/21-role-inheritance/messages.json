@@ -1,0 +1,18 @@
+[
+  {
+    "name": "Ping",
+    "fields": []
+  },
+  {
+    "name": "Pong",
+    "fields": []
+  },
+  {
+    "name": "Task",
+    "fields": []
+  },
+  {
+    "name": "TaskDone",
+    "fields": []
+  }
+]

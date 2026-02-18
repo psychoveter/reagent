@@ -1,0 +1,24 @@
+{
+  "roleName": "BaseMonitored",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "HealthCheck",
+      "roleName": "node"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.healthy = true\n    $self.uptime = 0\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolFailed",
+      "protocolFilter": "HealthCheck",
+      "action": {
+        "body": "\n    $self.healthy = false\n  ",
+        "lang": "ts"
+      }
+    }
+  ]
+}

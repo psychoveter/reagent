@@ -1,6 +1,6 @@
 // Example 14: TS-only demo for runtime E2E tests
 //
-// Both agents are TypeScript. Used for:
+// Both roles are TypeScript. Used for:
 //   T1: linear protocol
 //   T2: alt-accept path
 //   T3: alt-reject path
@@ -54,7 +54,7 @@ protocol TsDemo {
   }
 }
 
-agent ClientAgent [ts] {
+role ClientRole [ts] {
   plays TsDemo as client
 
   init {
@@ -67,7 +67,7 @@ agent ClientAgent [ts] {
   }
 }
 
-agent HandlerAgent [ts] {
+role HandlerRole [ts] {
   plays TsDemo as handler
 
   init {
@@ -78,3 +78,6 @@ agent HandlerAgent [ts] {
     $self.lastCompletedAt = Date.now()
   }
 }
+
+agent ClientAgent runs ClientRole
+agent HandlerAgent runs HandlerRole

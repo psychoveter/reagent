@@ -1,0 +1,24 @@
+{
+  "roleName": "PollerRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "LoopWaitDemo",
+      "roleName": "poller"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.ready = true\n    $self.protocolsCompleted = 0\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolCompleted",
+      "protocolFilter": "LoopWaitDemo",
+      "action": {
+        "body": "\n    $self.protocolsCompleted = ($self.protocolsCompleted || 0) + 1\n  ",
+        "lang": "ts"
+      }
+    }
+  ]
+}

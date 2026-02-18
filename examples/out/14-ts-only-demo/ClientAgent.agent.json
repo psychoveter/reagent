@@ -1,24 +1,6 @@
 {
   "agentName": "ClientAgent",
   "lang": "ts",
-  "plays": [
-    {
-      "protocolName": "TsDemo",
-      "roleName": "client"
-    }
-  ],
-  "initAction": {
-    "body": "\n    $self.ready = true\n    $self.responsesReceived = 0\n  ",
-    "lang": "ts"
-  },
-  "lifecycleHandlers": [
-    {
-      "event": "protocolCompleted",
-      "protocolFilter": "TsDemo",
-      "action": {
-        "body": "\n    $self.responsesReceived = ($self.responsesReceived || 0) + 1\n  ",
-        "lang": "ts"
-      }
-    }
-  ]
+  "roleName": "ClientRole",
+  "roleFile": "ClientRole.role.json"
 }

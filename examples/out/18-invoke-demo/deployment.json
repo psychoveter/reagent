@@ -3,7 +3,9 @@
     {
       "agentName": "CallerAgent",
       "lang": "ts",
+      "roleName": "CallerRole",
       "agentIRFile": "CallerAgent.agent.json",
+      "roleIRFile": "CallerRole.role.json",
       "roles": [
         {
           "protocolName": "InvokeDemo",
@@ -15,7 +17,9 @@
     {
       "agentName": "ResponderAgent",
       "lang": "ts",
+      "roleName": "ResponderRole",
       "agentIRFile": "ResponderAgent.agent.json",
+      "roleIRFile": "ResponderRole.role.json",
       "roles": [
         {
           "protocolName": "InvokeDemo",
@@ -35,5 +39,15 @@
     "InvokeDemo.responder": "ResponderAgent",
     "ComputeSquare.worker": "ResponderAgent"
   },
+  "roles": [
+    {
+      "name": "CallerRole",
+      "file": "CallerRole.role.json"
+    },
+    {
+      "name": "ResponderRole",
+      "file": "ResponderRole.role.json"
+    }
+  ],
   "messages": "messages.json"
 }

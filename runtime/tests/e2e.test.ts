@@ -23,7 +23,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { AgentRunner, type AgentRunnerConfig } from "../ts/src/agent-runner.js";
 import { validateTrace } from "../ts/src/trace-validator.js";
-import type { AgentIR, IRGraph } from "../ts/src/types.js";
+import type { AgentIR, IRGraph, ThinAgentIR, RoleIR } from "../ts/src/types.js";
+import { resolveAgentIR } from "../ts/src/types.js";
 import { randomUUID } from "node:crypto";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -38,8 +39,14 @@ const CROSSLANG_FIXTURES_DIR = join(__dirname, "..", "..", "examples", "out", "2
 const PY_RUNTIME_DIR = join(__dirname, "..", "py");
 const PY_VENV_BIN = join(PY_RUNTIME_DIR, ".venv", "bin", "python");
 
+function loadAgentIRFromDir(dir: string, name: string): AgentIR {
+  const thin: ThinAgentIR = JSON.parse(readFileSync(join(dir, `${name}.agent.json`), "utf8"));
+  const role: RoleIR = JSON.parse(readFileSync(join(dir, thin.roleFile), "utf8"));
+  return resolveAgentIR(thin, role);
+}
+
 function loadAgentIR(name: string): AgentIR {
-  return JSON.parse(readFileSync(join(FIXTURES_DIR, `${name}.agent.json`), "utf8"));
+  return loadAgentIRFromDir(FIXTURES_DIR, name);
 }
 
 function loadGraph(proto: string, role: string): IRGraph {
@@ -277,8 +284,8 @@ async function testT4(): Promise<TestResult> {
 
   try {
     const crossDir = join(__dirname, "..", "..", "examples", "out", "13-cross-lang-demo");
-    const browserIR: AgentIR = JSON.parse(readFileSync(join(crossDir, "BrowserAgent.agent.json"), "utf8"));
-    const serverIR: AgentIR = JSON.parse(readFileSync(join(crossDir, "ServerAgent.agent.json"), "utf8"));
+    const browserIR = loadAgentIRFromDir(crossDir, "BrowserAgent");
+    const serverIR = loadAgentIRFromDir(crossDir, "ServerAgent");
 
     if (browserIR.lang !== "ts") {
       return { name, passed: false, error: `BrowserAgent lang should be ts, got ${browserIR.lang}` };
@@ -375,7 +382,7 @@ async function testT5(): Promise<TestResult> {
 // ── Loop/Wait helpers ───────────────────────────────────────────────
 
 function loadLoopAgentIR(name: string): AgentIR {
-  return JSON.parse(readFileSync(join(LOOP_FIXTURES_DIR, `${name}.agent.json`), "utf8"));
+  return loadAgentIRFromDir(LOOP_FIXTURES_DIR, name);
 }
 
 function loadLoopGraph(proto: string, role: string): IRGraph {
@@ -603,7 +610,7 @@ async function testT8(): Promise<TestResult> {
 // ── Par helpers ─────────────────────────────────────────────────────
 
 function loadParAgentIR(name: string): AgentIR {
-  return JSON.parse(readFileSync(join(PAR_FIXTURES_DIR, `${name}.agent.json`), "utf8"));
+  return loadAgentIRFromDir(PAR_FIXTURES_DIR, name);
 }
 
 function loadParGraph(proto: string, role: string): IRGraph {
@@ -764,7 +771,7 @@ async function testT10(): Promise<TestResult> {
 // ── Try/catch helpers ───────────────────────────────────────────────
 
 function loadTryCatchAgentIR(name: string): AgentIR {
-  return JSON.parse(readFileSync(join(TRYCATCH_FIXTURES_DIR, `${name}.agent.json`), "utf8"));
+  return loadAgentIRFromDir(TRYCATCH_FIXTURES_DIR, name);
 }
 
 function loadTryCatchGraph(proto: string, role: string): IRGraph {
@@ -922,7 +929,7 @@ async function testT12(): Promise<TestResult> {
 // ── Invoke helpers ──────────────────────────────────────────────────
 
 function loadInvokeAgentIR(name: string): AgentIR {
-  return JSON.parse(readFileSync(join(INVOKE_FIXTURES_DIR, `${name}.agent.json`), "utf8"));
+  return loadAgentIRFromDir(INVOKE_FIXTURES_DIR, name);
 }
 
 function loadInvokeGraph(proto: string, role: string): IRGraph {
@@ -1067,7 +1074,7 @@ async function testT14(): Promise<TestResult> {
 // ── Spawn/emit helpers ──────────────────────────────────────────────
 
 function loadSpawnAgentIR(name: string): AgentIR {
-  return JSON.parse(readFileSync(join(SPAWN_FIXTURES_DIR, `${name}.agent.json`), "utf8"));
+  return loadAgentIRFromDir(SPAWN_FIXTURES_DIR, name);
 }
 
 function loadSpawnGraph(proto: string, role: string): IRGraph {
@@ -1270,7 +1277,7 @@ async function testT17(): Promise<TestResult> {
 
   try {
     const deployment = JSON.parse(readFileSync(join(CROSSLANG_FIXTURES_DIR, "deployment.json"), "utf8"));
-    const tsAgentIR: AgentIR = JSON.parse(readFileSync(join(CROSSLANG_FIXTURES_DIR, "TsAgent.agent.json"), "utf8"));
+    const tsAgentIR = loadAgentIRFromDir(CROSSLANG_FIXTURES_DIR, "TsAgent");
     const tsGraph: IRGraph = JSON.parse(readFileSync(join(CROSSLANG_FIXTURES_DIR, "CrossLangE2E.tsRole.ir.json"), "utf8"));
 
     tsAgent = new AgentRunner({
@@ -1340,7 +1347,7 @@ async function testT18(): Promise<TestResult> {
 
   try {
     const deployment = JSON.parse(readFileSync(join(CROSSLANG_FIXTURES_DIR, "deployment.json"), "utf8"));
-    const tsAgentIR: AgentIR = JSON.parse(readFileSync(join(CROSSLANG_FIXTURES_DIR, "TsAgent.agent.json"), "utf8"));
+    const tsAgentIR = loadAgentIRFromDir(CROSSLANG_FIXTURES_DIR, "TsAgent");
     const tsGraph: IRGraph = JSON.parse(readFileSync(join(CROSSLANG_FIXTURES_DIR, "CrossLangE2E.tsRole.ir.json"), "utf8"));
 
     tsAgent = new AgentRunner({

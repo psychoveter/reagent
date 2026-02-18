@@ -1,22 +1,19 @@
-// Example 12: agent definition — multi-protocol participation with roles
+// Example 12: role-centric multi-protocol participation
 //
 // Requirement:
-// - An agent is a concrete entity that plays roles across multiple protocols.
-// - Agent has its own persistent state ($self), distinct from per-protocol $ctx.
-// - Agent can react to protocol lifecycle events (started, completed, failed).
-// - Agent can start/stop protocols from within lifecycle handlers.
-// - A `role` bundles multiple `plays` into a named interface contract.
-// - An agent uses `implements RoleName` to adopt all plays from a role.
+// - A role is the primary behavioral contract: it declares which protocols
+//   to play, holds persistent state ($self), and reacts to lifecycle events.
+// - An agent is a thin deployment binding: "agent X runs RoleName".
+// - Roles support `extends` for single inheritance.
 //
 // Semantics:
-// - `agent Name [langTag]` declares a named agent with a host language.
-// - `role Name { plays ... }` defines a multi-protocol interface.
-// - `implements RoleName` in an agent expands to the role's plays bindings.
-// - `plays Proto as role` can still be used alongside implements.
-// - `init { ... }` runs once when the agent starts.
+// - `role Name [langTag] { ... }` declares the behavioral contract.
+// - `plays Proto as roleName` inside a role binds a protocol participation.
+// - `init { ... }` runs once when the agent running this role starts.
 // - `on <event>(<proto?>) { ... }` runs on lifecycle events.
-// - $self is the agent's own state, accessible in init, on, and protocol zones.
+// - $self is the role's persistent state, accessible in init, on, and protocol zones.
 // - $ctx remains scoped to a protocol instance as before.
+// - `agent Name runs RoleName` is a deployment binding.
 
 message TaskRequest {}
 message SubmitIntent {}
@@ -61,13 +58,9 @@ protocol HealthCheck {
   }
 }
 
-role CommaRole {
+role CommaRole [ts] {
   plays TaskExecution as comma
   plays HealthCheck as comma
-}
-
-agent Comma [ts] {
-  implements CommaRole
 
   init {
     $self.ready = true
@@ -87,3 +80,5 @@ agent Comma [ts] {
     $self.lastHealthCheck = Date.now()
   }
 }
+
+agent Comma runs CommaRole

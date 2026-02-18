@@ -15,7 +15,8 @@ function usage(): never {
   console.error("");
   console.error("compile output:");
   console.error("  <out-dir>/<Proto>.<role>.ir.json   — per-role IR graph");
-  console.error("  <out-dir>/<Agent>.agent.json       — per-agent IR");
+  console.error("  <out-dir>/<Role>.role.json         — per-role behavioral IR");
+  console.error("  <out-dir>/<Agent>.agent.json       — per-agent deployment binding (references role)");
   console.error("  <out-dir>/deployment.json          — deployment plan (agent→role→graph mapping)");
   process.exit(2);
 }
@@ -66,6 +67,7 @@ function cmdParse(file: string) {
 
 function cmdIR(file: string, roleFilter?: string) {
   const res = parseFile(file);
+  const roleMap = buildRoleMap(res);
 
   for (const proto of getProtocols(res)) {
     resetIdCounter();
@@ -81,16 +83,22 @@ function cmdIR(file: string, roleFilter?: string) {
     }
   }
 
-  const roleMap = buildRoleMap(res);
-
   for (const role of getRoles(res)) {
-    const roleIR = emitRoleIR(role);
+    const result = emitRoleIR(role, roleMap);
+    if (!result.ok) {
+      console.error(`\nRole IR errors in ${role.name}:`);
+      for (const e of result.errors) console.error(`  ${e}`);
+    }
     console.log(`\n=== role ${role.name} ===`);
-    console.log(JSON.stringify(roleIR, null, 2));
+    console.log(JSON.stringify(result.roleIR, null, 2));
   }
 
   for (const agent of getAgents(res)) {
     const result = emitAgentIR(agent, roleMap);
+    if (!result.ok) {
+      console.error(`\nAgent IR errors in ${agent.name}:`);
+      for (const e of result.errors) console.error(`  ${e}`);
+    }
     console.log(`\n=== agent ${agent.name} ===`);
     console.log(JSON.stringify(result.agentIR, null, 2));
   }
@@ -100,6 +108,7 @@ function cmdIR(file: string, roleFilter?: string) {
 
 function cmdValidate(file: string, roleFilter?: string) {
   const res = parseFile(file);
+  const roleMap = buildRoleMap(res);
 
   for (const proto of getProtocols(res)) {
     resetIdCounter();
@@ -125,28 +134,33 @@ function cmdValidate(file: string, roleFilter?: string) {
     }
   }
 
-  const roleMap = buildRoleMap(res);
-
   for (const role of getRoles(res)) {
+    const result = emitRoleIR(role, roleMap);
     console.log(`\n=== role ${role.name} ===`);
-    console.log(`  plays: ${role.plays.length}`);
-    console.log("  ✓ valid");
+    console.log(`  lang: ${role.lang ?? "none"}`);
+    console.log(`  extends: ${role.extends ?? "none"}`);
+    console.log(`  plays: ${result.roleIR.plays.length}`);
+    console.log(`  init: ${result.roleIR.initAction ? "yes" : "no"}`);
+    console.log(`  handlers: ${result.roleIR.lifecycleHandlers.length}`);
+    if (result.ok) {
+      console.log("  ✓ valid");
+    } else {
+      console.log("  ✗ errors:");
+      for (const e of result.errors) console.log(`    ${e}`);
+    }
   }
 
   for (const agent of getAgents(res)) {
     const result = emitAgentIR(agent, roleMap);
     console.log(`\n=== agent ${agent.name} ===`);
-    console.log(`  plays: ${result.agentIR.plays.length} (after implements expansion)`);
-    console.log(`  implements: ${agent.implements.length > 0 ? agent.implements.join(", ") : "none"}`);
-    console.log(`  init: ${result.agentIR.initAction ? "yes" : "no"}`);
-    console.log(`  handlers: ${result.agentIR.lifecycleHandlers.length}`);
+    console.log(`  runs: ${agent.runs}`);
+    console.log(`  lang: ${result.agentIR.lang}`);
+    console.log(`  roleFile: ${result.agentIR.roleFile}`);
     if (result.ok) {
       console.log("  ✓ valid");
     } else {
       console.log("  ✗ errors:");
-      for (const e of result.errors) {
-        console.log(`    ${e}`);
-      }
+      for (const e of result.errors) console.log(`    ${e}`);
     }
   }
 }
@@ -157,11 +171,14 @@ function cmdCompile(file: string, outDir: string) {
   const res = parseFile(file);
   const protocols = getProtocols(res);
   const agents = getAgents(res);
+  const roleMap = buildRoleMap(res);
+  const roles = getRoles(res);
 
   outDir = resolve(outDir);
   mkdirSync(outDir, { recursive: true });
 
-  let roleCount = 0;
+  let protoRoleCount = 0;
+  let roleDefCount = 0;
   let agentCount = 0;
   let hasErrors = false;
 
@@ -187,23 +204,25 @@ function cmdCompile(file: string, outDir: string) {
       const fname = `${proto.name}.${role}.ir.json`;
       writeFileSync(join(outDir, fname), JSON.stringify(graph, null, 2) + "\n");
       console.log(`  ${fname}`);
-      roleCount++;
+      protoRoleCount++;
     }
   }
 
-  // Emit per-role RoleIRs
-  const roleMap = buildRoleMap(res);
-  const roles = getRoles(res);
-  let roleDefCount = 0;
+  // Emit per-role RoleIRs (rich behavioral contracts)
   for (const role of roles) {
-    const roleIR = emitRoleIR(role);
+    const result = emitRoleIR(role, roleMap);
+    if (!result.ok) {
+      console.error(`Role IR errors in ${role.name}:`);
+      for (const e of result.errors) console.error(`  ${e}`);
+      hasErrors = true;
+    }
     const fname = `${role.name}.role.json`;
-    writeFileSync(join(outDir, fname), JSON.stringify(roleIR, null, 2) + "\n");
+    writeFileSync(join(outDir, fname), JSON.stringify(result.roleIR, null, 2) + "\n");
     console.log(`  ${fname}`);
     roleDefCount++;
   }
 
-  // Emit per-agent AgentIRs
+  // Emit per-agent AgentIRs (thin deployment bindings)
   for (const agent of agents) {
     const result = emitAgentIR(agent, roleMap);
 
@@ -219,11 +238,13 @@ function cmdCompile(file: string, outDir: string) {
     agentCount++;
   }
 
-  // Deployment plan — maps agents to their roles and IR files
+  // Deployment plan — derive plays from the resolved role
   type DeploymentAgent = {
     agentName: string;
     lang: string;
+    roleName: string;
     agentIRFile: string;
+    roleIRFile: string;
     roles: Array<{
       protocolName: string;
       roleName: string;
@@ -236,13 +257,19 @@ function cmdCompile(file: string, outDir: string) {
 
   for (const agent of agents) {
     const agentResult = emitAgentIR(agent, roleMap);
+    const roleDef = roleMap.get(agent.runs);
+    const roleResult = roleDef ? emitRoleIR(roleDef, roleMap) : undefined;
+    const plays = roleResult?.roleIR.plays ?? [];
+
     const da: DeploymentAgent = {
       agentName: agent.name,
-      lang: agent.lang,
+      lang: agentResult.agentIR.lang,
+      roleName: agent.runs,
       agentIRFile: `${agent.name}.agent.json`,
+      roleIRFile: `${agent.runs}.role.json`,
       roles: [],
     };
-    for (const p of agentResult.agentIR.plays) {
+    for (const p of plays) {
       const key = `${p.protocolName}.${p.roleName}`;
       da.roles.push({
         protocolName: p.protocolName,
@@ -272,7 +299,7 @@ function cmdCompile(file: string, outDir: string) {
   writeFileSync(join(outDir, "deployment.json"), JSON.stringify(deployment, null, 2) + "\n");
   console.log("  deployment.json");
 
-  console.log(`\n${roleCount} role IR(s), ${roleDefCount} role def(s), ${agentCount} agent IR(s), ${schemas.length} message schema(s) → ${outDir}`);
+  console.log(`\n${protoRoleCount} protocol role IR(s), ${roleDefCount} role def(s), ${agentCount} agent IR(s), ${schemas.length} message schema(s) → ${outDir}`);
 
   if (hasErrors) {
     console.error("\nCompilation completed with errors.");

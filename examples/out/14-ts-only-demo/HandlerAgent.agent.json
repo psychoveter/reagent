@@ -1,24 +1,6 @@
 {
   "agentName": "HandlerAgent",
   "lang": "ts",
-  "plays": [
-    {
-      "protocolName": "TsDemo",
-      "roleName": "handler"
-    }
-  ],
-  "initAction": {
-    "body": "\n    $self.queriesHandled = 0\n  ",
-    "lang": "ts"
-  },
-  "lifecycleHandlers": [
-    {
-      "event": "protocolCompleted",
-      "protocolFilter": "TsDemo",
-      "action": {
-        "body": "\n    $self.lastCompletedAt = Date.now()\n  ",
-        "lang": "ts"
-      }
-    }
-  ]
+  "roleName": "HandlerRole",
+  "roleFile": "HandlerRole.role.json"
 }

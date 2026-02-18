@@ -1,4 +1,4 @@
-                                                                                                              // Example 15: loop + wait demo for runtime E2E tests
+// Example 15: loop + wait demo for runtime E2E tests
 //
 // Tests:
 //   T6: Loop executes N iterations then exits
@@ -68,7 +68,7 @@ protocol LoopWaitDemo {
   }
 }
 
-agent PollerAgent [ts] {
+role PollerRole [ts] {
   plays LoopWaitDemo as poller
 
   init {
@@ -81,7 +81,7 @@ agent PollerAgent [ts] {
   }
 }
 
-agent ResponderAgent [ts] {
+role ResponderRole [ts] {
   plays LoopWaitDemo as responder
 
   init {
@@ -92,3 +92,6 @@ agent ResponderAgent [ts] {
     $self.lastCompletedAt = Date.now()
   }
 }
+
+agent PollerAgent runs PollerRole
+agent ResponderAgent runs ResponderRole

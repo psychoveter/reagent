@@ -89,23 +89,23 @@ RAP sub-protocols: 7 .rg specs in examples/src/rap/
 
 ## Current state (2026-02-18)
 
-### Language: v0.0.6
+### Language: v0.0.7
 
 The Reagent DSL is defined in `docs/lang-spec.md`.
 
 Key design commitments:
 - **Meta-language**: Reagent describes choreography; actual computation lives in **agent zones** written in a host language (`ts`/`js`/`py`/`kt`).
+- **Role-centric design**: `role` is the primary behavioral contract (plays, init, handlers, `$self`, inheritance). `agent` is a thin deployment binding (`agent Name runs RoleName`).
 - **`[*]` wildcard lang tag**: marks language-agnostic participants. Zone blocks forbidden for `[*]` roles. Enables wire-only protocol specs.
 - **Typed messages**: `message Name { field: type }` top-level construct. Minimal type system (`string`, `number`, `boolean`, `any`, `type[]`, `{ ... }`, `?`). Duck typing. Backward compatible.
 - **Protocol-as-function**: `protocol Name { participants: ..., initiator: ..., input: ... }`.
 - **Hook zones**: `onSend { ... }` / `onReceive { ... }` inside message props.
 - **`reagent.*` runtime library**: `reagent.invoke`, `reagent.spawn`, `reagent.return`, `reagent.emit`.
-- **`$ctx`** — per-protocol-instance context. **`$self`** — agent-level persistent state.
-- **Agent definition**: `agent Name [langTag] { plays Proto as role; init { ... }; on event(Proto) { ... } }`.
+- **`$ctx`** — per-protocol-instance context. **`$self`** — role-level persistent state.
+- **Role definition**: `role Name [langTag]? extends Parent? { plays; init; on ... }` — primary behavioral contract with optional inheritance.
+- **Agent definition**: `agent Name [langTag]? runs RoleName` — thin deployment binding.
 - **Protocol-level control flow**: `alt`, `loop`, `par`, `wait`, `timeout`, `try/catch`.
 - **Imports**: `.rg` = protocol imports, `.ts/.js/.py/.kt` = code module imports.
-- **Role definition**: `role Name { plays Proto as role }` — named multi-protocol interface contract.
-- **`implements` keyword**: in agent body, adopts all plays from a role.
 - **Top-level constructs**: `import`, `protocol`, `agent`, `message`, `role`.
 
 ### Examples corpus
@@ -126,8 +126,8 @@ Key design commitments:
 | 09 | `invoke-multiparty-child-protocol.rg` | Multi-party child protocol |
 | 10 | `external-event-start-and-emit.rg` | External event, reagent.emit |
 | 11 | `llmbroka-call-and-return.rg` | LLM broker, reagent.return |
-| 12 | `agent-multi-protocol.rg` | Agent def, role, implements, init, lifecycle |
-| 13 | `cross-lang-demo.rg` | TS + Python agents, alt branching |
+| 12 | `agent-multi-protocol.rg` | Role with lifecycle, agent runs, multi-protocol |
+| 13 | `cross-lang-demo.rg` | TS + Python roles, alt branching |
 | 14 | `ts-only-demo.rg` | TS-only, E2E test target |
 | 15 | `loop-and-wait-demo.rg` | Loop + wait, E2E test target |
 | 16 | `parallel-demo.rg` | Par fork/join, E2E test target |
@@ -135,11 +135,12 @@ Key design commitments:
 | 18 | `invoke-demo.rg` | reagent.invoke, E2E test target |
 | 19 | `spawn-emit-demo.rg` | reagent.spawn + emit, E2E test target |
 | 20 | `cross-lang-e2e.rg` | TS ↔ Python, E2E test target |
+| 21 | `role-inheritance.rg` | Role `extends`, plays/init/handler merging |
 | — | `task-execution.rg` | Legacy example |
 | — | `lib/*.rg` | Shared sub-protocols (3 files) |
 | — | `rap/*.rg` | RAP sub-protocol specs (7 files) |
 
-All 22 examples + 3 libs + 7 RAP specs compile and validate successfully.
+All 23 examples + 3 libs + 7 RAP specs compile and validate successfully.
 
 ### Compiler CLI (`@reagent/lang`)
 
@@ -168,14 +169,14 @@ All IR constructs supported at runtime: `initial`, `send`, `receive`, `action`, 
 
 | Module | Version | Path | Description |
 |---|---|---|---|
-| `@reagent/lang` | 0.0.6 | `lang/` | Compiler: AST, parser, IR emitter, IR validator, CLI |
+| `@reagent/lang` | 0.0.7 | `lang/` | Compiler: AST, parser, IR emitter, IR validator, CLI |
 | `reagent-vscode` | 0.1.0 | `tools/reagent-vscode/` | TextMate grammar + embedded language support |
 
 ### Specs / docs
 
 | Document | Path | Content |
 |---|---|---|
-| `lang-spec.md` | `docs/lang-spec.md` | Language spec v0.0.6: syntax + EBNF + typed messages + wildcard lang tag + role + implements |
+| `lang-spec.md` | `docs/lang-spec.md` | Language spec v0.0.7: syntax + EBNF + role-centric design + extends + runs |
 | `reagent-spec.md` | `docs_v0.0.1/reagent-spec.md` | Core spec v0.0.1: layers, TraceEvent algebra, legality, runtime |
 | `ir-to-losos-mapping.md` | `docs/ir-to-losos-mapping.md` | IR → Losos design doc |
 | `reagent-losos-project-plan.md` | `.cursor/reagent-losos-project-plan.md` | Milestones plan |
@@ -185,8 +186,8 @@ All IR constructs supported at runtime: `initial`, `send`, `receive`, `action`, 
 
 1. **Protocol level** — `.rg` files with DSL choreography + embedded host-language code.
 2. **Role level** — per-role IR graphs (IRGraph: directed graph of states + transitions).
-3. **Interface level** — role definitions (RoleIR: named multi-protocol interface contracts).
-4. **Agent level** — per-agent IR (AgentIR: implements + plays bindings + init + lifecycle handlers) + its role IRGraphs.
+3. **Behavioral level** — role definitions (RoleIR: rich behavioral contracts with lifecycle, init, handlers, extends).
+4. **Agent level** — per-agent IR (AgentIR: thin deployment binding referencing a role) + resolved behavioral data from RoleIR.
 5. **Message level** — typed message schemas (IRMessageSchema) compiled alongside IR.
 6. **Execution level** — runtime engines that interpret agent IR. Reference runners (TS/Python over NATS) and Losos (Kotlin/etcd) as future production engine.
 7. **Control level** (planned) — Reagent Orchestrator Server (ROS) coordinating adapters via RAP over WebSocket.
@@ -202,8 +203,9 @@ All IR constructs supported at runtime: `initial`, `send`, `receive`, `action`, 
 | M1-RT | ✅ DONE | Full IR construct support: loop, par, wait, try/catch, invoke, spawn, cross-lang, trace validation (T6–T20) |
 | M2-LANG | ✅ DONE | Language v0.1: `[*]` wildcard, typed messages, 25 examples updated, 7 RAP specs |
 | M3-LANG | ✅ DONE | Language v0.0.6: `role` construct + `implements` keyword |
-| M4-CTRL | ⬜ NEXT | ReagentController + transport abstraction (design + impl) |
-| M5-RT | ⬜ backlog | Multi-runtime orchestrator (ROS) + debugger + VSCode extension |
+| M4-LANG | ✅ DONE | Language v0.0.7: role-centric refactoring (`extends`, `runs`, role as primary contract) |
+| M5-CTRL | ⬜ NEXT | ReagentController + transport abstraction (design + impl) |
+| M6-RT | ⬜ backlog | Multi-runtime orchestrator (ROS) + debugger + VSCode extension |
 
 ## Development workflow
 
@@ -218,8 +220,8 @@ Development is **E2E test-driven**:
 
 | Component | Current version | Sync rule |
 |---|---|---|
-| Language (lang-spec.md) | **v0.0.6** | Source of truth for language surface |
-| `@reagent/lang` package | 0.0.6 | Tracks language version directly |
+| Language (lang-spec.md) | **v0.0.7** | Source of truth for language surface |
+| `@reagent/lang` package | 0.0.7 | Tracks language version directly |
 | `reagent-vscode` extension | 0.1.0 | Tracks language changes; bump minor on syntax changes |
 | `reagent-spec.md` (core spec) | v0.0.1 | Bump when TraceEvent algebra / runtime contract changes |
 

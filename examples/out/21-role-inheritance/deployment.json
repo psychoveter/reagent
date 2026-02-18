@@ -1,0 +1,57 @@
+{
+  "agents": [
+    {
+      "agentName": "Worker",
+      "lang": "ts",
+      "roleName": "WorkerRole",
+      "agentIRFile": "Worker.agent.json",
+      "roleIRFile": "WorkerRole.role.json",
+      "roles": [
+        {
+          "protocolName": "HealthCheck",
+          "roleName": "node",
+          "irGraphFile": "HealthCheck.node.ir.json"
+        },
+        {
+          "protocolName": "TaskProcessing",
+          "roleName": "worker",
+          "irGraphFile": "TaskProcessing.worker.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "Dispatcher",
+      "lang": "ts",
+      "roleName": "DispatcherRole",
+      "agentIRFile": "Dispatcher.agent.json",
+      "roleIRFile": "DispatcherRole.role.json",
+      "roles": [
+        {
+          "protocolName": "TaskProcessing",
+          "roleName": "dispatcher",
+          "irGraphFile": "TaskProcessing.dispatcher.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "HealthCheck.node": "Worker",
+    "TaskProcessing.worker": "Worker",
+    "TaskProcessing.dispatcher": "Dispatcher"
+  },
+  "roles": [
+    {
+      "name": "BaseMonitored",
+      "file": "BaseMonitored.role.json"
+    },
+    {
+      "name": "WorkerRole",
+      "file": "WorkerRole.role.json"
+    },
+    {
+      "name": "DispatcherRole",
+      "file": "DispatcherRole.role.json"
+    }
+  ],
+  "messages": "messages.json"
+}

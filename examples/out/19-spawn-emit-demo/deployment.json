@@ -3,7 +3,9 @@
     {
       "agentName": "OrchestratorAgent",
       "lang": "ts",
+      "roleName": "OrchestratorRole",
       "agentIRFile": "OrchestratorAgent.agent.json",
+      "roleIRFile": "OrchestratorRole.role.json",
       "roles": [
         {
           "protocolName": "SpawnEmitDemo",
@@ -20,7 +22,9 @@
     {
       "agentName": "HelperAgent",
       "lang": "ts",
+      "roleName": "HelperRole",
       "agentIRFile": "HelperAgent.agent.json",
+      "roleIRFile": "HelperRole.role.json",
       "roles": [
         {
           "protocolName": "SpawnEmitDemo",
@@ -35,5 +39,15 @@
     "BackgroundTask.worker": "OrchestratorAgent",
     "SpawnEmitDemo.helper": "HelperAgent"
   },
+  "roles": [
+    {
+      "name": "OrchestratorRole",
+      "file": "OrchestratorRole.role.json"
+    },
+    {
+      "name": "HelperRole",
+      "file": "HelperRole.role.json"
+    }
+  ],
   "messages": "messages.json"
 }

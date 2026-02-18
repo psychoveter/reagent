@@ -39,17 +39,30 @@ async def main():
 
     agent_ir_file = os.path.join(fixtures_dir, f"{agent_name}.agent.json")
     with open(agent_ir_file) as f:
-        agent_ir = json.load(f)
+        thin_agent_ir = json.load(f)
+
+    role_ir_file = os.path.join(fixtures_dir, thin_agent_ir["roleFile"])
+    with open(role_ir_file) as f:
+        role_ir = json.load(f)
+
+    agent_ir = {
+        "agentName": thin_agent_ir["agentName"],
+        "lang": thin_agent_ir["lang"],
+        "roleName": thin_agent_ir["roleName"],
+        "plays": role_ir["plays"],
+        "initAction": role_ir.get("initAction"),
+        "lifecycleHandlers": role_ir.get("lifecycleHandlers", []),
+    }
 
     graphs = {}
-    for play in agent_ir["plays"]:
+    for play in role_ir["plays"]:
         graph_file = os.path.join(fixtures_dir, f"{play['protocolName']}.{play['roleName']}.ir.json")
         with open(graph_file) as f:
             graph = json.load(f)
         key = f"{play['protocolName']}.{play['roleName']}"
         graphs[key] = graph
 
-    protocol_name = agent_ir["plays"][0]["protocolName"]
+    protocol_name = role_ir["plays"][0]["protocolName"]
 
     config = {
         "agentIR": agent_ir,

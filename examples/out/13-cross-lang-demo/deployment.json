@@ -3,7 +3,9 @@
     {
       "agentName": "BrowserAgent",
       "lang": "ts",
+      "roleName": "BrowserRole",
       "agentIRFile": "BrowserAgent.agent.json",
+      "roleIRFile": "BrowserRole.role.json",
       "roles": [
         {
           "protocolName": "CrossLangDemo",
@@ -15,7 +17,9 @@
     {
       "agentName": "ServerAgent",
       "lang": "py",
+      "roleName": "ServerRole",
       "agentIRFile": "ServerAgent.agent.json",
+      "roleIRFile": "ServerRole.role.json",
       "roles": [
         {
           "protocolName": "CrossLangDemo",
@@ -29,5 +33,15 @@
     "CrossLangDemo.browser": "BrowserAgent",
     "CrossLangDemo.server": "ServerAgent"
   },
+  "roles": [
+    {
+      "name": "BrowserRole",
+      "file": "BrowserRole.role.json"
+    },
+    {
+      "name": "ServerRole",
+      "file": "ServerRole.role.json"
+    }
+  ],
   "messages": "messages.json"
 }

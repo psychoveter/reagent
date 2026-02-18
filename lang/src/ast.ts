@@ -1,5 +1,5 @@
 /**
- * Reagent AST — v0.0.6
+ * Reagent AST — v0.0.7
  *
  * Typed node hierarchy for the full Reagent protocol language.
  * Every node carries a SourceLocation (Loc) for editor integration.
@@ -206,16 +206,13 @@ export type TryStmt = {
   loc: Loc;
 };
 
-// ── Agent definition ────────────────────────────────────────────────
+// ── Agent definition (deployment binding) ───────────────────────────
 
 export type AgentDef = {
   kind: "AgentDef";
   name: string;
-  lang: LangTag;
-  implements: string[];
-  plays: PlaysDecl[];
-  init?: AgentInitBlock;
-  handlers: AgentOnHandler[];
+  lang?: LangTag;
+  runs: string;
   loc: Loc;
 };
 
@@ -226,32 +223,36 @@ export type PlaysDecl = {
   loc: Loc;
 };
 
-export type AgentInitBlock = {
-  kind: "AgentInitBlock";
+// ── Role definition (primary behavioral contract) ───────────────────
+
+export type RoleDef = {
+  kind: "RoleDef";
+  name: string;
+  lang?: LangTag;
+  extends?: string;
+  plays: PlaysDecl[];
+  init?: RoleInitBlock;
+  handlers: RoleOnHandler[];
+  loc: Loc;
+};
+
+export type RoleInitBlock = {
+  kind: "RoleInitBlock";
   body: string;
   loc: Loc;
 };
 
-export type AgentEventKind =
+export type RoleEventKind =
   | "protocolStarted"
   | "protocolCompleted"
   | "protocolFailed"
   | "protocolEvent";
 
-export type AgentOnHandler = {
-  kind: "AgentOnHandler";
-  event: AgentEventKind;
+export type RoleOnHandler = {
+  kind: "RoleOnHandler";
+  event: RoleEventKind;
   protocolFilter?: string;
   body: string;
-  loc: Loc;
-};
-
-// ── Role definition ─────────────────────────────────────────────────
-
-export type RoleDef = {
-  kind: "RoleDef";
-  name: string;
-  plays: PlaysDecl[];
   loc: Loc;
 };
 

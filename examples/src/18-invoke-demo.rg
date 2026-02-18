@@ -1,6 +1,6 @@
 // Example 18: child protocol invocation (reagent.invoke / reagent.return)
 //
-// ResponderAgent invokes a child protocol (ComputeSquare) via reagent.invoke().
+// ResponderRole invokes a child protocol (ComputeSquare) via reagent.invoke().
 // ComputeSquare is a single-agent protocol that computes the square of input
 // and returns via reagent.return(). The parent receives the value synchronously.
 
@@ -48,7 +48,7 @@ protocol InvokeDemo {
   }
 }
 
-agent CallerAgent [ts] {
+role CallerRole [ts] {
   plays InvokeDemo as caller
 
   init {
@@ -56,7 +56,10 @@ agent CallerAgent [ts] {
   }
 }
 
-agent ResponderAgent [ts] {
+role ResponderRole [ts] {
   plays InvokeDemo as responder
   plays ComputeSquare as worker
 }
+
+agent CallerAgent runs CallerRole
+agent ResponderAgent runs ResponderRole

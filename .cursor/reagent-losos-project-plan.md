@@ -271,6 +271,56 @@ Compile all to IR. Derive JSON wire format schema from IR message definitions.
 
 ---
 
+## M4-LANG — Language v0.0.7: role-centric refactoring ✅ DONE
+
+**Intent**: promote `role` to the primary behavioral contract (lifecycle, state, inheritance) and reduce `agent` to a thin deployment binding (`agent Name runs RoleName`). Breaking change. Bumps language to v0.0.7.
+
+### Changes
+
+**AST** (`lang/src/ast.ts`):
+- `RoleDef` gains: `lang?: LangTag`, `extends?: string`, `init?: RoleInitBlock`, `handlers: RoleOnHandler[]`
+- `AgentDef` becomes thin: `{ kind: "AgentDef", name, lang?, runs: string, loc }`
+- Old `AgentInitBlock`, `AgentEventKind`, `AgentOnHandler` removed; replaced by `RoleInitBlock`, `RoleEventKind`, `RoleOnHandler`
+
+**Parser** (`lang/src/parser.ts`):
+- `pRoleDef()`: parses `role Name [langTag]? extends Parent? { plays, init, on ... }`
+- `pAgentDef()`: simplified to `agent Name [langTag]? runs RoleName`
+
+**IR** (`lang/src/ir.ts`):
+- `RoleIR`: rich — `{ roleName, lang?, extends?, plays, initAction?, lifecycleHandlers[] }`
+- `AgentIR`: thin deployment binding — `{ agentName, lang, roleName, roleFile }` (no behavioral data, references role)
+
+**IR Emitter** (`lang/src/ir-emitter.ts`):
+- `emitRoleIR(role, roleMap)`: resolves `extends` chain, merges plays/init/handlers
+- `emitAgentIR(agent, roleMap)`: produces thin binding, validates role exists and lang tags are compatible
+- Circular extends detection, lang tag conflict detection
+
+**CLI** (`lang/src/cli.ts`):
+- All commands updated for new types
+- `deployment.json` agents include `roleName`
+
+**TextMate grammar** (`tools/reagent-vscode/syntaxes/reagent.tmLanguage.json`):
+- `roleDef` pattern: lang tag, `extends`, `init`, `on` handler support
+- `agentDef` pattern: simplified to single-line `agent Name [lang]? runs RoleName`
+- `extends`, `runs` added to keywords; `implements` removed
+- Old `agentInitBlock`, `agentOnHandler`, `agentImplements` replaced by `roleInitBlock`, `roleOnHandler`
+
+**Lang spec** (`docs/lang-spec.md`):
+- §1.13 Agent definition → deployment binding
+- §1.15 Role definition → primary behavioral contract with lifecycle
+- §1.16 Role inheritance via `extends`
+- EBNF v0.0.7: updated `RoleDef`, `AgentDef`, new keywords
+- §4.1–4.5 updated for new AST/IR structure
+- v0.0.7 changelog
+
+**Examples**:
+- 9 examples rewritten: role+agent split (12–20)
+- New example 21: `role-inheritance.rg` demonstrating `extends`
+- All 23 examples + 3 libs + 7 RAP specs compile ✅
+- All 20 E2E tests pass ✅
+
+---
+
 ## M5-RT — Multi-runtime orchestrator and debugger ⬜ (was M3-RT)
 
 **Intent**: build the orchestration and debug infrastructure based on the RAP specs from M2-LANG. Replaces the old M2-RT plan with the new architecture (ROS + RAP adapters + unified debug protocol).
@@ -358,5 +408,8 @@ Ideas and milestones considered but not yet scheduled.
 | RAP sub-protocols | 7 `.rg` specs | M2-LANG / D ✅ | — |
 | `role` definition | `RoleIR` | M3-LANG ✅ | — |
 | `implements` in agent | expanded plays in `AgentIR` | M3-LANG ✅ | — |
+| Role-centric design | `role` primary, `agent` thin | M4-LANG ✅ | — |
+| Role `extends` | inheritance: plays/init/handlers merged | M4-LANG ✅ | — |
+| `agent runs` | deployment binding | M4-LANG ✅ | — |
 | Debug server (ROS) | step, breakpoints, inspect | M5-RT / 1-2 | T21–T23 |
 | Debug UI (VSCode) | graph, timeline, state cards | M5-RT / 3-4 | — |

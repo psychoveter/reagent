@@ -1,6 +1,6 @@
 // Example 20: cross-language E2E (TypeScript ↔ Python)
 //
-// A TS agent and a Python agent exchange messages over NATS.
+// A TS role and a Python role exchange messages over NATS.
 // No opaque function calls — only $ctx/$self operations.
 
 message Greeting {}
@@ -39,7 +39,7 @@ protocol CrossLangE2E {
   }
 }
 
-agent TsAgent [ts] {
+role TsRole [ts] {
   plays CrossLangE2E as tsRole
 
   init {
@@ -47,7 +47,7 @@ agent TsAgent [ts] {
   }
 }
 
-agent PyAgent [py] {
+role PyRole [py] {
   plays CrossLangE2E as pyRole
 
   init {
@@ -58,3 +58,6 @@ agent PyAgent [py] {
     $self.completedCount = ($self.completedCount or 0) + 1
   }
 }
+
+agent TsAgent runs TsRole
+agent PyAgent runs PyRole

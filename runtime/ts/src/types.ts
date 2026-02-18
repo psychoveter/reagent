@@ -69,15 +69,47 @@ export type IRTransitionLabel =
   | { kind: "error" }
   | { kind: "branch"; branchIndex: number };
 
-// ── From lang/src/ir.ts — Agent IR ──────────────────────────────────
+// ── From lang/src/ir.ts — Role IR ───────────────────────────────────
 
-export type AgentIR = {
-  agentName: string;
-  lang: LangTag;
+export type RoleIR = {
+  roleName: string;
+  lang?: LangTag;
+  extends?: string;
   plays: AgentPlaysBinding[];
   initAction?: AgentAction;
   lifecycleHandlers: AgentLifecycleHandler[];
 };
+
+// ── From lang/src/ir.ts — Agent IR (thin on-disk format) ────────────
+
+export type ThinAgentIR = {
+  agentName: string;
+  lang: LangTag;
+  roleName: string;
+  roleFile: string;
+};
+
+// ── Resolved Agent IR (what the runtime works with) ─────────────────
+
+export type AgentIR = {
+  agentName: string;
+  lang: LangTag;
+  roleName: string;
+  plays: AgentPlaysBinding[];
+  initAction?: AgentAction;
+  lifecycleHandlers: AgentLifecycleHandler[];
+};
+
+export function resolveAgentIR(thin: ThinAgentIR, role: RoleIR): AgentIR {
+  return {
+    agentName: thin.agentName,
+    lang: thin.lang,
+    roleName: thin.roleName,
+    plays: role.plays,
+    initAction: role.initAction,
+    lifecycleHandlers: role.lifecycleHandlers,
+  };
+}
 
 export type AgentPlaysBinding = {
   protocolName: string;
@@ -151,7 +183,9 @@ export type ProtocolTrigger = {
 export type DeploymentAgent = {
   agentName: string;
   lang: string;
+  roleName: string;
   agentIRFile: string;
+  roleIRFile: string;
   roles: Array<{
     protocolName: string;
     roleName: string;

@@ -3,7 +3,9 @@
     {
       "agentName": "TsAgent",
       "lang": "ts",
+      "roleName": "TsRole",
       "agentIRFile": "TsAgent.agent.json",
+      "roleIRFile": "TsRole.role.json",
       "roles": [
         {
           "protocolName": "CrossLangE2E",
@@ -15,7 +17,9 @@
     {
       "agentName": "PyAgent",
       "lang": "py",
+      "roleName": "PyRole",
       "agentIRFile": "PyAgent.agent.json",
+      "roleIRFile": "PyRole.role.json",
       "roles": [
         {
           "protocolName": "CrossLangE2E",
@@ -29,5 +33,15 @@
     "CrossLangE2E.tsRole": "TsAgent",
     "CrossLangE2E.pyRole": "PyAgent"
   },
+  "roles": [
+    {
+      "name": "TsRole",
+      "file": "TsRole.role.json"
+    },
+    {
+      "name": "PyRole",
+      "file": "PyRole.role.json"
+    }
+  ],
   "messages": "messages.json"
 }

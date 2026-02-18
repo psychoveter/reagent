@@ -1,15 +1,6 @@
 {
   "agentName": "TsAgent",
   "lang": "ts",
-  "plays": [
-    {
-      "protocolName": "CrossLangE2E",
-      "roleName": "tsRole"
-    }
-  ],
-  "initAction": {
-    "body": "\n    $self.lastReply = \"\"\n  ",
-    "lang": "ts"
-  },
-  "lifecycleHandlers": []
+  "roleName": "TsRole",
+  "roleFile": "TsRole.role.json"
 }

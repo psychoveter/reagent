@@ -3,7 +3,9 @@
     {
       "agentName": "PollerAgent",
       "lang": "ts",
+      "roleName": "PollerRole",
       "agentIRFile": "PollerAgent.agent.json",
+      "roleIRFile": "PollerRole.role.json",
       "roles": [
         {
           "protocolName": "LoopWaitDemo",
@@ -15,7 +17,9 @@
     {
       "agentName": "ResponderAgent",
       "lang": "ts",
+      "roleName": "ResponderRole",
       "agentIRFile": "ResponderAgent.agent.json",
+      "roleIRFile": "ResponderRole.role.json",
       "roles": [
         {
           "protocolName": "LoopWaitDemo",
@@ -29,5 +33,15 @@
     "LoopWaitDemo.poller": "PollerAgent",
     "LoopWaitDemo.responder": "ResponderAgent"
   },
+  "roles": [
+    {
+      "name": "PollerRole",
+      "file": "PollerRole.role.json"
+    },
+    {
+      "name": "ResponderRole",
+      "file": "ResponderRole.role.json"
+    }
+  ],
   "messages": "messages.json"
 }

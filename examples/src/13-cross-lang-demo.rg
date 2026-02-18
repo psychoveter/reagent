@@ -1,14 +1,10 @@
 // Example 13: cross-language demo (TypeScript browser + Python server)
 //
 // Demonstrates:
-// - Two agents in different languages participating in one protocol
-// - Agent definitions with $self state, init, lifecycle handlers
+// - Two roles in different languages participating in one protocol
+// - Role definitions with $self state, init, lifecycle handlers
 // - Alt branching based on server-side processing result
 // - onSend hooks for payload construction
-//
-// Agents:
-//   BrowserAgent [ts] — plays `browser` role
-//   ServerAgent  [py] — plays `server` role
 
 message Query {}
 message Accept {}
@@ -59,7 +55,7 @@ protocol CrossLangDemo {
   }
 }
 
-agent BrowserAgent [ts] {
+role BrowserRole [ts] {
   plays CrossLangDemo as browser
 
   init {
@@ -72,7 +68,7 @@ agent BrowserAgent [ts] {
   }
 }
 
-agent ServerAgent [py] {
+role ServerRole [py] {
   plays CrossLangDemo as server
 
   init {
@@ -83,3 +79,6 @@ agent ServerAgent [py] {
     $self.lastCompletedAt = Date.now()
   }
 }
+
+agent BrowserAgent runs BrowserRole
+agent ServerAgent runs ServerRole
