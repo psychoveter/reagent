@@ -1,0 +1,51 @@
+{
+  "protocolName": "BackgroundTask",
+  "role": "worker",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.result = \"bg-done:\" + $ctx.input.taskName\n    $self.bgTasksCompleted = ($self.bgTasksCompleted || 0) + 1\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "end_3",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "act_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_2",
+      "to": "end_3",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_3"
+  ]
+}

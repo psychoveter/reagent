@@ -1,0 +1,87 @@
+{
+  "protocolName": "CrossLangE2E",
+  "role": "tsRole",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.greeting = \"hello from ts\"\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_3",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "pyRole",
+        "arrow": "-->",
+        "messageName": "Greeting",
+        "preSendZone": "\n      $ctx.msg.text = $ctx.greeting\n    "
+      }
+    },
+    {
+      "id": "recv_4",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "pyRole",
+        "arrow": "-->",
+        "messageName": "Reply",
+        "postReceiveZone": "\n      $ctx.replyText = $ctx.msg.text\n      $self.lastReply = $ctx.msg.text\n    "
+      }
+    },
+    {
+      "id": "end_5",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "act_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_2",
+      "to": "send_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_3",
+      "to": "recv_4",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_4",
+      "to": "end_5",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_5"
+  ]
+}

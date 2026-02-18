@@ -1,0 +1,32 @@
+{
+  "agents": [
+    {
+      "agentName": "SenderAgent",
+      "lang": "ts",
+      "agentIRFile": "SenderAgent.agent.json",
+      "roles": [
+        {
+          "protocolName": "TryCatchDemo",
+          "roleName": "sender",
+          "irGraphFile": "TryCatchDemo.sender.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "ProcessorAgent",
+      "lang": "ts",
+      "agentIRFile": "ProcessorAgent.agent.json",
+      "roles": [
+        {
+          "protocolName": "TryCatchDemo",
+          "roleName": "processor",
+          "irGraphFile": "TryCatchDemo.processor.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "TryCatchDemo.sender": "SenderAgent",
+    "TryCatchDemo.processor": "ProcessorAgent"
+  }
+}

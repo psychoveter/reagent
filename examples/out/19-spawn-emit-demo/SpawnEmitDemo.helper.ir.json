@@ -1,0 +1,87 @@
+{
+  "protocolName": "SpawnEmitDemo",
+  "role": "helper",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_6",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_7",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "orchestrator",
+        "arrow": "-->",
+        "messageName": "WorkRequest",
+        "postReceiveZone": "\n      $ctx.task = $ctx.msg.task\n    "
+      }
+    },
+    {
+      "id": "act_8",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.result = \"done:\" + $ctx.task\n    reagent.emit(\"TaskProcessed\", { task: $ctx.task })\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_9",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "orchestrator",
+        "arrow": "-->",
+        "messageName": "WorkResult",
+        "preSendZone": "\n      $ctx.msg.result = $ctx.result\n    "
+      }
+    },
+    {
+      "id": "end_10",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_6",
+      "to": "recv_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_7",
+      "to": "act_8",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_8",
+      "to": "send_9",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_9",
+      "to": "end_10",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_6",
+  "terminalStateIds": [
+    "end_10"
+  ]
+}

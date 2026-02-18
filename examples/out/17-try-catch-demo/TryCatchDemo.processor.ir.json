@@ -1,0 +1,158 @@
+{
+  "protocolName": "TryCatchDemo",
+  "role": "processor",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_9",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_10",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "sender",
+        "arrow": "-->",
+        "messageName": "Request",
+        "postReceiveZone": "\n      $ctx.requestText = $ctx.msg.text\n    "
+      }
+    },
+    {
+      "id": "act_11",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n      if ($ctx.requestText === \"fail\") {\n        throw new Error(\"processing_failed\")\n      }\n      $ctx.result = \"processed:\" + $ctx.requestText\n    ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_12",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "sender",
+        "arrow": "-->",
+        "messageName": "Result",
+        "preSendZone": "\n        $ctx.msg.data = $ctx.result\n      "
+      }
+    },
+    {
+      "id": "catch_14",
+      "kind": "error",
+      "data": {
+        "kind": "error",
+        "label": "error"
+      }
+    },
+    {
+      "id": "act_15",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n      $ctx.errorMsg = \"error occurred\"\n    ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_16",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "sender",
+        "arrow": "-->",
+        "messageName": "Failure",
+        "preSendZone": "\n        $ctx.msg.reason = $ctx.errorMsg\n      "
+      }
+    },
+    {
+      "id": "try_merge_13",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "end_17",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_9",
+      "to": "recv_10",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_10",
+      "to": "act_11",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_11",
+      "to": "send_12",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_12",
+      "to": "try_merge_13",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_10",
+      "to": "catch_14",
+      "label": {
+        "kind": "error"
+      }
+    },
+    {
+      "from": "catch_14",
+      "to": "act_15",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_15",
+      "to": "send_16",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_16",
+      "to": "try_merge_13",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "try_merge_13",
+      "to": "end_17",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_9",
+  "terminalStateIds": [
+    "end_17"
+  ]
+}

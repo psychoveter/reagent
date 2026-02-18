@@ -1,0 +1,24 @@
+{
+  "agentName": "WorkerAAgent",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "ParDemo",
+      "roleName": "workerA"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.tasksCompleted = 0\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolCompleted",
+      "protocolFilter": "ParDemo",
+      "action": {
+        "body": "\n    $self.lastCompletedAt = Date.now()\n  ",
+        "lang": "ts"
+      }
+    }
+  ]
+}

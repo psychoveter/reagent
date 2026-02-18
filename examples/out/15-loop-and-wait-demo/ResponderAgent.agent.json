@@ -1,0 +1,24 @@
+{
+  "agentName": "ResponderAgent",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "LoopWaitDemo",
+      "roleName": "responder"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.pingsReceived = 0\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolCompleted",
+      "protocolFilter": "LoopWaitDemo",
+      "action": {
+        "body": "\n    $self.lastCompletedAt = Date.now()\n  ",
+        "lang": "ts"
+      }
+    }
+  ]
+}

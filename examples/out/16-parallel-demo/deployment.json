@@ -1,0 +1,45 @@
+{
+  "agents": [
+    {
+      "agentName": "CoordinatorAgent",
+      "lang": "ts",
+      "agentIRFile": "CoordinatorAgent.agent.json",
+      "roles": [
+        {
+          "protocolName": "ParDemo",
+          "roleName": "coordinator",
+          "irGraphFile": "ParDemo.coordinator.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "WorkerAAgent",
+      "lang": "ts",
+      "agentIRFile": "WorkerAAgent.agent.json",
+      "roles": [
+        {
+          "protocolName": "ParDemo",
+          "roleName": "workerA",
+          "irGraphFile": "ParDemo.workerA.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "WorkerBAgent",
+      "lang": "ts",
+      "agentIRFile": "WorkerBAgent.agent.json",
+      "roles": [
+        {
+          "protocolName": "ParDemo",
+          "roleName": "workerB",
+          "irGraphFile": "ParDemo.workerB.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "ParDemo.coordinator": "CoordinatorAgent",
+    "ParDemo.workerA": "WorkerAAgent",
+    "ParDemo.workerB": "WorkerBAgent"
+  }
+}

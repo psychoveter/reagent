@@ -1,0 +1,38 @@
+{
+  "agents": [
+    {
+      "agentName": "OrchestratorAgent",
+      "lang": "ts",
+      "agentIRFile": "OrchestratorAgent.agent.json",
+      "roles": [
+        {
+          "protocolName": "SpawnEmitDemo",
+          "roleName": "orchestrator",
+          "irGraphFile": "SpawnEmitDemo.orchestrator.ir.json"
+        },
+        {
+          "protocolName": "BackgroundTask",
+          "roleName": "worker",
+          "irGraphFile": "BackgroundTask.worker.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "HelperAgent",
+      "lang": "ts",
+      "agentIRFile": "HelperAgent.agent.json",
+      "roles": [
+        {
+          "protocolName": "SpawnEmitDemo",
+          "roleName": "helper",
+          "irGraphFile": "SpawnEmitDemo.helper.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "SpawnEmitDemo.orchestrator": "OrchestratorAgent",
+    "BackgroundTask.worker": "OrchestratorAgent",
+    "SpawnEmitDemo.helper": "HelperAgent"
+  }
+}

@@ -13,24 +13,56 @@ export type ReagentStub = {
 export function createReagentStub(): ReagentStub {
   return {
     emit: (eventName, data) => {
-      console.log(`[reagent.emit] ${eventName}`, data ?? "");
+      throw new EmitRequest(eventName, data);
     },
-    invoke: (_proto, _args) => {
-      console.log("[reagent.invoke] stub — not implemented in test runtime");
-      return {};
+    invoke: (proto, args) => {
+      throw new InvokeRequest(proto as string, args as Record<string, unknown> | undefined);
     },
-    spawn: (_proto, _args) => {
-      console.log("[reagent.spawn] stub — not implemented in test runtime");
+    spawn: (proto, args) => {
+      throw new SpawnRequest(proto as string, args as Record<string, unknown> | undefined);
     },
-    return: (_value) => {
-      console.log("[reagent.return] stub — not implemented in test runtime");
+    return: (value) => {
+      throw new ReturnValue(value);
     },
   };
 }
 
+/** Sentinel thrown when a zone calls reagent.invoke() */
+export class InvokeRequest {
+  readonly __reagentInvoke = true;
+  constructor(
+    public readonly protoName: string,
+    public readonly input?: Record<string, unknown>,
+  ) {}
+}
+
+/** Sentinel thrown when a zone calls reagent.return() */
+export class ReturnValue {
+  readonly __reagentReturn = true;
+  constructor(public readonly value: unknown) {}
+}
+
+/** Sentinel thrown when a zone calls reagent.spawn() */
+export class SpawnRequest {
+  readonly __reagentSpawn = true;
+  constructor(
+    public readonly protoName: string,
+    public readonly input?: Record<string, unknown>,
+  ) {}
+}
+
+/** Sentinel thrown when a zone calls reagent.emit() */
+export class EmitRequest {
+  readonly __reagentEmit = true;
+  constructor(
+    public readonly eventName: string,
+    public readonly data?: Record<string, unknown>,
+  ) {}
+}
+
 /**
  * Execute a zone body string with $ctx, $self, reagent, and optional extras in scope.
- * Returns true if execution succeeded, false otherwise.
+ * Throws ZoneError if the zone throws (used for try/catch routing).
  */
 export function executeZone(
   body: string,
@@ -39,22 +71,24 @@ export function executeZone(
   reagent: ReagentStub,
   extras?: Record<string, unknown>,
 ): boolean {
-  try {
-    const paramNames = ["$ctx", "$self", "reagent"];
-    const paramValues: unknown[] = [ctx, self, reagent];
+  const paramNames = ["$ctx", "$self", "reagent"];
+  const paramValues: unknown[] = [ctx, self, reagent];
 
-    if (extras) {
-      for (const [k, v] of Object.entries(extras)) {
-        paramNames.push(k);
-        paramValues.push(v);
-      }
+  if (extras) {
+    for (const [k, v] of Object.entries(extras)) {
+      paramNames.push(k);
+      paramValues.push(v);
     }
+  }
 
-    const fn = new Function(...paramNames, body);
-    fn(...paramValues);
-    return true;
-  } catch (err) {
-    console.error(`[zone-executor] Error executing zone:`, err);
-    return false;
+  const fn = new Function(...paramNames, body);
+  fn(...paramValues);
+  return true;
+}
+
+export class ZoneError extends Error {
+  constructor(public readonly cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = "ZoneError";
   }
 }

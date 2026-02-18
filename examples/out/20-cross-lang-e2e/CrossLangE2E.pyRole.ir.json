@@ -1,0 +1,87 @@
+{
+  "protocolName": "CrossLangE2E",
+  "role": "pyRole",
+  "lang": "py",
+  "states": [
+    {
+      "id": "init_6",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_7",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "tsRole",
+        "arrow": "-->",
+        "messageName": "Greeting",
+        "postReceiveZone": "\n      $ctx.receivedGreeting = $ctx.msg.text\n    "
+      }
+    },
+    {
+      "id": "act_8",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.reply = $ctx.receivedGreeting + \" — echoed by py\"\n    $self.messagesProcessed = ($self.messagesProcessed or 0) + 1\n  ",
+        "lang": "py"
+      }
+    },
+    {
+      "id": "send_9",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "tsRole",
+        "arrow": "-->",
+        "messageName": "Reply",
+        "preSendZone": "\n      $ctx.msg.text = $ctx.reply\n    "
+      }
+    },
+    {
+      "id": "end_10",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_6",
+      "to": "recv_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_7",
+      "to": "act_8",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_8",
+      "to": "send_9",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_9",
+      "to": "end_10",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_6",
+  "terminalStateIds": [
+    "end_10"
+  ]
+}

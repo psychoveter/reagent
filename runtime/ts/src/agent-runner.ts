@@ -155,9 +155,109 @@ export class AgentRunner {
       this.handleInstanceComplete(instanceId, protocolName, status);
     });
 
+    instance.setInvokeCallback(async (childProtoName, childInput) => {
+      return this.invokeChildProtocol(childProtoName, childInput);
+    });
+
+    instance.setSpawnCallback((childProtoName, childInput) => {
+      this.spawnChildProtocol(childProtoName, childInput);
+    });
+
+    instance.setEmitCallback((eventName, data) => {
+      this.handleEmit(protocolName, instanceId, eventName, data);
+    });
+
     instance.run();
 
     return instance;
+  }
+
+  /**
+   * Invoke a child protocol synchronously (from within reagent.invoke()).
+   * Creates a child ProtocolInstance, runs it to completion, and returns its return value.
+   */
+  /**
+   * Spawn a child protocol fire-and-forget (from within reagent.spawn()).
+   */
+  private spawnChildProtocol(childProtoName: string, childInput?: Record<string, unknown>): void {
+    const childInstanceId = `${Date.now()}-spawn-${Math.random().toString(36).slice(2, 8)}`;
+    const instance = this.startProtocolInstance(childInstanceId, childProtoName, childInput);
+    if (!instance) {
+      console.warn(`[${this.agentName}] Failed to spawn child protocol ${childProtoName}`);
+    }
+  }
+
+  /**
+   * Handle reagent.emit() from within a protocol zone.
+   * Publishes event to NATS and fires matching lifecycle handlers.
+   */
+  private handleEmit(
+    protocolName: string,
+    _instanceId: string,
+    eventName: string,
+    data?: Record<string, unknown>,
+  ): void {
+    // Fire matching protocolEvent handlers
+    for (const handler of this.agentIR.lifecycleHandlers) {
+      if (handler.event === "protocolEvent" && handler.protocolFilter === eventName) {
+        const reagent = createReagentStub();
+        executeZone(handler.action.body, { eventName, data }, this.self, reagent);
+      }
+    }
+
+    // Publish event to NATS for observability
+    this.transport.publish(`reagent.event.${this.agentName}.${eventName}`, {
+      agentName: this.agentName,
+      protocolName,
+      eventName,
+      data,
+      timestamp: Date.now(),
+    });
+  }
+
+  private async invokeChildProtocol(
+    childProtoName: string,
+    childInput?: Record<string, unknown>,
+  ): Promise<unknown> {
+    const binding = this.agentIR.plays.find(p => p.protocolName === childProtoName);
+    if (!binding) {
+      throw new Error(`[${this.agentName}] No plays binding for child protocol ${childProtoName}`);
+    }
+
+    const graphKey = `${childProtoName}.${binding.roleName}`;
+    const graph = this.graphs.get(graphKey);
+    if (!graph) {
+      throw new Error(`[${this.agentName}] No IRGraph for child ${graphKey}`);
+    }
+
+    const childInstanceId = `${Date.now()}-child-${Math.random().toString(36).slice(2, 8)}`;
+
+    const childConfig: InstanceConfig = {
+      instanceId: childInstanceId,
+      protocolName: childProtoName,
+      agentName: this.agentName,
+      roleName: binding.roleName,
+      roleToAgent: this.roleToAgent,
+      input: childInput,
+    };
+
+    const childInstance = new ProtocolInstance(graph, this.transport, this.self, childConfig);
+
+    childInstance.setInvokeCallback(async (nestedProto, nestedInput) => {
+      return this.invokeChildProtocol(nestedProto, nestedInput);
+    });
+
+    return new Promise<unknown>((resolve, reject) => {
+      childInstance.setOnComplete((status) => {
+        if (status === "completed") {
+          const ret = childInstance.getReturnValue();
+          resolve(ret.has ? ret.value : undefined);
+        } else {
+          reject(new Error(`Child protocol ${childProtoName} failed`));
+        }
+      });
+      childInstance.run();
+    });
   }
 
   private handleInstanceComplete(instanceId: string, protocolName: string, status: InstanceStatus): void {

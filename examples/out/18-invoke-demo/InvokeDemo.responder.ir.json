@@ -1,0 +1,87 @@
+{
+  "protocolName": "InvokeDemo",
+  "role": "responder",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_6",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_7",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "caller",
+        "arrow": "-->",
+        "messageName": "ComputeRequest",
+        "postReceiveZone": "\n      $ctx.receivedValue = $ctx.msg.value\n    "
+      }
+    },
+    {
+      "id": "act_8",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.squared = reagent.invoke(\"ComputeSquare\", { value: $ctx.receivedValue })\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_9",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "caller",
+        "arrow": "-->",
+        "messageName": "ComputeResult",
+        "preSendZone": "\n      $ctx.msg.squared = $ctx.squared\n    "
+      }
+    },
+    {
+      "id": "end_10",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_6",
+      "to": "recv_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_7",
+      "to": "act_8",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_8",
+      "to": "send_9",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_9",
+      "to": "end_10",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_6",
+  "terminalStateIds": [
+    "end_10"
+  ]
+}

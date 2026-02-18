@@ -17,7 +17,7 @@ from .types import (
     msg_subject,
     trace_subject,
 )
-from .zone_executor import execute_zone, ReagentStub
+from .zone_executor import execute_zone, ReagentStub, InvokeRequest, ReturnValue
 from .nats_transport import NatsTransport
 
 
@@ -61,6 +61,20 @@ class ProtocolInstance:
         self._on_complete: Optional[Callable[[str], None]] = None
         self._traces: list[dict[str, Any]] = []
 
+        # Try/catch: map try-entry state ID → catch target state ID
+        self._try_catch_map: dict[str, str] = {}
+        for t in graph["transitions"]:
+            if t["label"]["kind"] == "error":
+                self._try_catch_map[t["from"]] = t["to"]
+        self._catch_stack: list[str] = []
+
+        # Invoke/return/spawn/emit support
+        self._invoke_callback: Optional[Callable] = None
+        self._spawn_callback: Optional[Callable] = None
+        self._emit_callback: Optional[Callable] = None
+        self._return_value: Any = None
+        self._has_return_value: bool = False
+
     @property
     def status(self) -> str:
         return self._status
@@ -71,6 +85,30 @@ class ProtocolInstance:
 
     def set_on_complete(self, cb: Callable[[str], None]) -> None:
         self._on_complete = cb
+
+    def set_invoke_callback(self, cb: Callable) -> None:
+        self._invoke_callback = cb
+
+    def set_spawn_callback(self, cb: Callable) -> None:
+        self._spawn_callback = cb
+        self._reagent.spawn = lambda proto=None, args=None: self._handle_spawn(proto, args)
+
+    def set_emit_callback(self, cb: Callable) -> None:
+        self._emit_callback = cb
+        self._reagent.emit = lambda event_name, data=None: self._handle_emit(event_name, data)
+
+    def _handle_spawn(self, proto: Any, args: Any) -> None:
+        if self._spawn_callback:
+            self._spawn_callback(str(proto), args)
+        self._emit_trace("Spawned", {"protoName": str(proto)})
+
+    def _handle_emit(self, event_name: str, data: Any) -> None:
+        if self._emit_callback:
+            self._emit_callback(event_name, data)
+        self._emit_trace("EventEmitted", {"eventName": event_name, "data": data})
+
+    def get_return_value(self) -> tuple[Any, bool]:
+        return (self._return_value, self._has_return_value)
 
     def dispatch_message(self, env: dict[str, Any]) -> None:
         """Called by AgentRunner when a message arrives for this instance."""
@@ -109,30 +147,72 @@ class ProtocolInstance:
 
             kind = state["data"]["kind"]
 
-            if kind == "initial":
-                self._current_state_id = self._follow_default()
-            elif kind == "send":
-                await self._handle_send(state)
-                self._current_state_id = self._follow_default()
-            elif kind == "receive":
-                await self._handle_receive(state)
-                self._current_state_id = self._follow_default()
-            elif kind == "action":
-                self._handle_action(state)
-                self._current_state_id = self._follow_default()
-            elif kind == "guard":
-                await self._handle_guard(state)
-            elif kind == "terminal":
-                status_val = state["data"].get("status", "completed")
-                self._status = "completed" if status_val == "completed" else "failed"
-                trace_kind = "ProtocolCompleted" if self._status == "completed" else "ProtocolFailed"
-                self._emit_trace(trace_kind, {"protocolName": self.protocol_name})
+            # Track try/catch scopes
+            catch_target = self._try_catch_map.get(state["id"])
+            if catch_target:
+                self._catch_stack.append(catch_target)
+            if kind == "error":
+                if self._catch_stack:
+                    self._catch_stack.pop()
+
+            try:
+                if kind == "initial":
+                    self._current_state_id = self._follow_default()
+                elif kind == "send":
+                    await self._handle_send(state)
+                    self._current_state_id = self._follow_default()
+                elif kind == "receive":
+                    error_recv = self._find_alternate_error_receive(state)
+                    if error_recv:
+                        await self._handle_receive_with_error_fallback(state, error_recv)
+                    else:
+                        await self._handle_receive(state)
+                        self._current_state_id = self._follow_default()
+                elif kind == "action":
+                    await self._handle_action(state)
+                    self._current_state_id = self._follow_default()
+                elif kind == "guard":
+                    await self._handle_guard(state)
+                elif kind == "timer":
+                    await self._handle_timer(state)
+                    self._current_state_id = self._follow_default()
+                elif kind == "fork":
+                    await self._handle_fork(state)
+                elif kind == "join":
+                    self._current_state_id = self._follow_default()
+                elif kind == "error":
+                    self._current_state_id = self._follow_default()
+                elif kind == "terminal":
+                    status_val = state["data"].get("status", "completed")
+                    self._status = "completed" if status_val == "completed" else "failed"
+                    trace_kind = "ProtocolCompleted" if self._status == "completed" else "ProtocolFailed"
+                    self._emit_trace(trace_kind, {"protocolName": self.protocol_name})
+                    if self._on_complete:
+                        self._on_complete(self._status)
+                    return
+                else:
+                    print(f"[instance] Unsupported state kind: {kind}, skipping")
+                    self._current_state_id = self._follow_default()
+            except ReturnValue as rv:
+                self._return_value = rv.value
+                self._has_return_value = True
+                self._status = "completed"
+                self._emit_trace("ProtocolCompleted", {"protocolName": self.protocol_name, "returned": True})
                 if self._on_complete:
-                    self._on_complete(self._status)
+                    self._on_complete("completed")
                 return
-            else:
-                print(f"[instance] Unsupported state kind: {kind}, skipping")
-                self._current_state_id = self._follow_default()
+            except Exception as err:
+                if self._catch_stack:
+                    catch_id = self._catch_stack.pop()
+                    self._emit_trace("ErrorCaught", {
+                        "stateId": state["id"],
+                        "error": str(err),
+                        "catchStateId": catch_id,
+                    })
+                    self._ctx["error"] = str(err)
+                    self._current_state_id = catch_id
+                else:
+                    raise
 
     async def _handle_send(self, state: dict[str, Any]) -> None:
         data = state["data"]
@@ -193,10 +273,25 @@ class ProtocolInstance:
 
         self._ctx.pop("msg", None)
 
-    def _handle_action(self, state: dict[str, Any]) -> None:
+    async def _handle_action(self, state: dict[str, Any]) -> None:
         data = state["data"]
         self._emit_trace("ActionStarted", {"stateId": state["id"]})
-        execute_zone(data["body"], self._ctx, self._self_ref, self._reagent)
+        try:
+            execute_zone(data["body"], self._ctx, self._self_ref, self._reagent)
+        except ReturnValue as rv:
+            self._return_value = rv.value
+            self._has_return_value = True
+            self._emit_trace("ActionFinished", {"stateId": state["id"], "returnValue": True})
+            return
+        except InvokeRequest as ir:
+            if not self._invoke_callback:
+                raise RuntimeError("reagent.invoke() called but no invoke_callback set")
+            result = await self._invoke_callback(ir.proto_name, ir.input_data)
+            cached_reagent = ReagentStub()
+            cached_reagent.invoke = lambda proto=None, args=None: result
+            execute_zone(data["body"], self._ctx, self._self_ref, cached_reagent)
+            self._emit_trace("ActionFinished", {"stateId": state["id"], "invoked": ir.proto_name})
+            return
         self._emit_trace("ActionFinished", {"stateId": state["id"]})
 
     async def _handle_guard(self, state: dict[str, Any]) -> None:
@@ -251,6 +346,14 @@ class ProtocolInstance:
                 if recv_expectations:
                     self._emit_trace("GuardEvaluated", {"mode": "message-wait-fallback"})
                     result = await self._wait_for_any_message(state["id"], recv_expectations)
+
+                    env = result["env"]
+                    self._emit_trace("MessageReceived", {
+                        "messageName": env["messageName"],
+                        "from": env["from"]["agent"],
+                        "fromRole": env["from"]["role"],
+                    })
+
                     self._ctx["msg"] = result["env"]["payload"]
 
                     recv_state = self._state_map.get(result["targetStateId"])
@@ -284,24 +387,204 @@ class ProtocolInstance:
             return
 
         if data.get("guardType") == "expression" and data.get("expr"):
-            try:
-                result = self._eval_expr(data["expr"])
-                if result:
-                    default_t = next(
-                        (t for t in transitions if t["label"]["kind"] in ("default", "expression")),
-                        None,
-                    )
-                    if default_t:
-                        self._current_state_id = default_t["to"]
-                        return
-            except Exception:
-                pass
+            default_t = next(
+                (t for t in transitions if t["label"]["kind"] in ("default", "expression")),
+                None,
+            )
             else_t = next((t for t in transitions if t["label"]["kind"] == "else"), None)
+
+            eval_succeeded = False
+            can_decide = _expression_vars_are_defined(data["expr"], self._ctx, self._self_ref)
+
+            if can_decide:
+                try:
+                    result = self._eval_expr(data["expr"])
+                    eval_succeeded = True
+                    if result:
+                        if default_t:
+                            self._current_state_id = default_t["to"]
+                            return
+                    else:
+                        if else_t:
+                            self._current_state_id = else_t["to"]
+                            return
+                except Exception:
+                    pass
+
+            if not eval_succeeded and default_t and else_t:
+                recv_expectations = []
+                for branch in [
+                    {"id": "body", "startId": default_t["to"]},
+                    {"id": "exit", "startId": else_t["to"]},
+                ]:
+                    recv_id = self._find_first_receive_in_branch(branch["startId"])
+                    if recv_id:
+                        recv_state = self._state_map.get(recv_id)
+                        if recv_state and recv_state["data"]["kind"] == "receive":
+                            recv_expectations.append({
+                                "messageName": recv_state["data"]["messageName"],
+                                "targetStateId": recv_id,
+                            })
+
+                if recv_expectations:
+                    self._emit_trace("GuardEvaluated", {"mode": "loop-message-wait-fallback", "expr": data["expr"]})
+                    result = await self._wait_for_any_message(state["id"], recv_expectations)
+
+                    env = result["env"]
+                    self._emit_trace("MessageReceived", {
+                        "messageName": env["messageName"],
+                        "from": env["from"]["agent"],
+                        "fromRole": env["from"]["role"],
+                    })
+
+                    self._ctx["msg"] = result["env"]["payload"]
+
+                    recv_state = self._state_map.get(result["targetStateId"])
+                    if recv_state and recv_state["data"]["kind"] == "receive":
+                        post_zone = recv_state["data"].get("postReceiveZone")
+                        if post_zone:
+                            self._emit_trace("ActionStarted", {"stateId": result["targetStateId"], "zone": "postReceive"})
+                            execute_zone(post_zone, self._ctx, self._self_ref, self._reagent)
+                            self._emit_trace("ActionFinished", {"stateId": result["targetStateId"], "zone": "postReceive"})
+                    self._ctx.pop("msg", None)
+
+                    self._current_state_id = result["targetStateId"]
+                    self._current_state_id = self._follow_default()
+                    await self._advance()
+                    return
+
             if else_t:
                 self._current_state_id = else_t["to"]
                 return
 
         self._current_state_id = self._follow_default()
+
+    def _find_alternate_error_receive(self, current_recv_state: dict[str, Any]) -> dict[str, Any] | None:
+        if not self._catch_stack:
+            return None
+        for try_entry_id, catch_target_id in self._try_catch_map.items():
+            try_default_recv_id = self._find_first_receive_in_branch(try_entry_id)
+            if try_default_recv_id != current_recv_state["id"]:
+                continue
+            error_recv_id = self._find_first_receive_in_branch(catch_target_id)
+            if error_recv_id:
+                error_recv_state = self._state_map.get(error_recv_id)
+                if error_recv_state and error_recv_state["data"]["kind"] == "receive":
+                    return {"stateId": error_recv_id, "messageName": error_recv_state["data"]["messageName"]}
+        return None
+
+    async def _handle_receive_with_error_fallback(
+        self, normal_recv_state: dict[str, Any], error_recv: dict[str, Any]
+    ) -> None:
+        normal_data = normal_recv_state["data"]
+        expectations = [
+            {"messageName": normal_data["messageName"], "targetStateId": normal_recv_state["id"]},
+            {"messageName": error_recv["messageName"], "targetStateId": error_recv["stateId"]},
+        ]
+        self._emit_trace("GuardEvaluated", {"mode": "try-catch-message-wait"})
+        result = await self._wait_for_any_message(f"trycatch_{normal_recv_state['id']}", expectations)
+
+        env = result["env"]
+        self._emit_trace("MessageReceived", {
+            "messageName": env["messageName"],
+            "from": env["from"]["agent"],
+            "fromRole": env["from"]["role"],
+        })
+
+        self._ctx["msg"] = env["payload"]
+        matched_state = self._state_map.get(result["targetStateId"])
+        if matched_state and matched_state["data"]["kind"] == "receive":
+            post_zone = matched_state["data"].get("postReceiveZone")
+            if post_zone:
+                self._emit_trace("ActionStarted", {"stateId": result["targetStateId"], "zone": "postReceive"})
+                execute_zone(post_zone, self._ctx, self._self_ref, self._reagent)
+                self._emit_trace("ActionFinished", {"stateId": result["targetStateId"], "zone": "postReceive"})
+        self._ctx.pop("msg", None)
+
+        self._current_state_id = result["targetStateId"]
+        self._current_state_id = self._follow_default()
+
+    async def _handle_timer(self, state: dict[str, Any]) -> None:
+        data = state["data"]
+        ms = _duration_to_ms(data["duration"])
+        self._emit_trace("TimerStarted", {"stateId": state["id"], "durationMs": ms})
+        await asyncio.sleep(ms / 1000.0)
+        self._emit_trace("TimerFired", {"stateId": state["id"]})
+
+    async def _handle_fork(self, state: dict[str, Any]) -> None:
+        transitions = self._transitions_from.get(state["id"], [])
+        branch_transitions = [t for t in transitions if t["label"]["kind"] == "branch"]
+
+        self._emit_trace("ForkStarted", {"stateId": state["id"], "branchCount": len(branch_transitions)})
+
+        join_id = self._find_join_for_fork(state["id"])
+
+        async def run_branch(start_id: str) -> None:
+            current = start_id
+            while True:
+                if join_id and current == join_id:
+                    return
+                st = self._state_map.get(current)
+                if not st:
+                    raise RuntimeError(f"State {current} not found in branch")
+                kind = st["data"]["kind"]
+
+                if kind == "send":
+                    await self._handle_send(st)
+                    current = self._follow_default_from(current)
+                elif kind == "receive":
+                    await self._handle_receive(st)
+                    current = self._follow_default_from(current)
+                elif kind == "action":
+                    self._handle_action(st)
+                    current = self._follow_default_from(current)
+                elif kind == "timer":
+                    await self._handle_timer(st)
+                    current = self._follow_default_from(current)
+                else:
+                    current = self._follow_default_from(current)
+
+        tasks = [run_branch(bt["to"]) for bt in branch_transitions]
+        await asyncio.gather(*tasks)
+
+        self._emit_trace("JoinCompleted", {"stateId": join_id or state["id"]})
+
+        if join_id:
+            self._current_state_id = join_id
+            self._current_state_id = self._follow_default()
+        else:
+            self._current_state_id = self._follow_default()
+
+    def _find_join_for_fork(self, fork_id: str) -> str | None:
+        transitions = self._transitions_from.get(fork_id, [])
+        branch_starts = [t["to"] for t in transitions if t["label"]["kind"] == "branch"]
+
+        for start_id in branch_starts:
+            current = start_id
+            visited: set[str] = set()
+            while current not in visited:
+                visited.add(current)
+                st = self._state_map.get(current)
+                if not st:
+                    break
+                if st["data"]["kind"] == "join":
+                    return current
+                trans = self._transitions_from.get(current, [])
+                default = next((t for t in trans if t["label"]["kind"] == "default"), None)
+                if default:
+                    current = default["to"]
+                else:
+                    break
+        return None
+
+    def _follow_default_from(self, state_id: str) -> str:
+        transitions = self._transitions_from.get(state_id, [])
+        default = next((t for t in transitions if t["label"]["kind"] == "default"), None)
+        if default:
+            return default["to"]
+        if transitions:
+            return transitions[0]["to"]
+        raise RuntimeError(f"No outgoing transition from state {state_id}")
 
     def _eval_expr(self, expr: str) -> Any:
         """Evaluate a guard expression with $ctx and $self in scope."""
@@ -386,3 +669,32 @@ class ProtocolInstance:
         )
         self._traces.append(te)
         self._transport.publish(trace_subject(self.instance_id), te)
+
+
+def _expression_vars_are_defined(
+    expr: str, ctx: dict[str, Any], self_state: dict[str, Any]
+) -> bool:
+    import re
+    ctx_refs = re.findall(r'\$ctx\.(\w+)', expr)
+    self_refs = re.findall(r'\$self\.(\w+)', expr)
+    for prop in ctx_refs:
+        if prop not in ctx:
+            return False
+    for prop in self_refs:
+        if prop not in self_state:
+            return False
+    return True
+
+
+def _duration_to_ms(duration: dict[str, Any]) -> int:
+    value = duration["value"]
+    unit = duration.get("unit", "ms")
+    if unit == "ms":
+        return value
+    elif unit == "s":
+        return value * 1000
+    elif unit == "m":
+        return value * 60_000
+    elif unit == "h":
+        return value * 3_600_000
+    return value

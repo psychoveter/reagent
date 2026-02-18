@@ -1,0 +1,15 @@
+{
+  "agentName": "CallerAgent",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "InvokeDemo",
+      "roleName": "caller"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.lastResult = 0\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": []
+}

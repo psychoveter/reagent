@@ -118,7 +118,12 @@ export type TraceEventKind =
   | "MessageReceived"
   | "ActionStarted"
   | "ActionFinished"
-  | "GuardEvaluated";
+  | "GuardEvaluated"
+  | "TimerStarted"
+  | "TimerFired"
+  | "ForkStarted"
+  | "JoinCompleted"
+  | "ErrorCaught";
 
 export type TraceEvent = {
   instanceId: string;

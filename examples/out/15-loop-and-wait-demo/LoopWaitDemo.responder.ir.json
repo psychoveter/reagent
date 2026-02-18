@@ -1,0 +1,189 @@
+{
+  "protocolName": "LoopWaitDemo",
+  "role": "responder",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_11",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "loop_guard_12",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression",
+        "expr": "$ctx.iteration < $ctx.maxIterations"
+      }
+    },
+    {
+      "id": "recv_14",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "poller",
+        "arrow": "-->",
+        "messageName": "Ping",
+        "postReceiveZone": "\n        $ctx.lastSeq = $ctx.msg.seq\n      "
+      }
+    },
+    {
+      "id": "act_15",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n      $self.pingsReceived = ($self.pingsReceived || 0) + 1\n      $ctx.pongData = \"pong:\" + $ctx.lastSeq\n    ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_16",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "poller",
+        "arrow": "-->",
+        "messageName": "Pong",
+        "preSendZone": "\n        $ctx.msg.data = $ctx.pongData\n      "
+      }
+    },
+    {
+      "id": "timer_17",
+      "kind": "timer",
+      "data": {
+        "kind": "timer",
+        "duration": {
+          "value": 50,
+          "unit": "ms",
+          "loc": {
+            "start": {
+              "index": 1157,
+              "line": 50,
+              "col": 10
+            },
+            "end": {
+              "index": 1161,
+              "line": 50,
+              "col": 14
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "loop_exit_13",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "recv_18",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "poller",
+        "arrow": "-->",
+        "messageName": "Done",
+        "postReceiveZone": "\n      $ctx.totalIterations = $ctx.msg.totalIterations\n    "
+      }
+    },
+    {
+      "id": "act_19",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $self.lastTotalIterations = $ctx.totalIterations\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "end_20",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_11",
+      "to": "loop_guard_12",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "loop_guard_12",
+      "to": "recv_14",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_14",
+      "to": "act_15",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_15",
+      "to": "send_16",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_16",
+      "to": "timer_17",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "timer_17",
+      "to": "loop_guard_12",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "loop_guard_12",
+      "to": "loop_exit_13",
+      "label": {
+        "kind": "else"
+      }
+    },
+    {
+      "from": "loop_exit_13",
+      "to": "recv_18",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_18",
+      "to": "act_19",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_19",
+      "to": "end_20",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_11",
+  "terminalStateIds": [
+    "end_20"
+  ]
+}

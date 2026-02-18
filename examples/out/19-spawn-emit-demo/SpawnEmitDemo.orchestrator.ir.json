@@ -1,0 +1,87 @@
+{
+  "protocolName": "SpawnEmitDemo",
+  "role": "orchestrator",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.taskName = \"compute\"\n    reagent.spawn(\"BackgroundTask\", { taskName: $ctx.taskName })\n    $self.spawned = ($self.spawned || 0) + 1\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_3",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "helper",
+        "arrow": "-->",
+        "messageName": "WorkRequest",
+        "preSendZone": "\n      $ctx.msg.task = $ctx.taskName\n    "
+      }
+    },
+    {
+      "id": "recv_4",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "helper",
+        "arrow": "-->",
+        "messageName": "WorkResult",
+        "postReceiveZone": "\n      $self.lastResult = $ctx.msg.result\n    "
+      }
+    },
+    {
+      "id": "end_5",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "act_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_2",
+      "to": "send_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_3",
+      "to": "recv_4",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_4",
+      "to": "end_5",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_5"
+  ]
+}

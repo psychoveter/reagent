@@ -1,0 +1,176 @@
+{
+  "protocolName": "ParDemo",
+  "role": "workerA",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_15",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_16",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "coordinator",
+        "arrow": "-->",
+        "messageName": "TaskA",
+        "postReceiveZone": "\n      $ctx.taskLabel = $ctx.msg.label\n    "
+      }
+    },
+    {
+      "id": "fork_17",
+      "kind": "fork",
+      "data": {
+        "kind": "fork",
+        "branchStartIds": [
+          "par_entry_19",
+          "par_entry_22"
+        ]
+      }
+    },
+    {
+      "id": "par_entry_19",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "act_20",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n      $ctx.resultA = \"done:\" + $ctx.taskLabel\n      $self.tasksCompleted = ($self.tasksCompleted || 0) + 1\n    ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_21",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "coordinator",
+        "arrow": "-->",
+        "messageName": "ResultA",
+        "preSendZone": "\n        $ctx.msg.result = $ctx.resultA\n      "
+      }
+    },
+    {
+      "id": "par_entry_22",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "join_18",
+      "kind": "join",
+      "data": {
+        "kind": "join",
+        "branchCount": 2
+      }
+    },
+    {
+      "id": "recv_23",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "coordinator",
+        "arrow": "-->",
+        "messageName": "Summary"
+      }
+    },
+    {
+      "id": "end_24",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_15",
+      "to": "recv_16",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_16",
+      "to": "fork_17",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "fork_17",
+      "to": "par_entry_19",
+      "label": {
+        "kind": "branch",
+        "branchIndex": 0
+      }
+    },
+    {
+      "from": "par_entry_19",
+      "to": "act_20",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_20",
+      "to": "send_21",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_21",
+      "to": "join_18",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "fork_17",
+      "to": "par_entry_22",
+      "label": {
+        "kind": "branch",
+        "branchIndex": 1
+      }
+    },
+    {
+      "from": "par_entry_22",
+      "to": "join_18",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "join_18",
+      "to": "recv_23",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_23",
+      "to": "end_24",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_15",
+  "terminalStateIds": [
+    "end_24"
+  ]
+}

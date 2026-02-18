@@ -35,7 +35,7 @@ Full compiler pipeline: AST types → recursive-descent parser → IR emitter (P
 | IR validator | `lang/src/ir-validator.ts` |
 | CLI | `lang/src/cli.ts` |
 
-All 16 examples compile and validate. Agent IR emitted for examples 12–14.
+All 22 examples compile and validate. Agent IR emitted for examples 12–20.
 
 ---
 
@@ -54,85 +54,81 @@ Lightweight TS + Python AgentRunners interpreting IR JSON over NATS.
 
 **Supported IR states:** `initial`, `send`, `receive`, `action`, `guard(xor/expression)`, `terminal`.
 
-**Not yet supported:** `loop`, `par`/`fork`/`join`, `wait`/`timer`, `try`/`catch`/`error`, `reagent.invoke`, `reagent.spawn`, `reagent.return`, `reagent.emit` (real implementations).
-
 ---
 
-## M1-RT — Reference runners: full spec support ⬜ NEXT
+## M1-RT — Reference runners: full spec support ✅ DONE
 
 **Intent**: incrementally add every remaining Reagent construct to the reference runners, each driven by a new `.rg` example + E2E tests.
 
-### Phase A: loop + wait
+**Result**: all 20 E2E tests pass (T1–T20). Every Reagent language construct is now executable on both TS and Python reference runners, including cross-language interop.
 
-1. Write `15-loop-and-wait-demo.rg` with loop + wait constructs and agent definitions.
-2. Compile to IR, verify IRGraph contains loop back-edges and timer states.
-3. Implement `loop` in ProtocolInstance: back-edge traversal, guard re-evaluation.
-4. Implement `wait`/`timer` in ProtocolInstance: setTimeout-based delay (TS) / asyncio.sleep (Python).
-5. E2E tests:
-   - **T6**: Loop executes N iterations then exits.
-   - **T7**: Wait delays execution by specified duration.
-   - **T8**: $self accumulates state across loop iterations.
+**New components added:**
+- `trace-validator.ts` — post-hoc trace legality checker against IR
+- `py_agent_runner.py` — Python subprocess harness for cross-language E2E
+- 6 new `.rg` examples (15–20)
 
-### Phase B: par (fork/join)
+**Key implementation patterns:**
+- **Non-deciding agents**: expression guards (loops) and try/catch use message-wait-fallback — the agent that can't evaluate a guard waits for whichever message arrives from the deciding agent's branch.
+- **`reagent.invoke`**: sentinel-and-replay — `invoke()` throws `InvokeRequest`, runtime catches it, runs child protocol, then re-executes the zone with a patched stub that returns the cached result.
+- **`reagent.spawn` / `reagent.emit`**: non-throwing — callbacks fire inline within the zone execution, no replay needed.
+- **Python zone compatibility**: `AttrDict` wrapper enables `ctx.msg.text` attribute access on dicts; `_dedent` normalizes indentation for `exec()`.
 
-1. Write `16-parallel-demo.rg` with `par { ... } and { ... }` and agent definitions.
-2. Implement `fork`/`join` in ProtocolInstance: concurrent branch execution via Promise.all (TS) / asyncio.gather (Python).
-3. E2E tests:
-   - **T9**: Two parallel branches both complete, join fires once.
-   - **T10**: Parallel branches interact with different agents.
+### Phase A: loop + wait ✅
 
-### Phase C: try/catch
+- Example: `15-loop-and-wait-demo.rg`
+- IR states: `guard(expression)` with back-edge, `timer`
+- Runtime: loop guard re-evaluation, `setTimeout` (TS) / `asyncio.sleep` (Py), `expressionVarsAreDefined` fallback
+- **T6** ✅ Loop executes N iterations then exits
+- **T7** ✅ Wait delays execution by specified duration
+- **T8** ✅ $self accumulates state across loop iterations
 
-1. Write `17-try-catch-demo.rg` with try/catch and agent definitions.
-2. Implement `error` state and catch routing in ProtocolInstance.
-3. Zone exceptions (`throw` in JS, `raise` in Python) trigger error path.
-4. `$ctx.error` bound in catch block.
-5. E2E tests:
-   - **T11**: Zone throws → catch block executes → protocol completes.
-   - **T12**: No error → try body completes normally, catch skipped.
+### Phase B: par (fork/join) ✅
 
-### Phase D: reagent.invoke (child protocols)
+- Example: `16-parallel-demo.rg`
+- IR states: `fork`, `join`
+- Runtime: `Promise.all` (TS) / `asyncio.gather` (Py) for concurrent branches
+- **T9** ✅ Two parallel branches both complete, join fires once
+- **T10** ✅ Parallel branches interact with different agents
 
-1. Write `18-invoke-demo.rg` with parent protocol calling `reagent.invoke(ChildProto, input)`.
-2. `reagent.invoke` suspends the calling zone, starts a child ProtocolInstance, resumes with the return value.
-3. Implement `reagent.return` to send value back to invoker.
-4. E2E tests:
-   - **T13**: Parent invokes child → child completes → parent receives return value.
-   - **T14**: Child failure propagates as error to parent.
+### Phase C: try/catch ✅
 
-### Phase E: reagent.spawn + reagent.emit
+- Example: `17-try-catch-demo.rg`
+- IR states: `error` transitions, catch routing
+- Runtime: `tryCatchMap` for error→catch routing, `handleReceiveWithErrorFallback` for non-deciding agents
+- **T11** ✅ Zone throws → catch block executes → protocol completes
+- **T12** ✅ No error → try body completes normally, catch skipped
 
-1. Write `19-spawn-emit-demo.rg`.
-2. `reagent.spawn` creates an independent ProtocolInstance (no blocking).
-3. `reagent.emit` publishes a named event to NATS trace/lifecycle subjects.
-4. Agent `on protocolEvent(name)` handlers fire on matching emit.
-5. E2E tests:
-   - **T15**: Spawn starts child instance, parent continues without waiting.
-   - **T16**: Emit triggers agent lifecycle handler.
+### Phase D: reagent.invoke (child protocols) ✅
 
-### Phase F: cross-language E2E
+- Example: `18-invoke-demo.rg`
+- Runtime: `InvokeRequest` / `ReturnValue` sentinels, `AgentRunner.invokeChildProtocol`
+- **T13** ✅ Parent invokes child → child completes → parent receives return value
+- **T14** ✅ Child failure propagates as error to parent
 
-1. Use `13-cross-lang-demo.rg` (BrowserAgent [ts] + ServerAgent [py]).
-2. Orchestrator launches both TS and Python agent processes.
-3. E2E tests:
-   - **T17**: TS → Python → TS message flow, both agents complete.
-   - **T18**: Python agent's $self state persists, lifecycle handler fires.
+### Phase E: reagent.spawn + reagent.emit ✅
 
-### Phase G: trace validation + legality
+- Example: `19-spawn-emit-demo.rg`
+- Runtime: non-throwing `spawn`/`emit` on bound reagent stub, `AgentRunner.spawnChildProtocol` / `handleEmit`
+- **T15** ✅ Spawn starts child instance, parent continues without waiting
+- **T16** ✅ Emit triggers agent lifecycle handler
 
-1. Build trace validator: given IR + collected trace, check legality (message ordering, completeness, correct transitions).
-2. Integrate into E2E test harness.
-3. E2E tests:
-   - **T19**: Inject illegal message → validator detects violation.
-   - **T20**: Missing message → validator detects incomplete trace.
+### Phase F: cross-language E2E (TS ↔ Py) ✅
 
-### DoD (overall)
-- T6–T20 pass.
-- All Reagent spec constructs are executable on reference runners.
+- Example: `20-cross-lang-e2e.rg`
+- Runtime: Python agent runs as subprocess (`py_agent_runner.py`), NATS message exchange with TS agent
+- **T17** ✅ TS → Python → TS message flow, both agents complete
+- **T18** ✅ Python agent's $self state persists, lifecycle handler fires
+
+### Phase G: trace validation + legality ✅
+
+- Component: `trace-validator.ts`
+- Walks IR state machine, builds expected message sequence, compares against actual trace
+- **T19** ✅ Inject illegal message → validator detects violation
+- **T20** ✅ Missing message → validator detects incomplete trace
 
 ---
 
-## M2-RT — Protocol debugger: UI + debug server for the VSCode extension ⬜
+## M2-RT — Protocol debugger: UI + debug server for the VSCode extension ⬜ NEXT
 
 **Intent**: build a protocol debugging experience inside Cursor/VSCode. The extension connects to a running (or stepping) reference runtime, collects execution traces in real time, and visualizes the protocol state machine with agent states overlaid.
 
@@ -269,13 +265,13 @@ Ideas and milestones considered but not yet scheduled. Will be prioritized after
 | Agent zone (action) | `action` | M-RT ✅ | T1 |
 | Alt (expression guard) | `guard(xor)` | M-RT ✅ | T2, T3 |
 | Agent $self + lifecycle | AgentIR | M-RT ✅ | T5 |
-| Loop | `guard(expression)` + back-edge | M1-RT / A | T6, T8 |
-| Wait/timer | `timer` | M1-RT / A | T7 |
-| Par (fork/join) | `fork`, `join` | M1-RT / B | T9, T10 |
-| Try/catch | `error` + catch routing | M1-RT / C | T11, T12 |
-| reagent.invoke | zone → child instance → return | M1-RT / D | T13, T14 |
-| reagent.spawn + emit | zone → independent instance | M1-RT / E | T15, T16 |
-| Cross-language (TS↔Py) | all | M1-RT / F | T17, T18 |
-| Trace validation | post-hoc IR check | M1-RT / G | T19, T20 |
+| Loop | `guard(expression)` + back-edge | M1-RT / A ✅ | T6, T8 |
+| Wait/timer | `timer` | M1-RT / A ✅ | T7 |
+| Par (fork/join) | `fork`, `join` | M1-RT / B ✅ | T9, T10 |
+| Try/catch | `error` + catch routing | M1-RT / C ✅ | T11, T12 |
+| reagent.invoke | zone → child instance → return | M1-RT / D ✅ | T13, T14 |
+| reagent.spawn + emit | zone → independent instance | M1-RT / E ✅ | T15, T16 |
+| Cross-language (TS↔Py) | all | M1-RT / F ✅ | T17, T18 |
+| Trace validation | post-hoc IR check | M1-RT / G ✅ | T19, T20 |
 | Debug server | step, breakpoints, inspect | M2-RT | T21–T23 |
 | Debug UI (VSCode) | graph, timeline, state cards | M2-RT | — |

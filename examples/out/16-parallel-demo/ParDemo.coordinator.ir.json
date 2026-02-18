@@ -1,0 +1,247 @@
+{
+  "protocolName": "ParDemo",
+  "role": "coordinator",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.startedAt = Date.now()\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_3",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "workerA",
+        "arrow": "-->",
+        "messageName": "TaskA",
+        "preSendZone": "\n      $ctx.msg.label = \"alpha\"\n    "
+      }
+    },
+    {
+      "id": "send_4",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "workerB",
+        "arrow": "-->",
+        "messageName": "TaskB",
+        "preSendZone": "\n      $ctx.msg.label = \"beta\"\n    "
+      }
+    },
+    {
+      "id": "fork_5",
+      "kind": "fork",
+      "data": {
+        "kind": "fork",
+        "branchStartIds": [
+          "par_entry_7",
+          "par_entry_9"
+        ]
+      }
+    },
+    {
+      "id": "par_entry_7",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "recv_8",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "workerA",
+        "arrow": "-->",
+        "messageName": "ResultA",
+        "postReceiveZone": "\n        $ctx.resultA = $ctx.msg.result\n      "
+      }
+    },
+    {
+      "id": "par_entry_9",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "recv_10",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "workerB",
+        "arrow": "-->",
+        "messageName": "ResultB",
+        "postReceiveZone": "\n        $ctx.resultB = $ctx.msg.result\n      "
+      }
+    },
+    {
+      "id": "join_6",
+      "kind": "join",
+      "data": {
+        "kind": "join",
+        "branchCount": 2
+      }
+    },
+    {
+      "id": "act_11",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.summary = $ctx.resultA + \"+\" + $ctx.resultB\n    $self.protocolsCoordinated = ($self.protocolsCoordinated || 0) + 1\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_12",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "workerA",
+        "arrow": "-->",
+        "messageName": "Summary",
+        "preSendZone": "\n      $ctx.msg.text = $ctx.summary\n    "
+      }
+    },
+    {
+      "id": "send_13",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "workerB",
+        "arrow": "-->",
+        "messageName": "Summary",
+        "preSendZone": "\n      $ctx.msg.text = $ctx.summary\n    "
+      }
+    },
+    {
+      "id": "end_14",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "act_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_2",
+      "to": "send_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_3",
+      "to": "send_4",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_4",
+      "to": "fork_5",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "fork_5",
+      "to": "par_entry_7",
+      "label": {
+        "kind": "branch",
+        "branchIndex": 0
+      }
+    },
+    {
+      "from": "par_entry_7",
+      "to": "recv_8",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_8",
+      "to": "join_6",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "fork_5",
+      "to": "par_entry_9",
+      "label": {
+        "kind": "branch",
+        "branchIndex": 1
+      }
+    },
+    {
+      "from": "par_entry_9",
+      "to": "recv_10",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_10",
+      "to": "join_6",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "join_6",
+      "to": "act_11",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_11",
+      "to": "send_12",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_12",
+      "to": "send_13",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_13",
+      "to": "end_14",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_14"
+  ]
+}
