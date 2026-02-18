@@ -321,7 +321,55 @@ Compile all to IR. Derive JSON wire format schema from IR message definitions.
 
 ---
 
-## M5-RT — Multi-runtime orchestrator and debugger ⬜ (was M3-RT)
+## M5-CTRL — Reagent Connectivity Layer ⬜ NEXT
+
+**Intent**: decouple the runtime from NATS, introduce multi-agent nodes with loopback routing, a pluggable interceptor chain, and the adapter pattern for alternative runtimes. See [full design doc](../docs/m5-ctrl-design.md).
+
+### Core concepts
+
+- **AgentNode**: a process hosting multiple named agents. Agent identity is scoped: `nodeId/agentName`.
+- **ReagentTransport**: interface extracted from `NatsTransport` (`connect`, `close`, `publish`, `subscribe`). Implementations: `NatsTransport` (existing), `LoopbackTransport` (local), `InMemoryTransport` (tests).
+- **ReagentController (RC)**: one per node. Owns agent registry, routing (local vs. remote), transport proxy, and interceptor chain. All messages pass through interceptors regardless of routing.
+- **ReagentAdapter (RA)**: maps IR to a runtime. `NativeAdapter` wraps current `AgentRunner`. Future: `LososAdapter`, `LangGraphAdapter`.
+- **Interceptor chain**: `TraceInterceptor`, `DebugInterceptor`, `TelemetryInterceptor`, `RAPBridge`.
+
+### Phase A: Extract ReagentTransport interface
+
+- Define `ReagentTransport` + `TransportSubscription` interfaces.
+- `NatsTransport` implements `ReagentTransport`.
+- `ProtocolInstance` and `AgentRunner` accept interface, not concrete type.
+- `AgentRunnerConfig.natsUrl` replaced by `transport: ReagentTransport`.
+
+### Phase B: LoopbackTransport + InMemoryTransport
+
+- `LoopbackTransport`: local dispatch by subject-pattern matching, no serialization.
+- `InMemoryTransport`: for tests without NATS.
+
+### Phase C: ReagentController + NativeAdapter + AgentNode
+
+- RC with agent registry, transport proxy, interceptor chain, routing.
+- `NativeAdapter` wraps `AgentRunner` as `AgentHandle`.
+- `AgentNode` ties RC + adapter, reads deployment plan, manages lifecycle.
+- `main.ts` updated to create `AgentNode` instead of raw `AgentRunner`.
+
+### Phase D: Deployment plan extension + E2E validation
+
+- `deployment.json` gains optional `nodes` section mapping agents to nodes.
+- Backward compatible: absent `nodes` = single node with all agents.
+- Existing 20 E2E tests pass on new architecture.
+- New tests for loopback routing and interceptor chain.
+
+### DoD
+
+- `ReagentTransport` interface decouples all runtime code from NATS.
+- Multiple agents run in one `AgentNode` process, communicate via loopback.
+- Interceptor chain observes all traffic (local + remote).
+- `NativeAdapter` wraps existing `AgentRunner` without behavioral changes.
+- All 20+ E2E tests pass.
+
+---
+
+## M6-RT — Multi-runtime orchestrator and debugger ⬜ backlog (was M5-RT)
 
 **Intent**: build the orchestration and debug infrastructure based on the RAP specs from M2-LANG. Replaces the old M2-RT plan with the new architecture (ROS + RAP adapters + unified debug protocol).
 
@@ -411,5 +459,8 @@ Ideas and milestones considered but not yet scheduled.
 | Role-centric design | `role` primary, `agent` thin | M4-LANG ✅ | — |
 | Role `extends` | inheritance: plays/init/handlers merged | M4-LANG ✅ | — |
 | `agent runs` | deployment binding | M4-LANG ✅ | — |
-| Debug server (ROS) | step, breakpoints, inspect | M5-RT / 1-2 | T21–T23 |
-| Debug UI (VSCode) | graph, timeline, state cards | M5-RT / 3-4 | — |
+| ReagentTransport interface | transport decoupling | M5-CTRL / A | — |
+| LoopbackTransport | local intra-node routing | M5-CTRL / B | — |
+| ReagentController + AgentNode | multi-agent node, interceptors | M5-CTRL / C | — |
+| Debug server (ROS) | step, breakpoints, inspect | M6-RT / 1-2 | T21–T23 |
+| Debug UI (VSCode) | graph, timeline, state cards | M6-RT / 3-4 | — |

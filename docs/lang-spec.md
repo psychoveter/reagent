@@ -414,7 +414,35 @@ message Rejected {
 
 **Structural (duck) typing**: compatibility is structural, not nominal. A message with `{ amount: number, winner: boolean }` is compatible with a receiver expecting `{ amount: number }`.
 
-**System fields**: every message on the wire carries system fields (`instanceId`, `protocolName`, `from`, `to`, `messageName`, `ts`, `idempotencyKey`). These are implicit — the `message` definition specifies only the **user-defined payload**, the envelope is injected by the runtime.
+#### Base envelope (`MessageEnvelope`)
+
+Every message on the wire is wrapped in a `MessageEnvelope` — the base type all Reagent messages inherit from. User-defined `message` declarations specify only the **payload** portion; the envelope fields are injected by the runtime.
+
+```
+MessageEnvelope {
+  instanceId:     string          // protocol instance this message belongs to
+  protocolName:   string          // protocol that produced this message
+  from:           { agent: string, role: string }   // sender identity
+  to:             { agent: string, role: string }   // receiver identity
+  messageName:    string          // the message type name (matches the `message` definition name)
+  payload:        Record<string, unknown>            // user-defined fields from the `message` body
+  ts:             number          // timestamp (epoch ms)
+  idempotencyKey: string          // unique key for exactly-once delivery
+}
+```
+
+The `payload` field carries the user-defined fields declared in a `message` definition. For example, given:
+
+```
+message Register {
+  adapterId: string
+  capabilities: string[]
+}
+```
+
+The wire representation is a `MessageEnvelope` with `messageName: "Register"` and `payload: { adapterId: "...", capabilities: [...] }`.
+
+In agent zones, `$ctx.msg` is bound to the **payload** (not the full envelope). Envelope fields are accessible through `$ctx` fixed fields (`$ctx.instanceId`, etc.) — see §1.5.
 
 **Backward compatible**: messages without a `message` declaration remain valid — payload is `Record<string, unknown>`. Typing is opt-in. Existing untyped protocols continue to work.
 

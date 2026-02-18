@@ -189,8 +189,9 @@ All IR constructs supported at runtime: `initial`, `send`, `receive`, `action`, 
 3. **Behavioral level** — role definitions (RoleIR: rich behavioral contracts with lifecycle, init, handlers, extends).
 4. **Agent level** — per-agent IR (AgentIR: thin deployment binding referencing a role) + resolved behavioral data from RoleIR.
 5. **Message level** — typed message schemas (IRMessageSchema) compiled alongside IR.
-6. **Execution level** — runtime engines that interpret agent IR. Reference runners (TS/Python over NATS) and Losos (Kotlin/etcd) as future production engine.
-7. **Control level** (planned) — Reagent Orchestrator Server (ROS) coordinating adapters via RAP over WebSocket.
+6. **Connectivity level** (M5-CTRL, planned) — ReagentController + AgentNode: transport abstraction, multi-agent nodes, loopback routing, interceptor chain, adapter pattern. See [design doc](../docs/m5-ctrl-design.md).
+7. **Execution level** — runtime engines that interpret agent IR via ReagentAdapter. NativeAdapter wraps reference runners (TS/Python). Losos (Kotlin/etcd) as future production adapter.
+8. **Control level** (M6-RT, planned) — Reagent Orchestrator Server (ROS) coordinating adapters via RAP over WebSocket.
 
 ## Milestone status
 
@@ -204,7 +205,7 @@ All IR constructs supported at runtime: `initial`, `send`, `receive`, `action`, 
 | M2-LANG | ✅ DONE | Language v0.1: `[*]` wildcard, typed messages, 25 examples updated, 7 RAP specs |
 | M3-LANG | ✅ DONE | Language v0.0.6: `role` construct + `implements` keyword |
 | M4-LANG | ✅ DONE | Language v0.0.7: role-centric refactoring (`extends`, `runs`, role as primary contract) |
-| M5-CTRL | ⬜ NEXT | ReagentController + transport abstraction (design + impl) |
+| M5-CTRL | ⬜ NEXT | Connectivity layer: ReagentTransport interface, AgentNode (multi-agent), LoopbackTransport, ReagentController + interceptors, NativeAdapter. [Design doc](../docs/m5-ctrl-design.md). Phases: A (transport interface), B (loopback + inmemory), C (RC + adapter + node), D (deployment + E2E) |
 | M6-RT | ⬜ backlog | Multi-runtime orchestrator (ROS) + debugger + VSCode extension |
 
 ## Development workflow
