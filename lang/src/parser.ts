@@ -39,6 +39,7 @@ import type {
   PropPair,
   ProtocolDef,
   ProtocolItem,
+  RoleDef,
   TopLevelItem,
   TryStmt,
   TypeExpr,
@@ -96,7 +97,14 @@ export function parseProgram(src: string): ParseResult {
       continue;
     }
 
-    errors.push(makeError("E_TOP_LEVEL", "Only 'import', 'protocol', 'agent', and 'message' allowed at top-level", c));
+    if (startsWithKeyword(c, "role")) {
+      const r = pRoleDef(c);
+      if (r) items.push(r);
+      else errors.push(makeError("E_ROLE", "Failed to parse role definition", c));
+      continue;
+    }
+
+    errors.push(makeError("E_TOP_LEVEL", "Only 'import', 'protocol', 'agent', 'message', and 'role' allowed at top-level", c));
     // skip to next line to recover
     skipToNewline(c);
   }
@@ -1009,6 +1017,7 @@ function pAgentDef(c: Cursor): AgentDef | null {
   if (c.peek() !== "{") return null;
   c.next();
 
+  const implementsList: string[] = [];
   const plays: PlaysDecl[] = [];
   let init: AgentInitBlock | undefined;
   const handlers: AgentOnHandler[] = [];
@@ -1017,6 +1026,16 @@ function pAgentDef(c: Cursor): AgentDef | null {
     skipWSAndComments(c);
     if (c.eof()) return null;
     if (c.peek() === "}") { c.next(); break; }
+
+    // implements RoleName
+    if (startsWithKeyword(c, "implements")) {
+      consumeKeyword(c, "implements");
+      skipWSAndComments(c);
+      const roleId = readIdent(c);
+      if (!roleId) return null;
+      implementsList.push(roleId.name);
+      continue;
+    }
 
     // plays ProtoName as roleName
     if (startsWithKeyword(c, "plays")) {
@@ -1097,9 +1116,61 @@ function pAgentDef(c: Cursor): AgentDef | null {
     kind: "AgentDef",
     name: name.name,
     lang: tagId.name as LangTag,
+    implements: implementsList,
     plays,
     init,
     handlers,
+    loc: c.locFrom(start),
+  };
+}
+
+// ── Role definition ────────────────────────────────────────────────
+
+function pRoleDef(c: Cursor): RoleDef | null {
+  const start = c.pos();
+  if (!consumeKeyword(c, "role")) return null;
+  skipWSAndComments(c);
+  const name = readIdent(c);
+  if (!name) return null;
+
+  skipWSAndComments(c);
+  if (c.peek() !== "{") return null;
+  c.next();
+
+  const plays: PlaysDecl[] = [];
+
+  for (;;) {
+    skipWSAndComments(c);
+    if (c.eof()) return null;
+    if (c.peek() === "}") { c.next(); break; }
+
+    if (startsWithKeyword(c, "plays")) {
+      const playsStart = c.pos();
+      consumeKeyword(c, "plays");
+      skipWSAndComments(c);
+      const protoName = readIdent(c);
+      if (!protoName) return null;
+      skipWSAndComments(c);
+      if (!consumeKeyword(c, "as")) return null;
+      skipWSAndComments(c);
+      const roleName = readIdent(c);
+      if (!roleName) return null;
+      plays.push({
+        kind: "PlaysDecl",
+        protocolName: protoName.name,
+        roleName: roleName.name,
+        loc: c.locFrom(playsStart),
+      });
+      continue;
+    }
+
+    skipToNewline(c);
+  }
+
+  return {
+    kind: "RoleDef",
+    name: name.name,
+    plays,
     loc: c.locFrom(start),
   };
 }

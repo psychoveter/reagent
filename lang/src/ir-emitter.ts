@@ -1,5 +1,5 @@
 /**
- * Reagent IR Emitter — v0.0.5
+ * Reagent IR Emitter — v0.0.6
  *
  * Transforms AST nodes into IR:
  * - ProtocolDef → set of IRGraphs (one per role)
@@ -19,6 +19,7 @@ import type {
   ParticipantDecl,
   ProtocolDef,
   ProtocolItem,
+  RoleDef,
   TryStmt,
   WaitStmt,
 } from "./ast.js";
@@ -34,6 +35,7 @@ import type {
   IRStateData,
   IRTransition,
   IRTransitionLabel,
+  RoleIR,
 } from "./ir.js";
 
 // ── Public API ──────────────────────────────────────────────────────
@@ -82,13 +84,29 @@ export type AgentEmitResult = {
   errors: string[];
 };
 
-export function emitAgentIR(agent: AgentDef): AgentEmitResult {
+export function emitAgentIR(agent: AgentDef, roles?: Map<string, RoleDef>): AgentEmitResult {
   const errors: string[] = [];
 
   const plays: AgentPlaysBinding[] = agent.plays.map(p => ({
     protocolName: p.protocolName,
     roleName: p.roleName,
   }));
+
+  for (const roleName of agent.implements) {
+    const roleDef = roles?.get(roleName);
+    if (!roleDef) {
+      errors.push(`Agent "${agent.name}" implements unknown role "${roleName}"`);
+      continue;
+    }
+    for (const rp of roleDef.plays) {
+      const dup = plays.find(
+        p => p.protocolName === rp.protocolName && p.roleName === rp.roleName,
+      );
+      if (!dup) {
+        plays.push({ protocolName: rp.protocolName, roleName: rp.roleName });
+      }
+    }
+  }
 
   const initAction = agent.init
     ? { body: agent.init.body, lang: agent.lang }
@@ -105,11 +123,24 @@ export function emitAgentIR(agent: AgentDef): AgentEmitResult {
     agentIR: {
       agentName: agent.name,
       lang: agent.lang,
+      implements: agent.implements.length > 0 ? agent.implements : undefined,
       plays,
       initAction,
       lifecycleHandlers,
     },
     errors,
+  };
+}
+
+// ── Role IR Emitter ───────────────────────────────────────────────
+
+export function emitRoleIR(role: RoleDef): RoleIR {
+  return {
+    roleName: role.name,
+    plays: role.plays.map(p => ({
+      protocolName: p.protocolName,
+      roleName: p.roleName,
+    })),
   };
 }
 

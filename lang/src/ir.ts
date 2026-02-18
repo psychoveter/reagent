@@ -1,5 +1,5 @@
 /**
- * Reagent IR — v0.0.5
+ * Reagent IR — v0.0.6
  *
  * Two levels of IR:
  *
@@ -146,6 +146,7 @@ export type IRTransitionLabel =
 export type AgentIR = {
   agentName: string;
   lang: LangTag;
+  implements?: string[];
   plays: AgentPlaysBinding[];
   initAction?: AgentAction;
   lifecycleHandlers: AgentLifecycleHandler[];
@@ -165,6 +166,13 @@ export type AgentLifecycleHandler = {
   event: AgentEventKind;
   protocolFilter?: string;
   action: AgentAction;
+};
+
+// ── Role IR (multi-protocol interface contract) ─────────────────────
+
+export type RoleIR = {
+  roleName: string;
+  plays: AgentPlaysBinding[];
 };
 
 // ── Message Schema IR ────────────────────────────────────────────────

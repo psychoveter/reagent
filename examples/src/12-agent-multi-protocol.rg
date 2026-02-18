@@ -1,14 +1,18 @@
-// Example 12: agent definition — multi-protocol participation
+// Example 12: agent definition — multi-protocol participation with roles
 //
 // Requirement:
 // - An agent is a concrete entity that plays roles across multiple protocols.
 // - Agent has its own persistent state ($self), distinct from per-protocol $ctx.
 // - Agent can react to protocol lifecycle events (started, completed, failed).
 // - Agent can start/stop protocols from within lifecycle handlers.
+// - A `role` bundles multiple `plays` into a named interface contract.
+// - An agent uses `implements RoleName` to adopt all plays from a role.
 //
 // Semantics:
 // - `agent Name [langTag]` declares a named agent with a host language.
-// - `plays Proto as role` binds a protocol role to this agent.
+// - `role Name { plays ... }` defines a multi-protocol interface.
+// - `implements RoleName` in an agent expands to the role's plays bindings.
+// - `plays Proto as role` can still be used alongside implements.
 // - `init { ... }` runs once when the agent starts.
 // - `on <event>(<proto?>) { ... }` runs on lifecycle events.
 // - $self is the agent's own state, accessible in init, on, and protocol zones.
@@ -57,9 +61,13 @@ protocol HealthCheck {
   }
 }
 
-agent Comma [ts] {
+role CommaRole {
   plays TaskExecution as comma
   plays HealthCheck as comma
+}
+
+agent Comma [ts] {
+  implements CommaRole
 
   init {
     $self.ready = true

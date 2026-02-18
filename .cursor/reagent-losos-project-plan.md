@@ -223,7 +223,55 @@ Compile all to IR. Derive JSON wire format schema from IR message definitions.
 
 ---
 
-## M3-RT — Multi-runtime orchestrator and debugger ⬜ NEXT
+## M3-LANG — Language v0.0.6: `role` construct + `implements` ✅ DONE
+
+**Intent**: introduce `role` as a named multi-protocol interface contract and `implements` in agent definitions to adopt role bindings. Bumps language to v0.0.6.
+
+**Design constraint**: IR remains a formal intermediate representation with a documented schema. It is also designed to be self-describing enough for coding agents (LLMs) to produce correct agent implementations from IR alone.
+
+### Changes
+
+**AST** (`lang/src/ast.ts`):
+- `RoleDef`: `{ kind: "RoleDef", name, plays: PlaysDecl[], loc }`
+- `AgentDef.implements: string[]` — list of role names
+- `TopLevelItem` union extended with `RoleDef`
+
+**Parser** (`lang/src/parser.ts`):
+- `pRoleDef()`: parses `role Name { plays Proto as role ... }`
+- `pAgentDef()`: parses `implements RoleName` inside agent body
+- Top-level dispatch includes `role` keyword
+
+**IR** (`lang/src/ir.ts`):
+- `RoleIR`: `{ roleName, plays: AgentPlaysBinding[] }`
+- `AgentIR.implements?: string[]`
+
+**IR Emitter** (`lang/src/ir-emitter.ts`):
+- `emitRoleIR()`: converts `RoleDef` → `RoleIR`
+- `emitAgentIR()`: expands `implements` into plays bindings (deduplicates), reports error on unknown role names
+
+**CLI** (`lang/src/cli.ts`):
+- `compile` outputs `<RoleName>.role.json`
+- `deployment.json` includes `roles` array
+- `ir` and `validate` commands display role info
+
+**TextMate grammar** (`tools/reagent-vscode/syntaxes/reagent.tmLanguage.json`):
+- `roleDef`, `agentImplements` rules
+- `role`, `implements` added to keywords
+
+**Lang spec** (`docs/lang-spec.md`):
+- §1.15 Role definition, §1.16 `implements` keyword
+- EBNF updated: `RoleDef`, `RoleBody`, `ImplementsStmt`, `Program` production
+- §4.5 Role IR, §4.6 CLI (renumbered), §4.7 Reference runtimes
+- v0.0.6 changelog
+
+**Examples**:
+- `12-agent-multi-protocol.rg`: added `role CommaRole { ... }`, agent uses `implements CommaRole`
+- All 22 examples + 3 libs + 7 RAP specs validate ✅
+- All 20 E2E tests pass ✅
+
+---
+
+## M5-RT — Multi-runtime orchestrator and debugger ⬜ (was M3-RT)
 
 **Intent**: build the orchestration and debug infrastructure based on the RAP specs from M2-LANG. Replaces the old M2-RT plan with the new architecture (ROS + RAP adapters + unified debug protocol).
 
@@ -308,5 +356,7 @@ Ideas and milestones considered but not yet scheduled.
 | Typed messages | `IRMessageSchema` | M2-LANG / B ✅ | — |
 | Examples updated (22+3) | `[*]` + `message` defs | M2-LANG / C ✅ | — |
 | RAP sub-protocols | 7 `.rg` specs | M2-LANG / D ✅ | — |
-| Debug server (ROS) | step, breakpoints, inspect | M3-RT / 1-2 | T21–T23 |
-| Debug UI (VSCode) | graph, timeline, state cards | M3-RT / 3-4 | — |
+| `role` definition | `RoleIR` | M3-LANG ✅ | — |
+| `implements` in agent | expanded plays in `AgentIR` | M3-LANG ✅ | — |
+| Debug server (ROS) | step, breakpoints, inspect | M5-RT / 1-2 | T21–T23 |
+| Debug UI (VSCode) | graph, timeline, state cards | M5-RT / 3-4 | — |

@@ -5,6 +5,7 @@
   "patterns": [
     { "include": "#comments" },
     { "include": "#messageDef" },
+    { "include": "#roleDef" },
     { "include": "#protocol" },
     { "include": "#agentDef" },
     { "include": "#import" },
@@ -34,7 +35,7 @@
       "patterns": [
         {
           "name": "keyword.control.reagent",
-          "match": "\\b(protocol|import|as|participants|initiator|input|alt|loop|par|wait|timeout|try|catch|else|and|agent|plays|init|on|message)\\b"
+          "match": "\\b(protocol|import|as|participants|initiator|input|alt|loop|par|wait|timeout|try|catch|else|and|agent|plays|init|on|message|role|implements)\\b"
         }
       ]
     },
@@ -80,6 +81,27 @@
         {
           "name": "punctuation.bracket.square.reagent",
           "match": "\\[\\]"
+        }
+      ]
+    },
+    "roleDef": {
+      "patterns": [
+        {
+          "name": "meta.definition.role.reagent",
+          "begin": "^\\s*(role)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*(\\{)",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.reagent" },
+            "2": { "name": "entity.name.type.role.reagent" },
+            "3": { "name": "punctuation.section.block.begin.reagent" }
+          },
+          "end": "^\\s*\\}",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.block.end.reagent" }
+          },
+          "patterns": [
+            { "include": "#comments" },
+            { "include": "#agentPlays" }
+          ]
         }
       ]
     },
@@ -131,6 +153,7 @@
           },
           "patterns": [
             { "include": "#comments" },
+            { "include": "#agentImplements" },
             { "include": "#agentPlays" },
             { "include": "#agentInitBlock" },
             { "include": "#agentOnHandler" },
@@ -139,6 +162,18 @@
             { "include": "#strings" },
             { "include": "#numbers" }
           ]
+        }
+      ]
+    },
+    "agentImplements": {
+      "patterns": [
+        {
+          "name": "meta.implements.reagent",
+          "match": "\\b(implements)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)",
+          "captures": {
+            "1": { "name": "keyword.control.reagent" },
+            "2": { "name": "entity.name.type.role.reagent" }
+          }
         }
       ]
     },

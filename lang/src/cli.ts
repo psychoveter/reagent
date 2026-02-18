@@ -1,9 +1,9 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseProgram } from "./parser.js";
-import { emitIR, emitAgentIR, emitMessageSchema, resetIdCounter } from "./ir-emitter.js";
+import { emitIR, emitAgentIR, emitMessageSchema, emitRoleIR, resetIdCounter } from "./ir-emitter.js";
 import { validateIRGraph } from "./ir-validator.js";
-import type { AgentDef, MessageDef, ProtocolDef } from "./ast.js";
+import type { AgentDef, MessageDef, ProtocolDef, RoleDef } from "./ast.js";
 
 function usage(): never {
   console.error("reagent-lang — Reagent compiler CLI\n");
@@ -45,6 +45,16 @@ function getMessages(res: ReturnType<typeof parseProgram>) {
   return res.ast.items.filter((i): i is MessageDef => i.kind === "MessageDef");
 }
 
+function getRoles(res: ReturnType<typeof parseProgram>) {
+  return res.ast.items.filter((i): i is RoleDef => i.kind === "RoleDef");
+}
+
+function buildRoleMap(res: ReturnType<typeof parseProgram>): Map<string, RoleDef> {
+  const map = new Map<string, RoleDef>();
+  for (const r of getRoles(res)) map.set(r.name, r);
+  return map;
+}
+
 // ── parse ───────────────────────────────────────────────────────────
 
 function cmdParse(file: string) {
@@ -71,8 +81,16 @@ function cmdIR(file: string, roleFilter?: string) {
     }
   }
 
+  const roleMap = buildRoleMap(res);
+
+  for (const role of getRoles(res)) {
+    const roleIR = emitRoleIR(role);
+    console.log(`\n=== role ${role.name} ===`);
+    console.log(JSON.stringify(roleIR, null, 2));
+  }
+
   for (const agent of getAgents(res)) {
-    const result = emitAgentIR(agent);
+    const result = emitAgentIR(agent, roleMap);
     console.log(`\n=== agent ${agent.name} ===`);
     console.log(JSON.stringify(result.agentIR, null, 2));
   }
@@ -107,10 +125,19 @@ function cmdValidate(file: string, roleFilter?: string) {
     }
   }
 
+  const roleMap = buildRoleMap(res);
+
+  for (const role of getRoles(res)) {
+    console.log(`\n=== role ${role.name} ===`);
+    console.log(`  plays: ${role.plays.length}`);
+    console.log("  ✓ valid");
+  }
+
   for (const agent of getAgents(res)) {
-    const result = emitAgentIR(agent);
+    const result = emitAgentIR(agent, roleMap);
     console.log(`\n=== agent ${agent.name} ===`);
-    console.log(`  plays: ${result.agentIR.plays.length}`);
+    console.log(`  plays: ${result.agentIR.plays.length} (after implements expansion)`);
+    console.log(`  implements: ${agent.implements.length > 0 ? agent.implements.join(", ") : "none"}`);
     console.log(`  init: ${result.agentIR.initAction ? "yes" : "no"}`);
     console.log(`  handlers: ${result.agentIR.lifecycleHandlers.length}`);
     if (result.ok) {
@@ -164,9 +191,21 @@ function cmdCompile(file: string, outDir: string) {
     }
   }
 
+  // Emit per-role RoleIRs
+  const roleMap = buildRoleMap(res);
+  const roles = getRoles(res);
+  let roleDefCount = 0;
+  for (const role of roles) {
+    const roleIR = emitRoleIR(role);
+    const fname = `${role.name}.role.json`;
+    writeFileSync(join(outDir, fname), JSON.stringify(roleIR, null, 2) + "\n");
+    console.log(`  ${fname}`);
+    roleDefCount++;
+  }
+
   // Emit per-agent AgentIRs
   for (const agent of agents) {
-    const result = emitAgentIR(agent);
+    const result = emitAgentIR(agent, roleMap);
 
     if (!result.ok) {
       console.error(`Agent IR errors in ${agent.name}:`);
@@ -196,13 +235,14 @@ function cmdCompile(file: string, outDir: string) {
   const deploymentAgents: DeploymentAgent[] = [];
 
   for (const agent of agents) {
+    const agentResult = emitAgentIR(agent, roleMap);
     const da: DeploymentAgent = {
       agentName: agent.name,
       lang: agent.lang,
       agentIRFile: `${agent.name}.agent.json`,
       roles: [],
     };
-    for (const p of agent.plays) {
+    for (const p of agentResult.agentIR.plays) {
       const key = `${p.protocolName}.${p.roleName}`;
       da.roles.push({
         protocolName: p.protocolName,
@@ -222,11 +262,17 @@ function cmdCompile(file: string, outDir: string) {
     console.log("  messages.json");
   }
 
-  const deployment = { agents: deploymentAgents, roleToAgent, messages: schemas.length > 0 ? "messages.json" : undefined };
+  const roleFiles = roles.map(r => ({ name: r.name, file: `${r.name}.role.json` }));
+  const deployment = {
+    agents: deploymentAgents,
+    roleToAgent,
+    roles: roleFiles.length > 0 ? roleFiles : undefined,
+    messages: schemas.length > 0 ? "messages.json" : undefined,
+  };
   writeFileSync(join(outDir, "deployment.json"), JSON.stringify(deployment, null, 2) + "\n");
   console.log("  deployment.json");
 
-  console.log(`\n${roleCount} role IR(s), ${agentCount} agent IR(s), ${schemas.length} message schema(s) → ${outDir}`);
+  console.log(`\n${roleCount} role IR(s), ${roleDefCount} role def(s), ${agentCount} agent IR(s), ${schemas.length} message schema(s) → ${outDir}`);
 
   if (hasErrors) {
     console.error("\nCompilation completed with errors.");

@@ -1,4 +1,4 @@
-## Reagent language spec (v0.0.5)
+## Reagent language spec (v0.0.6)
 
 This document defines the **Reagent protocol language**.
 
@@ -453,12 +453,47 @@ message Rejected {
 - The `.rg` file becomes a self-contained wire format spec
 - Future: `$ctx.msg.` autocomplete in IDE
 
----
+### 1.15 Role definition
 
-## 2. EBNF (v0.0.5)
+A **role** bundles one or more `plays` bindings into a named multi-protocol interface contract:
 
 ```
-Program         ::= (WS | Comment | ImportStmt | ProtocolDef | AgentDef | MessageDef)* EOF
+role CoordinatorRole {
+  plays AuctionProtocol as auctioneer
+  plays SettlementProtocol as settler
+}
+```
+
+- `role Name { plays Proto as roleName ... }` defines a named interface.
+- A role has **no lang tag**, no lifecycle handlers, no init block — it is a pure contract.
+- Agents reference roles via `implements RoleName` (see below).
+
+### 1.16 `implements` keyword in agent definitions
+
+An agent can declare that it implements one or more roles:
+
+```
+agent MyCoordinator [ts] {
+  implements CoordinatorRole
+
+  init { ... }
+  on protocolCompleted(AuctionProtocol) { ... }
+}
+```
+
+- `implements RoleName` expands to the `plays` bindings declared in that role.
+- An agent may combine `implements` with explicit `plays` statements.
+- Duplicate bindings (same protocol + role from both explicit `plays` and `implements`) are deduplicated.
+- If `RoleName` is not defined, the compiler emits an error.
+
+**Design note**: the compiled IR artifacts (`RoleName.role.json`, `AgentIR` with expanded plays) are formal intermediate representations with a documented schema. They are also designed to be self-describing enough for **coding agents** (LLMs) to produce correct agent implementations from IR alone, without reading `.rg` source.
+
+---
+
+## 2. EBNF (v0.0.6)
+
+```
+Program         ::= (WS | Comment | ImportStmt | ProtocolDef | AgentDef | MessageDef | RoleDef)* EOF
 
 ImportStmt      ::= "import" WS+ String (WS+ "as" WS+ Ident)? WS* (";" WS*)?
 
@@ -490,12 +525,16 @@ ZoneBody        ::= BalancedText   // raw host-language code; braces balanced, s
                                    // language is determined by the participant's [LangTag] declaration
 
 AgentDef        ::= "agent" WS+ Ident WS* "[" LangTag "]" WS* "{" AgentBody "}"
-AgentBody       ::= (WS | Comment | PlaysStmt | AgentInitBlock | AgentOnHandler)*
+AgentBody       ::= (WS | Comment | ImplementsStmt | PlaysStmt | AgentInitBlock | AgentOnHandler)*
+ImplementsStmt  ::= "implements" WS+ Ident
 PlaysStmt       ::= "plays" WS+ Ident WS+ "as" WS+ Ident
 AgentInitBlock  ::= "init" WS* "{" ZoneBody "}"
 AgentOnHandler  ::= "on" WS+ AgentEvent WS* "{" ZoneBody "}"
 AgentEvent      ::= ("protocolStarted" | "protocolCompleted" | "protocolFailed") "(" Ident ")"
                   | "protocolEvent" "(" Ident ")"
+
+RoleDef         ::= "role" WS+ Ident WS* "{" RoleBody "}"
+RoleBody        ::= (WS | Comment | PlaysStmt)*
 
 MessageDef      ::= "message" WS+ Ident WS* "{" FieldList "}"
 FieldList       ::= (WS | Comment | FieldDef (",")?)*
@@ -564,6 +603,14 @@ WS              ::= (" " | "\t" | "\r" | "\n")+
 - `MessageDef` added as a new top-level construct (`message Name { fields }`). Defines typed payload schemas with minimal type system (`string`, `number`, `boolean`, `any`, `type[]`, `{ ... }`, `name?: type`). Backward compatible — untyped messages remain valid.
 - `Program` production now includes `MessageDef`.
 
+**Changes in v0.0.6 (M3-LANG)**:
+- `RoleDef` added as a new top-level construct (`role Name { plays Proto as role ... }`). A role is a named multi-protocol interface contract with no lang tag or lifecycle.
+- `implements RoleName` added inside `AgentDef` body. Expands to the `plays` bindings from the referenced role. Duplicates are deduplicated.
+- `AgentIR` now includes an optional `implements` field listing role names. `plays` in AgentIR is the fully expanded set (explicit + inherited from roles).
+- `RoleIR` added to IR: `{ roleName, plays }` — emitted as `<RoleName>.role.json`.
+- **IR design note**: IR remains a formal intermediate representation with a documented schema. It is also designed for consumption by coding agents (LLMs generating agent implementations).
+- `Program` production now includes `RoleDef`.
+
 ---
 
 ## 3. Example: task execution protocol (user → comma → sia)
@@ -572,14 +619,14 @@ See `projects/reagent/examples/src/01-task-execution-basic.rg`.
 
 ---
 
-## 4. Compiler and tooling (v0.0.5)
+## 4. Compiler and tooling (v0.0.6)
 
 ### 4.1 AST
 
 The parser outputs an AST conforming to the TypeScript types at `lang/src/ast.ts`.
 
 The full AST covers all language constructs:
-- `Program` (top-level: imports + protocol definitions + agent definitions)
+- `Program` (top-level: imports + protocol definitions + agent definitions + message definitions + role definitions)
 - `ImportStmt` (protocol `.rg` imports + code module imports)
 - `ProtocolDef` (header + body), `ParticipantDecl` (name + `LangTag`)
 - `MessageStmt` (sender, arrow, receiver, message name, optional `MessageProps` with `HookZone` and `PropPair`)
@@ -589,7 +636,8 @@ The full AST covers all language constructs:
 - `ParStmt` (branches separated by `and`)
 - `WaitStmt` (duration literal)
 - `TryStmt` (try body + catch label + catch body)
-- `AgentDef` (agent name + lang + plays bindings + init block + lifecycle handlers)
+- `AgentDef` (agent name + lang + implements list + plays bindings + init block + lifecycle handlers)
+- `RoleDef` (role name + plays bindings — multi-protocol interface contract)
 - `PlaysDecl` (protocol name + role name)
 - `AgentInitBlock` (raw zone body)
 - `AgentOnHandler` (event name + optional protocol filter + raw zone body)
@@ -604,24 +652,31 @@ Every node carries `Loc` (source location: `start: {index, line, col}`, `end: {i
 Hand-written **recursive-descent parser** in TypeScript (`lang/src/parser.ts`).
 Zone bodies remain **raw text** (parser only balances braces, does not parse host language).
 
-### 4.3 Protocol IR (v0.0.5)
+### 4.3 Protocol IR (v0.0.6)
 
 The compiler produces per-role **Protocol IR** — directed graphs of states and transitions:
 - `IRGraph` per role (local view of the global protocol)
 - `IRState` types: `initial`, `send`, `receive`, `action`, `guard`, `fork`, `join`, `timer`, `terminal`, `error`
 - `IRTransition` labels: `default`, `message`, `timeout`, `expression`, `else`, `error`, `branch`
 
-### 4.4 Agent IR (v0.0.5)
+### 4.4 Agent IR (v0.0.6)
 
 The compiler also produces per-agent **Agent IR** — agent-level metadata that ties protocols together:
-- `AgentIR`: agent name, language tag, plays bindings, init action body, lifecycle handler action bodies.
+- `AgentIR`: agent name, language tag, optional `implements` list, plays bindings (expanded), init action body, lifecycle handler action bodies.
 - `AgentPlaysBinding`: protocol name → role name mapping.
 - `AgentLifecycleHandler`: event type + optional protocol filter + action body.
 - References to protocol `IRGraph`s for each role the agent plays.
 
+### 4.5 Role IR (v0.0.6)
+
+The compiler produces per-role-definition **Role IR** — a named interface contract:
+- `RoleIR`: role name + plays bindings (protocol → role mappings).
+- Emitted as `<RoleName>.role.json`.
+- Designed as a formal IR artifact that is also self-describing for coding agents.
+
 See `lang/src/ir.ts` for IR type definitions, `lang/src/ir-emitter.ts` for AST→IR, and `lang/src/ir-validator.ts` for validation.
 
-### 4.5 CLI (`reagent-lang`)
+### 4.6 CLI (`reagent-lang`)
 
 The `@reagent/lang` package provides a CLI (`lang/dist/cli.js`) for compiling `.rg` files:
 
@@ -634,10 +689,12 @@ reagent-lang compile  <file.rg> <out-dir>      — compile to per-role and per-a
 
 The `compile` command produces:
 - `<Proto>.<role>.ir.json` — one IRGraph per role in each protocol
-- `<Agent>.agent.json` — one AgentIR per agent definition
-- `deployment.json` — deployment plan mapping agents to roles and IR files
+- `<Agent>.agent.json` — one AgentIR per agent definition (with expanded `implements`)
+- `<RoleName>.role.json` — one RoleIR per role definition
+- `messages.json` — message schemas (if any `message` definitions exist)
+- `deployment.json` — deployment plan mapping agents to roles, role defs, and IR files
 
-### 4.6 Reference runtimes
+### 4.7 Reference runtimes
 
 Lightweight **reference runners** (TypeScript and Python) interpret IR JSON directly over NATS:
 

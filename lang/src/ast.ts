@@ -1,5 +1,5 @@
 /**
- * Reagent AST — v0.0.5
+ * Reagent AST — v0.0.6
  *
  * Typed node hierarchy for the full Reagent protocol language.
  * Every node carries a SourceLocation (Loc) for editor integration.
@@ -17,7 +17,7 @@ export type Program = {
   items: TopLevelItem[];
 };
 
-export type TopLevelItem = ImportStmt | ProtocolDef | AgentDef | MessageDef;
+export type TopLevelItem = ImportStmt | ProtocolDef | AgentDef | MessageDef | RoleDef;
 
 // ── Import ──────────────────────────────────────────────────────────
 
@@ -212,6 +212,7 @@ export type AgentDef = {
   kind: "AgentDef";
   name: string;
   lang: LangTag;
+  implements: string[];
   plays: PlaysDecl[];
   init?: AgentInitBlock;
   handlers: AgentOnHandler[];
@@ -242,6 +243,15 @@ export type AgentOnHandler = {
   event: AgentEventKind;
   protocolFilter?: string;
   body: string;
+  loc: Loc;
+};
+
+// ── Role definition ─────────────────────────────────────────────────
+
+export type RoleDef = {
+  kind: "RoleDef";
+  name: string;
+  plays: PlaysDecl[];
   loc: Loc;
 };
 
