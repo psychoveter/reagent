@@ -1,13 +1,5 @@
-// Example 11: base protocol for calling llmbroka and returning a value
-//
-// Requirement:
-// - Provide a canonical protocol for "agent calls LLM" via participant `llmbroka`.
-// - Support returning a value from invoked protocol back to the caller.
-//
-// Semantics:
-// - Parent protocol invokes `CallLlm` with reagent.invoke() from agent zone.
-// - Child protocol returns answer via reagent.return().
-// - Parent receives that answer as a local $ctx binding.
+// Example 11: calling llmbroka and returning a value
+// Uses protocol-level invoke for the child LLM call.
 
 message TaskRequest {}
 message Greeting {}
@@ -20,7 +12,9 @@ protocol CommaAsksLlmAndReplies {
   initiator: user
   input: TaskRequest
 
-  user { $ctx.taskText = $ctx.input.text }
+  user {
+    $flow.taskText = $ctx.input.text
+  }
   user --> comma: TaskRequest = { }
 
   comma --> user: Greeting = { }
@@ -28,16 +22,19 @@ protocol CommaAsksLlmAndReplies {
   comma {
     $ctx.llmReq = {
       system: "You are Comma. Be concise and correct.",
-      user: "Rewrite this task as a precise plan:\n\n" + $ctx.taskText,
+      user: "Rewrite this task as a precise plan:\n\n" + $flow.taskText,
       model: "gpt-5.2",
       temperature: 0.2
     }
-    $ctx.llmAnswer = reagent.invoke(llm.CallLlm, { llmbroka: llmbroka }, $ctx.llmReq)
   }
+
+  invoke llm.CallLlm($ctx.llmReq) as comma {
+    llmbroka: llmbroka
+  } -> $flow.llmAnswer
 
   comma --> user: LlmPlan = {
     onSend {
-      $ctx.msg.text = $ctx.llmAnswer
+      $ctx.msg.text = $flow.llmAnswer
     }
   }
 }

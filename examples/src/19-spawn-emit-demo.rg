@@ -1,8 +1,5 @@
-// Example 19: reagent.spawn (fire-and-forget) + reagent.emit (event broadcasting)
-//
-// Tests:
-//   T15: Spawn starts child instance, parent continues without waiting
-//   T16: Emit triggers agent lifecycle handler (protocolEvent)
+// Example 19: protocol-level spawn (fire-and-forget) + reagent.emit (event broadcasting)
+// Uses protocol-level spawn instead of zone-level reagent.spawn().
 
 message WorkRequest {}
 message WorkResult {}
@@ -23,14 +20,18 @@ protocol SpawnEmitDemo {
   initiator: orchestrator
 
   orchestrator {
-    $ctx.taskName = "compute"
-    reagent.spawn("BackgroundTask", { taskName: $ctx.taskName })
+    $flow.taskName = "compute"
+  }
+
+  spawn BackgroundTask({ taskName: $flow.taskName }) as orchestrator
+
+  orchestrator {
     $self.spawned = ($self.spawned || 0) + 1
   }
 
   orchestrator --> helper: WorkRequest = {
     onSend {
-      $ctx.msg.task = $ctx.taskName
+      $ctx.msg.task = $flow.taskName
     }
     onReceive {
       $ctx.task = $ctx.msg.task

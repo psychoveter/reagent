@@ -1,0 +1,22 @@
+[
+  {
+    "name": "CFP",
+    "fields": []
+  },
+  {
+    "name": "Propose",
+    "fields": []
+  },
+  {
+    "name": "Refuse",
+    "fields": []
+  },
+  {
+    "name": "Accept",
+    "fields": []
+  },
+  {
+    "name": "Reject",
+    "fields": []
+  }
+]

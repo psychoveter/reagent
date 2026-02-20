@@ -15,7 +15,7 @@
       "kind": "action",
       "data": {
         "kind": "action",
-        "body": "\n    $ctx.value = 7\n  ",
+        "body": "\n    $flow.value = 7\n  ",
         "lang": "ts"
       }
     },
@@ -27,7 +27,8 @@
         "to": "responder",
         "arrow": "-->",
         "messageName": "ComputeRequest",
-        "preSendZone": "\n      $ctx.msg.value = $ctx.value\n    "
+        "preSendZone": "\n      $ctx.msg.value = $flow.value\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -38,7 +39,8 @@
         "from": "responder",
         "arrow": "-->",
         "messageName": "ComputeResult",
-        "postReceiveZone": "\n      $self.lastResult = $ctx.msg.squared\n    "
+        "postReceiveZone": "\n      $self.lastResult = $ctx.msg.squared\n    ",
+        "propagateFlow": true
       }
     },
     {

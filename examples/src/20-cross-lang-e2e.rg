@@ -1,7 +1,5 @@
 // Example 20: cross-language E2E (TypeScript ↔ Python)
-//
-// A TS role and a Python role exchange messages over NATS.
-// No opaque function calls — only $ctx/$self operations.
+// $flow carries greeting text between TS and Python roles.
 
 message Greeting {}
 message Reply {}
@@ -11,12 +9,12 @@ protocol CrossLangE2E {
   initiator: tsRole
 
   tsRole {
-    $ctx.greeting = "hello from ts"
+    $flow.greeting = "hello from ts"
   }
 
   tsRole --> pyRole: Greeting = {
     onSend {
-      $ctx.msg.text = $ctx.greeting
+      $ctx.msg.text = $flow.greeting
     }
     onReceive {
       $ctx.receivedGreeting = $ctx.msg.text

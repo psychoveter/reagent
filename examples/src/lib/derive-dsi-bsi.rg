@@ -6,8 +6,7 @@ protocol DeriveDsiBsi {
   input: DeriveRequest
 
   comma {
-    const dsiBsi = taskToDsiBsi($ctx.input.taskText)
-    $ctx.dsiBsi = dsiBsi
+    $ctx.dsiBsi = taskToDsiBsi($ctx.input.taskText)
     reagent.return($ctx.dsiBsi)
   }
 }

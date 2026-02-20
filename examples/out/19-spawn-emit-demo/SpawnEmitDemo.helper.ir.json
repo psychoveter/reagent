@@ -4,25 +4,26 @@
   "lang": "ts",
   "states": [
     {
-      "id": "init_6",
+      "id": "init_8",
       "kind": "initial",
       "data": {
         "kind": "initial"
       }
     },
     {
-      "id": "recv_7",
+      "id": "recv_9",
       "kind": "receive",
       "data": {
         "kind": "receive",
         "from": "orchestrator",
         "arrow": "-->",
         "messageName": "WorkRequest",
-        "postReceiveZone": "\n      $ctx.task = $ctx.msg.task\n    "
+        "postReceiveZone": "\n      $ctx.task = $ctx.msg.task\n    ",
+        "propagateFlow": true
       }
     },
     {
-      "id": "act_8",
+      "id": "act_10",
       "kind": "action",
       "data": {
         "kind": "action",
@@ -31,18 +32,19 @@
       }
     },
     {
-      "id": "send_9",
+      "id": "send_11",
       "kind": "send",
       "data": {
         "kind": "send",
         "to": "orchestrator",
         "arrow": "-->",
         "messageName": "WorkResult",
-        "preSendZone": "\n      $ctx.msg.result = $ctx.result\n    "
+        "preSendZone": "\n      $ctx.msg.result = $ctx.result\n    ",
+        "propagateFlow": true
       }
     },
     {
-      "id": "end_10",
+      "id": "end_12",
       "kind": "terminal",
       "data": {
         "kind": "terminal",
@@ -52,36 +54,36 @@
   ],
   "transitions": [
     {
-      "from": "init_6",
-      "to": "recv_7",
+      "from": "init_8",
+      "to": "recv_9",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "recv_7",
-      "to": "act_8",
+      "from": "recv_9",
+      "to": "act_10",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "act_8",
-      "to": "send_9",
+      "from": "act_10",
+      "to": "send_11",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "send_9",
-      "to": "end_10",
+      "from": "send_11",
+      "to": "end_12",
       "label": {
         "kind": "default"
       }
     }
   ],
-  "initialStateId": "init_6",
+  "initialStateId": "init_8",
   "terminalStateIds": [
-    "end_10"
+    "end_12"
   ]
 }

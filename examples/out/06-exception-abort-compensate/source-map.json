@@ -1,0 +1,100 @@
+{
+  "entries": [
+    {
+      "stateId": "act_2",
+      "protocolName": "ExceptionAbortCompensate",
+      "role": "user",
+      "file": "examples/src/06-exception-abort-compensate.rg",
+      "line": 15,
+      "column": 3
+    },
+    {
+      "stateId": "send_3",
+      "protocolName": "ExceptionAbortCompensate",
+      "role": "user",
+      "file": "examples/src/06-exception-abort-compensate.rg",
+      "line": 18,
+      "column": 3
+    },
+    {
+      "stateId": "recv_4",
+      "protocolName": "ExceptionAbortCompensate",
+      "role": "user",
+      "file": "examples/src/06-exception-abort-compensate.rg",
+      "line": 23,
+      "column": 5
+    },
+    {
+      "stateId": "recv_7",
+      "protocolName": "ExceptionAbortCompensate",
+      "role": "user",
+      "file": "examples/src/06-exception-abort-compensate.rg",
+      "line": 28,
+      "column": 5
+    },
+    {
+      "stateId": "recv_10",
+      "protocolName": "ExceptionAbortCompensate",
+      "role": "comma",
+      "file": "examples/src/06-exception-abort-compensate.rg",
+      "line": 18,
+      "column": 3
+    },
+    {
+      "stateId": "send_11",
+      "protocolName": "ExceptionAbortCompensate",
+      "role": "comma",
+      "file": "examples/src/06-exception-abort-compensate.rg",
+      "line": 21,
+      "column": 5
+    },
+    {
+      "stateId": "recv_12",
+      "protocolName": "ExceptionAbortCompensate",
+      "role": "comma",
+      "file": "examples/src/06-exception-abort-compensate.rg",
+      "line": 22,
+      "column": 5
+    },
+    {
+      "stateId": "send_13",
+      "protocolName": "ExceptionAbortCompensate",
+      "role": "comma",
+      "file": "examples/src/06-exception-abort-compensate.rg",
+      "line": 23,
+      "column": 5
+    },
+    {
+      "stateId": "act_16",
+      "protocolName": "ExceptionAbortCompensate",
+      "role": "comma",
+      "file": "examples/src/06-exception-abort-compensate.rg",
+      "line": 25,
+      "column": 5
+    },
+    {
+      "stateId": "send_17",
+      "protocolName": "ExceptionAbortCompensate",
+      "role": "comma",
+      "file": "examples/src/06-exception-abort-compensate.rg",
+      "line": 28,
+      "column": 5
+    },
+    {
+      "stateId": "recv_20",
+      "protocolName": "ExceptionAbortCompensate",
+      "role": "sia",
+      "file": "examples/src/06-exception-abort-compensate.rg",
+      "line": 21,
+      "column": 5
+    },
+    {
+      "stateId": "send_21",
+      "protocolName": "ExceptionAbortCompensate",
+      "role": "sia",
+      "file": "examples/src/06-exception-abort-compensate.rg",
+      "line": 22,
+      "column": 5
+    }
+  ]
+}

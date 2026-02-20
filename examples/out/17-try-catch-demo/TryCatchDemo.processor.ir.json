@@ -18,7 +18,8 @@
         "from": "sender",
         "arrow": "-->",
         "messageName": "Request",
-        "postReceiveZone": "\n      $ctx.requestText = $ctx.msg.text\n    "
+        "postReceiveZone": "\n      $ctx.requestText = $ctx.msg.text\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -38,7 +39,8 @@
         "to": "sender",
         "arrow": "-->",
         "messageName": "Result",
-        "preSendZone": "\n        $ctx.msg.data = $ctx.result\n      "
+        "preSendZone": "\n        $ctx.msg.data = $ctx.result\n      ",
+        "propagateFlow": true
       }
     },
     {
@@ -66,7 +68,8 @@
         "to": "sender",
         "arrow": "-->",
         "messageName": "Failure",
-        "preSendZone": "\n        $ctx.msg.reason = $ctx.errorMsg\n      "
+        "preSendZone": "\n        $ctx.msg.reason = $ctx.errorMsg\n      ",
+        "propagateFlow": true
       }
     },
     {

@@ -1,0 +1,132 @@
+{
+  "entries": [
+    {
+      "stateId": "act_2",
+      "protocolName": "ParDemo",
+      "role": "coordinator",
+      "file": "examples/src/16-parallel-demo.rg",
+      "line": 16,
+      "column": 3
+    },
+    {
+      "stateId": "send_3",
+      "protocolName": "ParDemo",
+      "role": "coordinator",
+      "file": "examples/src/16-parallel-demo.rg",
+      "line": 20,
+      "column": 3
+    },
+    {
+      "stateId": "send_4",
+      "protocolName": "ParDemo",
+      "role": "coordinator",
+      "file": "examples/src/16-parallel-demo.rg",
+      "line": 28,
+      "column": 3
+    },
+    {
+      "stateId": "recv_8",
+      "protocolName": "ParDemo",
+      "role": "coordinator",
+      "file": "examples/src/16-parallel-demo.rg",
+      "line": 42,
+      "column": 5
+    },
+    {
+      "stateId": "recv_10",
+      "protocolName": "ParDemo",
+      "role": "coordinator",
+      "file": "examples/src/16-parallel-demo.rg",
+      "line": 55,
+      "column": 5
+    },
+    {
+      "stateId": "act_11",
+      "protocolName": "ParDemo",
+      "role": "coordinator",
+      "file": "examples/src/16-parallel-demo.rg",
+      "line": 65,
+      "column": 3
+    },
+    {
+      "stateId": "send_12",
+      "protocolName": "ParDemo",
+      "role": "coordinator",
+      "file": "examples/src/16-parallel-demo.rg",
+      "line": 70,
+      "column": 3
+    },
+    {
+      "stateId": "send_13",
+      "protocolName": "ParDemo",
+      "role": "coordinator",
+      "file": "examples/src/16-parallel-demo.rg",
+      "line": 75,
+      "column": 3
+    },
+    {
+      "stateId": "recv_16",
+      "protocolName": "ParDemo",
+      "role": "workerA",
+      "file": "examples/src/16-parallel-demo.rg",
+      "line": 20,
+      "column": 3
+    },
+    {
+      "stateId": "act_20",
+      "protocolName": "ParDemo",
+      "role": "workerA",
+      "file": "examples/src/16-parallel-demo.rg",
+      "line": 38,
+      "column": 5
+    },
+    {
+      "stateId": "send_21",
+      "protocolName": "ParDemo",
+      "role": "workerA",
+      "file": "examples/src/16-parallel-demo.rg",
+      "line": 42,
+      "column": 5
+    },
+    {
+      "stateId": "recv_23",
+      "protocolName": "ParDemo",
+      "role": "workerA",
+      "file": "examples/src/16-parallel-demo.rg",
+      "line": 70,
+      "column": 3
+    },
+    {
+      "stateId": "recv_26",
+      "protocolName": "ParDemo",
+      "role": "workerB",
+      "file": "examples/src/16-parallel-demo.rg",
+      "line": 28,
+      "column": 3
+    },
+    {
+      "stateId": "act_31",
+      "protocolName": "ParDemo",
+      "role": "workerB",
+      "file": "examples/src/16-parallel-demo.rg",
+      "line": 51,
+      "column": 5
+    },
+    {
+      "stateId": "send_32",
+      "protocolName": "ParDemo",
+      "role": "workerB",
+      "file": "examples/src/16-parallel-demo.rg",
+      "line": 55,
+      "column": 5
+    },
+    {
+      "stateId": "recv_33",
+      "protocolName": "ParDemo",
+      "role": "workerB",
+      "file": "examples/src/16-parallel-demo.rg",
+      "line": 75,
+      "column": 3
+    }
+  ]
+}

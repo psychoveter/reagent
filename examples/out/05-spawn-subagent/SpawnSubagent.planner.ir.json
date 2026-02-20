@@ -17,7 +17,8 @@
         "kind": "send",
         "to": "comma",
         "arrow": "-->",
-        "messageName": "PlanReady"
+        "messageName": "PlanReady",
+        "propagateFlow": true
       }
     },
     {

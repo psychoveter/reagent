@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseProgram } from "./parser.js";
-import { emitIR, emitAgentIR, emitMessageSchema, emitRoleIR, resetIdCounter } from "./ir-emitter.js";
+import { emitIR, emitAgentIR, emitMessageSchema, emitRoleIR, resetIdCounter, type SourceMapEntry } from "./ir-emitter.js";
 import { validateIRGraph } from "./ir-validator.js";
 import type { AgentDef, MessageDef, ProtocolDef, RoleDef } from "./ast.js";
 
@@ -181,6 +181,7 @@ function cmdCompile(file: string, outDir: string) {
   let roleDefCount = 0;
   let agentCount = 0;
   let hasErrors = false;
+  const allSourceMapEntries: SourceMapEntry[] = [];
 
   // Emit per-role IRGraphs
   for (const proto of protocols) {
@@ -191,6 +192,11 @@ function cmdCompile(file: string, outDir: string) {
       console.error(`IR errors in protocol ${proto.name}:`);
       for (const e of result.errors) console.error(`  ${e}`);
       hasErrors = true;
+    }
+
+    // Collect source map entries with the file name filled in
+    for (const entry of result.sourceMap) {
+      allSourceMapEntries.push({ ...entry, file });
     }
 
     for (const [role, graph] of result.graphs) {
@@ -298,6 +304,13 @@ function cmdCompile(file: string, outDir: string) {
   };
   writeFileSync(join(outDir, "deployment.json"), JSON.stringify(deployment, null, 2) + "\n");
   console.log("  deployment.json");
+
+  // Emit source map
+  if (allSourceMapEntries.length > 0) {
+    const sourceMap = { entries: allSourceMapEntries };
+    writeFileSync(join(outDir, "source-map.json"), JSON.stringify(sourceMap, null, 2) + "\n");
+    console.log("  source-map.json");
+  }
 
   console.log(`\n${protoRoleCount} protocol role IR(s), ${roleDefCount} role def(s), ${agentCount} agent IR(s), ${schemas.length} message schema(s) → ${outDir}`);
 

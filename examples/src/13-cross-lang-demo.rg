@@ -1,10 +1,5 @@
 // Example 13: cross-language demo (TypeScript browser + Python server)
-//
-// Demonstrates:
-// - Two roles in different languages participating in one protocol
-// - Role definitions with $self state, init, lifecycle handlers
-// - Alt branching based on server-side processing result
-// - onSend hooks for payload construction
+// $flow carries data between roles across language boundaries.
 
 message Query {}
 message Accept {}
@@ -16,12 +11,12 @@ protocol CrossLangDemo {
   input: UserQuery
 
   browser {
-    $ctx.queryText = $ctx.input.text
+    $flow.queryText = $ctx.input.text
   }
 
   browser --> server: Query = {
     onSend {
-      $ctx.msg.text = $ctx.queryText
+      $ctx.msg.text = $flow.queryText
     }
     onReceive {
       $ctx.queryText = $ctx.msg.text
@@ -29,8 +24,7 @@ protocol CrossLangDemo {
   }
 
   server {
-    result = process_query($ctx.queryText)
-    $ctx.result = result
+    $ctx.result = process_query($ctx.queryText)
     $self.queriesHandled += 1
   }
 

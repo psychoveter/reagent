@@ -1,13 +1,5 @@
 // Example 15: loop + wait demo for runtime E2E tests
-//
-// Tests:
-//   T6: Loop executes N iterations then exits
-//   T7: Wait delays execution by specified duration
-//   T8: $self accumulates state across loop iterations
-//
-// Protocol: poller sends repeated Ping to responder.
-// Responder replies with Pong. Loop runs 3 times, with a short wait between iterations.
-// After loop exits, poller sends Done.
+// $ctx.iteration is per-role (poller only). Data crosses roles via $flow and $ctx.msg.
 
 message Ping {}
 message Pong {}

@@ -18,7 +18,8 @@
         "to": "worker",
         "arrow": "-->",
         "messageName": "Ping",
-        "preSendZone": " $ctx.msg.ts = Date.now() "
+        "preSendZone": " $ctx.msg.ts = Date.now() ",
+        "propagateFlow": true
       }
     },
     {
@@ -29,7 +30,8 @@
         "from": "worker",
         "arrow": "-->",
         "messageName": "Pong",
-        "postReceiveZone": "\n      $self.lastPong = $ctx.msg\n    "
+        "postReceiveZone": "\n      $self.lastPong = $ctx.msg\n    ",
+        "propagateFlow": true
       }
     },
     {

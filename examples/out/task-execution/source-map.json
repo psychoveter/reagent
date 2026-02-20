@@ -1,0 +1,68 @@
+{
+  "entries": [
+    {
+      "stateId": "act_2",
+      "protocolName": "TaskExecutionLegacy",
+      "role": "user",
+      "file": "examples/src/task-execution.rg",
+      "line": 12,
+      "column": 3
+    },
+    {
+      "stateId": "send_3",
+      "protocolName": "TaskExecutionLegacy",
+      "role": "user",
+      "file": "examples/src/task-execution.rg",
+      "line": 15,
+      "column": 3
+    },
+    {
+      "stateId": "recv_4",
+      "protocolName": "TaskExecutionLegacy",
+      "role": "user",
+      "file": "examples/src/task-execution.rg",
+      "line": 17,
+      "column": 3
+    },
+    {
+      "stateId": "recv_7",
+      "protocolName": "TaskExecutionLegacy",
+      "role": "comma",
+      "file": "examples/src/task-execution.rg",
+      "line": 15,
+      "column": 3
+    },
+    {
+      "stateId": "send_8",
+      "protocolName": "TaskExecutionLegacy",
+      "role": "comma",
+      "file": "examples/src/task-execution.rg",
+      "line": 17,
+      "column": 3
+    },
+    {
+      "stateId": "act_9",
+      "protocolName": "TaskExecutionLegacy",
+      "role": "comma",
+      "file": "examples/src/task-execution.rg",
+      "line": 23,
+      "column": 3
+    },
+    {
+      "stateId": "send_10",
+      "protocolName": "TaskExecutionLegacy",
+      "role": "comma",
+      "file": "examples/src/task-execution.rg",
+      "line": 27,
+      "column": 3
+    },
+    {
+      "stateId": "recv_13",
+      "protocolName": "TaskExecutionLegacy",
+      "role": "sia",
+      "file": "examples/src/task-execution.rg",
+      "line": 27,
+      "column": 3
+    }
+  ]
+}

@@ -58,7 +58,10 @@ export type ProtocolItem =
   | LoopStmt
   | ParStmt
   | WaitStmt
-  | TryStmt;
+  | TryStmt
+  | InvokeStmt
+  | SpawnStmt
+  | ScatterStmt;
 
 // ── Message step ────────────────────────────────────────────────────
 
@@ -137,6 +140,8 @@ export type AltMessageGuard = {
   to: string;
   messageName: string;
   props?: MessageProps;
+  /** Pattern clause from `where { ... }` syntax (v0.0.8+) */
+  whereClause?: Record<string, string>;
   loc: Loc;
 };
 
@@ -203,6 +208,39 @@ export type TryStmt = {
   tryBody: ProtocolItem[];
   catchLabel: string;
   catchBody: ProtocolItem[];
+  loc: Loc;
+};
+
+// ── Protocol-level invoke ────────────────────────────────────────────
+
+export type InvokeStmt = {
+  kind: "InvokeStmt";
+  protocolName: string;
+  input: string;
+  callerRole: string;
+  roleMapping?: Record<string, string>;
+  resultTarget?: string;
+  loc: Loc;
+};
+
+// ── Protocol-level spawn ────────────────────────────────────────────
+
+export type SpawnStmt = {
+  kind: "SpawnStmt";
+  protocolName: string;
+  input: string;
+  callerRole: string;
+  roleMapping?: Record<string, string>;
+  loc: Loc;
+};
+
+// ── Scatter (dynamic multicast) ─────────────────────────────────────
+
+export type ScatterStmt = {
+  kind: "ScatterStmt";
+  collection: string;
+  itemRole: string;
+  body: ProtocolItem[];
   loc: Loc;
 };
 

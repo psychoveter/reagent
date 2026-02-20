@@ -1,0 +1,92 @@
+{
+  "entries": [
+    {
+      "stateId": "act_2",
+      "protocolName": "CallForProposal",
+      "role": "buyer",
+      "file": "examples/src/24-call-for-proposal.rg",
+      "line": 20,
+      "column": 3
+    },
+    {
+      "stateId": "send_6",
+      "protocolName": "CallForProposal",
+      "role": "buyer",
+      "file": "examples/src/24-call-for-proposal.rg",
+      "line": 27,
+      "column": 5
+    },
+    {
+      "stateId": "recv_10",
+      "protocolName": "CallForProposal",
+      "role": "buyer",
+      "file": "examples/src/24-call-for-proposal.rg",
+      "line": 41,
+      "column": 7
+    },
+    {
+      "stateId": "recv_12",
+      "protocolName": "CallForProposal",
+      "role": "buyer",
+      "file": "examples/src/24-call-for-proposal.rg",
+      "line": 51,
+      "column": 7
+    },
+    {
+      "stateId": "act_13",
+      "protocolName": "CallForProposal",
+      "role": "buyer",
+      "file": "examples/src/24-call-for-proposal.rg",
+      "line": 55,
+      "column": 3
+    },
+    {
+      "stateId": "send_14",
+      "protocolName": "CallForProposal",
+      "role": "buyer",
+      "file": "examples/src/24-call-for-proposal.rg",
+      "line": 60,
+      "column": 3
+    },
+    {
+      "stateId": "recv_20",
+      "protocolName": "CallForProposal",
+      "role": "seller",
+      "file": "examples/src/24-call-for-proposal.rg",
+      "line": 27,
+      "column": 5
+    },
+    {
+      "stateId": "act_21",
+      "protocolName": "CallForProposal",
+      "role": "seller",
+      "file": "examples/src/24-call-for-proposal.rg",
+      "line": 36,
+      "column": 5
+    },
+    {
+      "stateId": "send_25",
+      "protocolName": "CallForProposal",
+      "role": "seller",
+      "file": "examples/src/24-call-for-proposal.rg",
+      "line": 41,
+      "column": 7
+    },
+    {
+      "stateId": "send_27",
+      "protocolName": "CallForProposal",
+      "role": "seller",
+      "file": "examples/src/24-call-for-proposal.rg",
+      "line": 51,
+      "column": 7
+    },
+    {
+      "stateId": "recv_28",
+      "protocolName": "CallForProposal",
+      "role": "seller",
+      "file": "examples/src/24-call-for-proposal.rg",
+      "line": 60,
+      "column": 3
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "entries": [
+    {
+      "stateId": "act_2",
+      "protocolName": "TaskExecutionBasic",
+      "role": "user",
+      "file": "examples/src/01-task-execution-basic.rg",
+      "line": 17,
+      "column": 3
+    },
+    {
+      "stateId": "send_3",
+      "protocolName": "TaskExecutionBasic",
+      "role": "user",
+      "file": "examples/src/01-task-execution-basic.rg",
+      "line": 20,
+      "column": 3
+    },
+    {
+      "stateId": "recv_4",
+      "protocolName": "TaskExecutionBasic",
+      "role": "user",
+      "file": "examples/src/01-task-execution-basic.rg",
+      "line": 22,
+      "column": 3
+    },
+    {
+      "stateId": "recv_7",
+      "protocolName": "TaskExecutionBasic",
+      "role": "comma",
+      "file": "examples/src/01-task-execution-basic.rg",
+      "line": 20,
+      "column": 3
+    },
+    {
+      "stateId": "send_8",
+      "protocolName": "TaskExecutionBasic",
+      "role": "comma",
+      "file": "examples/src/01-task-execution-basic.rg",
+      "line": 22,
+      "column": 3
+    },
+    {
+      "stateId": "act_9",
+      "protocolName": "TaskExecutionBasic",
+      "role": "comma",
+      "file": "examples/src/01-task-execution-basic.rg",
+      "line": 28,
+      "column": 3
+    },
+    {
+      "stateId": "send_10",
+      "protocolName": "TaskExecutionBasic",
+      "role": "comma",
+      "file": "examples/src/01-task-execution-basic.rg",
+      "line": 32,
+      "column": 3
+    },
+    {
+      "stateId": "recv_13",
+      "protocolName": "TaskExecutionBasic",
+      "role": "sia",
+      "file": "examples/src/01-task-execution-basic.rg",
+      "line": 32,
+      "column": 3
+    }
+  ]
+}

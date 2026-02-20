@@ -1,0 +1,155 @@
+{
+  "protocolName": "ScatterGather",
+  "role": "coordinator",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $flow.workers = $ctx.input.workerIds\n    $flow.results = []\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "scatter_fork_3",
+      "kind": "scatter",
+      "data": {
+        "kind": "scatter",
+        "collection": "$flow.workers",
+        "itemRole": "worker",
+        "branchStartIds": [
+          "scatter_entry_5"
+        ]
+      }
+    },
+    {
+      "id": "scatter_entry_5",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "send_6",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "worker",
+        "arrow": "-->",
+        "messageName": "Subtask",
+        "preSendZone": "\n        $ctx.msg.taskId = $flow.workers.indexOf(worker)\n      ",
+        "propagateFlow": true
+      }
+    },
+    {
+      "id": "recv_7",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "worker",
+        "arrow": "-->",
+        "messageName": "SubtaskDone",
+        "postReceiveZone": "\n        $flow.results.push($ctx.msg.result)\n      ",
+        "propagateFlow": true
+      }
+    },
+    {
+      "id": "scatter_join_4",
+      "kind": "join",
+      "data": {
+        "kind": "join",
+        "branchCount": 1
+      }
+    },
+    {
+      "id": "act_8",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $flow.merged = $flow.results.join(\",\")\n    $self.scattersCompleted = ($self.scattersCompleted || 0) + 1\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "end_9",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "act_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_2",
+      "to": "scatter_fork_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "scatter_fork_3",
+      "to": "scatter_entry_5",
+      "label": {
+        "kind": "branch",
+        "branchIndex": 0
+      }
+    },
+    {
+      "from": "scatter_entry_5",
+      "to": "send_6",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_6",
+      "to": "recv_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_7",
+      "to": "scatter_join_4",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "scatter_join_4",
+      "to": "act_8",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_8",
+      "to": "end_9",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_9"
+  ]
+}

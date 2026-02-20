@@ -1,0 +1,92 @@
+{
+  "entries": [
+    {
+      "stateId": "act_2",
+      "protocolName": "TaskExecution",
+      "role": "user",
+      "file": "examples/src/12-agent-multi-protocol.rg",
+      "line": 18,
+      "column": 3
+    },
+    {
+      "stateId": "send_3",
+      "protocolName": "TaskExecution",
+      "role": "user",
+      "file": "examples/src/12-agent-multi-protocol.rg",
+      "line": 21,
+      "column": 3
+    },
+    {
+      "stateId": "recv_6",
+      "protocolName": "TaskExecution",
+      "role": "comma",
+      "file": "examples/src/12-agent-multi-protocol.rg",
+      "line": 21,
+      "column": 3
+    },
+    {
+      "stateId": "invoke_7",
+      "protocolName": "TaskExecution",
+      "role": "comma",
+      "file": "examples/src/12-agent-multi-protocol.rg",
+      "line": 23,
+      "column": 3
+    },
+    {
+      "stateId": "act_8",
+      "protocolName": "TaskExecution",
+      "role": "comma",
+      "file": "examples/src/12-agent-multi-protocol.rg",
+      "line": 25,
+      "column": 3
+    },
+    {
+      "stateId": "send_9",
+      "protocolName": "TaskExecution",
+      "role": "comma",
+      "file": "examples/src/12-agent-multi-protocol.rg",
+      "line": 29,
+      "column": 3
+    },
+    {
+      "stateId": "recv_12",
+      "protocolName": "TaskExecution",
+      "role": "sia",
+      "file": "examples/src/12-agent-multi-protocol.rg",
+      "line": 29,
+      "column": 3
+    },
+    {
+      "stateId": "send_2",
+      "protocolName": "HealthCheck",
+      "role": "monitor",
+      "file": "examples/src/12-agent-multi-protocol.rg",
+      "line": 41,
+      "column": 3
+    },
+    {
+      "stateId": "recv_3",
+      "protocolName": "HealthCheck",
+      "role": "monitor",
+      "file": "examples/src/12-agent-multi-protocol.rg",
+      "line": 42,
+      "column": 3
+    },
+    {
+      "stateId": "recv_6",
+      "protocolName": "HealthCheck",
+      "role": "comma",
+      "file": "examples/src/12-agent-multi-protocol.rg",
+      "line": 41,
+      "column": 3
+    },
+    {
+      "stateId": "send_7",
+      "protocolName": "HealthCheck",
+      "role": "comma",
+      "file": "examples/src/12-agent-multi-protocol.rg",
+      "line": 42,
+      "column": 3
+    }
+  ]
+}

@@ -18,7 +18,8 @@
         "from": "coordinator",
         "arrow": "-->",
         "messageName": "TaskA",
-        "postReceiveZone": "\n      $ctx.taskLabel = $ctx.msg.label\n    "
+        "postReceiveZone": "\n      $ctx.taskLabel = $ctx.msg.label\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -57,7 +58,8 @@
         "to": "coordinator",
         "arrow": "-->",
         "messageName": "ResultA",
-        "preSendZone": "\n        $ctx.msg.result = $ctx.resultA\n      "
+        "preSendZone": "\n        $ctx.msg.result = $ctx.resultA\n      ",
+        "propagateFlow": true
       }
     },
     {
@@ -83,7 +85,8 @@
         "kind": "receive",
         "from": "coordinator",
         "arrow": "-->",
-        "messageName": "Summary"
+        "messageName": "Summary",
+        "propagateFlow": true
       }
     },
     {

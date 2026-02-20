@@ -1,0 +1,15 @@
+{
+  "roleName": "CoordinatorRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "ScatterGather",
+      "roleName": "coordinator"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.scattersCompleted = 0\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": []
+}

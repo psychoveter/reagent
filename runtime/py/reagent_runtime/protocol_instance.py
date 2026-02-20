@@ -17,7 +17,7 @@ from .types import (
     msg_subject,
     trace_subject,
 )
-from .zone_executor import execute_zone, ReagentStub, InvokeRequest, ReturnValue
+from .zone_executor import execute_zone, ReagentStub, InvokeRequest, ReturnValue, BreakRequest
 from .nats_transport import NatsTransport
 
 
@@ -41,6 +41,7 @@ class ProtocolInstance:
         self._config = config
 
         self._ctx: dict[str, Any] = {}
+        self._flow: dict[str, Any] = {}
         if "input" in config and config["input"]:
             self._ctx["input"] = config["input"]
 
@@ -74,6 +75,9 @@ class ProtocolInstance:
         self._emit_callback: Optional[Callable] = None
         self._return_value: Any = None
         self._has_return_value: bool = False
+
+        # Debug advance hook: optional async callable invoked before each state
+        self._advance_hook: Optional[Callable] = config.get("advanceHook")
 
     @property
     def status(self) -> str:
@@ -147,6 +151,16 @@ class ProtocolInstance:
 
             kind = state["data"]["kind"]
 
+            if self._advance_hook:
+                await self._advance_hook({
+                    "instanceId": self.instance_id,
+                    "agentName": self.agent_name,
+                    "stateId": state["id"],
+                    "stateKind": kind,
+                    "ctx": dict(self._ctx),
+                    "self": dict(self._self_ref),
+                })
+
             # Track try/catch scopes
             catch_target = self._try_catch_map.get(state["id"])
             if catch_target:
@@ -182,6 +196,14 @@ class ProtocolInstance:
                     self._current_state_id = self._follow_default()
                 elif kind == "error":
                     self._current_state_id = self._follow_default()
+                elif kind == "invoke":
+                    await self._handle_invoke(state)
+                    self._current_state_id = self._follow_default()
+                elif kind == "spawn":
+                    await self._handle_spawn_state(state)
+                    self._current_state_id = self._follow_default()
+                elif kind == "scatter":
+                    await self._handle_scatter(state)
                 elif kind == "terminal":
                     status_val = state["data"].get("status", "completed")
                     self._status = "completed" if status_val == "completed" else "failed"
@@ -193,6 +215,13 @@ class ProtocolInstance:
                 else:
                     print(f"[instance] Unsupported state kind: {kind}, skipping")
                     self._current_state_id = self._follow_default()
+            except BreakRequest:
+                self._emit_trace("ActionFinished", {"stateId": state["id"], "breakRequested": True})
+                exit_id = self._find_loop_exit(state["id"])
+                if exit_id:
+                    self._current_state_id = exit_id
+                    continue
+                raise RuntimeError("reagent.break() called outside of a loop")
             except ReturnValue as rv:
                 self._return_value = rv.value
                 self._has_return_value = True
@@ -220,7 +249,7 @@ class ProtocolInstance:
 
         if data.get("preSendZone"):
             self._emit_trace("ActionStarted", {"stateId": state["id"], "zone": "preSend"})
-            execute_zone(data["preSendZone"], self._ctx, self._self_ref, self._reagent)
+            execute_zone(data["preSendZone"], self._ctx, self._self_ref, self._reagent, self._flow)
             self._emit_trace("ActionFinished", {"stateId": state["id"], "zone": "preSend"})
 
         payload = self._ctx.get("msg", {})
@@ -229,6 +258,9 @@ class ProtocolInstance:
         to_agent = self.role_to_agent.get(to_key)
         if not to_agent:
             raise RuntimeError(f"Cannot resolve agent for role {data['to']} in protocol {self.protocol_name}")
+
+        import copy
+        flow_snapshot = copy.deepcopy(self._flow) if data.get("propagateFlow") else None
 
         env = create_message_envelope(
             self.instance_id,
@@ -239,6 +271,7 @@ class ProtocolInstance:
             data["to"],
             data["messageName"],
             payload,
+            flow_snapshot,
         )
 
         self._emit_trace("MessageSent", {
@@ -264,11 +297,14 @@ class ProtocolInstance:
             "fromRole": env["from"]["role"],
         })
 
+        if data.get("propagateFlow") and env.get("flow"):
+            self._flow.update(env["flow"])
+
         self._ctx["msg"] = env["payload"]
 
         if data.get("postReceiveZone"):
             self._emit_trace("ActionStarted", {"stateId": state["id"], "zone": "postReceive"})
-            execute_zone(data["postReceiveZone"], self._ctx, self._self_ref, self._reagent)
+            execute_zone(data["postReceiveZone"], self._ctx, self._self_ref, self._reagent, self._flow)
             self._emit_trace("ActionFinished", {"stateId": state["id"], "zone": "postReceive"})
 
         self._ctx.pop("msg", None)
@@ -277,19 +313,21 @@ class ProtocolInstance:
         data = state["data"]
         self._emit_trace("ActionStarted", {"stateId": state["id"]})
         try:
-            execute_zone(data["body"], self._ctx, self._self_ref, self._reagent)
+            execute_zone(data["body"], self._ctx, self._self_ref, self._reagent, self._flow)
         except ReturnValue as rv:
             self._return_value = rv.value
             self._has_return_value = True
             self._emit_trace("ActionFinished", {"stateId": state["id"], "returnValue": True})
             return
+        except BreakRequest:
+            raise
         except InvokeRequest as ir:
             if not self._invoke_callback:
                 raise RuntimeError("reagent.invoke() called but no invoke_callback set")
             result = await self._invoke_callback(ir.proto_name, ir.input_data)
             cached_reagent = ReagentStub()
             cached_reagent.invoke = lambda proto=None, args=None: result
-            execute_zone(data["body"], self._ctx, self._self_ref, cached_reagent)
+            execute_zone(data["body"], self._ctx, self._self_ref, cached_reagent, self._flow)
             self._emit_trace("ActionFinished", {"stateId": state["id"], "invoked": ir.proto_name})
             return
         self._emit_trace("ActionFinished", {"stateId": state["id"]})
@@ -358,10 +396,12 @@ class ProtocolInstance:
 
                     recv_state = self._state_map.get(result["targetStateId"])
                     if recv_state and recv_state["data"]["kind"] == "receive":
+                        if recv_state["data"].get("propagateFlow") and result["env"].get("flow"):
+                            self._flow.update(result["env"]["flow"])
                         post_zone = recv_state["data"].get("postReceiveZone")
                         if post_zone:
                             self._emit_trace("ActionStarted", {"stateId": result["targetStateId"], "zone": "postReceive"})
-                            execute_zone(post_zone, self._ctx, self._self_ref, self._reagent)
+                            execute_zone(post_zone, self._ctx, self._self_ref, self._reagent, self._flow)
                             self._emit_trace("ActionFinished", {"stateId": result["targetStateId"], "zone": "postReceive"})
                     self._ctx.pop("msg", None)
                     self._current_state_id = result["targetStateId"]
@@ -394,7 +434,7 @@ class ProtocolInstance:
             else_t = next((t for t in transitions if t["label"]["kind"] == "else"), None)
 
             eval_succeeded = False
-            can_decide = _expression_vars_are_defined(data["expr"], self._ctx, self._self_ref)
+            can_decide = _expression_vars_are_defined(data["expr"], self._ctx, self._self_ref, self._flow)
 
             if can_decide:
                 try:
@@ -441,10 +481,12 @@ class ProtocolInstance:
 
                     recv_state = self._state_map.get(result["targetStateId"])
                     if recv_state and recv_state["data"]["kind"] == "receive":
+                        if recv_state["data"].get("propagateFlow") and result["env"].get("flow"):
+                            self._flow.update(result["env"]["flow"])
                         post_zone = recv_state["data"].get("postReceiveZone")
                         if post_zone:
                             self._emit_trace("ActionStarted", {"stateId": result["targetStateId"], "zone": "postReceive"})
-                            execute_zone(post_zone, self._ctx, self._self_ref, self._reagent)
+                            execute_zone(post_zone, self._ctx, self._self_ref, self._reagent, self._flow)
                             self._emit_trace("ActionFinished", {"stateId": result["targetStateId"], "zone": "postReceive"})
                     self._ctx.pop("msg", None)
 
@@ -494,15 +536,142 @@ class ProtocolInstance:
         self._ctx["msg"] = env["payload"]
         matched_state = self._state_map.get(result["targetStateId"])
         if matched_state and matched_state["data"]["kind"] == "receive":
+            if matched_state["data"].get("propagateFlow") and env.get("flow"):
+                self._flow.update(env["flow"])
             post_zone = matched_state["data"].get("postReceiveZone")
             if post_zone:
                 self._emit_trace("ActionStarted", {"stateId": result["targetStateId"], "zone": "postReceive"})
-                execute_zone(post_zone, self._ctx, self._self_ref, self._reagent)
+                execute_zone(post_zone, self._ctx, self._self_ref, self._reagent, self._flow)
                 self._emit_trace("ActionFinished", {"stateId": result["targetStateId"], "zone": "postReceive"})
         self._ctx.pop("msg", None)
 
         self._current_state_id = result["targetStateId"]
         self._current_state_id = self._follow_default()
+
+    async def _handle_invoke(self, state: dict[str, Any]) -> None:
+        data = state["data"]
+        self._emit_trace("InvokeStarted", {"stateId": state["id"], "protocolName": data["protocolName"]})
+        if not self._invoke_callback:
+            raise RuntimeError(f"invoke for protocol '{data['protocolName']}' but no invoke_callback set")
+        import re
+        input_expr = data.get("input", "{}")
+        translated = re.sub(r'\$ctx\b', 'ctx', input_expr)
+        translated = re.sub(r'\$self\b', 'self_state', translated)
+        translated = re.sub(r'\$flow\b', 'flow', translated)
+        try:
+            input_value = eval(translated, {"__builtins__": {}}, {
+                "ctx": self._ctx, "self_state": self._self_ref, "flow": self._flow,
+            })
+        except Exception:
+            input_value = {}
+        result = await self._invoke_callback(data["protocolName"], input_value)
+        if data.get("resultTarget"):
+            self._assign_target(data["resultTarget"], result)
+        self._emit_trace("InvokeCompleted", {"stateId": state["id"], "protocolName": data["protocolName"]})
+
+    async def _handle_spawn_state(self, state: dict[str, Any]) -> None:
+        data = state["data"]
+        self._emit_trace("Spawned", {"stateId": state["id"], "protocolName": data["protocolName"]})
+        if not self._spawn_callback:
+            return
+        import re
+        input_expr = data.get("input", "{}")
+        translated = re.sub(r'\$ctx\b', 'ctx', input_expr)
+        translated = re.sub(r'\$self\b', 'self_state', translated)
+        translated = re.sub(r'\$flow\b', 'flow', translated)
+        try:
+            input_value = eval(translated, {"__builtins__": {}}, {
+                "ctx": self._ctx, "self_state": self._self_ref, "flow": self._flow,
+            })
+        except Exception:
+            input_value = {}
+        self._spawn_callback(data["protocolName"], input_value)
+
+    async def _handle_scatter(self, state: dict[str, Any]) -> None:
+        data = state["data"]
+        self._emit_trace("ScatterStarted", {"stateId": state["id"], "collection": data["collection"], "itemRole": data["itemRole"]})
+        import re
+        coll_expr = data["collection"]
+        translated = re.sub(r'\$ctx\b', 'ctx', coll_expr)
+        translated = re.sub(r'\$self\b', 'self_state', translated)
+        translated = re.sub(r'\$flow\b', 'flow', translated)
+        try:
+            coll = eval(translated, {"__builtins__": {}}, {
+                "ctx": self._ctx, "self_state": self._self_ref, "flow": self._flow,
+            })
+        except Exception:
+            coll = []
+        if not isinstance(coll, list) or len(coll) == 0:
+            self._emit_trace("ScatterCompleted", {"stateId": state["id"], "count": 0})
+            join_id = self._find_join_for_fork(state["id"])
+            if join_id:
+                self._current_state_id = join_id
+                self._current_state_id = self._follow_default()
+            else:
+                self._current_state_id = self._follow_default()
+            return
+        join_id = self._find_join_for_fork(state["id"])
+        branch_start_id = data["branchStartIds"][0]
+
+        async def run_branch() -> None:
+            current = branch_start_id
+            while True:
+                if join_id and current == join_id:
+                    return
+                st = self._state_map.get(current)
+                if not st:
+                    raise RuntimeError(f"State {current} not found in scatter branch")
+                k = st["data"]["kind"]
+                if k == "send":
+                    await self._handle_send(st)
+                    current = self._follow_default_from(current)
+                elif k == "receive":
+                    await self._handle_receive(st)
+                    current = self._follow_default_from(current)
+                elif k == "action":
+                    await self._handle_action(st)
+                    current = self._follow_default_from(current)
+                elif k == "timer":
+                    await self._handle_timer(st)
+                    current = self._follow_default_from(current)
+                else:
+                    current = self._follow_default_from(current)
+
+        tasks = [run_branch() for _ in coll]
+        await asyncio.gather(*tasks)
+        self._emit_trace("ScatterCompleted", {"stateId": state["id"], "count": len(coll)})
+        if join_id:
+            self._current_state_id = join_id
+            self._current_state_id = self._follow_default()
+        else:
+            self._current_state_id = self._follow_default()
+
+    def _assign_target(self, target: str, value: Any) -> None:
+        if target.startswith("$flow."):
+            key = target[6:]
+            self._flow[key] = value
+        elif target.startswith("$ctx."):
+            key = target[5:]
+            self._ctx[key] = value
+
+    def _find_loop_exit(self, from_state_id: str) -> str | None:
+        visited: set[str] = set()
+        queue = [from_state_id]
+        while queue:
+            sid = queue.pop(0)
+            if sid in visited:
+                continue
+            visited.add(sid)
+            for t in self._graph["transitions"]:
+                if t["to"] == sid:
+                    source = self._state_map.get(t["from"])
+                    if source and source["data"]["kind"] == "guard" and source["data"].get("guardType") == "expression":
+                        from_trans = self._transitions_from.get(t["from"], [])
+                        else_t = next((tr for tr in from_trans if tr["label"]["kind"] == "else"), None)
+                        if else_t:
+                            return else_t["to"]
+                    queue.append(t["from"])
+        return None
 
     async def _handle_timer(self, state: dict[str, Any]) -> None:
         data = state["data"]
@@ -587,13 +756,15 @@ class ProtocolInstance:
         raise RuntimeError(f"No outgoing transition from state {state_id}")
 
     def _eval_expr(self, expr: str) -> Any:
-        """Evaluate a guard expression with $ctx and $self in scope."""
+        """Evaluate a guard expression with $ctx, $self, $flow in scope."""
         import re
         translated = re.sub(r'\$ctx\b', 'ctx', expr)
         translated = re.sub(r'\$self\b', 'self_state', translated)
+        translated = re.sub(r'\$flow\b', 'flow', translated)
         return eval(translated, {"__builtins__": {}}, {
             "ctx": self._ctx,
             "self_state": self._self_ref,
+            "flow": self._flow,
         })
 
     def _find_first_receive_in_branch(self, state_id: str) -> str | None:
@@ -672,17 +843,22 @@ class ProtocolInstance:
 
 
 def _expression_vars_are_defined(
-    expr: str, ctx: dict[str, Any], self_state: dict[str, Any]
+    expr: str, ctx: dict[str, Any], self_state: dict[str, Any], flow: dict[str, Any] | None = None
 ) -> bool:
     import re
     ctx_refs = re.findall(r'\$ctx\.(\w+)', expr)
     self_refs = re.findall(r'\$self\.(\w+)', expr)
+    flow_refs = re.findall(r'\$flow\.(\w+)', expr)
     for prop in ctx_refs:
         if prop not in ctx:
             return False
     for prop in self_refs:
         if prop not in self_state:
             return False
+    if flow is not None:
+        for prop in flow_refs:
+            if prop not in flow:
+                return False
     return True
 
 

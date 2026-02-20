@@ -45,7 +45,8 @@
         "to": "responder",
         "arrow": "-->",
         "messageName": "Ping",
-        "preSendZone": "\n        $ctx.msg.seq = $ctx.iteration\n      "
+        "preSendZone": "\n        $ctx.msg.seq = $ctx.iteration\n      ",
+        "propagateFlow": true
       }
     },
     {
@@ -56,7 +57,8 @@
         "from": "responder",
         "arrow": "-->",
         "messageName": "Pong",
-        "postReceiveZone": "\n        $ctx.lastPong = $ctx.msg.data\n      "
+        "postReceiveZone": "\n        $ctx.lastPong = $ctx.msg.data\n      ",
+        "propagateFlow": true
       }
     },
     {
@@ -69,13 +71,13 @@
           "unit": "ms",
           "loc": {
             "start": {
-              "index": 1206,
-              "line": 54,
+              "index": 939,
+              "line": 46,
               "col": 10
             },
             "end": {
-              "index": 1210,
-              "line": 54,
+              "index": 943,
+              "line": 46,
               "col": 14
             }
           }
@@ -98,7 +100,8 @@
         "to": "responder",
         "arrow": "-->",
         "messageName": "Done",
-        "preSendZone": "\n      $ctx.msg.totalIterations = $ctx.iteration\n    "
+        "preSendZone": "\n      $ctx.msg.totalIterations = $ctx.iteration\n    ",
+        "propagateFlow": true
       }
     },
     {

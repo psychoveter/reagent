@@ -1,14 +1,5 @@
 // Example 09: invoke a multi-party child protocol
-//
-// Requirement: invoked protocol can have multiple participants (comma + sia),
-// and is invoked from a parent protocol that has its own participants (user + comma + sia).
-//
-// Semantics:
-// - reagent.invoke() is zone-only: comma invokes the child, so comma is the implicit invoker.
-// - The child protocol runs comma ↔ sia interaction internally.
-// - Parent routes result via $ctx and messages.
-//
-// Note: no protocol-level `if/else`. Condition branching happens inside agent zone.
+// Uses protocol-level `invoke` with role mapping for multi-party child.
 
 message TaskRequest {}
 message Done {}
@@ -22,25 +13,19 @@ protocol TaskExecutionWithMultipartyChild {
   input: TaskRequest
 
   user {
-    $ctx.taskText = $ctx.input.text
+    $flow.taskText = $ctx.input.text
   }
   user --> comma: TaskRequest = { }
 
   comma {
-    $ctx.intent = taskToDsiBsi($ctx.taskText)
-    $ctx.validation = reagent.invoke(v.ValidateIntentWithSia, { sia: sia }, { intent: $ctx.intent })
+    $flow.intent = taskToDsiBsi($flow.taskText)
   }
 
-  // Condition branching is inside agent zone; result is communicated via messages.
-  comma {
-    if ($ctx.validation.ok) {
-      $ctx.outcome = "done"
-    } else {
-      $ctx.outcome = "failed"
-    }
-  }
+  invoke v.ValidateIntentWithSia({ intent: $flow.intent }) as comma {
+    sia: sia
+  } -> $flow.validation
 
-  alt ($ctx.outcome == "done") {
+  alt ($flow.validation.ok == true) {
     comma --> user: Done = { }
   } else {
     comma --> user: Failed = { }

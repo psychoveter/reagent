@@ -55,6 +55,11 @@ class ReturnValue(Exception):
         super().__init__(f"ReturnValue({value})")
 
 
+class BreakRequest(Exception):
+    """Sentinel thrown when a zone calls reagent.break()."""
+    pass
+
+
 class ReagentStub:
     """Stub for the `reagent` object available in zone code.
     spawn and emit are set by ProtocolInstance to bound callbacks."""
@@ -71,12 +76,17 @@ class ReagentStub:
     def return_value(self, value: Any) -> None:
         raise ReturnValue(value)
 
+    def break_loop(self) -> None:
+        raise BreakRequest()
+
 
 def _translate_dollar_vars(body: str) -> str:
-    """Replace $ctx/$self with Python-safe names, and reagent.return() with reagent.return_value()."""
+    """Replace $ctx/$self/$flow with Python-safe names, and reagent.return/break with Python methods."""
     body = re.sub(r'\$ctx\b', 'ctx', body)
     body = re.sub(r'\$self\b', 'self_state', body)
+    body = re.sub(r'\$flow\b', 'flow', body)
     body = re.sub(r'reagent\.return\b', 'reagent.return_value', body)
+    body = re.sub(r'reagent\.break\b', 'reagent.break_loop', body)
     return body
 
 
@@ -91,25 +101,28 @@ def execute_zone(
     ctx: dict[str, Any],
     self_state: dict[str, Any],
     reagent: ReagentStub,
+    flow: dict[str, Any] | None = None,
     extras: dict[str, Any] | None = None,
 ) -> bool:
-    """Execute a zone body string with ctx, self_state, reagent in scope.
-    Raises on error (propagates to try/catch routing in ProtocolInstance)."""
+    """Execute a zone body string with ctx, self_state, flow, reagent in scope."""
     translated = _dedent(_translate_dollar_vars(body))
 
     ctx_wrapper = AttrDict(ctx) if not isinstance(ctx, AttrDict) else ctx
     self_wrapper = AttrDict(self_state) if not isinstance(self_state, AttrDict) else self_state
+    flow_wrapper = AttrDict(flow if flow is not None else {}) if not isinstance(flow, AttrDict) else flow
 
     namespace: dict[str, Any] = {
         "ctx": ctx_wrapper,
         "self_state": self_wrapper,
+        "flow": flow_wrapper,
         "reagent": reagent,
     }
     if extras:
         namespace.update(extras)
     exec(translated, {"__builtins__": __builtins__}, namespace)
 
-    # Sync changes back to original dicts
     ctx.update(ctx_wrapper)
     self_state.update(self_wrapper)
+    if flow is not None:
+        flow.update(flow_wrapper)
     return True

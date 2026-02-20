@@ -11,20 +11,24 @@ import type { ReagentTransport } from "./transport.js";
 import type { AgentNode, AgentHandle } from "./agent-node.js";
 import { AgentRunner } from "./agent-runner.js";
 import type { TraceHook } from "./interceptor.js";
+import type { AdvanceHook } from "./protocol-instance.js";
 
 export interface NativeAgentNodeConfig {
   roleToAgent: Record<string, string>;
   traceHook?: TraceHook;
+  advanceHook?: AdvanceHook;
 }
 
 export class NativeAgentNode implements AgentNode {
   readonly runtimeName = "native-ts";
   private roleToAgent: Record<string, string>;
   private traceHook?: TraceHook;
+  private advanceHook?: AdvanceHook;
 
   constructor(config: NativeAgentNodeConfig) {
     this.roleToAgent = config.roleToAgent;
     this.traceHook = config.traceHook;
+    this.advanceHook = config.advanceHook;
   }
 
   createAgent(
@@ -48,6 +52,7 @@ export class NativeAgentNode implements AgentNode {
       transport,
       roleToAgent: this.roleToAgent,
       traceHook: this.traceHook,
+      advanceHook: this.advanceHook,
     });
 
     return new NativeAgentHandle(agentName, runner);

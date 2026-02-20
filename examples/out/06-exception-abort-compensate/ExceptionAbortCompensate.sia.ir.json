@@ -17,7 +17,8 @@
         "kind": "receive",
         "from": "comma",
         "arrow": "-->",
-        "messageName": "SubmitIntent"
+        "messageName": "SubmitIntent",
+        "propagateFlow": true
       }
     },
     {
@@ -27,7 +28,8 @@
         "kind": "send",
         "to": "comma",
         "arrow": "-->",
-        "messageName": "Accepted"
+        "messageName": "Accepted",
+        "propagateFlow": true
       }
     },
     {

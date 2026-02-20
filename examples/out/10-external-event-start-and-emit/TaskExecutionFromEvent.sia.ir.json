@@ -17,7 +17,8 @@
         "kind": "receive",
         "from": "comma",
         "arrow": "-->",
-        "messageName": "SubmitIntent"
+        "messageName": "SubmitIntent",
+        "propagateFlow": true
       }
     },
     {

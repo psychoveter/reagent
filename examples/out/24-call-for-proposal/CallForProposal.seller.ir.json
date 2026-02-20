@@ -1,0 +1,244 @@
+{
+  "protocolName": "CallForProposal",
+  "role": "seller",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_16",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "scatter_fork_17",
+      "kind": "scatter",
+      "data": {
+        "kind": "scatter",
+        "collection": "$flow.candidates",
+        "itemRole": "seller",
+        "branchStartIds": [
+          "scatter_entry_19"
+        ]
+      }
+    },
+    {
+      "id": "scatter_entry_19",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "recv_20",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "buyer",
+        "arrow": "-->",
+        "messageName": "CFP",
+        "postReceiveZone": "\n        $ctx.spec = $ctx.msg.spec\n      ",
+        "propagateFlow": true
+      }
+    },
+    {
+      "id": "act_21",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n      $ctx.canFulfill = evaluate($ctx.spec)\n    ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "xor_22",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "xor"
+      }
+    },
+    {
+      "id": "guard_24",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression",
+        "expr": "$ctx.canFulfill == true"
+      }
+    },
+    {
+      "id": "send_25",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "buyer",
+        "arrow": "-->",
+        "messageName": "Propose",
+        "preSendZone": "\n          $ctx.msg.price = $ctx.price\n          $ctx.msg.sellerId = $ctx.msg.sellerId\n        ",
+        "propagateFlow": true
+      }
+    },
+    {
+      "id": "else_26",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "send_27",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "buyer",
+        "arrow": "-->",
+        "messageName": "Refuse",
+        "propagateFlow": true
+      }
+    },
+    {
+      "id": "merge_23",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "scatter_join_18",
+      "kind": "join",
+      "data": {
+        "kind": "join",
+        "branchCount": 1
+      }
+    },
+    {
+      "id": "recv_28",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "buyer",
+        "arrow": "-->",
+        "messageName": "Accept",
+        "propagateFlow": true
+      }
+    },
+    {
+      "id": "end_29",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_16",
+      "to": "scatter_fork_17",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "scatter_fork_17",
+      "to": "scatter_entry_19",
+      "label": {
+        "kind": "branch",
+        "branchIndex": 0
+      }
+    },
+    {
+      "from": "scatter_entry_19",
+      "to": "recv_20",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_20",
+      "to": "act_21",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_21",
+      "to": "xor_22",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_22",
+      "to": "guard_24",
+      "label": {
+        "kind": "expression",
+        "expr": "$ctx.canFulfill == true"
+      }
+    },
+    {
+      "from": "guard_24",
+      "to": "send_25",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_25",
+      "to": "merge_23",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_22",
+      "to": "else_26",
+      "label": {
+        "kind": "else"
+      }
+    },
+    {
+      "from": "else_26",
+      "to": "send_27",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_27",
+      "to": "merge_23",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "merge_23",
+      "to": "scatter_join_18",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "scatter_join_18",
+      "to": "recv_28",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_28",
+      "to": "end_29",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_16",
+  "terminalStateIds": [
+    "end_29"
+  ]
+}

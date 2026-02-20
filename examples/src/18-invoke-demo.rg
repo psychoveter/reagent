@@ -1,8 +1,5 @@
-// Example 18: child protocol invocation (reagent.invoke / reagent.return)
-//
-// ResponderRole invokes a child protocol (ComputeSquare) via reagent.invoke().
-// ComputeSquare is a single-agent protocol that computes the square of input
-// and returns via reagent.return(). The parent receives the value synchronously.
+// Example 18: child protocol invocation (protocol-level invoke / reagent.return)
+// Uses protocol-level invoke instead of zone-level reagent.invoke().
 
 message ComputeRequest {}
 message ComputeResult {}
@@ -23,24 +20,22 @@ protocol InvokeDemo {
   initiator: caller
 
   caller {
-    $ctx.value = 7
+    $flow.value = 7
   }
   caller --> responder: ComputeRequest = {
     onSend {
-      $ctx.msg.value = $ctx.value
+      $ctx.msg.value = $flow.value
     }
     onReceive {
       $ctx.receivedValue = $ctx.msg.value
     }
   }
 
-  responder {
-    $ctx.squared = reagent.invoke("ComputeSquare", { value: $ctx.receivedValue })
-  }
+  invoke ComputeSquare({ value: $ctx.receivedValue }) as responder -> $flow.squared
 
   responder --> caller: ComputeResult = {
     onSend {
-      $ctx.msg.squared = $ctx.squared
+      $ctx.msg.squared = $flow.squared
     }
     onReceive {
       $self.lastResult = $ctx.msg.squared

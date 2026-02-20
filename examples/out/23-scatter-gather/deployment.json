@@ -1,0 +1,47 @@
+{
+  "agents": [
+    {
+      "agentName": "CoordinatorAgent",
+      "lang": "ts",
+      "roleName": "CoordinatorRole",
+      "agentIRFile": "CoordinatorAgent.agent.json",
+      "roleIRFile": "CoordinatorRole.role.json",
+      "roles": [
+        {
+          "protocolName": "ScatterGather",
+          "roleName": "coordinator",
+          "irGraphFile": "ScatterGather.coordinator.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "WorkerAgent",
+      "lang": "ts",
+      "roleName": "WorkerRole",
+      "agentIRFile": "WorkerAgent.agent.json",
+      "roleIRFile": "WorkerRole.role.json",
+      "roles": [
+        {
+          "protocolName": "ScatterGather",
+          "roleName": "worker",
+          "irGraphFile": "ScatterGather.worker.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "ScatterGather.coordinator": "CoordinatorAgent",
+    "ScatterGather.worker": "WorkerAgent"
+  },
+  "roles": [
+    {
+      "name": "CoordinatorRole",
+      "file": "CoordinatorRole.role.json"
+    },
+    {
+      "name": "WorkerRole",
+      "file": "WorkerRole.role.json"
+    }
+  ],
+  "messages": "messages.json"
+}

@@ -1,12 +1,5 @@
 // Example 17: try/catch demo for runtime E2E tests
-//
-// Tests:
-//   T11: Zone throws → catch block executes → protocol completes
-//   T12: No error → try body completes normally, catch skipped
-//
-// Protocol: sender sends a request to processor.
-// If input says "fail", processor throws in the try body.
-// Catch block sends a Failure message. Otherwise normal Result message.
+// Data crosses roles via $ctx.msg (onSend/onReceive). $ctx is per-role.
 
 message Request {}
 message Result {}
@@ -18,12 +11,12 @@ protocol TryCatchDemo {
   input: Request
 
   sender {
-    $ctx.requestText = $ctx.input.text
+    $flow.requestText = $ctx.input.text
   }
 
   sender --> processor: Request = {
     onSend {
-      $ctx.msg.text = $ctx.requestText
+      $ctx.msg.text = $flow.requestText
     }
     onReceive {
       $ctx.requestText = $ctx.msg.text

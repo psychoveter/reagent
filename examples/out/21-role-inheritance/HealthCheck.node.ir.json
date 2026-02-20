@@ -17,7 +17,8 @@
         "kind": "receive",
         "from": "monitor",
         "arrow": "-->",
-        "messageName": "Ping"
+        "messageName": "Ping",
+        "propagateFlow": true
       }
     },
     {
@@ -28,7 +29,8 @@
         "to": "monitor",
         "arrow": "-->",
         "messageName": "Pong",
-        "preSendZone": "\n      $ctx.msg.healthy = $self.healthy\n      $ctx.msg.uptime = $self.uptime\n    "
+        "preSendZone": "\n      $ctx.msg.healthy = $self.healthy\n      $ctx.msg.uptime = $self.uptime\n    ",
+        "propagateFlow": true
       }
     },
     {

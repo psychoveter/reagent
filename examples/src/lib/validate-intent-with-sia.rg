@@ -1,7 +1,6 @@
 // Library protocol: multi-party child protocol (comma ↔ sia)
-//
-// Intent: comma asks sia to validate an intent; sia replies OK or Error.
-// This protocol is meant to be *invoked* from a parent protocol.
+// Comma asks sia to validate an intent; sia replies OK or Error.
+// Uses `where` for alt guard pattern matching.
 
 message ValidateIntent {}
 message ValidationOk {}
@@ -14,13 +13,13 @@ protocol ValidateIntentWithSia {
 
   comma --> sia: ValidateIntent = {
     onSend {
-      $ctx.msg.ref = $ctx.intent
+      $ctx.msg.ref = $flow.intent
     }
   }
 
-  alt (sia --> comma: ValidationOk = { }) {
+  alt (sia --> comma: ValidationOk) {
     comma { $ctx.validation = { ok: true } }
-  } else (sia --> comma: ValidationError = { }) {
+  } else (sia --> comma: ValidationError) {
     comma { $ctx.validation = { ok: false, error: $ctx.msg } }
   }
 

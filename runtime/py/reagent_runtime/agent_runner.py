@@ -33,6 +33,7 @@ class AgentRunner:
             self._transport = NatsTransport(config["natsUrl"])
             self._is_nats = True
 
+        self._advance_hook = config.get("advanceHook")
         self._self: dict[str, Any] = {}
         self._instances: dict[str, ProtocolInstance] = {}
         self._completed_count = 0
@@ -159,6 +160,7 @@ class AgentRunner:
             "roleName": binding["roleName"],
             "roleToAgent": rta,
             "input": input_data,
+            "advanceHook": self._advance_hook,
         }
 
         instance = ProtocolInstance(graph, self._transport, self._self, config)

@@ -9,7 +9,9 @@ protocol TaskExecutionLegacy {
   initiator: user
   input: TaskRequest
 
-  user { $ctx.taskText = $ctx.input.text }
+  user {
+    $flow.taskText = $ctx.input.text
+  }
   user --> comma: TaskRequest = { }
 
   comma --> user: Greeting = {
@@ -19,13 +21,12 @@ protocol TaskExecutionLegacy {
   }
 
   comma {
-    const dsiBsi = taskToDsiBsi($ctx.taskText)
-    $ctx.dsiBsi = dsiBsi
+    $flow.dsiBsi = taskToDsiBsi($flow.taskText)
   }
 
   comma --> sia: SubmitIntent = {
     onSend {
-      $ctx.msg.ref = $ctx.dsiBsi
+      $ctx.msg.ref = $flow.dsiBsi
     }
     onReceive {
       $ctx.intent = $ctx.msg.ref

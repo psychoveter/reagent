@@ -11,6 +11,9 @@ import {
   registerDefinitionDelegation,
   setupDiagnosticForwarding,
 } from './embeddedLanguageMiddleware';
+import { ReagentDebugAdapterFactory } from './reagentDebugAdapter';
+import { ReagentDebugPanelProvider } from './debugPanelProvider';
+import { ReagentInlineValues } from './inlineValues';
 
 export function activate(context: vscode.ExtensionContext): void {
   const outputChannel = vscode.window.createOutputChannel('Reagent Language');
@@ -91,6 +94,66 @@ export function activate(context: vscode.ExtensionContext): void {
       ensureVirtualDocsForReagentFile(doc);
     }
   }
+
+  // ── Debug adapter ───────────────────────────────────────────────
+  const debugAdapterFactory = new ReagentDebugAdapterFactory();
+  context.subscriptions.push(
+    vscode.debug.registerDebugAdapterDescriptorFactory('reagent', debugAdapterFactory)
+  );
+
+  // ── Debug panel webview ────────────────────────────────────────
+  const debugPanelProvider = new ReagentDebugPanelProvider(context.extensionUri);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      ReagentDebugPanelProvider.viewType,
+      debugPanelProvider
+    )
+  );
+
+  // ── Inline value decorations ───────────────────────────────────
+  const inlineValues = new ReagentInlineValues();
+  context.subscriptions.push(inlineValues);
+
+  context.subscriptions.push(
+    vscode.debug.onDidTerminateDebugSession(() => {
+      inlineValues.clearDecorations();
+      debugPanelProvider.clear();
+    })
+  );
+
+  // ── Commands ───────────────────────────────────────────────────
+  context.subscriptions.push(
+    vscode.commands.registerCommand('reagent.startDebug', async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || editor.document.languageId !== 'reagent') {
+        vscode.window.showWarningMessage('Open a .rg file first');
+        return;
+      }
+      await vscode.debug.startDebugging(undefined, {
+        type: 'reagent',
+        request: 'launch',
+        name: 'Debug Reagent Protocol',
+        rgFile: editor.document.uri.fsPath,
+      });
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('reagent.showTraceTimeline', () => {
+      vscode.commands.executeCommand('reagentDebugPanel.focus');
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('reagent.inspectAgent', async () => {
+      const agentName = await vscode.window.showInputBox({
+        prompt: 'Agent name to inspect',
+        placeHolder: 'e.g. handler',
+      });
+      if (!agentName) return;
+      outputChannel.appendLine(`Inspect agent: ${agentName} — use Debug panel`);
+    })
+  );
 
   outputChannel.appendLine('Reagent Language extension activated.');
 }

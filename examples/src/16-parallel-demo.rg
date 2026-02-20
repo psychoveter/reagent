@@ -1,11 +1,6 @@
 // Example 16: par (parallel branches) demo for runtime E2E tests
-//
-// Tests:
-//   T9: Two parallel branches both complete, join fires once
-//   T10: Parallel branches interact with different agents
-//
-// Protocol: coordinator sends tasks to two workers in parallel,
-// waits for both to complete (join), then sends a summary.
+// $flow carries results back from workers to coordinator.
+// $ctx is per-role: each worker has its own $ctx.taskLabel, $ctx.resultA/B.
 
 message TaskA {}
 message TaskB {}
@@ -49,7 +44,7 @@ protocol ParDemo {
         $ctx.msg.result = $ctx.resultA
       }
       onReceive {
-        $ctx.resultA = $ctx.msg.result
+        $flow.resultA = $ctx.msg.result
       }
     }
   } and {
@@ -62,24 +57,24 @@ protocol ParDemo {
         $ctx.msg.result = $ctx.resultB
       }
       onReceive {
-        $ctx.resultB = $ctx.msg.result
+        $flow.resultB = $ctx.msg.result
       }
     }
   }
 
   coordinator {
-    $ctx.summary = $ctx.resultA + "+" + $ctx.resultB
+    $flow.summary = $flow.resultA + "+" + $flow.resultB
     $self.protocolsCoordinated = ($self.protocolsCoordinated || 0) + 1
   }
 
   coordinator --> workerA: Summary = {
     onSend {
-      $ctx.msg.text = $ctx.summary
+      $ctx.msg.text = $flow.summary
     }
   }
   coordinator --> workerB: Summary = {
     onSend {
-      $ctx.msg.text = $ctx.summary
+      $ctx.msg.text = $flow.summary
     }
   }
 }

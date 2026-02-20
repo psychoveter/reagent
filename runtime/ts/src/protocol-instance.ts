@@ -18,9 +18,20 @@ import {
   createMessageEnvelope,
   createTraceEvent,
 } from "./types.js";
-import { executeZone, InvokeRequest, ReturnValue, type ReagentStub } from "./zone-executor.js";
+import { executeZone, InvokeRequest, ReturnValue, BreakRequest, type ReagentStub } from "./zone-executor.js";
 import type { ReagentTransport } from "./transport.js";
 import type { TraceHook } from "./interceptor.js";
+
+export interface AdvanceHookContext {
+  instanceId: string;
+  agentName: string;
+  stateId: string;
+  stateKind: string;
+  ctx: Record<string, unknown>;
+  self: Record<string, unknown>;
+}
+
+export type AdvanceHook = (ctx: AdvanceHookContext) => Promise<void>;
 
 export type InstanceConfig = {
   instanceId: string;
@@ -30,6 +41,7 @@ export type InstanceConfig = {
   roleToAgent: Record<string, string>;
   input?: Record<string, unknown>;
   traceHook?: TraceHook;
+  advanceHook?: AdvanceHook;
 };
 
 export type InstanceStatus = "running" | "completed" | "failed";
@@ -45,6 +57,7 @@ export class ProtocolInstance {
   private config: InstanceConfig;
 
   private ctx: Record<string, unknown>;
+  private flow: Record<string, unknown>;
   private selfRef: Record<string, unknown>;
   private reagent: ReagentStub;
 
@@ -55,6 +68,7 @@ export class ProtocolInstance {
   private status: InstanceStatus = "running";
   private messageResolvers: Map<string, (env: MessageEnvelope) => void> = new Map();
   private xorResolvers: Map<string, { messageName: string; resolve: (env: MessageEnvelope) => void }[]> = new Map();
+  private messageInbox: MessageEnvelope[] = [];
   /** Maps try-entry state IDs to their catch (error) target state ID */
   private tryCatchMap: Map<string, string> = new Map();
   /** Stack of active catch targets (for nested try/catch) */
@@ -89,6 +103,7 @@ export class ProtocolInstance {
     this.roleName = config.roleName;
 
     this.ctx = {};
+    this.flow = {};
     if (config.input) {
       this.ctx.input = config.input;
     }
@@ -160,6 +175,9 @@ export class ProtocolInstance {
         this.emitCallback?.(eventName, data);
         this.emitTrace("EventEmitted", { eventName, data });
       },
+      break: () => {
+        throw new BreakRequest();
+      },
     };
   }
 
@@ -182,6 +200,10 @@ export class ProtocolInstance {
     if (resolver) {
       this.messageResolvers.delete(key);
       resolver(env);
+    } else {
+      // Buffer for later — the receive state may not have registered yet
+      // (common with synchronous loopback transport + par branches)
+      this.messageInbox.push(env);
     }
   }
 
@@ -203,6 +225,17 @@ export class ProtocolInstance {
       const state = this.stateMap.get(this.currentStateId);
       if (!state) {
         throw new Error(`State ${this.currentStateId} not found`);
+      }
+
+      if (this.config.advanceHook) {
+        await this.config.advanceHook({
+          instanceId: this.instanceId,
+          agentName: this.config.agentName,
+          stateId: state.id,
+          stateKind: state.data.kind,
+          ctx: { ...this.ctx },
+          self: { ...this.selfRef },
+        });
       }
 
       // Track try/catch scopes: if this state has an error transition, push catch target
@@ -265,6 +298,20 @@ export class ProtocolInstance {
             this.currentStateId = this.followDefault();
             break;
 
+          case "invoke":
+            await this.handleInvoke(state);
+            this.currentStateId = this.followDefault();
+            break;
+
+          case "spawn":
+            await this.handleSpawn(state);
+            this.currentStateId = this.followDefault();
+            break;
+
+          case "scatter":
+            await this.handleScatter(state);
+            break;
+
           case "terminal":
             this.status = state.data.status === "completed" ? "completed" : "failed";
             this.emitTrace(
@@ -288,6 +335,15 @@ export class ProtocolInstance {
           this.onComplete?.("completed");
           return;
         }
+        if (err instanceof BreakRequest) {
+          this.emitTrace("ActionFinished", { stateId: state.id, breakRequested: true });
+          const exitId = this.findLoopExit(state.id);
+          if (exitId) {
+            this.currentStateId = exitId;
+            continue;
+          }
+          throw new Error("reagent.break() called outside of a loop");
+        }
         // Zone threw an error — route to catch block if inside a try scope
         if (this.catchStack.length > 0) {
           const catchId = this.catchStack.pop()!;
@@ -307,13 +363,13 @@ export class ProtocolInstance {
   }
 
   private async handleSend(state: IRState): Promise<void> {
-    const data = state.data as { kind: "send"; to: string; messageName: string; preSendZone?: string };
+    const data = state.data as { kind: "send"; to: string; messageName: string; preSendZone?: string; propagateFlow?: boolean };
 
     this.ctx.msg = {};
 
     if (data.preSendZone) {
       this.emitTrace("ActionStarted", { stateId: state.id, zone: "preSend" });
-      executeZone(data.preSendZone, this.ctx, this.selfRef, this.reagent);
+      executeZone(data.preSendZone, this.ctx, this.selfRef, this.reagent, this.flow);
       this.emitTrace("ActionFinished", { stateId: state.id, zone: "preSend" });
     }
 
@@ -325,6 +381,8 @@ export class ProtocolInstance {
       throw new Error(`Cannot resolve agent for role ${data.to} in protocol ${this.protocolName}`);
     }
 
+    const flowSnapshot = data.propagateFlow ? structuredClone(this.flow) : undefined;
+
     const env = createMessageEnvelope(
       this.instanceId,
       this.protocolName,
@@ -334,6 +392,7 @@ export class ProtocolInstance {
       data.to,
       data.messageName,
       payload,
+      flowSnapshot,
     );
 
     this.emitTrace("MessageSent", {
@@ -348,7 +407,7 @@ export class ProtocolInstance {
   }
 
   private async handleReceive(state: IRState): Promise<void> {
-    const data = state.data as { kind: "receive"; from: string; messageName: string; postReceiveZone?: string };
+    const data = state.data as { kind: "receive"; from: string; messageName: string; postReceiveZone?: string; propagateFlow?: boolean };
 
     const env = await this.waitForMessage(data.messageName);
 
@@ -358,11 +417,15 @@ export class ProtocolInstance {
       fromRole: env.from.role,
     });
 
+    if (data.propagateFlow && env.flow) {
+      Object.assign(this.flow, env.flow);
+    }
+
     this.ctx.msg = env.payload;
 
     if (data.postReceiveZone) {
       this.emitTrace("ActionStarted", { stateId: state.id, zone: "postReceive" });
-      executeZone(data.postReceiveZone, this.ctx, this.selfRef, this.reagent);
+      executeZone(data.postReceiveZone, this.ctx, this.selfRef, this.reagent, this.flow);
       this.emitTrace("ActionFinished", { stateId: state.id, zone: "postReceive" });
     }
 
@@ -373,13 +436,16 @@ export class ProtocolInstance {
     const data = state.data as { kind: "action"; body: string; lang: string };
     this.emitTrace("ActionStarted", { stateId: state.id });
     try {
-      executeZone(data.body, this.ctx, this.selfRef, this.reagent);
+      executeZone(data.body, this.ctx, this.selfRef, this.reagent, this.flow);
     } catch (err) {
       if (err instanceof ReturnValue) {
         this.returnValue = err.value;
         this.hasReturnValue = true;
         this.emitTrace("ActionFinished", { stateId: state.id, returnValue: true });
         return;
+      }
+      if (err instanceof BreakRequest) {
+        throw err;
       }
       if (err instanceof InvokeRequest) {
         if (!this.invokeCallback) {
@@ -390,7 +456,7 @@ export class ProtocolInstance {
           ...this.reagent,
           invoke: () => result,
         };
-        executeZone(data.body, this.ctx, this.selfRef, cachedReagent);
+        executeZone(data.body, this.ctx, this.selfRef, cachedReagent, this.flow);
         this.emitTrace("ActionFinished", { stateId: state.id, invoked: err.protoName });
         return;
       }
@@ -409,12 +475,11 @@ export class ProtocolInstance {
       const msgTransitions = transitions.filter(t => t.label.kind === "message");
 
       if (exprTransitions.length > 0) {
-        // Try evaluating expressions
         let anyEvalSucceeded = false;
         for (const t of exprTransitions) {
           const expr = (t.label as { kind: "expression"; expr: string }).expr;
           try {
-            const result = new Function("$ctx", "$self", `return (${expr})`)(this.ctx, this.selfRef);
+            const result = new Function("$ctx", "$self", "$flow", `return (${expr})`)(this.ctx, this.selfRef, this.flow);
             anyEvalSucceeded = true;
             if (result) {
               this.emitTrace("GuardEvaluated", { expr, result: true });
@@ -476,16 +541,18 @@ export class ProtocolInstance {
           // Execute postReceiveZone if present on the matched receive state
           const recvState = this.stateMap.get(result.targetStateId);
           if (recvState && recvState.data.kind === "receive") {
-            const recvData = recvState.data as { kind: "receive"; postReceiveZone?: string };
+            const recvData = recvState.data as { kind: "receive"; postReceiveZone?: string; propagateFlow?: boolean };
+            if (recvData.propagateFlow && result.env.flow) {
+              Object.assign(this.flow, result.env.flow);
+            }
             if (recvData.postReceiveZone) {
               this.emitTrace("ActionStarted", { stateId: result.targetStateId, zone: "postReceive" });
-              executeZone(recvData.postReceiveZone, this.ctx, this.selfRef, this.reagent);
+              executeZone(recvData.postReceiveZone, this.ctx, this.selfRef, this.reagent, this.flow);
               this.emitTrace("ActionFinished", { stateId: result.targetStateId, zone: "postReceive" });
             }
           }
           delete this.ctx.msg;
 
-          // Advance past the receive state to next
           this.currentStateId = result.targetStateId;
           this.currentStateId = this.followDefault();
           await this.advance();
@@ -522,9 +589,9 @@ export class ProtocolInstance {
       let canDecide = true;
       try {
         // Check if this agent can actually decide: all $ctx vars in the expression must be defined
-        canDecide = expressionVarsAreDefined(data.expr, this.ctx, this.selfRef);
+        canDecide = expressionVarsAreDefined(data.expr, this.ctx, this.selfRef, this.flow);
         if (canDecide) {
-          const result = new Function("$ctx", "$self", `return (${data.expr})`)(this.ctx, this.selfRef);
+          const result = new Function("$ctx", "$self", "$flow", `return (${data.expr})`)(this.ctx, this.selfRef, this.flow);
           evalSucceeded = true;
           if (result) {
             if (defaultT) {
@@ -580,10 +647,13 @@ export class ProtocolInstance {
 
           const recvState = this.stateMap.get(result.targetStateId);
           if (recvState?.data.kind === "receive") {
-            const recvData = recvState.data as { kind: "receive"; postReceiveZone?: string };
+            const recvData = recvState.data as { kind: "receive"; postReceiveZone?: string; propagateFlow?: boolean };
+            if (recvData.propagateFlow && result.env.flow) {
+              Object.assign(this.flow, result.env.flow);
+            }
             if (recvData.postReceiveZone) {
               this.emitTrace("ActionStarted", { stateId: result.targetStateId, zone: "postReceive" });
-              executeZone(recvData.postReceiveZone, this.ctx, this.selfRef, this.reagent);
+              executeZone(recvData.postReceiveZone, this.ctx, this.selfRef, this.reagent, this.flow);
               this.emitTrace("ActionFinished", { stateId: result.targetStateId, zone: "postReceive" });
             }
           }
@@ -660,10 +730,13 @@ export class ProtocolInstance {
 
     const matchedState = this.stateMap.get(result.targetStateId);
     if (matchedState?.data.kind === "receive") {
-      const recvData = matchedState.data as { kind: "receive"; postReceiveZone?: string };
+      const recvData = matchedState.data as { kind: "receive"; postReceiveZone?: string; propagateFlow?: boolean };
+      if (recvData.propagateFlow && result.env.flow) {
+        Object.assign(this.flow, result.env.flow);
+      }
       if (recvData.postReceiveZone) {
         this.emitTrace("ActionStarted", { stateId: result.targetStateId, zone: "postReceive" });
-        executeZone(recvData.postReceiveZone, this.ctx, this.selfRef, this.reagent);
+        executeZone(recvData.postReceiveZone, this.ctx, this.selfRef, this.reagent, this.flow);
         this.emitTrace("ActionFinished", { stateId: result.targetStateId, zone: "postReceive" });
       }
     }
@@ -671,6 +744,144 @@ export class ProtocolInstance {
 
     this.currentStateId = result.targetStateId;
     this.currentStateId = this.followDefault();
+  }
+
+  private async handleInvoke(state: IRState): Promise<void> {
+    const data = state.data as { kind: "invoke"; protocolName: string; input: string; roleMapping?: Record<string, string>; resultTarget?: string };
+    this.emitTrace("InvokeStarted", { stateId: state.id, protocolName: data.protocolName });
+
+    if (!this.invokeCallback) {
+      throw new Error(`reagent.invoke() for protocol "${data.protocolName}" but no invokeCallback set`);
+    }
+
+    let inputValue: Record<string, unknown> | undefined;
+    try {
+      inputValue = new Function("$ctx", "$self", "$flow", `return (${data.input})`)(this.ctx, this.selfRef, this.flow) as Record<string, unknown>;
+    } catch {
+      inputValue = {};
+    }
+
+    const result = await this.invokeCallback(data.protocolName, inputValue);
+
+    if (data.resultTarget) {
+      this.assignTarget(data.resultTarget, result);
+    }
+
+    this.emitTrace("InvokeCompleted", { stateId: state.id, protocolName: data.protocolName });
+  }
+
+  private async handleSpawn(state: IRState): Promise<void> {
+    const data = state.data as { kind: "spawn"; protocolName: string; input: string; roleMapping?: Record<string, string> };
+    this.emitTrace("Spawned", { stateId: state.id, protocolName: data.protocolName });
+
+    if (!this.spawnCallback) {
+      console.warn(`reagent.spawn() for protocol "${data.protocolName}" but no spawnCallback set`);
+      return;
+    }
+
+    let inputValue: Record<string, unknown> | undefined;
+    try {
+      inputValue = new Function("$ctx", "$self", "$flow", `return (${data.input})`)(this.ctx, this.selfRef, this.flow) as Record<string, unknown>;
+    } catch {
+      inputValue = {};
+    }
+
+    this.spawnCallback(data.protocolName, inputValue);
+  }
+
+  private async handleScatter(state: IRState): Promise<void> {
+    const data = state.data as { kind: "scatter"; collection: string; itemRole: string; branchStartIds: string[] };
+    this.emitTrace("ScatterStarted", { stateId: state.id, collection: data.collection, itemRole: data.itemRole });
+
+    let list: unknown[];
+    try {
+      list = new Function("$ctx", "$self", "$flow", `return (${data.collection})`)(this.ctx, this.selfRef, this.flow) as unknown[];
+    } catch {
+      list = [];
+    }
+
+    if (!Array.isArray(list) || list.length === 0) {
+      this.emitTrace("ScatterCompleted", { stateId: state.id, count: 0 });
+      const joinId = this.findJoinForFork(state.id);
+      if (joinId) {
+        this.currentStateId = joinId;
+        this.currentStateId = this.followDefault();
+      } else {
+        this.currentStateId = this.followDefault();
+      }
+      return;
+    }
+
+    const joinId = this.findJoinForFork(state.id);
+    const branchStartId = data.branchStartIds[0];
+
+    const branchPromises = list.map(async () => {
+      const branchRunner = new BranchRunner(
+        this.graph,
+        this.transport,
+        this.selfRef,
+        this.config,
+        this.ctx,
+        this.reagent,
+        this.stateMap,
+        this.transitionsFrom,
+        this.messageResolvers,
+        this.xorResolvers,
+        (kind, d) => this.emitTrace(kind, d),
+        this.flow,
+        this.messageInbox,
+      );
+      await branchRunner.runFrom(branchStartId, joinId);
+    });
+
+    await Promise.all(branchPromises);
+    this.emitTrace("ScatterCompleted", { stateId: state.id, count: list.length });
+
+    if (joinId) {
+      this.currentStateId = joinId;
+      this.currentStateId = this.followDefault();
+    } else {
+      this.currentStateId = this.followDefault();
+    }
+  }
+
+  /** Assign a value to a dot-path target like `$flow.dsiBsi` or `$ctx.result` */
+  private assignTarget(target: string, value: unknown): void {
+    if (target.startsWith("$flow.")) {
+      const key = target.slice(6);
+      this.flow[key] = value;
+    } else if (target.startsWith("$ctx.")) {
+      const key = target.slice(5);
+      this.ctx[key] = value;
+    }
+  }
+
+  /**
+   * Walk backwards from a state to find the loop exit (else transition from loop_guard).
+   * Used by reagent.break() to jump out of a loop.
+   */
+  private findLoopExit(fromStateId: string): string | null {
+    const visited = new Set<string>();
+    const queue = [fromStateId];
+    while (queue.length > 0) {
+      const sid = queue.shift()!;
+      if (visited.has(sid)) continue;
+      visited.add(sid);
+      for (const t of this.graph.transitions) {
+        if (t.to === sid) {
+          const sourceState = this.stateMap.get(t.from);
+          if (sourceState?.data.kind === "guard" && (sourceState.data as any).guardType === "expression") {
+            const fromTrans = this.transitionsFrom.get(t.from) ?? [];
+            const elseTrans = fromTrans.find(tr => tr.label.kind === "else");
+            if (elseTrans) {
+              return elseTrans.to;
+            }
+          }
+          queue.push(t.from);
+        }
+      }
+    }
+    return null;
   }
 
   private async handleTimer(state: IRState): Promise<void> {
@@ -691,18 +902,21 @@ export class ProtocolInstance {
     const joinId = this.findJoinForFork(state.id);
 
     const branchPromises = branchTransitions.map(async (bt) => {
+      const branchCtx = Object.create(this.ctx);
       const branchRunner = new BranchRunner(
         this.graph,
         this.transport,
         this.selfRef,
         this.config,
-        this.ctx,
+        branchCtx,
         this.reagent,
         this.stateMap,
         this.transitionsFrom,
         this.messageResolvers,
         this.xorResolvers,
         (kind, d) => this.emitTrace(kind, d),
+        this.flow,
+        this.messageInbox,
       );
       await branchRunner.runFrom(bt.to, joinId);
     });
@@ -775,6 +989,10 @@ export class ProtocolInstance {
   }
 
   private waitForMessage(messageName: string): Promise<MessageEnvelope> {
+    const idx = this.messageInbox.findIndex(e => e.messageName === messageName);
+    if (idx >= 0) {
+      return Promise.resolve(this.messageInbox.splice(idx, 1)[0]);
+    }
     return new Promise<MessageEnvelope>((resolve) => {
       this.messageResolvers.set(messageName, resolve);
     });
@@ -784,6 +1002,12 @@ export class ProtocolInstance {
     guardId: string,
     expectations: Array<{ messageName: string; targetStateId: string }>,
   ): Promise<{ env: MessageEnvelope; targetStateId: string }> {
+    for (const e of expectations) {
+      const idx = this.messageInbox.findIndex(m => m.messageName === e.messageName);
+      if (idx >= 0) {
+        return Promise.resolve({ env: this.messageInbox.splice(idx, 1)[0], targetStateId: e.targetStateId });
+      }
+    }
     return new Promise((resolve) => {
       const resolvers = expectations.map(e => ({
         messageName: e.messageName,
@@ -821,9 +1045,11 @@ function expressionVarsAreDefined(
   expr: string,
   ctx: Record<string, unknown>,
   selfState: Record<string, unknown>,
+  flow?: Record<string, unknown>,
 ): boolean {
   const ctxRefs = expr.match(/\$ctx\.(\w+)/g);
   const selfRefs = expr.match(/\$self\.(\w+)/g);
+  const flowRefs = expr.match(/\$flow\.(\w+)/g);
 
   if (ctxRefs) {
     for (const ref of ctxRefs) {
@@ -835,6 +1061,12 @@ function expressionVarsAreDefined(
     for (const ref of selfRefs) {
       const prop = ref.replace("$self.", "");
       if (selfState[prop] === undefined) return false;
+    }
+  }
+  if (flowRefs && flow) {
+    for (const ref of flowRefs) {
+      const prop = ref.replace("$flow.", "");
+      if (flow[prop] === undefined) return false;
     }
   }
   return true;
@@ -867,6 +1099,8 @@ class BranchRunner {
     private messageResolvers: Map<string, (env: MessageEnvelope) => void>,
     private xorResolvers: Map<string, { messageName: string; resolve: (env: MessageEnvelope) => void }[]>,
     private emitTrace: (kind: string, data?: Record<string, unknown>) => void,
+    private flow: Record<string, unknown> = {},
+    private messageInbox: MessageEnvelope[] = [],
   ) {}
 
   async runFrom(startId: string, stopAtId: string | null): Promise<void> {
@@ -880,21 +1114,23 @@ class BranchRunner {
 
       switch (state.data.kind) {
         case "send": {
-          const data = state.data as { kind: "send"; to: string; messageName: string; preSendZone?: string };
+          const data = state.data as { kind: "send"; to: string; messageName: string; preSendZone?: string; propagateFlow?: boolean };
           this.ctx.msg = {};
           if (data.preSendZone) {
             this.emitTrace("ActionStarted", { stateId: state.id, zone: "preSend" });
-            executeZone(data.preSendZone, this.ctx, this.selfRef, this.reagent);
+            executeZone(data.preSendZone, this.ctx, this.selfRef, this.reagent, this.flow);
             this.emitTrace("ActionFinished", { stateId: state.id, zone: "preSend" });
           }
           const payload = (this.ctx.msg as Record<string, unknown>) ?? {};
           const toAgentKey = `${this.config.protocolName}.${data.to}`;
           const toAgent = this.config.roleToAgent[toAgentKey];
           if (!toAgent) throw new Error(`Cannot resolve agent for role ${data.to}`);
+          const flowSnapshot = data.propagateFlow ? structuredClone(this.flow) : undefined;
           const env = createMessageEnvelope(
             this.config.instanceId, this.config.protocolName,
             this.config.agentName, this.config.roleName ?? "",
             toAgent, data.to, data.messageName, payload,
+            flowSnapshot,
           );
           this.emitTrace("MessageSent", { messageName: data.messageName, to: toAgent, toRole: data.to });
           this.transport.ref(toAgent).sendEnvelope(env);
@@ -903,15 +1139,21 @@ class BranchRunner {
           break;
         }
         case "receive": {
-          const data = state.data as { kind: "receive"; from: string; messageName: string; postReceiveZone?: string };
-          const env = await new Promise<MessageEnvelope>(resolve => {
-            this.messageResolvers.set(data.messageName, resolve);
-          });
+          const data = state.data as { kind: "receive"; from: string; messageName: string; postReceiveZone?: string; propagateFlow?: boolean };
+          const inboxIdx = this.messageInbox.findIndex(e => e.messageName === data.messageName);
+          const env = inboxIdx >= 0
+            ? this.messageInbox.splice(inboxIdx, 1)[0]
+            : await new Promise<MessageEnvelope>(resolve => {
+                this.messageResolvers.set(data.messageName, resolve);
+              });
           this.emitTrace("MessageReceived", { messageName: data.messageName, from: env.from.agent, fromRole: env.from.role });
+          if (data.propagateFlow && env.flow) {
+            Object.assign(this.flow, env.flow);
+          }
           this.ctx.msg = env.payload;
           if (data.postReceiveZone) {
             this.emitTrace("ActionStarted", { stateId: state.id, zone: "postReceive" });
-            executeZone(data.postReceiveZone, this.ctx, this.selfRef, this.reagent);
+            executeZone(data.postReceiveZone, this.ctx, this.selfRef, this.reagent, this.flow);
             this.emitTrace("ActionFinished", { stateId: state.id, zone: "postReceive" });
           }
           delete this.ctx.msg;
@@ -921,7 +1163,7 @@ class BranchRunner {
         case "action": {
           const data = state.data as { kind: "action"; body: string };
           this.emitTrace("ActionStarted", { stateId: state.id });
-          executeZone(data.body, this.ctx, this.selfRef, this.reagent);
+          executeZone(data.body, this.ctx, this.selfRef, this.reagent, this.flow);
           this.emitTrace("ActionFinished", { stateId: state.id });
           currentId = this.followDefault(currentId);
           break;

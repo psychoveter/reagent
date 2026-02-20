@@ -1,0 +1,76 @@
+{
+  "entries": [
+    {
+      "stateId": "act_2",
+      "protocolName": "BackgroundTask",
+      "role": "worker",
+      "file": "examples/src/19-spawn-emit-demo.rg",
+      "line": 12,
+      "column": 3
+    },
+    {
+      "stateId": "act_2",
+      "protocolName": "SpawnEmitDemo",
+      "role": "orchestrator",
+      "file": "examples/src/19-spawn-emit-demo.rg",
+      "line": 22,
+      "column": 3
+    },
+    {
+      "stateId": "spawn_3",
+      "protocolName": "SpawnEmitDemo",
+      "role": "orchestrator",
+      "file": "examples/src/19-spawn-emit-demo.rg",
+      "line": 26,
+      "column": 3
+    },
+    {
+      "stateId": "act_4",
+      "protocolName": "SpawnEmitDemo",
+      "role": "orchestrator",
+      "file": "examples/src/19-spawn-emit-demo.rg",
+      "line": 28,
+      "column": 3
+    },
+    {
+      "stateId": "send_5",
+      "protocolName": "SpawnEmitDemo",
+      "role": "orchestrator",
+      "file": "examples/src/19-spawn-emit-demo.rg",
+      "line": 32,
+      "column": 3
+    },
+    {
+      "stateId": "recv_6",
+      "protocolName": "SpawnEmitDemo",
+      "role": "orchestrator",
+      "file": "examples/src/19-spawn-emit-demo.rg",
+      "line": 46,
+      "column": 3
+    },
+    {
+      "stateId": "recv_9",
+      "protocolName": "SpawnEmitDemo",
+      "role": "helper",
+      "file": "examples/src/19-spawn-emit-demo.rg",
+      "line": 32,
+      "column": 3
+    },
+    {
+      "stateId": "act_10",
+      "protocolName": "SpawnEmitDemo",
+      "role": "helper",
+      "file": "examples/src/19-spawn-emit-demo.rg",
+      "line": 41,
+      "column": 3
+    },
+    {
+      "stateId": "send_11",
+      "protocolName": "SpawnEmitDemo",
+      "role": "helper",
+      "file": "examples/src/19-spawn-emit-demo.rg",
+      "line": 46,
+      "column": 3
+    }
+  ]
+}

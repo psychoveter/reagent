@@ -18,7 +18,8 @@
         "to": "worker1",
         "arrow": "-->",
         "messageName": "Subtask",
-        "preSendZone": "\n      $ctx.msg.id = \"a\"\n    "
+        "preSendZone": "\n      $ctx.msg.id = \"a\"\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -29,7 +30,8 @@
         "to": "worker2",
         "arrow": "-->",
         "messageName": "Subtask",
-        "preSendZone": "\n      $ctx.msg.id = \"b\"\n    "
+        "preSendZone": "\n      $ctx.msg.id = \"b\"\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -59,7 +61,8 @@
         "from": "worker1",
         "arrow": "-->",
         "messageName": "SubtaskDone",
-        "postReceiveZone": "\n        $ctx.subtaskA = $ctx.msg\n      "
+        "postReceiveZone": "\n        $flow.subtaskA = $ctx.msg\n      ",
+        "propagateFlow": true
       }
     },
     {
@@ -78,7 +81,8 @@
         "from": "worker2",
         "arrow": "-->",
         "messageName": "SubtaskDone",
-        "postReceiveZone": "\n        $ctx.subtaskB = $ctx.msg\n      "
+        "postReceiveZone": "\n        $flow.subtaskB = $ctx.msg\n      ",
+        "propagateFlow": true
       }
     },
     {
@@ -94,7 +98,7 @@
       "kind": "action",
       "data": {
         "kind": "action",
-        "body": "\n    $ctx.result = merge($ctx.subtaskA, $ctx.subtaskB)\n  ",
+        "body": "\n    $flow.result = merge($flow.subtaskA, $flow.subtaskB)\n  ",
         "lang": "ts"
       }
     },

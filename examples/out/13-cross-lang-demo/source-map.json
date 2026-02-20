@@ -1,0 +1,68 @@
+{
+  "entries": [
+    {
+      "stateId": "act_2",
+      "protocolName": "CrossLangDemo",
+      "role": "browser",
+      "file": "examples/src/13-cross-lang-demo.rg",
+      "line": 13,
+      "column": 3
+    },
+    {
+      "stateId": "send_3",
+      "protocolName": "CrossLangDemo",
+      "role": "browser",
+      "file": "examples/src/13-cross-lang-demo.rg",
+      "line": 17,
+      "column": 3
+    },
+    {
+      "stateId": "recv_7",
+      "protocolName": "CrossLangDemo",
+      "role": "browser",
+      "file": "examples/src/13-cross-lang-demo.rg",
+      "line": 32,
+      "column": 5
+    },
+    {
+      "stateId": "recv_9",
+      "protocolName": "CrossLangDemo",
+      "role": "browser",
+      "file": "examples/src/13-cross-lang-demo.rg",
+      "line": 41,
+      "column": 5
+    },
+    {
+      "stateId": "recv_12",
+      "protocolName": "CrossLangDemo",
+      "role": "server",
+      "file": "examples/src/13-cross-lang-demo.rg",
+      "line": 17,
+      "column": 3
+    },
+    {
+      "stateId": "act_13",
+      "protocolName": "CrossLangDemo",
+      "role": "server",
+      "file": "examples/src/13-cross-lang-demo.rg",
+      "line": 26,
+      "column": 3
+    },
+    {
+      "stateId": "send_17",
+      "protocolName": "CrossLangDemo",
+      "role": "server",
+      "file": "examples/src/13-cross-lang-demo.rg",
+      "line": 32,
+      "column": 5
+    },
+    {
+      "stateId": "send_19",
+      "protocolName": "CrossLangDemo",
+      "role": "server",
+      "file": "examples/src/13-cross-lang-demo.rg",
+      "line": 41,
+      "column": 5
+    }
+  ]
+}

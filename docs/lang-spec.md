@@ -1,4 +1,4 @@
-## Reagent language spec (v0.0.7)
+## Reagent language spec (v0.0.8)
 
 This document defines the **Reagent protocol language**.
 
@@ -9,7 +9,7 @@ Design goals:
 - Human-writable, line-oriented protocol choreography.
 - Extensible "props-like" dictionaries on message steps (for runtime hooks).
 - **Agent functional zones** are host-language code blocks: `AgentName { ... }` (language from `participants:`).
-- `$ctx` is the single runtime-injected binding — the protocol instance context.
+- Three runtime-injected bindings: `$ctx` (per-role isolated), `$flow` (message-propagated), `$self` (role-level persistent).
 - Produces a well-defined **AST** with source locations, suitable for Cursor plugins.
 
 Non-goals (v0):
@@ -66,10 +66,10 @@ Arrow types:
 ```
 comma --> sia: SubmitIntent = {
   onSend {
-    $ctx.msg.ref = $ctx.dsiBsi
+    $ctx.msg.ref = $flow.dsiBsi
   }
   onReceive {
-    $ctx.intent = $ctx.msg.ref
+    $flow.intent = $ctx.msg.ref
   }
 }
 ```
@@ -77,18 +77,20 @@ comma --> sia: SubmitIntent = {
 - `onSend { ... }` opens an agent zone for the **sender** (`A`). Code runs before the message is sent.
 - `onReceive { ... }` opens an agent zone for the **receiver** (`B`). Code runs after the message is received.
 - The host language of each hook zone is determined by the respective participant's `[LangTag]`.
-- Both hooks have access to `$ctx` and `reagent`. `$ctx.msg` is available in `onReceive` (bound to the received payload) and in `onSend` (bound to the outgoing message being constructed).
+- Both hooks have access to `$ctx`, `$flow`, `$self`, and `reagent`. `$ctx.msg` is available in `onReceive` (bound to the received payload) and in `onSend` (bound to the outgoing message being constructed).
 - Either hook may be omitted. Both may be present in the same message step.
 
-#### Props in `alt` guards: pattern matching
+#### Props in `alt` guards: pattern matching (`where`)
 
-Props inside `alt` guards have a **different** semantic — they act as **value patterns** for message dispatch:
+Props inside `alt` guards have a **different** semantic — they act as **value patterns** for message dispatch. Use the `where` keyword to introduce patterns:
 
 ```
-alt (sia --> comma: ValidationError = { code: "TRANSIENT" }) { ... }
+alt (sia --> comma: ValidationError where { code: "TRANSIENT" }) { ... }
 ```
 
-Here `{ code: "TRANSIENT" }` is a **pattern/guard**: the branch matches only when the incoming message has `code == "TRANSIENT"`. This is NOT a hook.
+Here `where { code: "TRANSIENT" }` is a **pattern/guard**: the branch matches only when the incoming message has `code == "TRANSIENT"`. This is NOT a hook.
+
+The `where` keyword disambiguates pattern matching from hook zones (`= { onSend { ... } }`). The `= { key: value }` syntax is deprecated; prefer `where { key: value }`.
 
 ### 1.3 Agent functional zone (host-language code)
 
@@ -103,8 +105,10 @@ The zone body is written in that host language.
 
 Zone body is **raw host-language code** — stored as text by the parser (braces are balanced, strings/comments skipped).
 
-**Runtime injection**: the engine injects two bindings into every zone:
-- `$ctx` — the protocol instance context object. `$ctx.foo` reads/writes protocol state.
+**Runtime injection**: the engine injects four bindings into every zone:
+- `$ctx` — **per-role isolated** working memory. Each role has its own `$ctx` that is not shared.
+- `$flow` — **message-propagated** state. Written by one role, carried with messages, readable by the receiving role.
+- `$self` — **role-level persistent state**. Survives across protocol instances.
 - `reagent` — the **Reagent runtime library** (see §1.4).
 
 **Important constraints**:
@@ -117,63 +121,39 @@ Every agent zone has access to the `reagent` runtime library, **auto-imported** 
 
 The `reagent` library is the **bridge** between host-language code in zones and the Reagent protocol runtime.
 
-#### `reagent.invoke(Proto, roles?, input)` — synchronous child protocol call
-
-Full form (multi-party child protocol):
-```
-$ctx.result = reagent.invoke(ProtoName, { childRole: parentRole, ... }, inputExpr)
-```
-
-Short form (solo child or no extra roles to map):
-```
-$ctx.result = reagent.invoke(ProtoName, inputExpr)
-```
-
-- The zone role is the implicit invoker (mapped to the child's `initiator`).
-- The roles dict maps other child roles to parent roles. **May be omitted** if the child has no other roles or all roles match by name.
-- `inputExpr` is passed as `$ctx.input` to the child instance.
-- The child's `reagent.return()` value is returned to the caller.
-- **Synchronous**: the zone blocks until the child protocol completes.
-
-#### `reagent.spawn(Proto, roles?, input)` — fire-and-forget child protocol
-
-```
-$ctx.handle = reagent.spawn(ProtoName, { childRole: parentRole, ... }, inputExpr)
-```
-
-Short form:
-```
-$ctx.handle = reagent.spawn(ProtoName, inputExpr)
-```
-
-- Same argument conventions as `reagent.invoke()`.
-- **Fire-and-forget**: creates an independent protocol instance. The parent does **not** block.
-- Returns a handle (for correlation/tracing). Communication happens via subsequent messages.
-
 #### `reagent.return(value)` — return a value to the invoker
 
 ```
 reagent.return(expr)
 ```
 
-Sends a **return message** from the current protocol instance back to the invoker (the role that called `reagent.invoke()`). Semantically, this is a message from the child's `initiator` to the parent's invoking role. The parent receives the value as the result of `reagent.invoke()`.
+Sends a **return message** from the current protocol instance back to the invoker (the role that called `invoke`). Semantically, this is a message from the child's `initiator` to the parent's invoking role. The parent receives the value as the result of `invoke`.
 
 This means `reagent.return()` is not just a control-flow construct — it **generates a message** in the protocol trace (e.g. `ReturnValue` from child initiator to parent invoker).
 
 #### `reagent.emit(eventName, props)` — emit an event outward
 
 ```
-reagent.emit("TaskSubmitted", { kind: "task.submitted", ref: $ctx.intent })
+reagent.emit("TaskSubmitted", { kind: "task.submitted", ref: $flow.intent })
 ```
 
 Emits a named event for tracing/observability/external consumers. The zone role is the emitter.
 
-### 1.5 Built-in context object (`$ctx`) — runtime contract
+#### `reagent.break()` — exit the enclosing loop
 
-Reagent provides **one** built-in binding: `$ctx`.
+```
+reagent.break()
+```
 
-`$ctx` is an **engine-owned dict/object** representing the protocol instance state.
-This is the **contract** between the Reagent language and the runtime engine.
+Exits the innermost enclosing `loop`. The runtime catches the `BreakRequest` sentinel and advances to the loop's exit state. Must be called from within an agent zone inside a `loop` body. Calling outside a loop is a runtime error.
+
+### 1.5 Built-in context objects — runtime contract
+
+Reagent provides three built-in context bindings with distinct scope and propagation semantics:
+
+#### `$ctx` — per-role isolated working memory
+
+`$ctx` is a **per-role, per-instance** dict/object. Each role has its own `$ctx` — writes by one role are NEVER visible to another role.
 
 Fixed fields (reserved by the runtime):
 - `$ctx.instanceId` — protocol instance identifier (stable across restarts).
@@ -181,27 +161,44 @@ Fixed fields (reserved by the runtime):
 - `$ctx.msg` — the "current message" payload. **Binding rules:**
   - Bound when a role **receives** a message (`MessageReceived` event).
   - In `alt` branches: bound to the payload of the **matched** message.
-  - **Lifetime**: valid from the point of receive until the next message step (send or receive) involving this role, or until the next zone boundary for this role. After that, `$ctx.msg` is `undefined`.
+  - **Lifetime**: valid from the point of receive until the next message step (send or receive) involving this role. Deleted after processing.
   - In `onReceive` hooks: always available (the hook runs immediately after receive).
-  - In a zone following a receive: available if no intervening message step occurred.
+  - In `par` branches: each branch gets its own isolated `$ctx.msg` (via prototype chain in TS, shallow copy in Python). Writes to `$ctx.msg` in one branch do not affect other branches.
 - `$ctx.error` — bound inside `catch { ... }` blocks. See §1.9 for details.
 
-User-defined fields:
-- `$ctx.*` MAY contain arbitrary keys written by zone code.
-  It is the protocol instance's local memory.
+User-defined fields: `$ctx.*` MAY contain arbitrary keys for per-role working memory.
 
-**Scope**: `$ctx` is lexically scoped to the protocol instance (not to an agent instance).
-Inside an agent zone, the engine injects `$ctx` as a binding accessible from the host language.
+#### `$flow` — message-propagated state
+
+`$flow` is the **shared, message-carried** state for passing data between roles.
+
+- When a message is sent, a snapshot of `$flow` is attached to the message envelope.
+- When a message is received, the receiver's `$flow` is updated from the envelope's flow data.
+- `$flow` is the mechanism for **inter-role data transfer**: write data to `$flow` on one role, send a message, read it on the other.
+
+Example:
+```
+// On sender:
+sender { $flow.taskText = $ctx.input.text }
+sender --> receiver: Request = { }
+
+// On receiver: $flow.taskText is now available
+receiver { const task = $flow.taskText }
+```
+
+#### `$self` — role-level persistent state
+
+`$self` persists across protocol instances within a single agent lifetime. Defined in `role` definitions (see §1.15).
 
 ### 1.6 Context propagation (important for analysis)
 
-`$ctx` is **not broadcast** to all roles.
+`$ctx` is **strictly per-role** — never shared, never propagated.
 
-Operational intuition:
-- A role only observes relevant `$ctx` changes when it receives a message that carries that state.
-- If `A` mutates `$ctx`, then sends a message to `B` but not to `C`, `C` MUST NOT be assumed to know about that mutation.
+`$flow` propagates along message edges:
+- If `A` writes `$flow.x`, then sends to `B`, `B` can read `$flow.x`.
+- If `A` writes `$flow.x` but does not send to `C`, `C` MUST NOT be assumed to know about `$flow.x`.
 
-This matters for future linters/static analysis (data-flow of knowledge/state).
+This separation enables precise static analysis: `$ctx` reads/writes are always local; `$flow` data-flow follows the message graph.
 
 ### 1.7 Hooks vs standalone zones (and ordering)
 
@@ -250,19 +247,28 @@ These constructs operate at the **protocol choreography level** (outside agent z
 
 Two modes:
 
-**Message-based (reactive)**: waits for one of several possible messages.
+**Message-based (reactive)**: waits for one of several possible messages. Use `where` for pattern matching:
 ```
-alt (B --> A: Accept = { }) {
+alt (B --> A: Accept) {
   ...
-} else (B --> A: Reject = { }) {
+} else (B --> A: Reject) {
   ...
 } else (timeout 10s) {
   ...
 }
 ```
-Props in `alt` guards act as **pattern/value matching** (not hooks). E.g. `{ code: "TRANSIENT" }` matches only messages with `code == "TRANSIENT"`.
 
-**Expression-based (evaluative)**: checks `$ctx` predicates.
+With pattern matching (`where` keyword):
+```
+alt (sia --> comma: ValidationError where { code: "TRANSIENT" }) {
+  // transient error — retry
+} else (sia --> comma: ValidationError where { code: "FATAL" }) {
+  // fatal error — abort
+}
+```
+`where { key: value }` matches only messages where the payload has `key == value`. The `where` keyword disambiguates patterns from hooks.
+
+**Expression-based (evaluative)**: checks `$ctx`/`$flow` predicates.
 ```
 alt ($ctx.outcome == "done") {
   ...
@@ -278,7 +284,9 @@ loop ($ctx.attempt < 3) {
   ...
 }
 ```
-Guard expression uses `$ctx` and is evaluated by the runtime before each iteration.
+Guard expression uses `$ctx`/`$flow` and is evaluated by the runtime before each iteration.
+
+Exit from within a zone using `reagent.break()` (see §1.4).
 
 #### `par` — parallel branches with join
 
@@ -290,6 +298,8 @@ par {
 }
 ```
 All branches run concurrently. The `par` completes when **all** branches complete (join semantics). `and` is a keyword separating branches.
+
+**`$ctx.msg` isolation**: each parallel branch gets its own isolated `$ctx.msg`. Messages received in one branch do not overwrite `$ctx.msg` in another branch.
 
 #### `wait` — time delay
 
@@ -321,16 +331,55 @@ try {
 
 The `(error)` in `catch (error)` is a **syntactic label** (for readability). The actual error value is always bound to `$ctx.error` by the runtime. Inside the `catch` body, `$ctx.error` contains the exception/failure object.
 
+#### `invoke` — synchronous child protocol call (protocol-level)
+
+```
+invoke ComputeSquare({ value: $ctx.receivedValue }) -> $flow.squared
+```
+
+- `invoke ProtoName(inputExpr)` calls a child protocol synchronously.
+- `-> $flow.target` or `-> $ctx.target` assigns the return value.
+- The calling role blocks until the child completes.
+- The child's `reagent.return()` value is the result.
+- Placement follows the same rules as agent zones: placed at the role that initiates the child.
+
+#### `spawn` — fire-and-forget child protocol (protocol-level)
+
+```
+spawn BackgroundTask({ taskName: $flow.taskName })
+```
+
+- `spawn ProtoName(inputExpr)` creates an independent child protocol instance.
+- **Fire-and-forget**: the parent does not block.
+- Placement follows the same rules as agent zones.
+
+#### `scatter` — dynamic multicast to participant list
+
+```
+scatter ($flow.workers as worker) {
+  coordinator --> worker: Subtask = {
+    onSend { $ctx.msg.taskId = ... }
+  }
+  worker --> coordinator: SubtaskDone = {
+    onReceive { $flow.results.push($ctx.msg.result) }
+  }
+}
+```
+
+- `scatter (collection as itemRole) { ... }` dynamically forks execution for each item in the collection.
+- `collection` is an expression evaluating to an array (typically from `$flow` or `$ctx`).
+- `itemRole` is a role identifier used as a placeholder within the body.
+- All branches execute concurrently and join when all complete (like `par`).
+- Designed for patterns like **Call for Proposal** (CFP), map-reduce, and fan-out/fan-in.
+
 ---
 
 **Not at protocol level** (handled in zones or by host-language):
 - `if/else` — condition branching is done inside agent zones in host-language code.
-- `break` — host-language construct; exits the runtime's `loop` via the reagent bridge.
 - `throw` — host-language construct; signals a failure caught by `try/catch` via the reagent bridge.
-- `spawn` — zone-only via `reagent.spawn()` (see §1.4).
-- `invoke` — zone-only via `reagent.invoke()` (see §1.4).
 - `return` — zone-only via `reagent.return()` (see §1.4).
 - `emit` — zone-only via `reagent.emit()` (see §1.4).
+- `break` — zone-only via `reagent.break()` (see §1.4).
 
 ### 1.10 Protocol completion
 
@@ -344,8 +393,10 @@ There is no explicit "ProtocolCompleted" statement; completion is structural.
 ### 1.11 Host-language functions vs Reagent runtime library
 
 Inside agent zones, there are two kinds of calls:
-- **`reagent.*`** functions (`reagent.invoke`, `reagent.spawn`, `reagent.return`, `reagent.emit`) — provided by the auto-imported Reagent runtime library. These interact with the protocol engine.
+- **`reagent.*`** functions (`reagent.return`, `reagent.emit`, `reagent.break`) — provided by the auto-imported Reagent runtime library. These interact with the protocol engine.
 - **Everything else** (e.g. `compensate(...)`, `taskToDsiBsi(...)`, `merge(...)`) — opaque host-language calls. The Reagent parser treats them as raw code.
+
+Note: `invoke` and `spawn` are now **protocol-level** constructs (see §1.9), not zone-level `reagent.*` functions. Legacy `reagent.invoke()` and `reagent.spawn()` in zones are still supported at runtime for backward compatibility but are deprecated.
 
 ### 1.12 Reagent as a meta-language
 
@@ -356,9 +407,11 @@ Reagent does **not** execute agent logic itself. It is a **meta-language** that:
 
 The engine is responsible for:
 - Parsing zone bodies in the appropriate host language.
-- Injecting `$ctx` and `reagent` into zone execution contexts.
-- Implementing the `reagent.*` API (`invoke`, `spawn`, `return`, `emit`).
-- Bridging host-language `break`/`throw` to protocol-level `loop`/`try` semantics.
+- Injecting `$ctx`, `$flow`, `$self`, and `reagent` into zone execution contexts.
+- Implementing the `reagent.*` API (`return`, `emit`, `break`).
+- Executing protocol-level `invoke`, `spawn`, `scatter` by managing child instances.
+- Propagating `$flow` snapshots with messages.
+- Bridging host-language `throw` to protocol-level `try` semantics.
 - Enforcing message ordering and protocol semantics.
 
 ### 1.13 Agent definition (deployment binding)
@@ -426,6 +479,7 @@ MessageEnvelope {
   to:             { agent: string, role: string }   // receiver identity
   messageName:    string          // the message type name (matches the `message` definition name)
   payload:        Record<string, unknown>            // user-defined fields from the `message` body
+  flow?:          Record<string, unknown>            // $flow snapshot (propagated state)
   ts:             number          // timestamp (epoch ms)
   idempotencyKey: string          // unique key for exactly-once delivery
 }
@@ -483,10 +537,11 @@ role CommaRole [ts] {
 - `on <event>(<Proto>) { ... }` reacts to lifecycle events (multiple handlers allowed).
 - `$self` is the role's persistent state, accessible in init, on handlers, and protocol zones.
 
-**`$self` vs `$ctx`**:
+**`$self` vs `$ctx` vs `$flow`**:
 - `$self` is the role-level persistent state. It survives across protocol instances and is scoped to the agent's lifetime.
-- `$ctx` is the per-protocol-instance context. It is scoped to a single protocol run.
-- Inside a protocol zone, both `$self` and `$ctx` are available.
+- `$ctx` is the per-role, per-protocol-instance working memory. Strictly isolated to each role.
+- `$flow` is the message-propagated state. Snapshots travel with messages for inter-role data transfer.
+- Inside a protocol zone, all three (`$self`, `$ctx`, `$flow`) are available.
 
 **Lifecycle events**:
 | Event | When |
@@ -529,7 +584,7 @@ role WorkerRole [ts] extends BaseMonitored {
 
 ---
 
-## 2. EBNF (v0.0.7)
+## 2. EBNF (v0.0.8)
 
 ```
 Program         ::= (WS | Comment | ImportStmt | ProtocolDef | AgentDef | MessageDef | RoleDef)* EOF
@@ -547,7 +602,7 @@ LangTag           ::= "ts" | "js" | "py" | "kt" | "*"
 InitiatorStmt     ::= "initiator" WS* ":" WS* Ident
 InputStmt         ::= "input" WS* ":" WS* Ident
 
-Item            ::= MessageStmt | AgentZone
+Item            ::= MessageStmt | AgentZone | InvokeStmt | SpawnStmt
 
 MessageStmt     ::= Ident WS* Arrow WS* Ident WS* ":" WS* MessageName (WS* "=" WS* MessageProps)?
 
@@ -562,6 +617,11 @@ MessageNameChar ::= any char except '\n' and '='
 AgentZone       ::= Ident WS* "{" ZoneBody "}"
 ZoneBody        ::= BalancedText   // raw host-language code; braces balanced, strings/comments skipped
                                    // language is determined by the participant's [LangTag] declaration
+
+InvokeStmt      ::= "invoke" WS+ Ident "(" ZoneBody ")" (WS* "->" WS* Target)?
+SpawnStmt       ::= "spawn" WS+ Ident "(" ZoneBody ")"
+ScatterStmt     ::= "scatter" WS* "(" WS* Expr WS+ "as" WS+ Ident WS* ")" WS* "{" ProtocolBody "}"
+Target          ::= "$flow." Ident | "$ctx." Ident
 
 RoleDef         ::= "role" WS+ Ident (WS* "[" LangTag "]")? (WS+ "extends" WS+ Ident)? WS* "{" RoleBody "}"
 RoleBody        ::= (WS | Comment | PlaysStmt | RoleInitBlock | RoleOnHandler)*
@@ -581,16 +641,19 @@ TypeExpr        ::= ScalarType ("[]")*
                   | "{" FieldList "}" ("[]")*
 ScalarType      ::= "string" | "number" | "boolean"
 
-ReservedStmt    ::= AltStmt | LoopStmt | ParStmt | WaitStmt | TryStmt
+ReservedStmt    ::= AltStmt | LoopStmt | ParStmt | WaitStmt | TryStmt | ScatterStmt
 AltStmt         ::= "alt" .*
+AltGuard        ::= "(" Ident Arrow Ident ":" MessageName ("where" WS* Object)? ")"
+                  | "(" Expr ")"
+                  | "(" "timeout" WS+ Duration ")"
 LoopStmt        ::= "loop" .*
 ParStmt         ::= "par" .*
 WaitStmt        ::= "wait" WS+ Duration
 Duration        ::= Number ("ms" | "s" | "m" | "h")
 TryStmt         ::= "try" .*
 
-// Zone-only: reagent runtime library functions (reagent.invoke, reagent.spawn, reagent.return, reagent.emit)
-// Also: break, throw are host-language constructs bridged by the runtime.
+// Zone-only: reagent.return, reagent.emit, reagent.break
+// throw is a host-language construct bridged by the runtime.
 
 Object          ::= "{" WS* (Pair (WS* "," WS* Pair)*)? WS* "}"
 Pair            ::= Key WS* ":" WS* Value
@@ -656,6 +719,20 @@ WS              ::= (" " | "\t" | "\r" | "\n")+
 - The runtime resolves `AgentIR` + `RoleIR` at load time to obtain the full behavioral contract.
 - **Breaking change**: old `agent Name [lang] { plays ... init ... on ... }` syntax is removed.
 
+**Changes in v0.0.8 (M5-LANG)**:
+- **`$ctx`/`$flow` split**: `$ctx` is now per-role isolated (never propagated). `$flow` is message-propagated (snapshot travels with every message). This replaces the ambiguous single `$ctx` for inter-role data transfer.
+- **Protocol-level `invoke`**: `invoke ProtoName(inputExpr) -> $flow.result` — synchronous child protocol call at protocol level (was zone-level `reagent.invoke()`).
+- **Protocol-level `spawn`**: `spawn ProtoName(inputExpr)` — fire-and-forget child protocol at protocol level (was zone-level `reagent.spawn()`).
+- **`scatter`/`gather`**: `scatter (collection as itemRole) { ... }` — dynamic multicast to a list of participants. Enables CFP, map-reduce, fan-out/fan-in patterns.
+- **`alt where`**: `where { key: value }` keyword for pattern matching in `alt` guards, disambiguating from `= { onSend { ... } }` hook syntax.
+- **`reagent.break()`**: zone-level function to exit the enclosing `loop`. Replaces bare `break` (host-language construct).
+- **`$ctx.msg` isolation in `par`**: each parallel branch gets its own isolated `$ctx.msg`.
+- **Message inbox buffering**: messages arriving before a resolver is registered are buffered (fixes synchronous loopback transport with `par`).
+- **`MessageEnvelope.flow`**: optional `flow` field carries `$flow` snapshot.
+- New IR state kinds: `invoke`, `spawn`, `scatter`. Send/receive states gain `propagateFlow` flag.
+- New keywords: `invoke`, `spawn`, `scatter`, `gather`, `where`.
+- Legacy `reagent.invoke()` / `reagent.spawn()` in zones remain supported at runtime but are deprecated.
+
 ---
 
 ## 3. Example: task execution protocol (user → comma → sia)
@@ -664,7 +741,7 @@ See `projects/reagent/examples/src/01-task-execution-basic.rg`.
 
 ---
 
-## 4. Compiler and tooling (v0.0.7)
+## 4. Compiler and tooling (v0.0.8)
 
 ### 4.1 AST
 
@@ -676,11 +753,14 @@ The full AST covers all language constructs:
 - `ProtocolDef` (header + body), `ParticipantDecl` (name + `LangTag`)
 - `MessageStmt` (sender, arrow, receiver, message name, optional `MessageProps` with `HookZone` and `PropPair`)
 - `AgentZone` (standalone: role name + `lang` resolved from participants + raw body text)
-- `AltStmt` (branches with `AltMessageGuard` / `AltExprGuard` / `AltTimeoutGuard` / `AltElseGuard`)
+- `AltStmt` (branches with `AltMessageGuard` / `AltExprGuard` / `AltTimeoutGuard` / `AltElseGuard`; message guards support `whereClause`)
 - `LoopStmt` (guard expression + body)
 - `ParStmt` (branches separated by `and`)
 - `WaitStmt` (duration literal)
 - `TryStmt` (try body + catch label + catch body)
+- `InvokeStmt` (protocol name + input expression + optional result target — **protocol-level synchronous call**)
+- `SpawnStmt` (protocol name + input expression — **protocol-level fire-and-forget**)
+- `ScatterStmt` (collection expression + item role + body — **dynamic multicast**)
 - `RoleDef` (role name + optional lang tag + optional extends + plays bindings + init block + lifecycle handlers — **primary behavioral contract**)
 - `AgentDef` (agent name + optional lang tag + `runs` role name — **thin deployment binding**)
 - `PlaysDecl` (protocol name + role name)
@@ -697,21 +777,25 @@ Every node carries `Loc` (source location: `start: {index, line, col}`, `end: {i
 Hand-written **recursive-descent parser** in TypeScript (`lang/src/parser.ts`).
 Zone bodies remain **raw text** (parser only balances braces, does not parse host language).
 
-### 4.3 Protocol IR (v0.0.7)
+### 4.3 Protocol IR (v0.0.8)
 
 The compiler produces per-role **Protocol IR** — directed graphs of states and transitions:
 - `IRGraph` per role (local view of the global protocol)
-- `IRState` types: `initial`, `send`, `receive`, `action`, `guard`, `fork`, `join`, `timer`, `terminal`, `error`
+- `IRState` types: `initial`, `send`, `receive`, `action`, `guard`, `fork`, `join`, `timer`, `terminal`, `error`, `invoke`, `spawn`, `scatter`
 - `IRTransition` labels: `default`, `message`, `timeout`, `expression`, `else`, `error`, `branch`
+- `send`/`receive` states have optional `propagateFlow: true` flag for `$flow` propagation
+- `invoke` state: `protocolName`, `input` expression, optional `resultTarget`
+- `spawn` state: `protocolName`, `input` expression
+- `scatter` state: `collection` expression, `itemRole`, `branchStartIds`
 
-### 4.4 Role IR (v0.0.7)
+### 4.4 Role IR (v0.0.8)
 
 The compiler produces per-role-definition **Role IR** — the rich behavioral contract:
 - `RoleIR`: role name, optional lang tag, optional extends reference, plays bindings, init action (chained from extends), lifecycle handlers (merged from extends).
 - Emitted as `<RoleName>.role.json`.
 - `extends` is resolved at compile time: the emitted `RoleIR` is the fully flattened behavioral contract.
 
-### 4.5 Agent IR (v0.0.7)
+### 4.5 Agent IR (v0.0.8)
 
 The compiler produces per-agent **Agent IR** — a thin deployment binding that references the role:
 - `AgentIR`: agent name, language tag, role name, role file path. No behavioral data (plays, init, handlers).

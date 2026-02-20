@@ -18,7 +18,8 @@
         "from": "monitor",
         "arrow": "-->",
         "messageName": "Ping",
-        "postReceiveZone": "\n      $self.healthChecks = ($self.healthChecks || 0) + 1\n    "
+        "postReceiveZone": "\n      $self.healthChecks = ($self.healthChecks || 0) + 1\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -29,7 +30,8 @@
         "to": "monitor",
         "arrow": "-->",
         "messageName": "Pong",
-        "preSendZone": "\n      $ctx.msg.status = \"ok\"\n      $ctx.msg.tasksProcessed = $self.tasksProcessed || 0\n    "
+        "preSendZone": "\n      $ctx.msg.status = \"ok\"\n      $ctx.msg.tasksProcessed = $self.tasksProcessed || 0\n    ",
+        "propagateFlow": true
       }
     },
     {

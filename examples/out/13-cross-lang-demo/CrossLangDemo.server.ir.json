@@ -18,7 +18,8 @@
         "from": "browser",
         "arrow": "-->",
         "messageName": "Query",
-        "postReceiveZone": "\n      $ctx.queryText = $ctx.msg.text\n    "
+        "postReceiveZone": "\n      $ctx.queryText = $ctx.msg.text\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -26,7 +27,7 @@
       "kind": "action",
       "data": {
         "kind": "action",
-        "body": "\n    result = process_query($ctx.queryText)\n    $ctx.result = result\n    $self.queriesHandled += 1\n  ",
+        "body": "\n    $ctx.result = process_query($ctx.queryText)\n    $self.queriesHandled += 1\n  ",
         "lang": "py"
       }
     },
@@ -55,7 +56,8 @@
         "to": "browser",
         "arrow": "-->",
         "messageName": "Accept",
-        "preSendZone": "\n        $ctx.msg.data = $ctx.result.data\n      "
+        "preSendZone": "\n        $ctx.msg.data = $ctx.result.data\n      ",
+        "propagateFlow": true
       }
     },
     {
@@ -74,7 +76,8 @@
         "to": "browser",
         "arrow": "-->",
         "messageName": "Reject",
-        "preSendZone": "\n        $ctx.msg.reason = $ctx.result.reason\n      "
+        "preSendZone": "\n        $ctx.msg.reason = $ctx.result.reason\n      ",
+        "propagateFlow": true
       }
     },
     {

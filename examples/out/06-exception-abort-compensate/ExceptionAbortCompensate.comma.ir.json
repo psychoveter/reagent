@@ -17,7 +17,8 @@
         "kind": "receive",
         "from": "user",
         "arrow": "-->",
-        "messageName": "TaskRequest"
+        "messageName": "TaskRequest",
+        "propagateFlow": true
       }
     },
     {
@@ -27,7 +28,8 @@
         "kind": "send",
         "to": "sia",
         "arrow": "-->",
-        "messageName": "SubmitIntent"
+        "messageName": "SubmitIntent",
+        "propagateFlow": true
       }
     },
     {
@@ -37,7 +39,8 @@
         "kind": "receive",
         "from": "sia",
         "arrow": "-->",
-        "messageName": "Accepted"
+        "messageName": "Accepted",
+        "propagateFlow": true
       }
     },
     {
@@ -47,7 +50,8 @@
         "kind": "send",
         "to": "user",
         "arrow": "-->",
-        "messageName": "Done"
+        "messageName": "Done",
+        "propagateFlow": true
       }
     },
     {
@@ -63,7 +67,7 @@
       "kind": "action",
       "data": {
         "kind": "action",
-        "body": "\n      // compensate / rollback side-effects\n      compensate(\"sia.cancelIntent\", { ref: $ctx.intentRef })\n    ",
+        "body": "\n      compensate(\"sia.cancelIntent\", { ref: $flow.intentRef })\n    ",
         "lang": "ts"
       }
     },
@@ -75,7 +79,8 @@
         "to": "user",
         "arrow": "-->",
         "messageName": "Failed",
-        "preSendZone": "\n        $ctx.msg.message = $ctx.error\n      "
+        "preSendZone": "\n        $ctx.msg.message = $ctx.error\n      ",
+        "propagateFlow": true
       }
     },
     {

@@ -15,34 +15,54 @@
       "kind": "action",
       "data": {
         "kind": "action",
-        "body": "\n    $ctx.taskName = \"compute\"\n    reagent.spawn(\"BackgroundTask\", { taskName: $ctx.taskName })\n    $self.spawned = ($self.spawned || 0) + 1\n  ",
+        "body": "\n    $flow.taskName = \"compute\"\n  ",
         "lang": "ts"
       }
     },
     {
-      "id": "send_3",
+      "id": "spawn_3",
+      "kind": "spawn",
+      "data": {
+        "kind": "spawn",
+        "protocolName": "BackgroundTask",
+        "input": "{ taskName: $flow.taskName }"
+      }
+    },
+    {
+      "id": "act_4",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $self.spawned = ($self.spawned || 0) + 1\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_5",
       "kind": "send",
       "data": {
         "kind": "send",
         "to": "helper",
         "arrow": "-->",
         "messageName": "WorkRequest",
-        "preSendZone": "\n      $ctx.msg.task = $ctx.taskName\n    "
+        "preSendZone": "\n      $ctx.msg.task = $flow.taskName\n    ",
+        "propagateFlow": true
       }
     },
     {
-      "id": "recv_4",
+      "id": "recv_6",
       "kind": "receive",
       "data": {
         "kind": "receive",
         "from": "helper",
         "arrow": "-->",
         "messageName": "WorkResult",
-        "postReceiveZone": "\n      $self.lastResult = $ctx.msg.result\n    "
+        "postReceiveZone": "\n      $self.lastResult = $ctx.msg.result\n    ",
+        "propagateFlow": true
       }
     },
     {
-      "id": "end_5",
+      "id": "end_7",
       "kind": "terminal",
       "data": {
         "kind": "terminal",
@@ -60,21 +80,35 @@
     },
     {
       "from": "act_2",
-      "to": "send_3",
+      "to": "spawn_3",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "send_3",
-      "to": "recv_4",
+      "from": "spawn_3",
+      "to": "act_4",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "recv_4",
-      "to": "end_5",
+      "from": "act_4",
+      "to": "send_5",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_5",
+      "to": "recv_6",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_6",
+      "to": "end_7",
       "label": {
         "kind": "default"
       }
@@ -82,6 +116,6 @@
   ],
   "initialStateId": "init_1",
   "terminalStateIds": [
-    "end_5"
+    "end_7"
   ]
 }

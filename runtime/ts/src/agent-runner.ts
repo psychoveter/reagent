@@ -9,7 +9,7 @@
  */
 
 import type { AgentIR, IRGraph, MessageEnvelope, ProtocolTrigger } from "./types.js";
-import { ProtocolInstance, type InstanceConfig, type InstanceStatus } from "./protocol-instance.js";
+import { ProtocolInstance, type InstanceConfig, type InstanceStatus, type AdvanceHook } from "./protocol-instance.js";
 import { executeZone, createReagentStub } from "./zone-executor.js";
 import type { ReagentTransport } from "./transport.js";
 import type { TraceHook } from "./interceptor.js";
@@ -20,6 +20,7 @@ export type AgentRunnerConfig = {
   transport: ReagentTransport;
   roleToAgent: Record<string, string>;
   traceHook?: TraceHook;
+  advanceHook?: AdvanceHook;
 };
 
 export class AgentRunner {
@@ -31,6 +32,7 @@ export class AgentRunner {
   private roleToAgent: Record<string, string>;
   private traceHook?: TraceHook;
 
+  private advanceHook?: AdvanceHook;
   private self: Record<string, unknown> = {};
   private instances: Map<string, ProtocolInstance> = new Map();
   private completedCount = 0;
@@ -43,6 +45,7 @@ export class AgentRunner {
     this.transport = config.transport;
     this.roleToAgent = config.roleToAgent;
     this.traceHook = config.traceHook;
+    this.advanceHook = config.advanceHook;
   }
 
   async start(): Promise<void> {
@@ -145,6 +148,7 @@ export class AgentRunner {
       roleToAgent: rta,
       input,
       traceHook: this.traceHook,
+      advanceHook: this.advanceHook,
     };
 
     const instance = new ProtocolInstance(graph, this.transport, this.self, instanceConfig);

@@ -15,7 +15,7 @@
       "kind": "action",
       "data": {
         "kind": "action",
-        "body": "\n    $ctx.taskText = $ctx.input.text\n  ",
+        "body": "\n    $flow.taskText = $ctx.input.text\n  ",
         "lang": "ts"
       }
     },
@@ -26,7 +26,8 @@
         "kind": "send",
         "to": "comma",
         "arrow": "-->",
-        "messageName": "TaskRequest"
+        "messageName": "TaskRequest",
+        "propagateFlow": true
       }
     },
     {
@@ -43,7 +44,7 @@
       "data": {
         "kind": "guard",
         "guardType": "expression",
-        "expr": "$ctx.outcome == \"done\""
+        "expr": "$flow.validation.ok == true"
       }
     },
     {
@@ -53,7 +54,8 @@
         "kind": "receive",
         "from": "comma",
         "arrow": "-->",
-        "messageName": "Done"
+        "messageName": "Done",
+        "propagateFlow": true
       }
     },
     {
@@ -71,7 +73,8 @@
         "kind": "receive",
         "from": "comma",
         "arrow": "-->",
-        "messageName": "Failed"
+        "messageName": "Failed",
+        "propagateFlow": true
       }
     },
     {
@@ -118,7 +121,7 @@
       "to": "guard_6",
       "label": {
         "kind": "expression",
-        "expr": "$ctx.outcome == \"done\""
+        "expr": "$flow.validation.ok == true"
       }
     },
     {

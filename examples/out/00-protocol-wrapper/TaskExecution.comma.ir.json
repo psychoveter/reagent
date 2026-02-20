@@ -17,7 +17,8 @@
         "kind": "receive",
         "from": "user",
         "arrow": "-->",
-        "messageName": "TaskRequest"
+        "messageName": "TaskRequest",
+        "propagateFlow": true
       }
     },
     {
@@ -28,7 +29,8 @@
         "to": "user",
         "arrow": "-->",
         "messageName": "Greeting",
-        "preSendZone": "\n      console.log(\"Hi! I'll do it now.\")\n    "
+        "preSendZone": "\n      console.log(\"Hi! I'll do it now.\")\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -36,7 +38,7 @@
       "kind": "action",
       "data": {
         "kind": "action",
-        "body": "\n    const dsiBsi = taskToDsiBsi($ctx.taskText)\n    $ctx.dsiBsi = dsiBsi\n  ",
+        "body": "\n    const dsiBsi = taskToDsiBsi($flow.taskText)\n    $flow.dsiBsi = dsiBsi\n  ",
         "lang": "ts"
       }
     },
@@ -48,7 +50,8 @@
         "to": "sia",
         "arrow": "-->",
         "messageName": "SubmitIntent",
-        "preSendZone": "\n      $ctx.msg.ref = $ctx.dsiBsi\n    "
+        "preSendZone": "\n      $ctx.msg.ref = $flow.dsiBsi\n    ",
+        "propagateFlow": true
       }
     },
     {

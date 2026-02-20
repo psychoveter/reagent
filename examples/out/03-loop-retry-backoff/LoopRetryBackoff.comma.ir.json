@@ -36,7 +36,8 @@
         "to": "sia",
         "arrow": "-->",
         "messageName": "ValidateIntent",
-        "preSendZone": "\n        $ctx.msg.ref = $ctx.intent\n      "
+        "preSendZone": "\n        $ctx.msg.ref = $flow.intent\n      ",
+        "propagateFlow": true
       }
     },
     {
@@ -54,8 +55,7 @@
         "kind": "receive",
         "from": "sia",
         "arrow": "-->",
-        "messageName": "ValidationOk",
-        "pattern": {}
+        "messageName": "ValidationOk"
       }
     },
     {
@@ -68,7 +68,16 @@
       }
     },
     {
-      "id": "recv_10",
+      "id": "act_10",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": " reagent.break() ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "recv_11",
       "kind": "receive",
       "data": {
         "kind": "receive",
@@ -81,7 +90,7 @@
       }
     },
     {
-      "id": "act_11",
+      "id": "act_12",
       "kind": "action",
       "data": {
         "kind": "action",
@@ -90,7 +99,7 @@
       }
     },
     {
-      "id": "timer_12",
+      "id": "timer_13",
       "kind": "timer",
       "data": {
         "kind": "timer",
@@ -99,13 +108,13 @@
           "unit": "s",
           "loc": {
             "start": {
-              "index": 954,
-              "line": 34,
+              "index": 863,
+              "line": 31,
               "col": 12
             },
             "end": {
-              "index": 956,
-              "line": 34,
+              "index": 865,
+              "line": 31,
               "col": 14
             }
           }
@@ -113,7 +122,7 @@
       }
     },
     {
-      "id": "recv_13",
+      "id": "recv_14",
       "kind": "receive",
       "data": {
         "kind": "receive",
@@ -126,7 +135,7 @@
       }
     },
     {
-      "id": "act_14",
+      "id": "act_15",
       "kind": "action",
       "data": {
         "kind": "action",
@@ -151,7 +160,7 @@
       }
     },
     {
-      "id": "end_15",
+      "id": "end_16",
       "kind": "terminal",
       "data": {
         "kind": "terminal",
@@ -193,8 +202,7 @@
       "to": "recv_8",
       "label": {
         "kind": "message",
-        "messageName": "ValidationOk",
-        "pattern": {}
+        "messageName": "ValidationOk"
       }
     },
     {
@@ -206,6 +214,13 @@
     },
     {
       "from": "act_9",
+      "to": "act_10",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_10",
       "to": "merge_7",
       "label": {
         "kind": "default"
@@ -213,7 +228,7 @@
     },
     {
       "from": "xor_6",
-      "to": "recv_10",
+      "to": "recv_11",
       "label": {
         "kind": "message",
         "messageName": "ValidationError",
@@ -223,21 +238,21 @@
       }
     },
     {
-      "from": "recv_10",
-      "to": "act_11",
+      "from": "recv_11",
+      "to": "act_12",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "act_11",
-      "to": "timer_12",
+      "from": "act_12",
+      "to": "timer_13",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "timer_12",
+      "from": "timer_13",
       "to": "merge_7",
       "label": {
         "kind": "default"
@@ -245,7 +260,7 @@
     },
     {
       "from": "xor_6",
-      "to": "recv_13",
+      "to": "recv_14",
       "label": {
         "kind": "message",
         "messageName": "ValidationError",
@@ -255,14 +270,14 @@
       }
     },
     {
-      "from": "recv_13",
-      "to": "act_14",
+      "from": "recv_14",
+      "to": "act_15",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "act_14",
+      "from": "act_15",
       "to": "merge_7",
       "label": {
         "kind": "default"
@@ -284,7 +299,7 @@
     },
     {
       "from": "loop_exit_4",
-      "to": "end_15",
+      "to": "end_16",
       "label": {
         "kind": "default"
       }
@@ -292,6 +307,6 @@
   ],
   "initialStateId": "init_1",
   "terminalStateIds": [
-    "end_15"
+    "end_16"
   ]
 }

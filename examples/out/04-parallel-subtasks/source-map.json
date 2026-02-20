@@ -1,0 +1,76 @@
+{
+  "entries": [
+    {
+      "stateId": "send_2",
+      "protocolName": "ParallelSubtasks",
+      "role": "comma",
+      "file": "examples/src/04-parallel-subtasks.rg",
+      "line": 13,
+      "column": 3
+    },
+    {
+      "stateId": "send_3",
+      "protocolName": "ParallelSubtasks",
+      "role": "comma",
+      "file": "examples/src/04-parallel-subtasks.rg",
+      "line": 18,
+      "column": 3
+    },
+    {
+      "stateId": "recv_7",
+      "protocolName": "ParallelSubtasks",
+      "role": "comma",
+      "file": "examples/src/04-parallel-subtasks.rg",
+      "line": 25,
+      "column": 5
+    },
+    {
+      "stateId": "recv_9",
+      "protocolName": "ParallelSubtasks",
+      "role": "comma",
+      "file": "examples/src/04-parallel-subtasks.rg",
+      "line": 31,
+      "column": 5
+    },
+    {
+      "stateId": "act_10",
+      "protocolName": "ParallelSubtasks",
+      "role": "comma",
+      "file": "examples/src/04-parallel-subtasks.rg",
+      "line": 38,
+      "column": 3
+    },
+    {
+      "stateId": "recv_13",
+      "protocolName": "ParallelSubtasks",
+      "role": "worker1",
+      "file": "examples/src/04-parallel-subtasks.rg",
+      "line": 13,
+      "column": 3
+    },
+    {
+      "stateId": "send_17",
+      "protocolName": "ParallelSubtasks",
+      "role": "worker1",
+      "file": "examples/src/04-parallel-subtasks.rg",
+      "line": 25,
+      "column": 5
+    },
+    {
+      "stateId": "recv_21",
+      "protocolName": "ParallelSubtasks",
+      "role": "worker2",
+      "file": "examples/src/04-parallel-subtasks.rg",
+      "line": 18,
+      "column": 3
+    },
+    {
+      "stateId": "send_26",
+      "protocolName": "ParallelSubtasks",
+      "role": "worker2",
+      "file": "examples/src/04-parallel-subtasks.rg",
+      "line": 31,
+      "column": 5
+    }
+  ]
+}

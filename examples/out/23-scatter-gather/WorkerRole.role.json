@@ -1,0 +1,11 @@
+{
+  "roleName": "WorkerRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "ScatterGather",
+      "roleName": "worker"
+    }
+  ],
+  "lifecycleHandlers": []
+}

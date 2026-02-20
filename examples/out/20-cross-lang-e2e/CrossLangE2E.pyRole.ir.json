@@ -18,7 +18,8 @@
         "from": "tsRole",
         "arrow": "-->",
         "messageName": "Greeting",
-        "postReceiveZone": "\n      $ctx.receivedGreeting = $ctx.msg.text\n    "
+        "postReceiveZone": "\n      $ctx.receivedGreeting = $ctx.msg.text\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -38,7 +39,8 @@
         "to": "tsRole",
         "arrow": "-->",
         "messageName": "Reply",
-        "preSendZone": "\n      $ctx.msg.text = $ctx.reply\n    "
+        "preSendZone": "\n      $ctx.msg.text = $ctx.reply\n    ",
+        "propagateFlow": true
       }
     },
     {

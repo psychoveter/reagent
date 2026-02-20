@@ -1,0 +1,76 @@
+{
+  "entries": [
+    {
+      "stateId": "send_2",
+      "protocolName": "HealthCheck",
+      "role": "monitor",
+      "file": "examples/src/21-role-inheritance.rg",
+      "line": 14,
+      "column": 3
+    },
+    {
+      "stateId": "recv_3",
+      "protocolName": "HealthCheck",
+      "role": "monitor",
+      "file": "examples/src/21-role-inheritance.rg",
+      "line": 15,
+      "column": 3
+    },
+    {
+      "stateId": "recv_6",
+      "protocolName": "HealthCheck",
+      "role": "node",
+      "file": "examples/src/21-role-inheritance.rg",
+      "line": 14,
+      "column": 3
+    },
+    {
+      "stateId": "send_7",
+      "protocolName": "HealthCheck",
+      "role": "node",
+      "file": "examples/src/21-role-inheritance.rg",
+      "line": 15,
+      "column": 3
+    },
+    {
+      "stateId": "send_2",
+      "protocolName": "TaskProcessing",
+      "role": "dispatcher",
+      "file": "examples/src/21-role-inheritance.rg",
+      "line": 28,
+      "column": 3
+    },
+    {
+      "stateId": "recv_3",
+      "protocolName": "TaskProcessing",
+      "role": "dispatcher",
+      "file": "examples/src/21-role-inheritance.rg",
+      "line": 42,
+      "column": 3
+    },
+    {
+      "stateId": "recv_6",
+      "protocolName": "TaskProcessing",
+      "role": "worker",
+      "file": "examples/src/21-role-inheritance.rg",
+      "line": 28,
+      "column": 3
+    },
+    {
+      "stateId": "act_7",
+      "protocolName": "TaskProcessing",
+      "role": "worker",
+      "file": "examples/src/21-role-inheritance.rg",
+      "line": 37,
+      "column": 3
+    },
+    {
+      "stateId": "send_8",
+      "protocolName": "TaskProcessing",
+      "role": "worker",
+      "file": "examples/src/21-role-inheritance.rg",
+      "line": 42,
+      "column": 3
+    }
+  ]
+}

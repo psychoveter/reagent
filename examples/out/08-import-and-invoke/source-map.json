@@ -1,0 +1,52 @@
+{
+  "entries": [
+    {
+      "stateId": "act_2",
+      "protocolName": "TaskExecutionWithImport",
+      "role": "user",
+      "file": "examples/src/08-import-and-invoke.rg",
+      "line": 14,
+      "column": 3
+    },
+    {
+      "stateId": "send_3",
+      "protocolName": "TaskExecutionWithImport",
+      "role": "user",
+      "file": "examples/src/08-import-and-invoke.rg",
+      "line": 17,
+      "column": 3
+    },
+    {
+      "stateId": "recv_6",
+      "protocolName": "TaskExecutionWithImport",
+      "role": "comma",
+      "file": "examples/src/08-import-and-invoke.rg",
+      "line": 17,
+      "column": 3
+    },
+    {
+      "stateId": "invoke_7",
+      "protocolName": "TaskExecutionWithImport",
+      "role": "comma",
+      "file": "examples/src/08-import-and-invoke.rg",
+      "line": 19,
+      "column": 3
+    },
+    {
+      "stateId": "send_8",
+      "protocolName": "TaskExecutionWithImport",
+      "role": "comma",
+      "file": "examples/src/08-import-and-invoke.rg",
+      "line": 21,
+      "column": 3
+    },
+    {
+      "stateId": "recv_11",
+      "protocolName": "TaskExecutionWithImport",
+      "role": "sia",
+      "file": "examples/src/08-import-and-invoke.rg",
+      "line": 21,
+      "column": 3
+    }
+  ]
+}

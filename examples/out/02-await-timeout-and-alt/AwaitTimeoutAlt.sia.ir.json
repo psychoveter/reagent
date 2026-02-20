@@ -17,7 +17,8 @@
         "kind": "receive",
         "from": "comma",
         "arrow": "-->",
-        "messageName": "SubmitIntent"
+        "messageName": "SubmitIntent",
+        "propagateFlow": true
       }
     },
     {
@@ -58,13 +59,13 @@
           "unit": "s",
           "loc": {
             "start": {
-              "index": 792,
-              "line": 32,
+              "index": 671,
+              "line": 29,
               "col": 19
             },
             "end": {
-              "index": 795,
-              "line": 32,
+              "index": 674,
+              "line": 29,
               "col": 22
             }
           }
@@ -108,8 +109,7 @@
       "to": "send_16",
       "label": {
         "kind": "message",
-        "messageName": "Accept",
-        "pattern": {}
+        "messageName": "Accept"
       }
     },
     {
@@ -124,8 +124,7 @@
       "to": "send_17",
       "label": {
         "kind": "message",
-        "messageName": "Reject",
-        "pattern": {}
+        "messageName": "Reject"
       }
     },
     {
@@ -145,13 +144,13 @@
           "unit": "s",
           "loc": {
             "start": {
-              "index": 792,
-              "line": 32,
+              "index": 671,
+              "line": 29,
               "col": 19
             },
             "end": {
-              "index": 795,
-              "line": 32,
+              "index": 674,
+              "line": 29,
               "col": 22
             }
           }

@@ -1,0 +1,60 @@
+{
+  "entries": [
+    {
+      "stateId": "act_2",
+      "protocolName": "ScatterGather",
+      "role": "coordinator",
+      "file": "examples/src/23-scatter-gather.rg",
+      "line": 17,
+      "column": 3
+    },
+    {
+      "stateId": "send_6",
+      "protocolName": "ScatterGather",
+      "role": "coordinator",
+      "file": "examples/src/23-scatter-gather.rg",
+      "line": 23,
+      "column": 5
+    },
+    {
+      "stateId": "recv_7",
+      "protocolName": "ScatterGather",
+      "role": "coordinator",
+      "file": "examples/src/23-scatter-gather.rg",
+      "line": 31,
+      "column": 5
+    },
+    {
+      "stateId": "act_8",
+      "protocolName": "ScatterGather",
+      "role": "coordinator",
+      "file": "examples/src/23-scatter-gather.rg",
+      "line": 41,
+      "column": 3
+    },
+    {
+      "stateId": "recv_14",
+      "protocolName": "ScatterGather",
+      "role": "worker",
+      "file": "examples/src/23-scatter-gather.rg",
+      "line": 23,
+      "column": 5
+    },
+    {
+      "stateId": "act_15",
+      "protocolName": "ScatterGather",
+      "role": "worker",
+      "file": "examples/src/23-scatter-gather.rg",
+      "line": 28,
+      "column": 5
+    },
+    {
+      "stateId": "send_16",
+      "protocolName": "ScatterGather",
+      "role": "worker",
+      "file": "examples/src/23-scatter-gather.rg",
+      "line": 31,
+      "column": 5
+    }
+  ]
+}

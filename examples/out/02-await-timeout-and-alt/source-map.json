@@ -1,0 +1,44 @@
+{
+  "entries": [
+    {
+      "stateId": "send_2",
+      "protocolName": "AwaitTimeoutAlt",
+      "role": "comma",
+      "file": "examples/src/02-await-timeout-and-alt.rg",
+      "line": 15,
+      "column": 3
+    },
+    {
+      "stateId": "act_6",
+      "protocolName": "AwaitTimeoutAlt",
+      "role": "comma",
+      "file": "examples/src/02-await-timeout-and-alt.rg",
+      "line": 22,
+      "column": 5
+    },
+    {
+      "stateId": "act_8",
+      "protocolName": "AwaitTimeoutAlt",
+      "role": "comma",
+      "file": "examples/src/02-await-timeout-and-alt.rg",
+      "line": 26,
+      "column": 5
+    },
+    {
+      "stateId": "act_10",
+      "protocolName": "AwaitTimeoutAlt",
+      "role": "comma",
+      "file": "examples/src/02-await-timeout-and-alt.rg",
+      "line": 30,
+      "column": 5
+    },
+    {
+      "stateId": "recv_13",
+      "protocolName": "AwaitTimeoutAlt",
+      "role": "sia",
+      "file": "examples/src/02-await-timeout-and-alt.rg",
+      "line": 15,
+      "column": 3
+    }
+  ]
+}

@@ -15,7 +15,7 @@
       "kind": "action",
       "data": {
         "kind": "action",
-        "body": "\n    $ctx.greeting = \"hello from ts\"\n  ",
+        "body": "\n    $flow.greeting = \"hello from ts\"\n  ",
         "lang": "ts"
       }
     },
@@ -27,7 +27,8 @@
         "to": "pyRole",
         "arrow": "-->",
         "messageName": "Greeting",
-        "preSendZone": "\n      $ctx.msg.text = $ctx.greeting\n    "
+        "preSendZone": "\n      $ctx.msg.text = $flow.greeting\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -38,7 +39,8 @@
         "from": "pyRole",
         "arrow": "-->",
         "messageName": "Reply",
-        "postReceiveZone": "\n      $ctx.replyText = $ctx.msg.text\n      $self.lastReply = $ctx.msg.text\n    "
+        "postReceiveZone": "\n      $ctx.replyText = $ctx.msg.text\n      $self.lastReply = $ctx.msg.text\n    ",
+        "propagateFlow": true
       }
     },
     {

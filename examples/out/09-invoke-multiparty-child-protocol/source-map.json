@@ -1,0 +1,76 @@
+{
+  "entries": [
+    {
+      "stateId": "act_2",
+      "protocolName": "TaskExecutionWithMultipartyChild",
+      "role": "user",
+      "file": "examples/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 15,
+      "column": 3
+    },
+    {
+      "stateId": "send_3",
+      "protocolName": "TaskExecutionWithMultipartyChild",
+      "role": "user",
+      "file": "examples/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 18,
+      "column": 3
+    },
+    {
+      "stateId": "recv_7",
+      "protocolName": "TaskExecutionWithMultipartyChild",
+      "role": "user",
+      "file": "examples/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 29,
+      "column": 5
+    },
+    {
+      "stateId": "recv_9",
+      "protocolName": "TaskExecutionWithMultipartyChild",
+      "role": "user",
+      "file": "examples/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 31,
+      "column": 5
+    },
+    {
+      "stateId": "recv_12",
+      "protocolName": "TaskExecutionWithMultipartyChild",
+      "role": "comma",
+      "file": "examples/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 18,
+      "column": 3
+    },
+    {
+      "stateId": "act_13",
+      "protocolName": "TaskExecutionWithMultipartyChild",
+      "role": "comma",
+      "file": "examples/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 20,
+      "column": 3
+    },
+    {
+      "stateId": "invoke_14",
+      "protocolName": "TaskExecutionWithMultipartyChild",
+      "role": "comma",
+      "file": "examples/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 24,
+      "column": 3
+    },
+    {
+      "stateId": "send_18",
+      "protocolName": "TaskExecutionWithMultipartyChild",
+      "role": "comma",
+      "file": "examples/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 29,
+      "column": 5
+    },
+    {
+      "stateId": "send_20",
+      "protocolName": "TaskExecutionWithMultipartyChild",
+      "role": "comma",
+      "file": "examples/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 31,
+      "column": 5
+    }
+  ]
+}

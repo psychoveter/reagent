@@ -18,7 +18,8 @@
         "from": "client",
         "arrow": "-->",
         "messageName": "Query",
-        "postReceiveZone": "\n      $ctx.queryText = $ctx.msg.text\n    "
+        "postReceiveZone": "\n      $ctx.queryText = $ctx.msg.text\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -55,7 +56,8 @@
         "to": "client",
         "arrow": "-->",
         "messageName": "Accept",
-        "preSendZone": "\n        $ctx.msg.data = $ctx.result.data\n      "
+        "preSendZone": "\n        $ctx.msg.data = $ctx.result.data\n      ",
+        "propagateFlow": true
       }
     },
     {
@@ -74,7 +76,8 @@
         "to": "client",
         "arrow": "-->",
         "messageName": "Reject",
-        "preSendZone": "\n        $ctx.msg.reason = \"query_failed\"\n      "
+        "preSendZone": "\n        $ctx.msg.reason = \"query_failed\"\n      ",
+        "propagateFlow": true
       }
     },
     {

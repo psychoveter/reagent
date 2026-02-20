@@ -1,10 +1,6 @@
 // Example 14: TS-only demo for runtime E2E tests
-//
-// Both roles are TypeScript. Used for:
-//   T1: linear protocol
-//   T2: alt-accept path
-//   T3: alt-reject path
-//   T5: $self state across multiple instances
+// $flow carries queryText between client and handler.
+// $ctx is per-role (handler has its own $ctx.result, client cannot see it).
 
 message Query {}
 message Accept {}
@@ -16,12 +12,12 @@ protocol TsDemo {
   input: Request
 
   client {
-    $ctx.queryText = $ctx.input.text
+    $flow.queryText = $ctx.input.text
   }
 
   client --> handler: Query = {
     onSend {
-      $ctx.msg.text = $ctx.queryText
+      $ctx.msg.text = $flow.queryText
     }
     onReceive {
       $ctx.queryText = $ctx.msg.text

@@ -15,7 +15,7 @@
       "kind": "action",
       "data": {
         "kind": "action",
-        "body": " $ctx.taskText = $ctx.input.text ",
+        "body": "\n    $flow.taskText = $ctx.input.text\n  ",
         "lang": "ts"
       }
     },
@@ -26,7 +26,8 @@
         "kind": "send",
         "to": "comma",
         "arrow": "-->",
-        "messageName": "TaskRequest"
+        "messageName": "TaskRequest",
+        "propagateFlow": true
       }
     },
     {
@@ -36,7 +37,8 @@
         "kind": "receive",
         "from": "comma",
         "arrow": "-->",
-        "messageName": "Greeting"
+        "messageName": "Greeting",
+        "propagateFlow": true
       }
     },
     {
@@ -46,7 +48,8 @@
         "kind": "receive",
         "from": "comma",
         "arrow": "-->",
-        "messageName": "LlmPlan"
+        "messageName": "LlmPlan",
+        "propagateFlow": true
       }
     },
     {

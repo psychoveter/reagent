@@ -18,16 +18,18 @@
         "from": "caller",
         "arrow": "-->",
         "messageName": "ComputeRequest",
-        "postReceiveZone": "\n      $ctx.receivedValue = $ctx.msg.value\n    "
+        "postReceiveZone": "\n      $ctx.receivedValue = $ctx.msg.value\n    ",
+        "propagateFlow": true
       }
     },
     {
-      "id": "act_8",
-      "kind": "action",
+      "id": "invoke_8",
+      "kind": "invoke",
       "data": {
-        "kind": "action",
-        "body": "\n    $ctx.squared = reagent.invoke(\"ComputeSquare\", { value: $ctx.receivedValue })\n  ",
-        "lang": "ts"
+        "kind": "invoke",
+        "protocolName": "ComputeSquare",
+        "input": "{ value: $ctx.receivedValue }",
+        "resultTarget": "$flow.squared"
       }
     },
     {
@@ -38,7 +40,8 @@
         "to": "caller",
         "arrow": "-->",
         "messageName": "ComputeResult",
-        "preSendZone": "\n      $ctx.msg.squared = $ctx.squared\n    "
+        "preSendZone": "\n      $ctx.msg.squared = $flow.squared\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -60,13 +63,13 @@
     },
     {
       "from": "recv_7",
-      "to": "act_8",
+      "to": "invoke_8",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "act_8",
+      "from": "invoke_8",
       "to": "send_9",
       "label": {
         "kind": "default"

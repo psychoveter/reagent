@@ -1,5 +1,5 @@
 /**
- * Reagent IR — v0.0.7
+ * Reagent IR — v0.0.8
  *
  * Three levels of IR:
  *
@@ -40,7 +40,10 @@ export type IRStateKind =
   | "join"
   | "timer"
   | "terminal"
-  | "error";
+  | "error"
+  | "invoke"
+  | "spawn"
+  | "scatter";
 
 export type IRState = {
   id: string;
@@ -58,7 +61,10 @@ export type IRStateData =
   | IRJoinData
   | IRTimerData
   | IRTerminalData
-  | IRErrorData;
+  | IRErrorData
+  | IRInvokeData
+  | IRSpawnData
+  | IRScatterData;
 
 export type IRInitialData = {
   kind: "initial";
@@ -71,6 +77,8 @@ export type IRSendData = {
   messageName: string;
   /** Zone body to execute before sending (onSend hook or inline) */
   preSendZone?: string;
+  /** If true, $flow is serialized into the envelope on send */
+  propagateFlow?: boolean;
 };
 
 export type IRReceiveData = {
@@ -82,6 +90,8 @@ export type IRReceiveData = {
   postReceiveZone?: string;
   /** Pattern/guard for message matching in alt branches */
   pattern?: Record<string, string>;
+  /** If true, $flow is deserialized from the envelope on receive */
+  propagateFlow?: boolean;
 };
 
 export type IRActionData = {
@@ -124,6 +134,30 @@ export type IRErrorData = {
   kind: "error";
   /** Catch label */
   label: string;
+};
+
+// ── Protocol-level invoke/spawn/scatter IR states ───────────────────
+
+export type IRInvokeData = {
+  kind: "invoke";
+  protocolName: string;
+  input: string;
+  roleMapping?: Record<string, string>;
+  resultTarget?: string;
+};
+
+export type IRSpawnData = {
+  kind: "spawn";
+  protocolName: string;
+  input: string;
+  roleMapping?: Record<string, string>;
+};
+
+export type IRScatterData = {
+  kind: "scatter";
+  collection: string;
+  itemRole: string;
+  branchStartIds: string[];
 };
 
 // ── IR Transitions ──────────────────────────────────────────────────

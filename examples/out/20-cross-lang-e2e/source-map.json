@@ -1,0 +1,52 @@
+{
+  "entries": [
+    {
+      "stateId": "act_2",
+      "protocolName": "CrossLangE2E",
+      "role": "tsRole",
+      "file": "examples/src/20-cross-lang-e2e.rg",
+      "line": 11,
+      "column": 3
+    },
+    {
+      "stateId": "send_3",
+      "protocolName": "CrossLangE2E",
+      "role": "tsRole",
+      "file": "examples/src/20-cross-lang-e2e.rg",
+      "line": 15,
+      "column": 3
+    },
+    {
+      "stateId": "recv_4",
+      "protocolName": "CrossLangE2E",
+      "role": "tsRole",
+      "file": "examples/src/20-cross-lang-e2e.rg",
+      "line": 29,
+      "column": 3
+    },
+    {
+      "stateId": "recv_7",
+      "protocolName": "CrossLangE2E",
+      "role": "pyRole",
+      "file": "examples/src/20-cross-lang-e2e.rg",
+      "line": 15,
+      "column": 3
+    },
+    {
+      "stateId": "act_8",
+      "protocolName": "CrossLangE2E",
+      "role": "pyRole",
+      "file": "examples/src/20-cross-lang-e2e.rg",
+      "line": 24,
+      "column": 3
+    },
+    {
+      "stateId": "send_9",
+      "protocolName": "CrossLangE2E",
+      "role": "pyRole",
+      "file": "examples/src/20-cross-lang-e2e.rg",
+      "line": 29,
+      "column": 3
+    }
+  ]
+}

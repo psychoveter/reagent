@@ -1,0 +1,36 @@
+{
+  "entries": [
+    {
+      "stateId": "act_2",
+      "protocolName": "TaskExecutionFromEvent",
+      "role": "comma",
+      "file": "examples/src/10-external-event-start-and-emit.rg",
+      "line": 10,
+      "column": 3
+    },
+    {
+      "stateId": "send_3",
+      "protocolName": "TaskExecutionFromEvent",
+      "role": "comma",
+      "file": "examples/src/10-external-event-start-and-emit.rg",
+      "line": 14,
+      "column": 3
+    },
+    {
+      "stateId": "act_4",
+      "protocolName": "TaskExecutionFromEvent",
+      "role": "comma",
+      "file": "examples/src/10-external-event-start-and-emit.rg",
+      "line": 16,
+      "column": 3
+    },
+    {
+      "stateId": "recv_7",
+      "protocolName": "TaskExecutionFromEvent",
+      "role": "sia",
+      "file": "examples/src/10-external-event-start-and-emit.rg",
+      "line": 14,
+      "column": 3
+    }
+  ]
+}

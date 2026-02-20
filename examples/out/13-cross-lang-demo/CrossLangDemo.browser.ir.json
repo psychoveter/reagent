@@ -15,7 +15,7 @@
       "kind": "action",
       "data": {
         "kind": "action",
-        "body": "\n    $ctx.queryText = $ctx.input.text\n  ",
+        "body": "\n    $flow.queryText = $ctx.input.text\n  ",
         "lang": "ts"
       }
     },
@@ -27,7 +27,8 @@
         "to": "server",
         "arrow": "-->",
         "messageName": "Query",
-        "preSendZone": "\n      $ctx.msg.text = $ctx.queryText\n    "
+        "preSendZone": "\n      $ctx.msg.text = $flow.queryText\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -55,7 +56,8 @@
         "from": "server",
         "arrow": "-->",
         "messageName": "Accept",
-        "postReceiveZone": "\n        $ctx.responseData = $ctx.msg.data\n      "
+        "postReceiveZone": "\n        $ctx.responseData = $ctx.msg.data\n      ",
+        "propagateFlow": true
       }
     },
     {
@@ -74,7 +76,8 @@
         "from": "server",
         "arrow": "-->",
         "messageName": "Reject",
-        "postReceiveZone": "\n        $ctx.rejectReason = $ctx.msg.reason\n      "
+        "postReceiveZone": "\n        $ctx.rejectReason = $ctx.msg.reason\n      ",
+        "propagateFlow": true
       }
     },
     {

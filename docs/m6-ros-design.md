@@ -14,7 +14,7 @@ The Reagent Orchestrator Service (ROS) is a long-lived Node.js process that repl
 - **Run**: trigger protocols, collect traces, report results
 - **Debug**: breakpoints, stepping, state inspection
 
-External tools (VSCode extension, CLI, web UI) connect to the ROS via **WebSocket** using the **RAP protocol** (7 sub-protocols already specced as `.rg` files in `examples/src/rap/`).
+External tools (VSCode extension, CLI, web UI) connect to the ROS via **WebSocket** using the **RAP protocol** (7 sub-protocols specced as `.rg` files with role definitions in `tools/rap/`).
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -112,7 +112,16 @@ interface Session {
 
 A session represents one `.rg` program being run or debugged. Sessions are created via the `CompileRequest` RAP sub-protocol and populated via `DeployAgent` + `RunProtocol`.
 
-### 2.4 DebugInterceptor — message-level breakpoints
+### 2.4 Two-level debug: DebugInterceptor + AdvanceHook
+
+Debugging operates at two levels, matching the two-level interception model from M5-CTRL:
+
+1. **Message-level** (`DebugInterceptor`) — intercepts `MessageEnvelope` traffic in the RC pipeline. Pauses *before delivery* to an agent.
+2. **State-level** (`AdvanceHook`) — intercepts IR state transitions *inside* `ProtocolInstance.advance()`. Pauses before each state executes, including agent zones (`action` states).
+
+Both levels are needed because message-level alone cannot see what happens inside an agent after a message is delivered — zone execution, guard evaluation, internal state transitions are invisible at the RC layer.
+
+#### 2.4.1 DebugInterceptor — message-level breakpoints
 
 The existing interceptor chain from M5-CTRL already supports dropping messages (interceptor doesn't call `next()`). For debugging, we extend this to **hold** messages in a queue for later release.
 
@@ -125,7 +134,7 @@ interface HeldMessage {
 }
 
 class DebugInterceptor {
-  private breakpoints: Set<string>;            // message names or state IDs
+  private breakpoints: Set<string>;            // message names
   private heldMessages: HeldMessage[];
   private paused: boolean;
 
@@ -134,36 +143,135 @@ class DebugInterceptor {
 
   setBreakpoints(bps: string[]): void;
   continue(): void;                            // release all held, resume
-  step(): void;                                // release one, then pause again
+  stepMessage(): void;                         // release one message, then pause again
   getHeld(): HeldMessage[];
 }
 ```
 
 The `DebugInterceptor` is injected into the RC's interceptor chain. When a message matches a breakpoint, the interceptor:
 1. Stores the envelope + a `release` callback (which calls `next()`) in `heldMessages`.
-2. Emits a `Paused` event to the debug client.
+2. Emits a `Paused` event to the debug client with `reason: "message-breakpoint"`.
 3. Does **not** call `next()` — the message is held.
 
-When the client sends `continue` or `step`, the controller calls `release()` on held messages.
+When the client sends `continue` or `stepMessage`, the controller calls `release()` on held messages.
+
+#### 2.4.2 AdvanceHook — state-level breakpoints (zone-aware)
+
+The `ProtocolInstance.advance()` method is a `while` loop that walks the IR state machine. It processes states in sequence: `initial` → `send` → `receive` → `action` → `guard` → ... → `terminal`. Currently it runs to completion or until it awaits a message.
+
+We introduce an **AdvanceHook** — an async callback injected into `ProtocolInstance` that fires *before each state is processed*:
+
+```typescript
+type AdvanceHook = (context: AdvanceHookContext) => Promise<void>;
+
+interface AdvanceHookContext {
+  instanceId: string;
+  agentName: string;
+  stateId: string;
+  stateKind: string;                // "send" | "receive" | "action" | "guard" | "timer" | "fork" | "terminal" | ...
+  ctx: Record<string, unknown>;     // current $ctx (read-only snapshot)
+  self: Record<string, unknown>;    // current $self (read-only snapshot)
+}
+```
+
+The hook is inserted at the top of the `advance()` while loop:
+
+```typescript
+private async advance(): Promise<void> {
+  while (this.status === "running") {
+    const state = this.stateMap.get(this.currentStateId);
+    if (!state) throw new Error(`State ${this.currentStateId} not found`);
+
+    // >>> AdvanceHook fires here — can await indefinitely (pause) <<<
+    if (this.advanceHook) {
+      await this.advanceHook({
+        instanceId: this.instanceId,
+        agentName: this.agentName,
+        stateId: state.id,
+        stateKind: state.data.kind,
+        ctx: { ...this.ctx },
+        self: { ...this.selfRef },
+      });
+    }
+
+    // ... existing switch (state.data.kind) ...
+  }
+}
+```
+
+The hook is `async` — it returns a `Promise`. When the debugger wants to pause, the hook returns a promise that resolves only when the client sends `continue` or `step`. This blocks `advance()` without busy-waiting or polling.
+
+**DebugAdvanceHook** wraps this into a debugger-aware implementation:
+
+```typescript
+class DebugAdvanceHook {
+  private stateBreakpoints: Set<string>;     // IR state IDs
+  private stepMode: "off" | "stepOver" | "stepInto";
+  private gate: PromiseGate | null;          // resolves when client says go
+
+  hook: AdvanceHook;
+
+  setStateBreakpoints(stateIds: string[]): void;
+  continue(): void;                           // resolve gate, stepMode = off
+  stepState(): void;                          // resolve gate, stepMode = stepInto (pause at next state)
+  stepOver(): void;                           // resolve gate, skip actions, pause at next message send/receive
+}
+```
+
+When the hook fires:
+1. Check if `stateId` is in `stateBreakpoints`, or `stepMode !== "off"`.
+2. If pausing: create a `PromiseGate`, emit `Stopped` event with `{ stateId, stateKind, reason }`, await the gate.
+3. The hook promise resolves when the client calls `continue()` / `stepState()` / `stepOver()` on the controller.
+
+**Step modes**:
+
+| Mode | Behavior | Use case |
+|---|---|---|
+| `stepState` | Pause before every IR state | Fine-grained: see each zone, guard, send, receive |
+| `stepOver` | Pause only before `send`, `receive`, `terminal` states | Skip zone internals, step message-by-message within one agent |
+| `stepMessage` (DebugInterceptor) | Hold next message in RC pipeline | Step at agent boundaries — pause before delivery |
+| `continue` | Run until next breakpoint or completion | Normal run |
+
+#### 2.4.3 Interaction between the two levels
+
+The two levels complement each other:
+
+- **DebugInterceptor** pauses message delivery *between* agents at the RC level. The receiving agent hasn't executed any code yet.
+- **AdvanceHook** pauses *within* an agent's state machine. Once a message is delivered and the agent starts processing it, the AdvanceHook governs stepping through the agent's internal states.
+
+A typical debug flow:
+1. DebugInterceptor holds a `Greeting` message at the RC level → client sees "Greeting about to be delivered to AgentB".
+2. Client calls `stepMessage` → message is released to AgentB.
+3. AgentB's `ProtocolInstance` receives the message, enters `receive` state, then tries to advance to the next state (`action` = zone).
+4. AdvanceHook fires before the `action` state → client sees "AgentB about to execute zone at act_8" with current `$ctx` (including `$ctx.msg` from the received message).
+5. Client inspects `$ctx.msg`, calls `stepState` → zone executes → AdvanceHook fires at the next state.
+
+For Python agents, the AdvanceHook is not directly available (the state machine runs in a child process). Instead, the `PythonAgentNode` IPC bridge exposes equivalent functionality:
+- A `pauseBeforeState` IPC command configures the Python `ProtocolInstance` to emit `{"type": "paused", "stateId": "...", ...}` and await a `{"type": "resume"}` command before continuing.
+- The `DebugController` translates between the unified debug API and the per-language mechanism.
 
 ### 2.5 DebugController — coordinates debug operations
 
 ```typescript
 class DebugController {
-  private sessions: Map<string, DebugInterceptor>;
+  private interceptors: Map<string, DebugInterceptor>;     // per session
+  private advanceHooks: Map<string, DebugAdvanceHook[]>;   // per session, one per agent
 
   setBreakpoints(sessionId: string, locations: BreakpointLocation[]): ResolvedBreakpoint[];
   continue(sessionId: string): void;
-  step(sessionId: string): void;
+  stepMessage(sessionId: string): void;           // message-level step (DebugInterceptor)
+  stepState(sessionId: string, agentName?: string): void;  // state-level step (AdvanceHook)
+  stepOver(sessionId: string, agentName?: string): void;   // skip zones, step to next message op
   inspectState(sessionId: string, agentName: string): StateSnapshot;
 }
 ```
 
 Breakpoints can be set on:
 
-- **Message names**: pause when a message with that name is about to be delivered.
-- **Source locations**: `.rg` file + line → resolved to IR state ID via source map.
-- **IR state IDs**: direct low-level breakpoint.
+- **Message names**: pause when a message with that name is about to be delivered (DebugInterceptor).
+- **Source locations**: `.rg` file + line → resolved to IR state ID via source map (AdvanceHook).
+- **IR state IDs**: direct low-level breakpoint (AdvanceHook).
+- **State kinds**: e.g. "all action states" — pause before every zone executes (AdvanceHook).
 
 ### 2.6 Source map
 
@@ -273,24 +381,36 @@ In addition to request-response, the ROS pushes real-time events to connected cl
 
 ### Phase 2: Debug infrastructure
 
-**Goal**: breakpoints, stepping, and state inspection.
+**Goal**: two-level breakpoints (message + state), stepping, zone-aware pausing, and state inspection.
 
 **New files**:
-- `runtime/ts/src/debug-interceptor.ts` — `DebugInterceptor` with held-message queue
-- `runtime/ts/src/debug-controller.ts` — `DebugController` coordinating sessions
+- `runtime/ts/src/debug-interceptor.ts` — `DebugInterceptor` with held-message queue (message-level)
+- `runtime/ts/src/debug-advance-hook.ts` — `DebugAdvanceHook` with promise-gate pausing (state-level)
+- `runtime/ts/src/debug-controller.ts` — `DebugController` coordinating both levels
 - Compiler enhancement: source map emission
 
+**ProtocolInstance change**: add optional `advanceHook: AdvanceHook` to config. Single `await this.advanceHook(...)` at top of `advance()` while loop. No other changes to state machine logic.
+
+**Python IPC extension**: add `pauseBeforeState` / `resume` commands to the IPC protocol. Python `ProtocolInstance` gains the same hook point.
+
 **What works after Phase 2**:
-1. Client sends `SetBreakpointsRequest` with `.rg` source locations → ROS resolves to IR state IDs.
+1. Client sends `SetBreakpointsRequest` with `.rg` source locations or message names → ROS resolves locations to IR state IDs via source map, classifies as message-level or state-level breakpoints.
 2. Client sends `RunStart` with `mode: "debug"` → protocol runs until breakpoint hit.
-3. When a message hits a breakpoint, ROS sends `Stopped` event with state ID and reason.
-4. Client sends `DebugCommand` with `command: "continue"` or `command: "step"` → execution resumes.
-5. Client sends `GetState` → ROS returns `StateSnapshot` with `$ctx`, `$self`, pending messages, recent traces.
+3. **Message breakpoint**: RC holds the message → `Stopped` event with `reason: "message-breakpoint"`.
+4. **State breakpoint**: AdvanceHook pauses before the IR state → `Stopped` event with `reason: "state-breakpoint"`, includes `stateKind` (e.g. `"action"` for zones).
+5. Client sends `DebugCommand`:
+   - `stepMessage` → release one held message, pause at next message delivery.
+   - `stepState` → advance one IR state, pause before next state (catches every zone).
+   - `stepOver` → advance until next `send`/`receive`/`terminal` state (skips zone internals).
+   - `continue` → run until next breakpoint or completion.
+6. Client sends `GetState` → ROS returns `StateSnapshot` with `$ctx`, `$self`, `currentStateId`, `stateKind`, pending messages, recent traces.
 
 **E2E tests**:
-- T22: Set breakpoint on message name, run, verify pause at correct point.
+- T22: Set breakpoint on message name, run, verify pause at correct point (message-level).
 - T23: Inspect `$ctx` and `$self` at pause point, verify values match expected.
-- T24: Step through 3 transitions, verify state after each.
+- T24: Step through 3 message-level transitions, verify state after each.
+- T25: Set breakpoint on `action` state (zone), run, verify pause *before zone executes* with pre-zone `$ctx` (state-level).
+- T26: `stepState` through receive → action → send, verify `$ctx` changes at each step.
 
 ### Phase 3: Remote nodes via WsNodeLink
 
@@ -335,7 +455,7 @@ Client                          ROS
   │◀── RunCompleted ─────────────│
 ```
 
-### 5.2 Debug session (Phase 2)
+### 5.2 Debug session — message-level (Phase 2)
 
 ```
 Client                          ROS
@@ -343,25 +463,68 @@ Client                          ROS
   │─── Compile ─────────────────▶│
   │◀── CompileSuccess ───────────│
   │                              │
-  │─── SetBreakpoints ──────────▶│  resolve line 15 → state recv_7
-  │◀── BreakpointsResolved ──────│  [{stateId: "recv_7", file: "demo.rg", line: 15}]
+  │─── SetBreakpoints ──────────▶│  message breakpoint: "Greeting"
+  │◀── BreakpointsResolved ──────│  [{type: "message", messageName: "Greeting"}]
   │                              │
   │─── RunStart (mode: debug) ──▶│  deploy + trigger
   │◀── TraceEvent ───────────────│  ProtocolStarted
   │◀── TraceEvent ───────────────│  MessageSent (Greeting)
-  │◀── Stopped ──────────────────│  {stateId: "recv_7", reason: "breakpoint"}
+  │◀── Stopped ──────────────────│  {reason: "message-breakpoint", messageName: "Greeting",
+  │                              │   from: "AgentA", to: "AgentB"}
+  │─── GetState (AgentB) ───────▶│
+  │◀── StateSnapshot ────────────│  {ctx: {}, self: {...}}  ← message not yet delivered
   │                              │
-  │─── GetState ────────────────▶│
-  │◀── StateSnapshot ────────────│  {ctx: {receivedGreeting: "hello"}, self: {...}}
-  │                              │
-  │─── DebugCommand (step) ─────▶│  release Greeting, pause after next state
+  │─── DebugCommand (stepMsg) ──▶│  release Greeting to AgentB
   │◀── TraceEvent ───────────────│  MessageReceived
-  │◀── TraceEvent ───────────────│  ActionStarted
-  │◀── Stopped ──────────────────│  {stateId: "act_8", reason: "step"}
+  │◀── TraceEvent ───────────────│  ActionStarted → ActionFinished
+  │◀── TraceEvent ───────────────│  MessageSent (Reply)
+  │◀── Stopped ──────────────────│  {reason: "message-breakpoint", messageName: "Reply"}
   │                              │
-  │─── DebugCommand (continue) ─▶│  release all, run to completion
+  │─── DebugCommand (continue) ─▶│  run to completion
   │◀── TraceEvent (stream) ──────│  ...
   │◀── RunCompleted ─────────────│
+```
+
+### 5.3 Debug session — state-level with zone stepping (Phase 2)
+
+```
+Client                          ROS                          AgentB's ProtocolInstance
+  │                              │                              │
+  │─── SetBreakpoints ──────────▶│  state breakpoint on line 18 │
+  │◀── BreakpointsResolved ──────│  [{stateId: "act_8"}]        │
+  │                              │                              │
+  │─── RunStart (mode: debug) ──▶│  deploy + trigger            │
+  │◀── TraceEvent ───────────────│  ProtocolStarted             │
+  │◀── TraceEvent ───────────────│  MessageSent (Greeting)      │
+  │◀── TraceEvent ───────────────│  MessageReceived             │
+  │                              │                 advance() ──▶│ recv_7 processed ✓
+  │                              │                              │ advance hook fires at act_8
+  │◀── Stopped ──────────────────│  {stateId: "act_8",          │ ← promise gate blocks advance()
+  │                              │   stateKind: "action",       │
+  │                              │   reason: "state-breakpoint"}│
+  │                              │                              │
+  │─── GetState (AgentB) ───────▶│                              │
+  │◀── StateSnapshot ────────────│  {ctx: {msg: {text: "hi"}},  │ ← $ctx.msg set, zone NOT yet run
+  │                              │   self: {counter: 0},        │
+  │                              │   stateId: "act_8",          │
+  │                              │   stateKind: "action"}       │
+  │                              │                              │
+  │─── DebugCommand (stepState) ▶│                              │
+  │                              │              gate resolves ──▶│ act_8 zone executes
+  │◀── TraceEvent ───────────────│  ActionStarted               │
+  │◀── TraceEvent ───────────────│  ActionFinished              │
+  │                              │                              │ advance hook fires at send_9
+  │◀── Stopped ──────────────────│  {stateId: "send_9",         │ ← zone done, about to send Reply
+  │                              │   stateKind: "send",         │
+  │                              │   reason: "step"}            │
+  │                              │                              │
+  │─── GetState (AgentB) ───────▶│                              │
+  │◀── StateSnapshot ────────────│  {ctx: {reply: "processed"}, │ ← $ctx updated by zone
+  │                              │   self: {counter: 1}}        │ ← $self updated by zone
+  │                              │                              │
+  │─── DebugCommand (continue) ─▶│              gate resolves ──▶│ runs to terminal
+  │◀── TraceEvent (stream) ──────│  ...                         │
+  │◀── RunCompleted ─────────────│                              │
 ```
 
 ---
@@ -372,21 +535,23 @@ Client                          ROS
 
 The ROS runs its own `ReagentController`. In the future, infrastructure operations (trace collection, debug control, deployment management) can be modeled as Reagent protocols with dedicated infrastructure agents. This is the "self-describing infrastructure" endgame, but for Phase 1 the ROS uses direct API calls to the RC.
 
-### 6.2 DebugInterceptor vs. SteppableProtocolInstance
+### 6.2 Two-level debugging (DebugInterceptor + AdvanceHook)
 
-Two approaches were considered:
+Two approaches were considered and both adopted — they operate at different granularities:
 
-**Option A: Message-level (DebugInterceptor)**
+**Level A: Message-level (DebugInterceptor)**
 - Intercept messages in the RC's pipeline.
-- Hold messages to pause execution.
-- Coarse-grained: pauses at message boundaries.
+- Hold messages to pause execution *between* agents.
+- Coarse-grained: pauses at message delivery boundaries.
 
-**Option B: State-level (SteppableProtocolInstance)**
-- Hook into `ProtocolInstance._advance()`.
-- Pause before each state transition.
-- Fine-grained: pauses at every IR state.
+**Level B: State-level (AdvanceHook)**
+- Hook into `ProtocolInstance.advance()` loop.
+- Pause before each state transition *within* an agent.
+- Fine-grained: pauses at every IR state including agent zones (`action`), guards, timers.
 
-**Decision**: Phase 2 implements **Option A** (message-level) first. It works with the existing interceptor chain, requires no `ProtocolInstance` changes, and covers the most useful debug scenarios (pause on message X, inspect state, step through messages). Option B can be layered on later for sub-state stepping if needed.
+**Decision**: both levels are implemented in Phase 2. Message-level covers "stop before this message reaches the agent" scenarios. State-level covers "step through the zone code that processes this message" scenarios. Without state-level, zones are black boxes — the debugger can't pause before/after zone execution, which is critical for debugging agent logic.
+
+The AdvanceHook is a minimal change to `ProtocolInstance`: a single `await` at the top of the `advance()` while loop. The hook's async nature means pause/resume is just promise resolution — no polling, no busy-waiting, no changes to the state machine logic itself.
 
 ### 6.3 Source map format
 
@@ -405,10 +570,11 @@ The ROS uses `ReagentController` + `NativeAgentNode`/`PythonAgentNode` + `InMemo
 | `runtime/ts/src/ws-node-link.ts` | WebSocket NodeLink | 1 |
 | `runtime/ts/src/ros.ts` | ReagentOrchestratorServer | 1 |
 | `runtime/ts/src/session.ts` | Session management | 1 |
-| `runtime/ts/src/debug-interceptor.ts` | DebugInterceptor with held-message queue | 2 |
-| `runtime/ts/src/debug-controller.ts` | DebugController (breakpoints, step, inspect) | 2 |
+| `runtime/ts/src/debug-interceptor.ts` | DebugInterceptor with held-message queue (message-level) | 2 |
+| `runtime/ts/src/debug-advance-hook.ts` | DebugAdvanceHook with promise-gate pausing (state-level) | 2 |
+| `runtime/ts/src/debug-controller.ts` | DebugController coordinating both debug levels | 2 |
 | `lang/src/source-map.ts` | Source map emission from compiler | 2 |
-| `runtime/tests/m6-ros.test.ts` | ROS E2E tests (T21–T24) | 1-2 |
+| `runtime/tests/m6-ros.test.ts` | ROS E2E tests (T21–T26) | 1-2 |
 
 ---
 
@@ -416,7 +582,8 @@ The ROS uses `ReagentController` + `NativeAgentNode`/`PythonAgentNode` + `InMemo
 
 - ROS boots, accepts WS connections, compiles `.rg`, deploys agents in-process, runs protocols, streams traces.
 - `WsNodeLink` works for remote node connectivity.
-- `DebugInterceptor` pauses on message breakpoints, supports step/continue.
-- `DebugController` resolves source-level breakpoints via source map.
-- `InspectState` returns `$ctx`, `$self`, pending messages for paused agents.
-- T21 (compile + run via WS), T22 (breakpoint pause), T23 (state inspection), T24 (step-through) pass.
+- **Message-level debug**: `DebugInterceptor` pauses on message breakpoints, supports `stepMessage`/`continue`.
+- **State-level debug**: `AdvanceHook` in `ProtocolInstance` pauses before any IR state (including zones). `DebugAdvanceHook` supports `stepState`/`stepOver`/`continue`.
+- `DebugController` resolves source-level breakpoints via source map, coordinates both debug levels.
+- `InspectState` returns `$ctx`, `$self`, `currentStateId`, `stateKind`, pending messages for paused agents.
+- T21 (compile + run via WS), T22 (message breakpoint), T23 (state inspection), T24 (message step-through), T25 (zone breakpoint), T26 (state-level stepping) pass.

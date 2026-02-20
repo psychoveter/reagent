@@ -1,0 +1,68 @@
+{
+  "entries": [
+    {
+      "stateId": "act_2",
+      "protocolName": "TaskExecution",
+      "role": "user",
+      "file": "examples/src/00-protocol-wrapper.rg",
+      "line": 16,
+      "column": 3
+    },
+    {
+      "stateId": "send_3",
+      "protocolName": "TaskExecution",
+      "role": "user",
+      "file": "examples/src/00-protocol-wrapper.rg",
+      "line": 19,
+      "column": 3
+    },
+    {
+      "stateId": "recv_4",
+      "protocolName": "TaskExecution",
+      "role": "user",
+      "file": "examples/src/00-protocol-wrapper.rg",
+      "line": 21,
+      "column": 3
+    },
+    {
+      "stateId": "recv_7",
+      "protocolName": "TaskExecution",
+      "role": "comma",
+      "file": "examples/src/00-protocol-wrapper.rg",
+      "line": 19,
+      "column": 3
+    },
+    {
+      "stateId": "send_8",
+      "protocolName": "TaskExecution",
+      "role": "comma",
+      "file": "examples/src/00-protocol-wrapper.rg",
+      "line": 21,
+      "column": 3
+    },
+    {
+      "stateId": "act_9",
+      "protocolName": "TaskExecution",
+      "role": "comma",
+      "file": "examples/src/00-protocol-wrapper.rg",
+      "line": 27,
+      "column": 3
+    },
+    {
+      "stateId": "send_10",
+      "protocolName": "TaskExecution",
+      "role": "comma",
+      "file": "examples/src/00-protocol-wrapper.rg",
+      "line": 32,
+      "column": 3
+    },
+    {
+      "stateId": "recv_13",
+      "protocolName": "TaskExecution",
+      "role": "sia",
+      "file": "examples/src/00-protocol-wrapper.rg",
+      "line": 32,
+      "column": 3
+    }
+  ]
+}

@@ -18,7 +18,8 @@
         "to": "worker",
         "arrow": "-->",
         "messageName": "Task",
-        "preSendZone": "\n      $ctx.msg.payload = $ctx.input.payload\n    "
+        "preSendZone": "\n      $ctx.msg.payload = $ctx.input.payload\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -29,7 +30,8 @@
         "from": "worker",
         "arrow": "-->",
         "messageName": "TaskDone",
-        "postReceiveZone": "\n      $self.lastResult = $ctx.msg.result\n    "
+        "postReceiveZone": "\n      $self.lastResult = $ctx.msg.result\n    ",
+        "propagateFlow": true
       }
     },
     {

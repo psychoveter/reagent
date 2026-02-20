@@ -17,7 +17,8 @@
         "kind": "send",
         "to": "comma",
         "arrow": "-->",
-        "messageName": "Ping"
+        "messageName": "Ping",
+        "propagateFlow": true
       }
     },
     {
@@ -27,7 +28,8 @@
         "kind": "receive",
         "from": "comma",
         "arrow": "-->",
-        "messageName": "Pong"
+        "messageName": "Pong",
+        "propagateFlow": true
       }
     },
     {

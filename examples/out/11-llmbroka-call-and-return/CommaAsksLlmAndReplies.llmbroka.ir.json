@@ -4,14 +4,14 @@
   "lang": "*",
   "states": [
     {
-      "id": "init_13",
+      "id": "init_14",
       "kind": "initial",
       "data": {
         "kind": "initial"
       }
     },
     {
-      "id": "end_14",
+      "id": "end_15",
       "kind": "terminal",
       "data": {
         "kind": "terminal",
@@ -21,15 +21,15 @@
   ],
   "transitions": [
     {
-      "from": "init_13",
-      "to": "end_14",
+      "from": "init_14",
+      "to": "end_15",
       "label": {
         "kind": "default"
       }
     }
   ],
-  "initialStateId": "init_13",
+  "initialStateId": "init_14",
   "terminalStateIds": [
-    "end_14"
+    "end_15"
   ]
 }

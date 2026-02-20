@@ -17,31 +17,43 @@
         "kind": "receive",
         "from": "user",
         "arrow": "-->",
-        "messageName": "TaskRequest"
+        "messageName": "TaskRequest",
+        "propagateFlow": true
       }
     },
     {
-      "id": "act_7",
+      "id": "invoke_7",
+      "kind": "invoke",
+      "data": {
+        "kind": "invoke",
+        "protocolName": "derive.DeriveDsiBsi",
+        "input": "{ taskText: $flow.taskText }",
+        "resultTarget": "$flow.dsiBsi"
+      }
+    },
+    {
+      "id": "act_8",
       "kind": "action",
       "data": {
         "kind": "action",
-        "body": "\n    $ctx.dsiBsi = reagent.invoke(derive.DeriveDsiBsi, { taskText: $ctx.taskText })\n    $self.lastDsiBsi = $ctx.dsiBsi\n  ",
+        "body": "\n    $self.lastDsiBsi = $flow.dsiBsi\n  ",
         "lang": "ts"
       }
     },
     {
-      "id": "send_8",
+      "id": "send_9",
       "kind": "send",
       "data": {
         "kind": "send",
         "to": "sia",
         "arrow": "-->",
         "messageName": "SubmitIntent",
-        "preSendZone": "\n      $ctx.msg.ref = $ctx.dsiBsi\n    "
+        "preSendZone": "\n      $ctx.msg.ref = $flow.dsiBsi\n    ",
+        "propagateFlow": true
       }
     },
     {
-      "id": "end_9",
+      "id": "end_10",
       "kind": "terminal",
       "data": {
         "kind": "terminal",
@@ -59,21 +71,28 @@
     },
     {
       "from": "recv_6",
-      "to": "act_7",
+      "to": "invoke_7",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "act_7",
-      "to": "send_8",
+      "from": "invoke_7",
+      "to": "act_8",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "send_8",
-      "to": "end_9",
+      "from": "act_8",
+      "to": "send_9",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_9",
+      "to": "end_10",
       "label": {
         "kind": "default"
       }
@@ -81,6 +100,6 @@
   ],
   "initialStateId": "init_5",
   "terminalStateIds": [
-    "end_9"
+    "end_10"
   ]
 }

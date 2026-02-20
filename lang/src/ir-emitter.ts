@@ -1,5 +1,5 @@
 /**
- * Reagent IR Emitter — v0.0.7
+ * Reagent IR Emitter — v0.0.8
  *
  * Transforms AST nodes into IR:
  * - ProtocolDef → set of IRGraphs (one per role)
@@ -12,7 +12,9 @@ import type {
   AgentZone,
   AltBranch,
   AltStmt,
+  InvokeStmt,
   LangTag,
+  Loc,
   LoopStmt,
   MessageDef,
   MessageStmt,
@@ -21,6 +23,8 @@ import type {
   ProtocolDef,
   ProtocolItem,
   RoleDef,
+  ScatterStmt,
+  SpawnStmt,
   TryStmt,
   WaitStmt,
 } from "./ast.js";
@@ -42,15 +46,26 @@ import type {
 
 // ── Public API ──────────────────────────────────────────────────────
 
+export type SourceMapEntry = {
+  stateId: string;
+  protocolName: string;
+  role: string;
+  file: string;
+  line: number;
+  column: number;
+};
+
 export type EmitResult = {
   ok: boolean;
   graphs: Map<string, IRGraph>;
   errors: string[];
+  sourceMap: SourceMapEntry[];
 };
 
 export function emitIR(protocol: ProtocolDef): EmitResult {
   const errors: string[] = [];
   const graphs = new Map<string, IRGraph>();
+  const sourceMap: SourceMapEntry[] = [];
 
   const langMap = new Map<string, LangTag>();
   for (const p of protocol.participants) {
@@ -73,9 +88,10 @@ export function emitIR(protocol: ProtocolDef): EmitResult {
     }
 
     graphs.set(p.name, graph);
+    sourceMap.push(...builder.getSourceMap());
   }
 
-  return { ok: errors.length === 0, graphs, errors };
+  return { ok: errors.length === 0, graphs, errors, sourceMap };
 }
 
 // ── Role IR Emitter ─────────────────────────────────────────────────
@@ -256,6 +272,7 @@ class GraphBuilder {
   transitions: IRTransition[] = [];
   initialStateId: string;
   terminalStateIds: string[] = [];
+  private sourceMapEntries: SourceMapEntry[] = [];
 
   /** The "current" state ID — the last state emitted, where the next transition will start from. */
   private currentId: string;
@@ -272,16 +289,30 @@ class GraphBuilder {
     this.currentId = initId;
   }
 
-  private addState(id: string, data: IRStateData): void {
+  private addState(id: string, data: IRStateData, loc?: Loc): void {
     this.states.push({ id, kind: data.kind, data });
+    if (loc) {
+      this.sourceMapEntries.push({
+        stateId: id,
+        protocolName: this.protocolName,
+        role: this.role,
+        file: "",
+        line: loc.start.line,
+        column: loc.start.col,
+      });
+    }
+  }
+
+  getSourceMap(): SourceMapEntry[] {
+    return this.sourceMapEntries;
   }
 
   private addTransition(from: string, to: string, label: IRTransitionLabel): void {
     this.transitions.push({ from, to, label });
   }
 
-  private advance(stateId: string, data: IRStateData, label: IRTransitionLabel = { kind: "default" }): string {
-    this.addState(stateId, data);
+  private advance(stateId: string, data: IRStateData, label: IRTransitionLabel = { kind: "default" }, loc?: Loc): string {
+    this.addState(stateId, data, loc);
     this.addTransition(this.currentId, stateId, label);
     this.currentId = stateId;
     return stateId;
@@ -303,6 +334,9 @@ class GraphBuilder {
       case "ParStmt": return this.emitPar(item);
       case "WaitStmt": return this.emitWait(item);
       case "TryStmt": return this.emitTry(item);
+      case "InvokeStmt": return this.emitInvoke(item);
+      case "SpawnStmt": return this.emitSpawn(item);
+      case "ScatterStmt": return this.emitScatter(item);
     }
   }
 
@@ -332,7 +366,8 @@ class GraphBuilder {
         arrow: msg.arrow,
         messageName: msg.messageName,
         preSendZone,
-      });
+        propagateFlow: true,
+      }, { kind: "default" }, msg.loc);
     }
 
     if (isReceiver) {
@@ -356,7 +391,8 @@ class GraphBuilder {
         messageName: msg.messageName,
         postReceiveZone,
         pattern,
-      });
+        propagateFlow: true,
+      }, { kind: "default" }, msg.loc);
     }
   }
 
@@ -370,7 +406,7 @@ class GraphBuilder {
       kind: "action",
       body: zone.body,
       lang: zone.lang,
-    });
+    }, { kind: "default" }, zone.loc);
   }
 
   // ── Alt ─────────────────────────────────────────────────────────
@@ -394,9 +430,10 @@ class GraphBuilder {
       switch (branch.guard.kind) {
         case "AltMessageGuard": {
           const g = branch.guard;
-          const pattern = g.props?.pairs
-            ? Object.fromEntries(g.props.pairs.map(p => [p.key, p.value]))
-            : undefined;
+          const pattern = g.whereClause
+            ?? (g.props?.pairs
+              ? Object.fromEntries(g.props.pairs.map(p => [p.key, p.value]))
+              : undefined);
           label = { kind: "message", messageName: g.messageName, pattern };
 
           // For the receiver role, emit a receive state at the branch entry
@@ -532,7 +569,7 @@ class GraphBuilder {
 
   private emitWait(wait: WaitStmt): void {
     const id = nextId("timer");
-    this.advance(id, { kind: "timer", duration: wait.duration });
+    this.advance(id, { kind: "timer", duration: wait.duration }, { kind: "default" }, wait.loc);
   }
 
   // ── Try/catch ───────────────────────────────────────────────────
@@ -563,6 +600,62 @@ class GraphBuilder {
 
     this.addState(mergeId, { kind: "guard", guardType: "expression" });
     this.currentId = mergeId;
+  }
+
+  // ── Invoke ──────────────────────────────────────────────────────
+
+  private emitInvoke(stmt: InvokeStmt): void {
+    if (stmt.callerRole !== this.role) return;
+
+    const id = nextId("invoke");
+    this.advance(id, {
+      kind: "invoke",
+      protocolName: stmt.protocolName,
+      input: stmt.input,
+      roleMapping: stmt.roleMapping,
+      resultTarget: stmt.resultTarget,
+    }, { kind: "default" }, stmt.loc);
+  }
+
+  // ── Spawn ──────────────────────────────────────────────────────
+
+  private emitSpawn(stmt: SpawnStmt): void {
+    if (stmt.callerRole !== this.role) return;
+
+    const id = nextId("spawn");
+    this.advance(id, {
+      kind: "spawn",
+      protocolName: stmt.protocolName,
+      input: stmt.input,
+      roleMapping: stmt.roleMapping,
+    }, { kind: "default" }, stmt.loc);
+  }
+
+  // ── Scatter ────────────────────────────────────────────────────
+
+  private emitScatter(stmt: ScatterStmt): void {
+    const forkId = nextId("scatter_fork");
+    const branchStartIds: string[] = [];
+
+    this.advance(forkId, { kind: "scatter", collection: stmt.collection, itemRole: stmt.itemRole, branchStartIds: [] });
+
+    const joinId = nextId("scatter_join");
+
+    const branchEntryId = nextId("scatter_entry");
+    this.addState(branchEntryId, { kind: "guard", guardType: "expression" });
+    this.addTransition(forkId, branchEntryId, { kind: "branch", branchIndex: 0 });
+    branchStartIds.push(branchEntryId);
+
+    this.currentId = branchEntryId;
+    this.emitBody(stmt.body);
+
+    this.addTransition(this.currentId, joinId, { kind: "default" });
+
+    const scatterState = this.states.find(s => s.id === forkId)!;
+    (scatterState.data as any).branchStartIds = branchStartIds;
+
+    this.addState(joinId, { kind: "join", branchCount: 1 });
+    this.currentId = joinId;
   }
 
   // ── Finalize ────────────────────────────────────────────────────

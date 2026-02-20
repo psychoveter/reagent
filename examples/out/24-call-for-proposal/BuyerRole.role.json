@@ -1,0 +1,24 @@
+{
+  "roleName": "BuyerRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "CallForProposal",
+      "roleName": "buyer"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.cfpsCompleted = 0\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolCompleted",
+      "protocolFilter": "CallForProposal",
+      "action": {
+        "body": "\n    $self.cfpsCompleted += 1\n  ",
+        "lang": "ts"
+      }
+    }
+  ]
+}

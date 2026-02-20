@@ -1,5 +1,5 @@
 /**
- * Reagent IR Validator — v0.0.4
+ * Reagent IR Validator — v0.0.8
  *
  * Static checks on an IRGraph:
  *   - Well-formed: all transition refs point to existing states.
@@ -110,7 +110,7 @@ export function validateIRGraph(graph: IRGraph): ValidationResult {
     });
   }
 
-  // 5. Fork/join consistency
+  // 5. Fork/join/scatter consistency
   for (const s of graph.states) {
     if (s.data.kind === "fork") {
       for (const bid of s.data.branchStartIds) {
@@ -123,11 +123,38 @@ export function validateIRGraph(graph: IRGraph): ValidationResult {
         }
       }
     }
+    if (s.data.kind === "scatter") {
+      for (const bid of s.data.branchStartIds) {
+        if (!stateIds.has(bid)) {
+          errors.push({
+            code: "E_SCATTER_DANGLING",
+            message: `Scatter state '${s.id}' references non-existent branch start '${bid}'`,
+            stateId: s.id,
+          });
+        }
+      }
+      if (!s.data.collection) {
+        errors.push({
+          code: "E_SCATTER_NO_COLLECTION",
+          message: `Scatter state '${s.id}' has no collection expression`,
+          stateId: s.id,
+        });
+      }
+    }
     if (s.data.kind === "join") {
       if (s.data.branchCount < 1) {
         errors.push({
           code: "E_JOIN_EMPTY",
           message: `Join state '${s.id}' has branchCount < 1`,
+          stateId: s.id,
+        });
+      }
+    }
+    if (s.data.kind === "invoke") {
+      if (!s.data.protocolName) {
+        errors.push({
+          code: "E_INVOKE_NO_PROTOCOL",
+          message: `Invoke state '${s.id}' has no protocol name`,
           stateId: s.id,
         });
       }

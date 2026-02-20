@@ -63,6 +63,18 @@ async def run_ipc_agent() -> None:
     runner: Optional[AgentRunner] = None
     transport: Optional[LocalTransport] = None
 
+    # Debug state-level pause support
+    pause_gate: Optional[asyncio.Event] = None
+    state_breakpoints: set[str] = set()
+
+    async def _advance_hook(ctx: dict[str, Any]) -> None:
+        nonlocal pause_gate
+        if ctx["stateId"] in state_breakpoints:
+            _send({"type": "debugStopped", "stateId": ctx["stateId"], "stateKind": ctx["stateKind"],
+                    "agentName": ctx["agentName"], "instanceId": ctx["instanceId"]})
+            pause_gate = asyncio.Event()
+            await pause_gate.wait()
+
     while True:
         raw = await queue.get()
         if raw is None:
@@ -78,11 +90,12 @@ async def run_ipc_agent() -> None:
         if cmd_type == "init":
             transport = LocalTransport()
 
-            config = {
+            config: dict[str, Any] = {
                 "agentIR": cmd["agentIR"],
                 "graphs": cmd["graphs"],
                 "roleToAgent": cmd["roleToAgent"],
                 "transport": transport,
+                "advanceHook": _advance_hook,
             }
             runner = AgentRunner(config)
 
@@ -113,6 +126,18 @@ async def run_ipc_agent() -> None:
         elif cmd_type == "getSelf":
             if runner:
                 _send({"type": "selfState", "state": runner.self_state})
+
+        elif cmd_type == "pauseBeforeState":
+            state_ids = cmd.get("stateIds", [])
+            state_breakpoints.clear()
+            state_breakpoints.update(state_ids)
+            _send({"type": "pauseConfigured", "stateIds": list(state_breakpoints)})
+
+        elif cmd_type == "resume":
+            if pause_gate:
+                pause_gate.set()
+                pause_gate = None
+            _send({"type": "resumed"})
 
         elif cmd_type == "stop":
             if runner:

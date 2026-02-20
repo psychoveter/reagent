@@ -18,7 +18,8 @@
         "to": "sia",
         "arrow": "-->",
         "messageName": "SubmitIntent",
-        "preSendZone": "\n      $ctx.msg.intent = $ctx.intent\n    "
+        "preSendZone": "\n      $ctx.msg.intent = $flow.intent\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -36,8 +37,7 @@
         "kind": "receive",
         "from": "sia",
         "arrow": "-->",
-        "messageName": "Accept",
-        "pattern": {}
+        "messageName": "Accept"
       }
     },
     {
@@ -56,8 +56,7 @@
         "kind": "receive",
         "from": "sia",
         "arrow": "-->",
-        "messageName": "Reject",
-        "pattern": {}
+        "messageName": "Reject"
       }
     },
     {
@@ -79,13 +78,13 @@
           "unit": "s",
           "loc": {
             "start": {
-              "index": 792,
-              "line": 32,
+              "index": 671,
+              "line": 29,
               "col": 19
             },
             "end": {
-              "index": 795,
-              "line": 32,
+              "index": 674,
+              "line": 29,
               "col": 22
             }
           }
@@ -138,8 +137,7 @@
       "to": "recv_5",
       "label": {
         "kind": "message",
-        "messageName": "Accept",
-        "pattern": {}
+        "messageName": "Accept"
       }
     },
     {
@@ -161,8 +159,7 @@
       "to": "recv_7",
       "label": {
         "kind": "message",
-        "messageName": "Reject",
-        "pattern": {}
+        "messageName": "Reject"
       }
     },
     {
@@ -189,13 +186,13 @@
           "unit": "s",
           "loc": {
             "start": {
-              "index": 792,
-              "line": 32,
+              "index": 671,
+              "line": 29,
               "col": 19
             },
             "end": {
-              "index": 795,
-              "line": 32,
+              "index": 674,
+              "line": 29,
               "col": 22
             }
           }

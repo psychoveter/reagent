@@ -17,7 +17,8 @@
         "kind": "receive",
         "from": "user",
         "arrow": "-->",
-        "messageName": "TaskRequest"
+        "messageName": "TaskRequest",
+        "propagateFlow": true
       }
     },
     {
@@ -25,17 +26,21 @@
       "kind": "action",
       "data": {
         "kind": "action",
-        "body": "\n    $ctx.intent = taskToDsiBsi($ctx.taskText)\n    $ctx.validation = reagent.invoke(v.ValidateIntentWithSia, { sia: sia }, { intent: $ctx.intent })\n  ",
+        "body": "\n    $flow.intent = taskToDsiBsi($flow.taskText)\n  ",
         "lang": "ts"
       }
     },
     {
-      "id": "act_14",
-      "kind": "action",
+      "id": "invoke_14",
+      "kind": "invoke",
       "data": {
-        "kind": "action",
-        "body": "\n    if ($ctx.validation.ok) {\n      $ctx.outcome = \"done\"\n    } else {\n      $ctx.outcome = \"failed\"\n    }\n  ",
-        "lang": "ts"
+        "kind": "invoke",
+        "protocolName": "v.ValidateIntentWithSia",
+        "input": "{ intent: $flow.intent }",
+        "roleMapping": {
+          "sia": "sia"
+        },
+        "resultTarget": "$flow.validation"
       }
     },
     {
@@ -52,7 +57,7 @@
       "data": {
         "kind": "guard",
         "guardType": "expression",
-        "expr": "$ctx.outcome == \"done\""
+        "expr": "$flow.validation.ok == true"
       }
     },
     {
@@ -62,7 +67,8 @@
         "kind": "send",
         "to": "user",
         "arrow": "-->",
-        "messageName": "Done"
+        "messageName": "Done",
+        "propagateFlow": true
       }
     },
     {
@@ -80,7 +86,8 @@
         "kind": "send",
         "to": "user",
         "arrow": "-->",
-        "messageName": "Failed"
+        "messageName": "Failed",
+        "propagateFlow": true
       }
     },
     {
@@ -117,13 +124,13 @@
     },
     {
       "from": "act_13",
-      "to": "act_14",
+      "to": "invoke_14",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "act_14",
+      "from": "invoke_14",
       "to": "xor_15",
       "label": {
         "kind": "default"
@@ -134,7 +141,7 @@
       "to": "guard_17",
       "label": {
         "kind": "expression",
-        "expr": "$ctx.outcome == \"done\""
+        "expr": "$flow.validation.ok == true"
       }
     },
     {

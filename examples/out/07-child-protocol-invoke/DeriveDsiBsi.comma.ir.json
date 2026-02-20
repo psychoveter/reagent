@@ -15,7 +15,7 @@
       "kind": "action",
       "data": {
         "kind": "action",
-        "body": "\n    const dsiBsi = taskToDsiBsi($ctx.input.taskText)\n    $ctx.dsiBsi = dsiBsi\n    reagent.return($ctx.dsiBsi)\n  ",
+        "body": "\n    $ctx.dsiBsi = taskToDsiBsi($ctx.input.taskText)\n    reagent.return($ctx.dsiBsi)\n  ",
         "lang": "ts"
       }
     },

@@ -2,11 +2,7 @@ message TaskRequest {}
 message SubmitIntent {}
 
 // Example 08: imports of protocols + invoke
-//
-// Requirement:
-// - A file can import other protocol files (.rg) and code modules (.ts/.py/.kt/.js).
-// - Imported protocols become available by name (or alias).
-// - Parent protocol can invoke imported protocol from within an agent zone.
+// Uses protocol-level `invoke` with imported protocol.
 
 import "./lib/derive-dsi-bsi.rg" as derive
 
@@ -16,13 +12,11 @@ protocol TaskExecutionWithImport {
   input: TaskRequest
 
   user {
-    $ctx.taskText = $ctx.input.text
+    $flow.taskText = $ctx.input.text
   }
   user --> comma: TaskRequest = { }
 
-  comma {
-    $ctx.dsiBsi = reagent.invoke(derive.DeriveDsiBsi, { taskText: $ctx.taskText })
-  }
+  invoke derive.DeriveDsiBsi({ taskText: $flow.taskText }) as comma -> $flow.dsiBsi
 
   comma --> sia: SubmitIntent = { }
 }

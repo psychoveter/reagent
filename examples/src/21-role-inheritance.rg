@@ -1,12 +1,5 @@
 // Example 21: role inheritance via `extends`
-//
-// Demonstrates:
-// - Base role with health-check protocol participation and lifecycle
-// - Derived role that extends the base, adding task protocol participation
-// - Plays bindings are merged (parent + child, deduped)
-// - Init blocks are chained (parent first, then child)
-// - On handlers from both parent and child fire for matching events
-// - Agent is a thin deployment binding
+// Data flows between roles via $ctx.msg (onSend/onReceive). $ctx is per-role.
 
 message Ping {}
 message Pong {}

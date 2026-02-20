@@ -2,11 +2,8 @@ message TaskRequest {}
 message SubmitIntent {}
 
 // Example 07: child protocol invocation
-//
-// reagent.invoke() and reagent.return() are functions from the `reagent` runtime library,
-// auto-imported into every agent zone.
-// reagent.invoke() = synchronous call to child protocol (blocks until return).
-// reagent.return() = produce a value from this protocol instance.
+// Uses protocol-level `invoke` instead of zone-level reagent.invoke().
+// invoke = synchronous call to child protocol (blocks until return).
 
 protocol DeriveDsiBsi {
   participants: comma [ts]
@@ -14,8 +11,7 @@ protocol DeriveDsiBsi {
   input: DeriveRequest
 
   comma {
-    const dsiBsi = taskToDsiBsi($ctx.input.taskText)
-    $ctx.dsiBsi = dsiBsi
+    $ctx.dsiBsi = taskToDsiBsi($ctx.input.taskText)
     reagent.return($ctx.dsiBsi)
   }
 }
@@ -26,17 +22,15 @@ protocol TaskExecutionWithChild {
   input: TaskRequest
 
   user {
-    $ctx.taskText = $ctx.input.text
+    $flow.taskText = $ctx.input.text
   }
   user --> comma: TaskRequest = { }
 
-  comma {
-    $ctx.dsiBsi = reagent.invoke(DeriveDsiBsi, { taskText: $ctx.taskText })
-  }
+  invoke DeriveDsiBsi({ taskText: $flow.taskText }) as comma -> $flow.dsiBsi
 
   comma --> sia: SubmitIntent = {
     onSend {
-      $ctx.msg.ref = $ctx.dsiBsi
+      $ctx.msg.ref = $flow.dsiBsi
     }
   }
 }

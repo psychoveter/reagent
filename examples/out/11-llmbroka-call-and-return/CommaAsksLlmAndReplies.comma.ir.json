@@ -17,7 +17,8 @@
         "kind": "receive",
         "from": "user",
         "arrow": "-->",
-        "messageName": "TaskRequest"
+        "messageName": "TaskRequest",
+        "propagateFlow": true
       }
     },
     {
@@ -27,7 +28,8 @@
         "kind": "send",
         "to": "user",
         "arrow": "-->",
-        "messageName": "Greeting"
+        "messageName": "Greeting",
+        "propagateFlow": true
       }
     },
     {
@@ -35,23 +37,37 @@
       "kind": "action",
       "data": {
         "kind": "action",
-        "body": "\n    $ctx.llmReq = {\n      system: \"You are Comma. Be concise and correct.\",\n      user: \"Rewrite this task as a precise plan:\\n\\n\" + $ctx.taskText,\n      model: \"gpt-5.2\",\n      temperature: 0.2\n    }\n    $ctx.llmAnswer = reagent.invoke(llm.CallLlm, { llmbroka: llmbroka }, $ctx.llmReq)\n  ",
+        "body": "\n    $ctx.llmReq = {\n      system: \"You are Comma. Be concise and correct.\",\n      user: \"Rewrite this task as a precise plan:\\n\\n\" + $flow.taskText,\n      model: \"gpt-5.2\",\n      temperature: 0.2\n    }\n  ",
         "lang": "ts"
       }
     },
     {
-      "id": "send_11",
+      "id": "invoke_11",
+      "kind": "invoke",
+      "data": {
+        "kind": "invoke",
+        "protocolName": "llm.CallLlm",
+        "input": "$ctx.llmReq",
+        "roleMapping": {
+          "llmbroka": "llmbroka"
+        },
+        "resultTarget": "$flow.llmAnswer"
+      }
+    },
+    {
+      "id": "send_12",
       "kind": "send",
       "data": {
         "kind": "send",
         "to": "user",
         "arrow": "-->",
         "messageName": "LlmPlan",
-        "preSendZone": "\n      $ctx.msg.text = $ctx.llmAnswer\n    "
+        "preSendZone": "\n      $ctx.msg.text = $flow.llmAnswer\n    ",
+        "propagateFlow": true
       }
     },
     {
-      "id": "end_12",
+      "id": "end_13",
       "kind": "terminal",
       "data": {
         "kind": "terminal",
@@ -83,14 +99,21 @@
     },
     {
       "from": "act_10",
-      "to": "send_11",
+      "to": "invoke_11",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "send_11",
-      "to": "end_12",
+      "from": "invoke_11",
+      "to": "send_12",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_12",
+      "to": "end_13",
       "label": {
         "kind": "default"
       }
@@ -98,6 +121,6 @@
   ],
   "initialStateId": "init_7",
   "terminalStateIds": [
-    "end_12"
+    "end_13"
   ]
 }

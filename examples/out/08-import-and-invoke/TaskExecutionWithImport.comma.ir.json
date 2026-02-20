@@ -17,16 +17,18 @@
         "kind": "receive",
         "from": "user",
         "arrow": "-->",
-        "messageName": "TaskRequest"
+        "messageName": "TaskRequest",
+        "propagateFlow": true
       }
     },
     {
-      "id": "act_7",
-      "kind": "action",
+      "id": "invoke_7",
+      "kind": "invoke",
       "data": {
-        "kind": "action",
-        "body": "\n    $ctx.dsiBsi = reagent.invoke(derive.DeriveDsiBsi, { taskText: $ctx.taskText })\n  ",
-        "lang": "ts"
+        "kind": "invoke",
+        "protocolName": "derive.DeriveDsiBsi",
+        "input": "{ taskText: $flow.taskText }",
+        "resultTarget": "$flow.dsiBsi"
       }
     },
     {
@@ -36,7 +38,8 @@
         "kind": "send",
         "to": "sia",
         "arrow": "-->",
-        "messageName": "SubmitIntent"
+        "messageName": "SubmitIntent",
+        "propagateFlow": true
       }
     },
     {
@@ -58,13 +61,13 @@
     },
     {
       "from": "recv_6",
-      "to": "act_7",
+      "to": "invoke_7",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "act_7",
+      "from": "invoke_7",
       "to": "send_8",
       "label": {
         "kind": "default"

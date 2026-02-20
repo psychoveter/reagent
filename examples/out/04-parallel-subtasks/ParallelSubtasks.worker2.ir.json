@@ -17,7 +17,8 @@
         "kind": "receive",
         "from": "comma",
         "arrow": "-->",
-        "messageName": "Subtask"
+        "messageName": "Subtask",
+        "propagateFlow": true
       }
     },
     {
@@ -54,7 +55,8 @@
         "kind": "send",
         "to": "comma",
         "arrow": "-->",
-        "messageName": "SubtaskDone"
+        "messageName": "SubtaskDone",
+        "propagateFlow": true
       }
     },
     {

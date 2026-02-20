@@ -8,6 +8,7 @@ export type ReagentStub = {
   invoke: (proto: unknown, args?: Record<string, unknown>) => unknown;
   spawn: (proto: unknown, args?: Record<string, unknown>) => void;
   return: (value: unknown) => void;
+  break: () => void;
 };
 
 export function createReagentStub(): ReagentStub {
@@ -23,6 +24,9 @@ export function createReagentStub(): ReagentStub {
     },
     return: (value) => {
       throw new ReturnValue(value);
+    },
+    break: () => {
+      throw new BreakRequest();
     },
   };
 }
@@ -60,19 +64,24 @@ export class EmitRequest {
   ) {}
 }
 
+/** Sentinel thrown when a zone calls reagent.break() */
+export class BreakRequest {
+  readonly __reagentBreak = true;
+}
+
 /**
- * Execute a zone body string with $ctx, $self, reagent, and optional extras in scope.
- * Throws ZoneError if the zone throws (used for try/catch routing).
+ * Execute a zone body string with $ctx, $self, $flow, reagent, and optional extras in scope.
  */
 export function executeZone(
   body: string,
   ctx: Record<string, unknown>,
   self: Record<string, unknown>,
   reagent: ReagentStub,
+  flow?: Record<string, unknown>,
   extras?: Record<string, unknown>,
 ): boolean {
-  const paramNames = ["$ctx", "$self", "reagent"];
-  const paramValues: unknown[] = [ctx, self, reagent];
+  const paramNames = ["$ctx", "$self", "reagent", "$flow"];
+  const paramValues: unknown[] = [ctx, self, reagent, flow ?? {}];
 
   if (extras) {
     for (const [k, v] of Object.entries(extras)) {

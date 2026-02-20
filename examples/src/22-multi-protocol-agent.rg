@@ -1,12 +1,5 @@
 // Example 22: Self-contained multi-protocol agent (M5-CTRL test)
-//
-// WorkerAgent plays roles in two different protocols concurrently:
-//   - TaskProcessing: receives a task, processes it, returns result
-//   - HealthCheck: receives a ping, responds with health status
-//
-// Verifies: messages for each protocol reach the correct ProtocolInstance
-// inside the same AgentRunner; $self state is shared across both;
-// lifecycle handlers fire for each.
+// Data crosses roles via $ctx.msg only. $ctx is per-role. $self is shared.
 
 message TaskRequest {}
 message TaskResult {}

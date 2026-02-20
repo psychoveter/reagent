@@ -36,6 +36,7 @@ Approach:
 │  ┌──────────────────────────────────────┐             │                 │
 │  │  reagent-vscode (VSIX)               │             │                 │
 │  │  TextMate grammar + embedded langs   │             │                 │
+│  │  DAP debug adapter + debug panel     │             │                 │
 │  └──────────────────────────────────────┘             │                 │
 ├───────────────────────────────────────────────────────┼─────────────────┤
 │                      REFERENCE RUNTIMES               │                 │
@@ -53,14 +54,15 @@ Approach:
 │  └──────────────────┘    └─────────────────────┘                    │
 │                                                                       │
 │  ┌───────────────────────────────────────────────────────────────────┐│
-│  │  InMemoryNodeLink (tests) │ NatsCompatTransport (legacy NATS)     ││
+│  │  InMemoryNodeLink │ WsNodeLink │ NatsCompatTransport (legacy)     ││
 │  └───────────────────────────────────────────────────────────────────┘│
 ├─────────────────────────────────────────────────────────────────────────┤
-│                    NEXT: M6-RT (orchestrator + debugger)                 │
+│                    M6-RT: Orchestrator + Debugger ✅                     │
 │                                                                         │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │  Reagent Orchestrator Server (ROS) — Node.js, WebSocket          │  │
 │  │  Session mgmt │ RAP protocol │ Trace collector │ Source mapping   │  │
+│  │  DebugController │ DebugInterceptor │ DebugAdvanceHook           │  │
 │  └──────┬────────────────┬────────────────┬─────────────────────────┘  │
 │         │ RAP/WS         │ RAP/WS         │ RAP/WS                     │
 │  ┌──────▼──────┐  ┌──────▼──────┐  ┌──────▼──────┐                    │
@@ -70,7 +72,7 @@ Approach:
 │         │                                                               │
 │  ┌──────▼────────────────────────────────────────────────────────────┐ │
 │  │  VSCode Extension (RAP client)                                    │ │
-│  │  Compile │ Deploy │ Debug │ Graph viz │ Trace timeline            │ │
+│  │  DAP debug │ Debug panel │ Inline values │ Trace timeline         │ │
 │  └───────────────────────────────────────────────────────────────────┘ │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                    FUTURE: Production engines                           │
@@ -88,12 +90,12 @@ Approach:
 
 Data plane: ReagentController loopback + NodeLink (NATS demoted to optional NodeLink impl)
 Control plane: RAP over WebSocket (ROS ↔ adapters ↔ VSCode)
-RAP sub-protocols: 7 .rg specs in examples/src/rap/
+RAP sub-protocols: 7 .rg specs in tools/rap/ (with role definitions)
 ```
 
-## Current state (2026-02-18)
+## Current state (2026-02-20)
 
-### Language: v0.0.7
+### Language: v0.0.8
 
 The Reagent DSL is defined in `docs/lang-spec.md`.
 
@@ -104,11 +106,13 @@ Key design commitments:
 - **Typed messages**: `message Name { field: type }` top-level construct. Minimal type system (`string`, `number`, `boolean`, `any`, `type[]`, `{ ... }`, `?`). Duck typing. Backward compatible.
 - **Protocol-as-function**: `protocol Name { participants: ..., initiator: ..., input: ... }`.
 - **Hook zones**: `onSend { ... }` / `onReceive { ... }` inside message props.
-- **`reagent.*` runtime library**: `reagent.invoke`, `reagent.spawn`, `reagent.return`, `reagent.emit`.
-- **`$ctx`** — per-protocol-instance context. **`$self`** — role-level persistent state.
+- **`reagent.*` runtime library**: `reagent.return`, `reagent.emit`, `reagent.break`.
+- **Context split**: `$ctx` (per-role isolated), `$flow` (message-propagated), `$self` (role-level persistent).
+- **Protocol-level `invoke`/`spawn`/`scatter`**: child protocol calls and dynamic multicast at choreography level.
+- **`alt where`**: explicit pattern matching in `alt` guards.
 - **Role definition**: `role Name [langTag]? extends Parent? { plays; init; on ... }` — primary behavioral contract with optional inheritance.
 - **Agent definition**: `agent Name [langTag]? runs RoleName` — thin deployment binding.
-- **Protocol-level control flow**: `alt`, `loop`, `par`, `wait`, `timeout`, `try/catch`.
+- **Protocol-level control flow**: `alt`, `loop`, `par`, `wait`, `timeout`, `try/catch`, `invoke`, `spawn`, `scatter`.
 - **Imports**: `.rg` = protocol imports, `.ts/.js/.py/.kt` = code module imports.
 - **Top-level constructs**: `import`, `protocol`, `agent`, `message`, `role`.
 
@@ -141,11 +145,28 @@ Key design commitments:
 | 20 | `cross-lang-e2e.rg` | TS ↔ Python, E2E test target |
 | 21 | `role-inheritance.rg` | Role `extends`, plays/init/handler merging |
 | 22 | `multi-protocol-agent.rg` | Agent plays two protocols concurrently, shared `$self` |
+| 23 | `scatter-gather.rg` | `scatter` / gather, dynamic multicast, `$flow` propagation |
+| 24 | `call-for-proposal.rg` | CFP pattern via `scatter`, `alt where` |
 | — | `task-execution.rg` | Legacy example |
 | — | `lib/*.rg` | Shared sub-protocols (3 files) |
-| — | `rap/*.rg` | RAP sub-protocol specs (7 files) |
 
-All 24 examples + 3 libs + 7 RAP specs compile and validate successfully.
+All 26 examples + 3 libs compile and validate successfully.
+
+### RAP sub-protocol specs
+
+`tools/rap/` (source) and `tools/rap/out/` (compiled IR):
+
+| # | File | Participants | Roles | Key constructs |
+|---|---|---|---|---|
+| 01 | `adapter-handshake.rg` | adapter, orchestrator | `RAPAdapter`, `RAPOrchestrator` | Registration, alt accept/reject |
+| 02 | `compile-request.rg` | client, orchestrator | `RAPClient`, `RAPCompiler` | Compile, alt success/error |
+| 03 | `deploy-agent.rg` | orchestrator, adapter | `RAPDeployer`, `RAPNode` | Deploy IR to node, alt success/fail |
+| 04 | `run-protocol.rg` | orchestrator, adapter | `RAPRunner`, `RAPExecutor` | Trigger + completion |
+| 05 | `debug-session.rg` | client, orchestrator, adapter | `RAPDebugClient`, `RAPDebugRelay`, `RAPDebugTarget` | Debug command relay |
+| 06 | `inspect-state.rg` | client, orchestrator, adapter | `RAPInspectClient`, `RAPInspectRelay`, `RAPInspectTarget` | State snapshot relay |
+| 07 | `set-breakpoints.rg` | client, orchestrator | `RAPBreakpointClient`, `RAPBreakpointResolver` | Breakpoint resolution |
+
+All 7 RAP specs compile with role definitions and message schemas.
 
 ### Compiler CLI (`@reagent/lang`)
 
@@ -168,27 +189,36 @@ Lightweight **reference runners** that interpret IR JSON. Transport-agnostic via
 | NativeAgentNode | TypeScript | `runtime/ts/src/native-agent-node.ts` | TS agent platform adapter |
 | PythonAgentNode | TypeScript | `runtime/ts/src/python-agent-node.ts` | Python child process + JSON-line IPC |
 | InMemoryNodeLink | TypeScript | `runtime/ts/src/inmemory-node-link.ts` | In-process inter-node pipe |
+| WsNodeLink + WsNodeLinkServer | TypeScript | `runtime/ts/src/ws-node-link.ts` | WebSocket-based NodeLink |
+| ReagentOrchestratorServer | TypeScript | `runtime/ts/src/ros.ts` | ROS: compile, deploy, run, debug via WS |
+| Session + SessionManager | TypeScript | `runtime/ts/src/session.ts` | Per-program execution context |
+| DebugInterceptor | TypeScript | `runtime/ts/src/debug-interceptor.ts` | Message-level debug (hold + step) |
+| DebugAdvanceHook | TypeScript | `runtime/ts/src/debug-advance-hook.ts` | State-level debug (pause before IR states) |
+| DebugController | TypeScript | `runtime/ts/src/debug-controller.ts` | Coordinates message + state debug |
+| RemoteNode | TypeScript | `runtime/ts/src/remote-node.ts` | Standalone agent node (connects to ROS) |
 | NatsCompatTransport | TypeScript | `runtime/ts/src/nats-compat-transport.ts` | Legacy NATS shim |
 | LocalTransport | Python | `runtime/py/reagent_runtime/local_transport.py` | Stdout-based IPC transport |
 | IPC Agent | Python | `runtime/py/reagent_runtime/ipc_agent.py` | Stdin/stdout bridge entry point |
 | Shared protocol types | TypeScript | `runtime/shared/protocol.ts` | Defined |
 | Legacy E2E tests (NATS) | TypeScript | `runtime/tests/e2e.test.ts` | **20/20 passing** (T1–T20) |
 | M5-CTRL E2E tests | TypeScript | `runtime/tests/m5-ctrl.test.ts` | **12/12 passing** (C1–C12) |
+| M5-LANG E2E tests | TypeScript | `runtime/tests/m5-lang.test.ts` | **9/9 passing** (T28–T36) |
+| M6-RT E2E tests | TypeScript | `runtime/tests/m6-ros.test.ts` | **7/7 passing** (T21–T27) |
 
-All IR constructs supported at runtime: `initial`, `send`, `receive`, `action`, `guard(xor/expression)`, `terminal`, `timer`, `fork`, `join`, `error`.
+All IR constructs supported at runtime: `initial`, `send`, `receive`, `action`, `guard(xor/expression)`, `terminal`, `timer`, `fork`, `join`, `error`, `invoke`, `spawn`, `scatter`.
 
 ### Tooling
 
 | Module | Version | Path | Description |
 |---|---|---|---|
-| `@reagent/lang` | 0.0.7 | `lang/` | Compiler: AST, parser, IR emitter, IR validator, CLI |
-| `reagent-vscode` | 0.1.0 | `tools/reagent-vscode/` | TextMate grammar + embedded language support |
+| `@reagent/lang` | 0.0.8 | `lang/` | Compiler: AST, parser, IR emitter, IR validator, CLI |
+| `reagent-vscode` | 0.1.0 | `tools/reagent-vscode/` | TextMate grammar + embedded language support + DAP debug adapter |
 
 ### Specs / docs
 
 | Document | Path | Content |
 |---|---|---|
-| `lang-spec.md` | `docs/lang-spec.md` | Language spec v0.0.7: syntax + EBNF + role-centric design + extends + runs |
+| `lang-spec.md` | `docs/lang-spec.md` | Language spec v0.0.8: syntax + EBNF + $ctx/$flow split + invoke/spawn/scatter + alt where |
 | `reagent-spec.md` | `docs_v0.0.1/reagent-spec.md` | Core spec v0.0.1: layers, TraceEvent algebra, legality, runtime |
 | `ir-to-losos-mapping.md` | `docs/ir-to-losos-mapping.md` | IR → Losos design doc |
 | `reagent-losos-project-plan.md` | `.cursor/reagent-losos-project-plan.md` | Milestones plan |
@@ -204,7 +234,7 @@ All IR constructs supported at runtime: `initial`, `send`, `receive`, `action`, 
 5. **Message level** — typed message schemas (IRMessageSchema) compiled alongside IR.
 6. **Connectivity level** (M5-CTRL ✅) — `ReagentController` + `AgentNode` + `NodeLink`: `AgentRef`/`NodeRef` addressing (ActorRef pattern), multi-agent nodes, loopback routing, message-level interceptors + agent-level `TraceHook`, static discovery via `AddressPage`. Multi-`AgentNode` RC dispatches by language (`ts` → `NativeAgentNode`, `py` → `PythonAgentNode`). No separate messaging layer — Reagent is the messaging system. See [design doc (draft-3)](../docs/m5-ctrl-design.md).
 7. **Execution level** — runtime engines that interpret agent IR via `AgentNode` platform abstraction. `NativeAgentNode` wraps TS `AgentRunner`. `PythonAgentNode` spawns Python child processes with JSON-line IPC. Future: `LososAgentNode` (Kotlin/etcd), `LangGraphAgentNode`.
-8. **Control level** (M6-RT, next) — Reagent Orchestrator Server (ROS): WebSocket service for compile/deploy/run/debug. `WsNodeLink` for network transport. `DebugInterceptor` for breakpoints/stepping. See [design doc](../docs/m6-ros-design.md).
+8. **Control level** (M6-RT ✅) — Reagent Orchestrator Server (ROS): WebSocket service for compile/deploy/run/debug. `WsNodeLink` for network transport. Two-level debug: `DebugInterceptor` (message-level) + `DebugAdvanceHook` (state-level, zone-aware). `DebugController` coordinates both levels with source-map-based breakpoint resolution. `RemoteNode` connects via WsNodeLink for distributed agent nodes. VSCode extension with DAP debug adapter, debug panel, and inline value decorations. See [design doc](../docs/m6-ros-design.md).
 
 ## Milestone status
 
@@ -219,7 +249,8 @@ All IR constructs supported at runtime: `initial`, `send`, `receive`, `action`, 
 | M3-LANG | ✅ DONE | Language v0.0.6: `role` construct + `implements` keyword |
 | M4-LANG | ✅ DONE | Language v0.0.7: role-centric refactoring (`extends`, `runs`, role as primary contract) |
 | M5-CTRL | ✅ DONE | Connectivity layer: `AgentRef`/`NodeRef` addressing, `NodeLink`, `ReagentController` (multi-AgentNode), `NativeAgentNode`, `PythonAgentNode`, loopback, interceptors + `TraceHook`, `AddressPage`. C1–C12 pass. [Design](../docs/m5-ctrl-design.md) |
-| M6-RT | ⬜ NEXT | Orchestrator service (ROS) + debugger + VSCode extension. [Design](../docs/m6-ros-design.md) |
+| M5-LANG | ✅ DONE | Language v0.0.8: `$ctx`/`$flow` split, protocol-level `invoke`/`spawn`/`scatter`, `alt where`, `reagent.break()`, `$ctx.msg` par isolation, message inbox buffering. T28–T36 pass. |
+| M6-RT | ✅ DONE | Orchestrator service (ROS) + two-level debugger + remote nodes + VSCode extension. T21–T27 pass. [Design](../docs/m6-ros-design.md) |
 
 ## Development workflow
 
@@ -234,8 +265,8 @@ Development is **E2E test-driven**:
 
 | Component | Current version | Sync rule |
 |---|---|---|
-| Language (lang-spec.md) | **v0.0.7** | Source of truth for language surface |
-| `@reagent/lang` package | 0.0.7 | Tracks language version directly |
+| Language (lang-spec.md) | **v0.0.8** | Source of truth for language surface |
+| `@reagent/lang` package | 0.0.8 | Tracks language version directly |
 | `reagent-vscode` extension | 0.1.0 | Tracks language changes; bump minor on syntax changes |
 | `reagent-spec.md` (core spec) | v0.0.1 | Bump when TraceEvent algebra / runtime contract changes |
 

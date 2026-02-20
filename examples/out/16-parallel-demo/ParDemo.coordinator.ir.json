@@ -27,7 +27,8 @@
         "to": "workerA",
         "arrow": "-->",
         "messageName": "TaskA",
-        "preSendZone": "\n      $ctx.msg.label = \"alpha\"\n    "
+        "preSendZone": "\n      $ctx.msg.label = \"alpha\"\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -38,7 +39,8 @@
         "to": "workerB",
         "arrow": "-->",
         "messageName": "TaskB",
-        "preSendZone": "\n      $ctx.msg.label = \"beta\"\n    "
+        "preSendZone": "\n      $ctx.msg.label = \"beta\"\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -68,7 +70,8 @@
         "from": "workerA",
         "arrow": "-->",
         "messageName": "ResultA",
-        "postReceiveZone": "\n        $ctx.resultA = $ctx.msg.result\n      "
+        "postReceiveZone": "\n        $flow.resultA = $ctx.msg.result\n      ",
+        "propagateFlow": true
       }
     },
     {
@@ -87,7 +90,8 @@
         "from": "workerB",
         "arrow": "-->",
         "messageName": "ResultB",
-        "postReceiveZone": "\n        $ctx.resultB = $ctx.msg.result\n      "
+        "postReceiveZone": "\n        $flow.resultB = $ctx.msg.result\n      ",
+        "propagateFlow": true
       }
     },
     {
@@ -103,7 +107,7 @@
       "kind": "action",
       "data": {
         "kind": "action",
-        "body": "\n    $ctx.summary = $ctx.resultA + \"+\" + $ctx.resultB\n    $self.protocolsCoordinated = ($self.protocolsCoordinated || 0) + 1\n  ",
+        "body": "\n    $flow.summary = $flow.resultA + \"+\" + $flow.resultB\n    $self.protocolsCoordinated = ($self.protocolsCoordinated || 0) + 1\n  ",
         "lang": "ts"
       }
     },
@@ -115,7 +119,8 @@
         "to": "workerA",
         "arrow": "-->",
         "messageName": "Summary",
-        "preSendZone": "\n      $ctx.msg.text = $ctx.summary\n    "
+        "preSendZone": "\n      $ctx.msg.text = $flow.summary\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -126,7 +131,8 @@
         "to": "workerB",
         "arrow": "-->",
         "messageName": "Summary",
-        "preSendZone": "\n      $ctx.msg.text = $ctx.summary\n    "
+        "preSendZone": "\n      $ctx.msg.text = $flow.summary\n    ",
+        "propagateFlow": true
       }
     },
     {

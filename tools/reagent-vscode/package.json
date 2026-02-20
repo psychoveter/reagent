@@ -34,16 +34,98 @@
         "scopeName": "source.reagent",
         "path": "./syntaxes/reagent.tmLanguage.json"
       }
-    ]
+    ],
+    "breakpoints": [
+      {
+        "language": "reagent"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "reagent",
+        "label": "Reagent Debug",
+        "languages": ["reagent"],
+        "configurationAttributes": {
+          "launch": {
+            "required": ["rgFile"],
+            "properties": {
+              "rgFile": {
+                "type": "string",
+                "description": "Path to the .rg file to debug"
+              },
+              "rosPort": {
+                "type": "number",
+                "default": 18789,
+                "description": "Port of the Reagent Orchestrator Service"
+              },
+              "rosHost": {
+                "type": "string",
+                "default": "127.0.0.1",
+                "description": "Host of the Reagent Orchestrator Service"
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "reagent",
+            "request": "launch",
+            "name": "Debug Reagent Protocol",
+            "rgFile": "${file}",
+            "rosPort": 18789
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "Reagent: Debug Protocol",
+            "description": "Debug a Reagent protocol via ROS",
+            "body": {
+              "type": "reagent",
+              "request": "launch",
+              "name": "Debug Reagent Protocol",
+              "rgFile": "^\"\\${file}\"",
+              "rosPort": 18789
+            }
+          }
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "command": "reagent.startDebug",
+        "title": "Reagent: Start Debug Session"
+      },
+      {
+        "command": "reagent.showTraceTimeline",
+        "title": "Reagent: Show Trace Timeline"
+      },
+      {
+        "command": "reagent.inspectAgent",
+        "title": "Reagent: Inspect Agent State"
+      }
+    ],
+    "views": {
+      "debug": [
+        {
+          "id": "reagentDebugPanel",
+          "name": "Reagent Debug",
+          "when": "debugType == 'reagent'"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "package": "vsce package --no-dependencies"
   },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
   "devDependencies": {
     "@types/node": "^25.2.3",
     "@types/vscode": "^1.80.0",
+    "@types/ws": "^8.5.10",
     "@vscode/vsce": "^2.22.0",
     "typescript": "^5.3.0"
   }

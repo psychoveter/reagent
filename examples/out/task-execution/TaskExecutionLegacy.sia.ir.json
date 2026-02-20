@@ -18,7 +18,8 @@
         "from": "comma",
         "arrow": "-->",
         "messageName": "SubmitIntent",
-        "postReceiveZone": "\n      $ctx.intent = $ctx.msg.ref\n    "
+        "postReceiveZone": "\n      $ctx.intent = $ctx.msg.ref\n    ",
+        "propagateFlow": true
       }
     },
     {

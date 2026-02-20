@@ -1,0 +1,47 @@
+{
+  "agents": [
+    {
+      "agentName": "BuyerAgent",
+      "lang": "ts",
+      "roleName": "BuyerRole",
+      "agentIRFile": "BuyerAgent.agent.json",
+      "roleIRFile": "BuyerRole.role.json",
+      "roles": [
+        {
+          "protocolName": "CallForProposal",
+          "roleName": "buyer",
+          "irGraphFile": "CallForProposal.buyer.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "SellerAgent",
+      "lang": "ts",
+      "roleName": "SellerRole",
+      "agentIRFile": "SellerAgent.agent.json",
+      "roleIRFile": "SellerRole.role.json",
+      "roles": [
+        {
+          "protocolName": "CallForProposal",
+          "roleName": "seller",
+          "irGraphFile": "CallForProposal.seller.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "CallForProposal.buyer": "BuyerAgent",
+    "CallForProposal.seller": "SellerAgent"
+  },
+  "roles": [
+    {
+      "name": "BuyerRole",
+      "file": "BuyerRole.role.json"
+    },
+    {
+      "name": "SellerRole",
+      "file": "SellerRole.role.json"
+    }
+  ],
+  "messages": "messages.json"
+}

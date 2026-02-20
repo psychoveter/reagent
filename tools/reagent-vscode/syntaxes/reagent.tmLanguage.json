@@ -35,7 +35,7 @@
       "patterns": [
         {
           "name": "keyword.control.reagent",
-          "match": "\\b(protocol|import|as|participants|initiator|input|alt|loop|par|wait|timeout|try|catch|else|and|agent|plays|init|on|message|role|extends|runs)\\b"
+          "match": "\\b(protocol|import|as|participants|initiator|input|alt|loop|par|wait|timeout|try|catch|else|and|agent|plays|init|on|message|role|extends|runs|invoke|spawn|scatter|gather|where)\\b"
         }
       ]
     },
@@ -335,7 +335,7 @@
       "patterns": [
         {
           "name": "support.function.reagent-runtime.reagent",
-          "match": "\\breagent\\.(invoke|spawn|return|emit)\\b"
+          "match": "\\breagent\\.(invoke|spawn|return|emit|break)\\b"
         },
         {
           "name": "variable.language.reagent-module.reagent",
@@ -344,6 +344,10 @@
         {
           "name": "variable.language.context.reagent",
           "match": "\\$ctx\\b"
+        },
+        {
+          "name": "variable.language.flow.reagent",
+          "match": "\\$flow\\b"
         },
         {
           "name": "variable.language.self.reagent",

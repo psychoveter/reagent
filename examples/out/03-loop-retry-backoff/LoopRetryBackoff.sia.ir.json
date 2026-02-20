@@ -4,14 +4,14 @@
   "lang": "*",
   "states": [
     {
-      "id": "init_16",
+      "id": "init_17",
       "kind": "initial",
       "data": {
         "kind": "initial"
       }
     },
     {
-      "id": "loop_guard_17",
+      "id": "loop_guard_18",
       "kind": "guard",
       "data": {
         "kind": "guard",
@@ -20,31 +20,22 @@
       }
     },
     {
-      "id": "recv_19",
+      "id": "recv_20",
       "kind": "receive",
       "data": {
         "kind": "receive",
         "from": "comma",
         "arrow": "-->",
-        "messageName": "ValidateIntent"
+        "messageName": "ValidateIntent",
+        "propagateFlow": true
       }
     },
     {
-      "id": "xor_20",
+      "id": "xor_21",
       "kind": "guard",
       "data": {
         "kind": "guard",
         "guardType": "xor"
-      }
-    },
-    {
-      "id": "send_22",
-      "kind": "send",
-      "data": {
-        "kind": "send",
-        "to": "comma",
-        "arrow": "-->",
-        "messageName": "ValidationOk"
       }
     },
     {
@@ -54,34 +45,11 @@
         "kind": "send",
         "to": "comma",
         "arrow": "-->",
-        "messageName": "ValidationError"
+        "messageName": "ValidationOk"
       }
     },
     {
-      "id": "timer_24",
-      "kind": "timer",
-      "data": {
-        "kind": "timer",
-        "duration": {
-          "value": 1,
-          "unit": "s",
-          "loc": {
-            "start": {
-              "index": 954,
-              "line": 34,
-              "col": 12
-            },
-            "end": {
-              "index": 956,
-              "line": 34,
-              "col": 14
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "send_25",
+      "id": "send_24",
       "kind": "send",
       "data": {
         "kind": "send",
@@ -91,7 +59,40 @@
       }
     },
     {
-      "id": "merge_21",
+      "id": "timer_25",
+      "kind": "timer",
+      "data": {
+        "kind": "timer",
+        "duration": {
+          "value": 1,
+          "unit": "s",
+          "loc": {
+            "start": {
+              "index": 863,
+              "line": 31,
+              "col": 12
+            },
+            "end": {
+              "index": 865,
+              "line": 31,
+              "col": 14
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "send_26",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "comma",
+        "arrow": "-->",
+        "messageName": "ValidationError"
+      }
+    },
+    {
+      "id": "merge_22",
       "kind": "guard",
       "data": {
         "kind": "guard",
@@ -99,7 +100,7 @@
       }
     },
     {
-      "id": "loop_exit_18",
+      "id": "loop_exit_19",
       "kind": "guard",
       "data": {
         "kind": "guard",
@@ -107,7 +108,7 @@
       }
     },
     {
-      "id": "end_26",
+      "id": "end_27",
       "kind": "terminal",
       "data": {
         "kind": "terminal",
@@ -117,45 +118,44 @@
   ],
   "transitions": [
     {
-      "from": "init_16",
-      "to": "loop_guard_17",
+      "from": "init_17",
+      "to": "loop_guard_18",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "loop_guard_17",
-      "to": "recv_19",
+      "from": "loop_guard_18",
+      "to": "recv_20",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "recv_19",
-      "to": "xor_20",
+      "from": "recv_20",
+      "to": "xor_21",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "xor_20",
-      "to": "send_22",
+      "from": "xor_21",
+      "to": "send_23",
       "label": {
         "kind": "message",
-        "messageName": "ValidationOk",
-        "pattern": {}
+        "messageName": "ValidationOk"
       }
     },
     {
-      "from": "send_22",
-      "to": "merge_21",
+      "from": "send_23",
+      "to": "merge_22",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "xor_20",
-      "to": "send_23",
+      "from": "xor_21",
+      "to": "send_24",
       "label": {
         "kind": "message",
         "messageName": "ValidationError",
@@ -165,22 +165,22 @@
       }
     },
     {
-      "from": "send_23",
-      "to": "timer_24",
+      "from": "send_24",
+      "to": "timer_25",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "timer_24",
-      "to": "merge_21",
+      "from": "timer_25",
+      "to": "merge_22",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "xor_20",
-      "to": "send_25",
+      "from": "xor_21",
+      "to": "send_26",
       "label": {
         "kind": "message",
         "messageName": "ValidationError",
@@ -190,36 +190,36 @@
       }
     },
     {
-      "from": "send_25",
-      "to": "merge_21",
+      "from": "send_26",
+      "to": "merge_22",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "merge_21",
-      "to": "loop_guard_17",
+      "from": "merge_22",
+      "to": "loop_guard_18",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "loop_guard_17",
-      "to": "loop_exit_18",
+      "from": "loop_guard_18",
+      "to": "loop_exit_19",
       "label": {
         "kind": "else"
       }
     },
     {
-      "from": "loop_exit_18",
-      "to": "end_26",
+      "from": "loop_exit_19",
+      "to": "end_27",
       "label": {
         "kind": "default"
       }
     }
   ],
-  "initialStateId": "init_16",
+  "initialStateId": "init_17",
   "terminalStateIds": [
-    "end_26"
+    "end_27"
   ]
 }

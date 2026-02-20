@@ -21,6 +21,7 @@ import type {
   FieldDef,
   HookZone,
   ImportStmt,
+  InvokeStmt,
   LangTag,
   Loc,
   LoopStmt,
@@ -40,6 +41,8 @@ import type {
   RoleEventKind,
   RoleInitBlock,
   RoleOnHandler,
+  ScatterStmt,
+  SpawnStmt,
   TopLevelItem,
   TryStmt,
   TypeExpr,
@@ -560,7 +563,7 @@ function pMessageStmtFromIdent(c: Cursor, from: string, fromStart: Pos): Message
 const PROTOCOL_KEYWORDS = new Set([
   "protocol", "alt", "loop", "par", "try", "catch", "else", "wait",
   "timeout", "and", "import", "break", "participants", "initiator", "input",
-  "agent", "plays", "init", "on",
+  "agent", "plays", "init", "on", "invoke", "spawn", "scatter", "where", "as",
 ]);
 
 function pAgentZoneFromIdent(c: Cursor, agent: string, agentStart: Pos, lang: LangTag): AgentZone | null {
@@ -624,16 +627,55 @@ function pAltGuard(c: Cursor): AltGuard | null {
       c.next();
       skipWSAndComments(c);
 
-      // Message name: read until `=` or `)`
+      // Message name: read until `=`, `)`, or `where`
       let nameRaw = "";
       while (!c.eof() && c.peek() !== "=" && c.peek() !== ")") {
+        if (startsWithKeyword(c, "where")) break;
         nameRaw += c.next();
       }
       const messageName = nameRaw.trim();
       if (!messageName) return null;
 
       let props: MessageProps | undefined;
+      let whereClause: Record<string, string> | undefined;
       skipWSAndComments(c);
+
+      // `where { key: "value", ... }` — pattern matching clause (v0.0.8)
+      if (startsWithKeyword(c, "where")) {
+        consumeKeyword(c, "where");
+        skipWSAndComments(c);
+        if (c.peek() === "{") {
+          c.next();
+          whereClause = {};
+          for (;;) {
+            skipWSAndComments(c);
+            if (c.eof()) return null;
+            if (c.peek() === "}") { c.next(); break; }
+            const wKey = readIdent(c);
+            if (!wKey) return null;
+            skipWSAndComments(c);
+            if (c.peek() !== ":") return null;
+            c.next();
+            skipWSAndComments(c);
+            let wVal = "";
+            if (c.peek() === '"' || c.peek() === "'") {
+              const s = readString(c);
+              if (!s) return null;
+              wVal = s.value;
+            } else {
+              while (!c.eof() && c.peek() !== "," && c.peek() !== "}" && c.peek() !== "\n") {
+                wVal += c.next();
+              }
+              wVal = wVal.trim();
+            }
+            whereClause[wKey.name] = wVal;
+            skipWSAndComments(c);
+            if (c.peek() === ",") c.next();
+          }
+        }
+      }
+
+      // Legacy `= { key: val }` syntax (still supported, deprecated)
       if (c.peek() === "=") {
         c.next();
         skipWSAndComments(c);
@@ -653,6 +695,7 @@ function pAltGuard(c: Cursor): AltGuard | null {
         to: to.name,
         messageName,
         props,
+        whereClause,
         loc: c.locFrom(start),
       };
     }
@@ -824,6 +867,223 @@ function pTryStmt(c: Cursor): TryStmt | null {
   return { kind: "TryStmt", tryBody, catchLabel, catchBody, loc: c.locFrom(start) };
 }
 
+// ── Invoke statement ────────────────────────────────────────────────
+
+function pInvokeStmt(c: Cursor): InvokeStmt | null {
+  const start = c.pos();
+  if (!consumeKeyword(c, "invoke")) return null;
+  skipWSAndComments(c);
+
+  // Protocol name (may be dotted: derive.DeriveDsiBsi)
+  const protoId = readIdent(c);
+  if (!protoId) return null;
+  let protocolName = protoId.name;
+  while (c.peek() === ".") {
+    c.next();
+    const next = readIdent(c);
+    if (!next) return null;
+    protocolName += "." + next.name;
+  }
+
+  skipWSAndComments(c);
+
+  // Input expression in parens
+  if (c.peek() !== "(") return null;
+  c.next();
+  let input = "";
+  let depth = 1;
+  while (!c.eof() && depth > 0) {
+    const ch = c.next();
+    if (ch === "(") depth++;
+    else if (ch === ")") { depth--; if (depth === 0) break; }
+    input += ch;
+  }
+  input = input.trim();
+
+  skipWSAndComments(c);
+
+  // `as <role>`
+  if (!consumeKeyword(c, "as")) return null;
+  skipWSAndComments(c);
+  const roleId = readIdent(c);
+  if (!roleId) return null;
+  const callerRole = roleId.name;
+
+  skipWSAndComments(c);
+
+  // Optional role mapping: `{ childRole: parentRole, ... }`
+  let roleMapping: Record<string, string> | undefined;
+  if (c.peek() === "{") {
+    c.next();
+    roleMapping = {};
+    for (;;) {
+      skipWSAndComments(c);
+      if (c.eof()) return null;
+      if (c.peek() === "}") { c.next(); break; }
+      const key = readIdent(c);
+      if (!key) return null;
+      skipWSAndComments(c);
+      if (c.peek() !== ":") return null;
+      c.next();
+      skipWSAndComments(c);
+      const val = readIdent(c);
+      if (!val) return null;
+      roleMapping[key.name] = val.name;
+      skipWSAndComments(c);
+      if (c.peek() === ",") c.next();
+    }
+  }
+
+  skipWSAndComments(c);
+
+  // Optional result target: `-> $flow.dsiBsi`
+  let resultTarget: string | undefined;
+  if (c.startsWith("->")) {
+    c.advance(2);
+    skipWSAndComments(c);
+    let target = "";
+    while (!c.eof() && !isWS(c.peek()) && c.peek() !== "\n" && c.peek() !== "}" && c.peek() !== ";") {
+      target += c.next();
+    }
+    resultTarget = target.trim() || undefined;
+  }
+
+  return {
+    kind: "InvokeStmt",
+    protocolName,
+    input,
+    callerRole,
+    roleMapping,
+    resultTarget,
+    loc: c.locFrom(start),
+  };
+}
+
+// ── Spawn statement ─────────────────────────────────────────────────
+
+function pSpawnStmt(c: Cursor): SpawnStmt | null {
+  const start = c.pos();
+  if (!consumeKeyword(c, "spawn")) return null;
+  skipWSAndComments(c);
+
+  const protoId = readIdent(c);
+  if (!protoId) return null;
+  let protocolName = protoId.name;
+  while (c.peek() === ".") {
+    c.next();
+    const next = readIdent(c);
+    if (!next) return null;
+    protocolName += "." + next.name;
+  }
+
+  skipWSAndComments(c);
+
+  // Input expression in parens
+  if (c.peek() !== "(") return null;
+  c.next();
+  let input = "";
+  let depth = 1;
+  while (!c.eof() && depth > 0) {
+    const ch = c.next();
+    if (ch === "(") depth++;
+    else if (ch === ")") { depth--; if (depth === 0) break; }
+    input += ch;
+  }
+  input = input.trim();
+
+  skipWSAndComments(c);
+
+  // `as <role>`
+  if (!consumeKeyword(c, "as")) return null;
+  skipWSAndComments(c);
+  const roleId = readIdent(c);
+  if (!roleId) return null;
+  const callerRole = roleId.name;
+
+  skipWSAndComments(c);
+
+  // Optional role mapping: `{ childRole: parentRole, ... }`
+  let roleMapping: Record<string, string> | undefined;
+  if (c.peek() === "{") {
+    c.next();
+    roleMapping = {};
+    for (;;) {
+      skipWSAndComments(c);
+      if (c.eof()) return null;
+      if (c.peek() === "}") { c.next(); break; }
+      const key = readIdent(c);
+      if (!key) return null;
+      skipWSAndComments(c);
+      if (c.peek() !== ":") return null;
+      c.next();
+      skipWSAndComments(c);
+      const val = readIdent(c);
+      if (!val) return null;
+      roleMapping[key.name] = val.name;
+      skipWSAndComments(c);
+      if (c.peek() === ",") c.next();
+    }
+  }
+
+  return {
+    kind: "SpawnStmt",
+    protocolName,
+    input,
+    callerRole,
+    roleMapping,
+    loc: c.locFrom(start),
+  };
+}
+
+// ── Scatter statement ───────────────────────────────────────────────
+
+function pScatterStmt(c: Cursor): ScatterStmt | null {
+  const start = c.pos();
+  if (!consumeKeyword(c, "scatter")) return null;
+  skipWSAndComments(c);
+
+  // `($flow.candidates as seller)`
+  if (c.peek() !== "(") return null;
+  c.next();
+  skipWSAndComments(c);
+
+  // Read collection expression until `as`
+  let collection = "";
+  const saved = c.save();
+  while (!c.eof()) {
+    if (startsWithKeyword(c, "as")) break;
+    collection += c.next();
+  }
+  collection = collection.trim();
+  if (!collection) { c.restore(saved); return null; }
+
+  if (!consumeKeyword(c, "as")) return null;
+  skipWSAndComments(c);
+  const itemId = readIdent(c);
+  if (!itemId) return null;
+  const itemRole = itemId.name;
+
+  skipWSAndComments(c);
+  if (c.peek() !== ")") return null;
+  c.next();
+
+  skipWSAndComments(c);
+
+  // Body `{ ... }`
+  if (c.peek() !== "{") return null;
+  c.next();
+  const body = pProtocolBody(c);
+  if (!expectChar(c, "}")) return null;
+
+  return {
+    kind: "ScatterStmt",
+    collection,
+    itemRole,
+    body,
+    loc: c.locFrom(start),
+  };
+}
+
 // ── Protocol body ───────────────────────────────────────────────────
 
 /**
@@ -858,6 +1118,9 @@ function pProtocolItem(c: Cursor): ProtocolItem | null {
   if (startsWithKeyword(c, "par")) return pParStmt(c);
   if (startsWithKeyword(c, "wait")) return pWaitStmt(c);
   if (startsWithKeyword(c, "try")) return pTryStmt(c);
+  if (startsWithKeyword(c, "invoke")) return pInvokeStmt(c);
+  if (startsWithKeyword(c, "spawn")) return pSpawnStmt(c);
+  if (startsWithKeyword(c, "scatter")) return pScatterStmt(c);
 
   // `break` inside loops — parsed as a special WaitStmt-like sentinel
   // Actually, `break` is a host-language construct. It appears inside agent zones, not at protocol level.
@@ -1048,9 +1311,17 @@ function pRoleDef(c: Cursor): RoleDef | null {
   if (c.peek() === "[") {
     c.next();
     skipWSAndComments(c);
-    const tagId = readIdent(c);
-    if (!tagId || !VALID_LANG_TAGS.has(tagId.name)) return null;
-    lang = tagId.name as LangTag;
+    let langTagName: string;
+    if (c.peek() === "*") {
+      langTagName = "*";
+      c.next();
+    } else {
+      const tagId = readIdent(c);
+      if (!tagId || !VALID_LANG_TAGS.has(tagId.name)) return null;
+      langTagName = tagId.name;
+    }
+    if (!VALID_LANG_TAGS.has(langTagName)) return null;
+    lang = langTagName as LangTag;
     skipWSAndComments(c);
     if (c.peek() !== "]") return null;
     c.next();

@@ -18,7 +18,8 @@
         "to": "worker",
         "arrow": "-->",
         "messageName": "TaskRequest",
-        "preSendZone": " $ctx.msg.taskId = 42 "
+        "preSendZone": " $ctx.msg.taskId = 42 ",
+        "propagateFlow": true
       }
     },
     {
@@ -29,7 +30,8 @@
         "from": "worker",
         "arrow": "-->",
         "messageName": "TaskResult",
-        "postReceiveZone": "\n      $self.lastResult = $ctx.msg.result\n    "
+        "postReceiveZone": "\n      $self.lastResult = $ctx.msg.result\n    ",
+        "propagateFlow": true
       }
     },
     {

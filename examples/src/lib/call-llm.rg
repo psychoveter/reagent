@@ -1,10 +1,7 @@
 // Library protocol: request/response with llmbroka (LLM gateway angel)
 //
-// Intent:
-// - Any agent can call an LLM through a dedicated participant `llmbroka`.
-// - Caller composes a prompt and sends it to llmbroka.
-// - llmbroka returns a response message.
-// - Protocol returns the response value to the invoker (via reagent.return()).
+// Caller composes a prompt and sends it to llmbroka.
+// llmbroka returns a response. Protocol returns the response via reagent.return().
 
 message LlmPrompt {}
 message LlmAnswer {}
@@ -15,7 +12,6 @@ protocol CallLlm {
   input: LlmRequest
 
   caller {
-    // $ctx.input is the external input delivered to initiator (caller).
     $ctx.req = $ctx.input
     $ctx.prompt = [
       { role: "system", content: $ctx.req.system },
@@ -30,7 +26,6 @@ protocol CallLlm {
       $ctx.msg.temperature = $ctx.req.temperature
     }
     onReceive {
-      // llmbroka processes the prompt
       $ctx.model = $ctx.msg.model
       $ctx.messages = $ctx.msg.messages
     }

@@ -17,7 +17,8 @@
         "kind": "receive",
         "from": "user",
         "arrow": "-->",
-        "messageName": "TaskRequest"
+        "messageName": "TaskRequest",
+        "propagateFlow": true
       }
     },
     {
@@ -27,16 +28,20 @@
         "kind": "send",
         "to": "user",
         "arrow": "-->",
-        "messageName": "Greeting"
+        "messageName": "Greeting",
+        "propagateFlow": true
       }
     },
     {
-      "id": "act_10",
-      "kind": "action",
+      "id": "spawn_10",
+      "kind": "spawn",
       "data": {
-        "kind": "action",
-        "body": "\n    $ctx.plannerHandle = reagent.spawn(Subagent, { planner: planner }, { text: $ctx.taskText })\n  ",
-        "lang": "ts"
+        "kind": "spawn",
+        "protocolName": "Subagent",
+        "input": "{ text: $flow.taskText }",
+        "roleMapping": {
+          "planner": "planner"
+        }
       }
     },
     {
@@ -47,7 +52,8 @@
         "from": "planner",
         "arrow": "-->",
         "messageName": "PlanReady",
-        "postReceiveZone": "\n      $ctx.dsi = $ctx.msg.dsi\n      $ctx.bsi = $ctx.msg.bsi\n    "
+        "postReceiveZone": "\n      $flow.dsi = $ctx.msg.dsi\n      $flow.bsi = $ctx.msg.bsi\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -58,7 +64,8 @@
         "to": "user",
         "arrow": "-->",
         "messageName": "Done",
-        "preSendZone": "\n      $ctx.msg.ok = true\n    "
+        "preSendZone": "\n      $ctx.msg.ok = true\n    ",
+        "propagateFlow": true
       }
     },
     {
@@ -87,13 +94,13 @@
     },
     {
       "from": "send_9",
-      "to": "act_10",
+      "to": "spawn_10",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "act_10",
+      "from": "spawn_10",
       "to": "recv_11",
       "label": {
         "kind": "default"

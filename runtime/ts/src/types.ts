@@ -34,7 +34,8 @@ export type IRGraph = {
 
 export type IRStateKind =
   | "initial" | "send" | "receive" | "action" | "guard"
-  | "fork" | "join" | "timer" | "terminal" | "error";
+  | "fork" | "join" | "timer" | "terminal" | "error"
+  | "invoke" | "spawn" | "scatter";
 
 export type IRState = {
   id: string;
@@ -44,15 +45,18 @@ export type IRState = {
 
 export type IRStateData =
   | { kind: "initial" }
-  | { kind: "send"; to: string; arrow: ArrowKind; messageName: string; preSendZone?: string }
-  | { kind: "receive"; from: string; arrow: ArrowKind; messageName: string; postReceiveZone?: string; pattern?: Record<string, string> }
+  | { kind: "send"; to: string; arrow: ArrowKind; messageName: string; preSendZone?: string; propagateFlow?: boolean }
+  | { kind: "receive"; from: string; arrow: ArrowKind; messageName: string; postReceiveZone?: string; pattern?: Record<string, string>; propagateFlow?: boolean }
   | { kind: "action"; body: string; lang: LangTag }
   | { kind: "guard"; guardType: "expression" | "message" | "timeout" | "xor"; expr?: string }
   | { kind: "fork"; branchStartIds: string[] }
   | { kind: "join"; branchCount: number }
   | { kind: "timer"; duration: Duration }
   | { kind: "terminal"; status: "completed" | "error" }
-  | { kind: "error"; label: string };
+  | { kind: "error"; label: string }
+  | { kind: "invoke"; protocolName: string; input: string; roleMapping?: Record<string, string>; resultTarget?: string }
+  | { kind: "spawn"; protocolName: string; input: string; roleMapping?: Record<string, string> }
+  | { kind: "scatter"; collection: string; itemRole: string; branchStartIds: string[] };
 
 export type IRTransition = {
   from: string;
@@ -136,6 +140,8 @@ export type MessageEnvelope = {
   to: { agent: string; role: string };
   messageName: string;
   payload: Record<string, unknown>;
+  /** Flow state propagated with the message (v0.0.8+) */
+  flow?: Record<string, unknown>;
   ts: number;
   idempotencyKey: string;
 };
@@ -155,7 +161,13 @@ export type TraceEventKind =
   | "TimerFired"
   | "ForkStarted"
   | "JoinCompleted"
-  | "ErrorCaught";
+  | "ErrorCaught"
+  | "InvokeStarted"
+  | "InvokeCompleted"
+  | "Spawned"
+  | "ScatterStarted"
+  | "ScatterCompleted"
+  | "EventEmitted";
 
 export type TraceEvent = {
   instanceId: string;
@@ -231,6 +243,7 @@ export function createMessageEnvelope(
   toRole: string,
   messageName: string,
   payload: Record<string, unknown>,
+  flow?: Record<string, unknown>,
 ): MessageEnvelope {
   return {
     instanceId,
@@ -239,6 +252,7 @@ export function createMessageEnvelope(
     to: { agent: toAgent, role: toRole },
     messageName,
     payload,
+    flow,
     ts: Date.now(),
     idempotencyKey: crypto.randomUUID(),
   };

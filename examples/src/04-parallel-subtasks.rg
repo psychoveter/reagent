@@ -3,9 +3,7 @@ message SubtaskDone {}
 
 // Example 04: par (parallel branches) + join
 // Intent: comma decomposes a task into two subtasks, runs them in parallel, then joins results.
-// Roles: comma [ts], worker1 [ts], worker2 [ts]
-//
-// Required acts: par, join, correlation, internal action to merge results.
+// $flow carries results between roles; $ctx.msg is per-branch isolated.
 
 protocol ParallelSubtasks {
   participants: comma [ts], worker1 [ts], worker2 [ts]
@@ -26,18 +24,18 @@ protocol ParallelSubtasks {
   par {
     worker1 --> comma: SubtaskDone = {
       onReceive {
-        $ctx.subtaskA = $ctx.msg
+        $flow.subtaskA = $ctx.msg
       }
     }
   } and {
     worker2 --> comma: SubtaskDone = {
       onReceive {
-        $ctx.subtaskB = $ctx.msg
+        $flow.subtaskB = $ctx.msg
       }
     }
   }
 
   comma {
-    $ctx.result = merge($ctx.subtaskA, $ctx.subtaskB)
+    $flow.result = merge($flow.subtaskA, $flow.subtaskB)
   }
 }

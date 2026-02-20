@@ -15,7 +15,7 @@
       "kind": "action",
       "data": {
         "kind": "action",
-        "body": "\n    $ctx.taskText = $ctx.input.text\n  ",
+        "body": "\n    $flow.taskText = $ctx.input.text\n  ",
         "lang": "ts"
       }
     },
@@ -26,7 +26,8 @@
         "kind": "send",
         "to": "sia",
         "arrow": "-->",
-        "messageName": "SubmitIntent"
+        "messageName": "SubmitIntent",
+        "propagateFlow": true
       }
     },
     {
@@ -34,7 +35,7 @@
       "kind": "action",
       "data": {
         "kind": "action",
-        "body": "\n    reagent.emit(\"TaskSubmitted\", { kind: \"task.submitted\", ref: $ctx.intent })\n  ",
+        "body": "\n    reagent.emit(\"TaskSubmitted\", { kind: \"task.submitted\", ref: $flow.intent })\n  ",
         "lang": "ts"
       }
     },

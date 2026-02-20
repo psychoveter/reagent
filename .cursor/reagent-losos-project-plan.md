@@ -177,14 +177,7 @@ Migrate all `.rg` examples to use the new features where appropriate:
 
 ### Phase D: RAP sub-protocol specs
 
-Write 7 RAP `.rg` files in `examples/rap/` using `[*]` and typed messages:
-- `AdapterHandshake.rg`
-- `CompileRequest.rg`
-- `DeployAgent.rg`
-- `RunProtocol.rg`
-- `DebugSession.rg`
-- `InspectState.rg`
-- `SetBreakpoints.rg`
+Write 7 RAP `.rg` files using `[*]` and typed messages.
 
 Compile all to IR. Derive JSON wire format schema from IR message definitions.
 
@@ -212,14 +205,9 @@ Compile all to IR. Derive JSON wire format schema from IR message definitions.
 - All recompiled to `examples/out/`; validation passes on all
 
 **Phase D** ✅ — 7 RAP sub-protocol specs:
-- `examples/src/rap/01-adapter-handshake.rg` (2 roles, 3 messages, alt branching)
-- `examples/src/rap/02-compile-request.rg` (2 roles, 3 messages, alt branching)
-- `examples/src/rap/03-deploy-agent.rg` (2 roles, 3 messages, alt branching)
-- `examples/src/rap/04-run-protocol.rg` (2 roles, 2 messages, linear)
-- `examples/src/rap/05-debug-session.rg` (3 roles, 2 messages, relay pattern)
-- `examples/src/rap/06-inspect-state.rg` (3 roles, 2 messages, relay pattern)
-- `examples/src/rap/07-set-breakpoints.rg` (2 roles, 2 messages, linear)
-- All compile to IR + message schemas in `examples/out/rap/`
+- 7 `.rg` files with typed messages, `[*]` roles, alt branching / relay patterns
+- All compile to IR + message schemas
+- Later moved to `tools/rap/` and upgraded with `role` definitions (see below)
 
 ---
 
@@ -401,7 +389,7 @@ Full design: [m5-ctrl-design.md (draft-3)](../docs/m5-ctrl-design.md).
 
 ---
 
-## M6-RT — Reagent Orchestrator Service + Debugger ⬜ NEXT
+## M6-RT — Reagent Orchestrator Service + Debugger ✅ DONE
 
 **Intent**: build the orchestration and debug infrastructure on top of M5-CTRL's connectivity layer. The ROS is a long-lived Node.js process with WebSocket server that compiles, deploys, runs, and debugs protocols. No NATS dependency.
 
@@ -413,51 +401,92 @@ Full design: [m6-ros-design.md (draft-1)](../docs/m6-ros-design.md).
 - **WsNodeLink**: WebSocket-based `NodeLink` for ROS-to-node and node-to-node communication. JSON text frames carrying `MessageEnvelope`.
 - **Session**: one `.rg` program execution context. Holds compiled IR, source map, RC, debug state, traces.
 - **DebugInterceptor**: message-level interceptor that holds messages at breakpoints. Works with existing RC interceptor chain. Supports `step`/`continue`/`inspect`.
-- **DebugController**: coordinates debug operations across sessions. Resolves source-level breakpoints via source map.
+- **DebugAdvanceHook**: state-level debug hook that pauses before any IR state (including zones). Promise-gate blocking. Supports `stepState`/`stepOver`/`continue`.
+- **DebugController**: coordinates debug operations across sessions. Resolves source-level breakpoints via source map. Manages both message-level and state-level debug instruments.
 - **Source Map**: compiler-emitted mapping from IR state IDs to `.rg` source locations. Enables breakpoint resolution and current-line visualization.
+- **RemoteNode**: standalone agent node process that connects to ROS via WsNodeLink, registers via handshake, receives deploy/trigger commands.
 
-### Phase 1: WsNodeLink + ROS skeleton
+### Phase 1: WsNodeLink + ROS skeleton ✅
 
-- `WsNodeLink`: WebSocket `NodeLink` implementation (client + server role).
-- `ReagentOrchestratorServer`: WS server, session management, compile on demand.
+- `WsNodeLink` + `WsNodeLinkServer`: WebSocket `NodeLink` implementation (client + server modes).
+- `ReagentOrchestratorServer`: WS server, session management, compile on demand via lazy-loaded `@reagent/lang`.
+- `Session` + `SessionManager`: per-program execution context (IR, source map, RC, traces, status).
+- `ros-cli.ts`: CLI entry point with `--port` flag and graceful shutdown.
 - Compile `.rg` → IR + source map via WS.
 - Deploy agents in-process (multi-AgentNode RC from M5-CTRL).
 - Run protocols, stream trace events to WS clients in real-time.
-- **T21**: compile + deploy + run via WS, verify traces and completion.
+- **T21** ✅: compile + deploy + run via WS, verify traces and completion.
 
-### Phase 2: Debug infrastructure
+### Phase 2: Two-level debug infrastructure ✅
 
-- `DebugInterceptor`: held-message queue, breakpoint matching on message names and IR state IDs.
-- `DebugController`: session-scoped debug state, breakpoint resolution via source map.
-- Compiler emits source maps (IR state ID → `.rg` file:line:col).
-- SetBreakpoints → resolve → RunStart (debug mode) → Stopped → GetState → step/continue.
-- **T22**: Set breakpoint on message name, run, verify pause at correct point.
-- **T23**: Inspect `$ctx` and `$self` at pause point, verify values match expected.
-- **T24**: Step through 3 transitions, verify state after each.
+- **Message-level**: `DebugInterceptor` in RC interceptor chain — holds messages at breakpoints, supports `stepMessage`/`continue`.
+- **State-level**: `AdvanceHook` in `ProtocolInstance.advance()` — pauses before any IR state including zones (`action`). `DebugAdvanceHook` with promise-gate blocking, supports `stepState`/`stepOver`/`continue`.
+- `DebugController`: coordinates both levels, session-scoped debug state, breakpoint resolution via source map. Idempotent session creation.
+- Compiler emits source maps (IR state ID → `.rg` file:line:col) in `ir-emitter.ts`. CLI writes `source-map.json`.
+- Python IPC extended with `pauseBeforeState`/`resume` commands. Python `ProtocolInstance` gains `advance_hook`.
+- SetBreakpoints → resolve → RunStart (debug mode) → Stopped (message or state) → GetState → step/continue.
+- **T22** ✅: Set breakpoint on message name, run, verify pause at correct point (message-level).
+- **T23** ✅: Inspect `$ctx` and `$self` at pause point, verify values match expected.
+- **T24** ✅: Step through 3 message-level transitions, verify state after each.
+- **T25** ✅: Set breakpoint on `action` state (zone), run, verify pause *before zone executes* (state-level).
+- **T26** ✅: `stepState` through receive → action → send, verify `$ctx` changes at each step.
 
-### Phase 3: Remote nodes via WsNodeLink
+### Phase 3: Remote nodes via WsNodeLink ✅
 
-- Remote node process connects to ROS via WsNodeLink.
-- `AdapterHandshake` RAP sub-protocol for registration.
-- `DeployAgent` sends IR + role bindings to remote node.
-- Messages route between local and remote nodes via `WsNodeLink`.
+- `RemoteNode`: standalone TS process with its own RC + NativeAgentNode. Connects to ROS via WebSocket, performs handshake, receives Deploy/TriggerProtocol commands. Sends trace events back to ROS.
+- ROS-side adapter management: tracks connected remote nodes, handles handshake + registration, provides deploy/trigger methods.
+- **T27** ✅: Remote node handshake + adapter registration via WS.
 
-### Phase 4: VSCode extension (RAP client)
+### Phase 4: VSCode extension (RAP client) ✅
 
-- WebSocket RAP client
-- Debug panel webview: IR graph visualization, trace timeline, agent state cards
-- Breakpoint gutter markers in `.rg` editor
-- `launch.json` integration, "Debug Protocol" button
-- Inline value decorations (`$ctx.foo = "bar"`) when paused, using source map
+- `RapClient`: WebSocket RAP client with typed listeners, request-response correlation, wildcard listeners.
+- `ReagentDebugSession` (DAP adapter): inline debug adapter bridging VS Code DAP ↔ ROS RAP. Handles launch (connect to ROS, compile, run in debug mode), setBreakpoints (resolve via source map), stackTrace (map stateId to .rg line), scopes/variables ($ctx, $self, held messages from GetState), continue/next/stepIn/stepOut, disconnect.
+- `ReagentDebugPanelProvider`: WebviewView for debug sidebar — trace timeline (last 50 events, color-coded by kind), agent state cards (JSON), held messages display. Auto-updates on new traces.
+- `ReagentInlineValues`: text editor decorations showing `$ctx.key = value` and `$self.key = value` at the current paused line. Clears on session end.
+- `package.json`: `debuggers` contribution (type: "reagent", launch config schema, snippets), `breakpoints` for reagent language, `commands` (startDebug, showTraceTimeline, inspectAgent), `views.debug` (reagentDebugPanel).
+- Extension `activate()` registers: debug adapter factory, webview view provider, inline values, commands, session termination cleanup.
 
-### DoD
+### New files (M6-RT)
+
+| File | Purpose | Phase |
+|---|---|---|
+| `runtime/ts/src/ws-node-link.ts` | WebSocket NodeLink (client + server modes) | 1 |
+| `runtime/ts/src/ros.ts` | ReagentOrchestratorServer | 1 |
+| `runtime/ts/src/session.ts` | Session + SessionManager | 1 |
+| `runtime/ts/src/ros-cli.ts` | CLI entry point | 1 |
+| `runtime/ts/src/debug-interceptor.ts` | DebugInterceptor (message-level) | 2 |
+| `runtime/ts/src/debug-advance-hook.ts` | DebugAdvanceHook (state-level) | 2 |
+| `runtime/ts/src/debug-controller.ts` | DebugController (coordinates both levels) | 2 |
+| `runtime/ts/src/remote-node.ts` | RemoteNode (standalone agent node) | 3 |
+| `tools/reagent-vscode/src/rapClient.ts` | WebSocket RAP client for VSCode | 4 |
+| `tools/reagent-vscode/src/reagentDebugAdapter.ts` | DAP debug adapter (inline) | 4 |
+| `tools/reagent-vscode/src/debugPanelProvider.ts` | Debug panel webview | 4 |
+| `tools/reagent-vscode/src/inlineValues.ts` | Inline value decorations | 4 |
+| `runtime/tests/m6-ros.test.ts` | ROS + debug E2E tests (T21–T27) | 1–3 |
+
+### Functional E2E tests
+
+| Test | What it validates |
+|---|---|
+| T21: Compile + Run via WS | ROS compiles `.rg`, deploys agents, runs protocol, streams traces, reports completion. |
+| T22: Message breakpoint → Stopped | DebugInterceptor holds message at breakpoint, emits Stopped event. |
+| T23: GetState at pause | State inspection returns $ctx, $self, held messages at pause point. |
+| T24: stepMessage sequence | Step through message-level transitions one by one until completion. |
+| T25: State breakpoint on action kind | AdvanceHook pauses before action (zone) state. |
+| T26: stepState through states | Step through receive → action → send at state level, verify $ctx changes. |
+| T27: Remote node handshake | Remote adapter connects, handshakes, registers with ROS. |
+
+### DoD ✅
 
 - ROS boots, accepts WS connections, compiles `.rg`, deploys agents, runs protocols, streams traces.
 - `WsNodeLink` works for remote node connectivity.
-- `DebugInterceptor` pauses on message breakpoints, supports step/continue.
-- `DebugController` resolves source-level breakpoints via source map.
-- `InspectState` returns `$ctx`, `$self`, pending messages for paused agents.
-- T21–T24 pass.
+- **Message-level debug**: `DebugInterceptor` pauses on message breakpoints, supports `stepMessage`/`continue`.
+- **State-level debug**: `AdvanceHook` in `ProtocolInstance` pauses before any IR state (including zones). `DebugAdvanceHook` supports `stepState`/`stepOver`/`continue`.
+- `DebugController` resolves source-level breakpoints via source map, coordinates both levels.
+- `InspectState` returns `$ctx`, `$self`, `currentStateId`, `stateKind`, pending messages for paused agents.
+- Remote nodes connect, register, and deploy via WsNodeLink.
+- VSCode extension: DAP debug adapter, debug panel, inline values, breakpoint support.
+- T21–T27 pass.
 
 ---
 
@@ -498,7 +527,7 @@ Ideas and milestones considered but not yet scheduled.
 | `[*]` wildcard lang tag | `lang: "*"` in IR | M2-LANG / A ✅ | — |
 | Typed messages | `IRMessageSchema` | M2-LANG / B ✅ | — |
 | Examples updated (22+3) | `[*]` + `message` defs | M2-LANG / C ✅ | — |
-| RAP sub-protocols | 7 `.rg` specs | M2-LANG / D ✅ | — |
+| RAP sub-protocols | 7 `.rg` specs in `tools/rap/` with role defs | M2-LANG / D ✅ | — |
 | `role` definition | `RoleIR` | M3-LANG ✅ | — |
 | `implements` in agent | expanded plays in `AgentIR` | M3-LANG ✅ | — |
 | Role-centric design | `role` primary, `agent` thin | M4-LANG ✅ | — |
@@ -515,5 +544,11 @@ Ideas and milestones considered but not yet scheduled.
 | AddressPage + routing table | static discovery | M5-CTRL / D ✅ | C7 |
 | Multi-protocol agent | one agent, multiple concurrent protocols | M5-CTRL / D ✅ | C11 |
 | Cross-language TS↔Python via RC | multi-runtime loopback, no NATS | M5-CTRL / E ✅ | C12 |
-| Debug server (ROS) | step, breakpoints, inspect | M6-RT / 1-2 | T21–T23 |
-| Debug UI (VSCode) | graph, timeline, state cards | M6-RT / 3-4 | — |
+| ROS skeleton | compile, deploy, run, trace streaming via WS | M6-RT / 1 ✅ | T21 |
+| WsNodeLink | WebSocket-based NodeLink | M6-RT / 1, 3 ✅ | T27 |
+| Message-level debug | DebugInterceptor: hold messages, stepMessage | M6-RT / 2 ✅ | T22, T24 |
+| State-level debug | AdvanceHook: pause before any IR state incl. zones | M6-RT / 2 ✅ | T25, T26 |
+| Source map | compiler-emitted IR state → .rg line mapping | M6-RT / 2 ✅ | T25 |
+| State inspection | $ctx, $self, stateId, stateKind at pause point | M6-RT / 2 ✅ | T23 |
+| Remote nodes | RemoteNode + adapter handshake + deploy via WS | M6-RT / 3 ✅ | T27 |
+| Debug UI (VSCode) | DAP adapter, debug panel, inline values, breakpoints | M6-RT / 4 ✅ | — |

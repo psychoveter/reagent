@@ -4,24 +4,25 @@
   "lang": "*",
   "states": [
     {
-      "id": "init_10",
+      "id": "init_11",
       "kind": "initial",
       "data": {
         "kind": "initial"
       }
     },
     {
-      "id": "recv_11",
+      "id": "recv_12",
       "kind": "receive",
       "data": {
         "kind": "receive",
         "from": "comma",
         "arrow": "-->",
-        "messageName": "SubmitIntent"
+        "messageName": "SubmitIntent",
+        "propagateFlow": true
       }
     },
     {
-      "id": "end_12",
+      "id": "end_13",
       "kind": "terminal",
       "data": {
         "kind": "terminal",
@@ -31,22 +32,22 @@
   ],
   "transitions": [
     {
-      "from": "init_10",
-      "to": "recv_11",
+      "from": "init_11",
+      "to": "recv_12",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "recv_11",
-      "to": "end_12",
+      "from": "recv_12",
+      "to": "end_13",
       "label": {
         "kind": "default"
       }
     }
   ],
-  "initialStateId": "init_10",
+  "initialStateId": "init_11",
   "terminalStateIds": [
-    "end_12"
+    "end_13"
   ]
 }

@@ -1,0 +1,138 @@
+{
+  "protocolName": "ScatterGather",
+  "role": "worker",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_10",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "scatter_fork_11",
+      "kind": "scatter",
+      "data": {
+        "kind": "scatter",
+        "collection": "$flow.workers",
+        "itemRole": "worker",
+        "branchStartIds": [
+          "scatter_entry_13"
+        ]
+      }
+    },
+    {
+      "id": "scatter_entry_13",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "recv_14",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "coordinator",
+        "arrow": "-->",
+        "messageName": "Subtask",
+        "propagateFlow": true
+      }
+    },
+    {
+      "id": "act_15",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n      $ctx.result = \"done:\" + $ctx.msg.taskId\n    ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_16",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "coordinator",
+        "arrow": "-->",
+        "messageName": "SubtaskDone",
+        "preSendZone": "\n        $ctx.msg.result = $ctx.result\n      ",
+        "propagateFlow": true
+      }
+    },
+    {
+      "id": "scatter_join_12",
+      "kind": "join",
+      "data": {
+        "kind": "join",
+        "branchCount": 1
+      }
+    },
+    {
+      "id": "end_17",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_10",
+      "to": "scatter_fork_11",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "scatter_fork_11",
+      "to": "scatter_entry_13",
+      "label": {
+        "kind": "branch",
+        "branchIndex": 0
+      }
+    },
+    {
+      "from": "scatter_entry_13",
+      "to": "recv_14",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_14",
+      "to": "act_15",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_15",
+      "to": "send_16",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_16",
+      "to": "scatter_join_12",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "scatter_join_12",
+      "to": "end_17",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_10",
+  "terminalStateIds": [
+    "end_17"
+  ]
+}

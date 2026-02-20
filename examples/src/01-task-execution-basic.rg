@@ -4,15 +4,10 @@ message SubmitIntent {}
 
 // Example 01: Basic task execution (user → comma → sia)
 // Intent: user requests a task; comma acknowledges, derives DSI/BSI, submits to sia.
-// Roles: user [ts], comma [ts], sia [ts]
+// Roles: user [ts], comma [ts], sia [*]
 //
-// Expected trace shape (high-level):
-// - ProtocolStarted
-// - MessageReceived(TaskRequest) by comma
-// - MessageSent(Greeting) by comma
-// - ActionStarted/ActionFinished(comma.taskToDsiBsi)
-// - MessageSent(SubmitIntent) by comma
-// - ProtocolCompleted
+// $flow carries data between roles (propagated with messages).
+// $ctx is per-role isolated working memory.
 
 protocol TaskExecutionBasic {
   participants: user [ts], comma [ts], sia [*]
@@ -20,7 +15,7 @@ protocol TaskExecutionBasic {
   input: TaskRequest
 
   user {
-    $ctx.taskText = $ctx.input.text
+    $flow.taskText = $ctx.input.text
   }
   user --> comma: TaskRequest = { }
 
@@ -31,14 +26,12 @@ protocol TaskExecutionBasic {
   }
 
   comma {
-    // internal action: derive DSI/BSI from task text
-    const dsiBsi = taskToDsiBsi($ctx.taskText)
-    $ctx.dsiBsi = dsiBsi
+    $flow.dsiBsi = taskToDsiBsi($flow.taskText)
   }
 
   comma --> sia: SubmitIntent = {
     onSend {
-      $ctx.msg.ref = $ctx.dsiBsi
+      $ctx.msg.ref = $flow.dsiBsi
     }
   }
 }

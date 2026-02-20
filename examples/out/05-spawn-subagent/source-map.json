@@ -1,0 +1,84 @@
+{
+  "entries": [
+    {
+      "stateId": "act_2",
+      "protocolName": "SpawnSubagent",
+      "role": "user",
+      "file": "examples/src/05-spawn-subagent.rg",
+      "line": 15,
+      "column": 3
+    },
+    {
+      "stateId": "send_3",
+      "protocolName": "SpawnSubagent",
+      "role": "user",
+      "file": "examples/src/05-spawn-subagent.rg",
+      "line": 18,
+      "column": 3
+    },
+    {
+      "stateId": "recv_4",
+      "protocolName": "SpawnSubagent",
+      "role": "user",
+      "file": "examples/src/05-spawn-subagent.rg",
+      "line": 20,
+      "column": 3
+    },
+    {
+      "stateId": "recv_5",
+      "protocolName": "SpawnSubagent",
+      "role": "user",
+      "file": "examples/src/05-spawn-subagent.rg",
+      "line": 33,
+      "column": 3
+    },
+    {
+      "stateId": "recv_8",
+      "protocolName": "SpawnSubagent",
+      "role": "comma",
+      "file": "examples/src/05-spawn-subagent.rg",
+      "line": 18,
+      "column": 3
+    },
+    {
+      "stateId": "send_9",
+      "protocolName": "SpawnSubagent",
+      "role": "comma",
+      "file": "examples/src/05-spawn-subagent.rg",
+      "line": 20,
+      "column": 3
+    },
+    {
+      "stateId": "spawn_10",
+      "protocolName": "SpawnSubagent",
+      "role": "comma",
+      "file": "examples/src/05-spawn-subagent.rg",
+      "line": 22,
+      "column": 3
+    },
+    {
+      "stateId": "recv_11",
+      "protocolName": "SpawnSubagent",
+      "role": "comma",
+      "file": "examples/src/05-spawn-subagent.rg",
+      "line": 26,
+      "column": 3
+    },
+    {
+      "stateId": "send_12",
+      "protocolName": "SpawnSubagent",
+      "role": "comma",
+      "file": "examples/src/05-spawn-subagent.rg",
+      "line": 33,
+      "column": 3
+    },
+    {
+      "stateId": "send_15",
+      "protocolName": "SpawnSubagent",
+      "role": "planner",
+      "file": "examples/src/05-spawn-subagent.rg",
+      "line": 26,
+      "column": 3
+    }
+  ]
+}
