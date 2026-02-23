@@ -49,5 +49,18 @@
   "initialStateId": "init_14",
   "terminalStateIds": [
     "end_16"
+  ],
+  "version": "0.1.0",
+  "fingerprints": {
+    "structureHash": "c365e054a26e36abf7b933d44282796d54b7a5c636e08ac34590dc3b5c3a4812",
+    "schemaHash": "ca75649d048071f4cb9be62fd6dfcb215a27c49372760d1a8f687d15aa1f8401",
+    "implHash": "3ed404a3059dbd148353220e433052e61f08dc86370b7d41f626fae7363269e8"
+  },
+  "dependencies": [
+    {
+      "protocolName": "Subagent",
+      "structureHash": "",
+      "version": ""
+    }
   ]
 }

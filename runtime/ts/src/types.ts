@@ -20,12 +20,35 @@ export type AgentEventKind =
   | "protocolFailed"
   | "protocolEvent";
 
+// ── Fingerprints & Versioning (M8a) ─────────────────────────────────
+
+export type ProtocolFingerprint = {
+  structureHash: string;
+  schemaHash: string;
+  implHash: string;
+};
+
+export type RoleFingerprint = {
+  playsHash: string;
+  behaviorHash: string;
+};
+
+export type ProtocolDependency = {
+  protocolName: string;
+  structureHash: string;
+  version: string;
+};
+
 // ── From lang/src/ir.ts — Protocol IR ───────────────────────────────
 
 export type IRGraph = {
   protocolName: string;
   role: string;
   lang: LangTag;
+  version?: string;
+  fingerprints?: ProtocolFingerprint;
+  dependencies?: ProtocolDependency[];
+  initiator?: string;
   states: IRState[];
   transitions: IRTransition[];
   initialStateId: string;
@@ -78,6 +101,8 @@ export type IRTransitionLabel =
 export type RoleIR = {
   roleName: string;
   lang?: LangTag;
+  version?: string;
+  fingerprints?: RoleFingerprint;
   extends?: string;
   plays: AgentPlaysBinding[];
   initAction?: AgentAction;
@@ -136,6 +161,7 @@ export type AgentLifecycleHandler = {
 export type MessageEnvelope = {
   instanceId: string;
   protocolName: string;
+  protocolVersion?: string;
   from: { agent: string; role: string };
   to: { agent: string; role: string };
   messageName: string;
@@ -186,6 +212,7 @@ export type TraceEvent = {
 export type ProtocolTrigger = {
   instanceId: string;
   protocolName: string;
+  protocolVersion?: string;
   input: Record<string, unknown>;
   roleToAgent: Record<string, string>;
 };
@@ -244,10 +271,12 @@ export function createMessageEnvelope(
   messageName: string,
   payload: Record<string, unknown>,
   flow?: Record<string, unknown>,
+  protocolVersion?: string,
 ): MessageEnvelope {
   return {
     instanceId,
     protocolName,
+    protocolVersion,
     from: { agent: fromAgent, role: fromRole },
     to: { agent: toAgent, role: toRole },
     messageName,

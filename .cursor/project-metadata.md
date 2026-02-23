@@ -42,7 +42,7 @@ Approach:
 │                      REFERENCE RUNTIMES               │                 │
 │                                                       ▼                 │
 │  ┌────────────────────────────────────────────────────────────────────┐│
-│  │  ReagentController (RC) — routing, interceptors, multi-AgentNode  ││
+│  │  ReagentController (TS RC) — routing, interceptors, multi-AgentNode│
 │  │  agentNodes: { ts: NativeAgentNode, py: PythonAgentNode }         ││
 │  └────────┬───────────────────────────┬──────────────────────────────┘│
 │           │                           │                               │
@@ -52,6 +52,13 @@ Approach:
 │  │  runtime/ts/      │    │  JSON-line stdio     │                    │
 │  │  zones in JS/TS   │    │  runtime/py/         │                    │
 │  └──────────────────┘    └─────────────────────┘                    │
+│                                                                       │
+│  ┌────────────────────────────────────────────────────────────────────┐│
+│  │  ReagentController (Python RC) — pure-Python orchestrator          ││
+│  │  agentNodes: { py: InprocAgentNode, ipc: IpcAgentNode }           ││
+│  │  InprocTransport (per-agent, routes via RC callback)               ││
+│  │  Use case: NMMO-style multi-agent simulations, no NATS needed      ││
+│  └────────────────────────────────────────────────────────────────────┘│
 │                                                                       │
 │  ┌───────────────────────────────────────────────────────────────────┐│
 │  │  InMemoryNodeLink │ WsNodeLink │ NatsCompatTransport (legacy)     ││
@@ -88,12 +95,12 @@ Approach:
 │  └─────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────┘
 
-Data plane: ReagentController loopback + NodeLink (NATS demoted to optional NodeLink impl)
+Data plane: ReagentController loopback + NodeLink (NATS demoted to optional NodeLink impl); Python RC uses InprocTransport for zero-overhead in-process routing
 Control plane: RAP over WebSocket (ROS ↔ adapters ↔ VSCode)
 RAP sub-protocols: 7 .rg specs in tools/rap/ (with role definitions)
 ```
 
-## Current state (2026-02-20)
+## Current state (2026-02-21)
 
 ### Language: v0.0.8
 
@@ -108,11 +115,11 @@ Key design commitments:
 - **Hook zones**: `onSend { ... }` / `onReceive { ... }` inside message props.
 - **`reagent.*` runtime library**: `reagent.return`, `reagent.emit`, `reagent.break`.
 - **Context split**: `$ctx` (per-role isolated), `$flow` (message-propagated), `$self` (role-level persistent).
-- **Protocol-level `invoke`/`spawn`/`scatter`**: child protocol calls and dynamic multicast at choreography level.
+- **Protocol-level `invokes`/`spawns`/`scatter`**: child protocol calls and dynamic multicast at choreography level (`<role> invokes Proto(...)`, `<role> spawns Proto(...)`).
 - **`alt where`**: explicit pattern matching in `alt` guards.
 - **Role definition**: `role Name [langTag]? extends Parent? { plays; init; on ... }` — primary behavioral contract with optional inheritance.
 - **Agent definition**: `agent Name [langTag]? runs RoleName` — thin deployment binding.
-- **Protocol-level control flow**: `alt`, `loop`, `par`, `wait`, `timeout`, `try/catch`, `invoke`, `spawn`, `scatter`.
+- **Protocol-level control flow**: `alt`, `loop`, `par`, `wait`, `timeout`, `try/catch`, `invokes`, `spawns`, `scatter`.
 - **Imports**: `.rg` = protocol imports, `.ts/.js/.py/.kt` = code module imports.
 - **Top-level constructs**: `import`, `protocol`, `agent`, `message`, `role`.
 
@@ -186,7 +193,12 @@ Lightweight **reference runners** that interpret IR JSON. Transport-agnostic via
 | AgentRunner + ProtocolInstance | TypeScript | `runtime/ts/` | Full IR support |
 | AgentRunner + ProtocolInstance | Python | `runtime/py/` | Full IR support (mirrors TS) |
 | ReagentController | TypeScript | `runtime/ts/src/reagent-controller.ts` | Multi-AgentNode routing + interceptors |
+| ReagentController | Python | `runtime/py/reagent_runtime/controller.py` | Multi-AgentNode routing + interceptors (mirrors TS) |
 | NativeAgentNode | TypeScript | `runtime/ts/src/native-agent-node.ts` | TS agent platform adapter |
+| InprocAgentNode | Python | `runtime/py/reagent_runtime/inproc_agent_node.py` | In-process Python agent adapter |
+| IpcAgentNode | Python | `runtime/py/reagent_runtime/ipc_agent_node.py` | Subprocess Python agent adapter |
+| InprocTransport | Python | `runtime/py/reagent_runtime/inproc_transport.py` | In-process routing via RC callback |
+| AgentHandle / AgentNode protocols | Python | `runtime/py/reagent_runtime/agent_node.py` | Platform abstraction protocols |
 | PythonAgentNode | TypeScript | `runtime/ts/src/python-agent-node.ts` | Python child process + JSON-line IPC |
 | InMemoryNodeLink | TypeScript | `runtime/ts/src/inmemory-node-link.ts` | In-process inter-node pipe |
 | WsNodeLink + WsNodeLinkServer | TypeScript | `runtime/ts/src/ws-node-link.ts` | WebSocket-based NodeLink |
@@ -204,6 +216,9 @@ Lightweight **reference runners** that interpret IR JSON. Transport-agnostic via
 | M5-CTRL E2E tests | TypeScript | `runtime/tests/m5-ctrl.test.ts` | **12/12 passing** (C1–C12) |
 | M5-LANG E2E tests | TypeScript | `runtime/tests/m5-lang.test.ts` | **9/9 passing** (T28–T36) |
 | M6-RT E2E tests | TypeScript | `runtime/tests/m6-ros.test.ts` | **7/7 passing** (T21–T27) |
+| M5-COVERAGE E2E tests | TypeScript | `runtime/tests/m5-coverage.test.ts` | **10/10 passing** (C13–C22: par fan-out, alt XOR, break, try/catch, $ctx.msg par isolation, role inheritance, lifecycle, wildcard) |
+| Python RC E2E tests | Python | `runtime/tests/test_py_rc.py` | **6/6 passing** (T1–T6: loopback, invoke, spawn, par, $flow, IPC) |
+| Python RC Coverage tests | Python | `runtime/tests/test_py_rc_coverage.py` | **8/8 passing** (T7–T14: loop, timer, alt expr, alt XOR, try/catch, break, lifecycle completed/failed) |
 
 All IR constructs supported at runtime: `initial`, `send`, `receive`, `action`, `guard(xor/expression)`, `terminal`, `timer`, `fork`, `join`, `error`, `invoke`, `spawn`, `scatter`.
 
@@ -212,18 +227,19 @@ All IR constructs supported at runtime: `initial`, `send`, `receive`, `action`, 
 | Module | Version | Path | Description |
 |---|---|---|---|
 | `@reagent/lang` | 0.0.8 | `lang/` | Compiler: AST, parser, IR emitter, IR validator, CLI |
-| `reagent-vscode` | 0.1.0 | `tools/reagent-vscode/` | TextMate grammar + embedded language support + DAP debug adapter |
+| `reagent-vscode` | 0.0.8 | `tools/reagent-vscode/` | TextMate grammar + embedded language support + DAP debug adapter + Run/Debug CodeLens |
 
 ### Specs / docs
 
 | Document | Path | Content |
 |---|---|---|
-| `lang-spec.md` | `docs/lang-spec.md` | Language spec v0.0.8: syntax + EBNF + $ctx/$flow split + invoke/spawn/scatter + alt where |
+| `lang-spec.md` | `docs/lang-spec.md` | Language spec v0.0.8: syntax + EBNF + $ctx/$flow split + invokes/spawns/scatter + alt where |
 | `reagent-spec.md` | `docs_v0.0.1/reagent-spec.md` | Core spec v0.0.1: layers, TraceEvent algebra, legality, runtime |
-| `ir-to-losos-mapping.md` | `docs/ir-to-losos-mapping.md` | IR → Losos design doc |
-| `reagent-losos-project-plan.md` | `.cursor/reagent-losos-project-plan.md` | Milestones plan |
-| `m5-ctrl-design.md` | `docs/m5-ctrl-design.md` | Connectivity layer design (draft-3) |
-| `m6-ros-design.md` | `docs/m6-ros-design.md` | ROS + debug service design |
+| `ir-losos-mapping.md` | `docs/ir-losos-mapping.md` | IR → Losos engine mapping |
+| `backlog.md` | `docs/backlog.md` | Backlog & milestone history |
+| `connectivity.md` | `docs/connectivity.md` | Connectivity layer (routing, AgentNode, interceptors) |
+| `orchestrator.md` | `docs/orchestrator.md` | Orchestrator service (ROS, debug, VSCode) |
+| `dx-tooling.md` | `docs/dx-tooling.md` | M7-DX: visualization, visual debugger, runner, export (draft-1) |
 
 ## Architecture layers
 
@@ -232,9 +248,9 @@ All IR constructs supported at runtime: `initial`, `send`, `receive`, `action`, 
 3. **Behavioral level** — role definitions (RoleIR: rich behavioral contracts with lifecycle, init, handlers, extends).
 4. **Agent level** — per-agent IR (AgentIR: thin deployment binding referencing a role) + resolved behavioral data from RoleIR.
 5. **Message level** — typed message schemas (IRMessageSchema) compiled alongside IR.
-6. **Connectivity level** (M5-CTRL ✅) — `ReagentController` + `AgentNode` + `NodeLink`: `AgentRef`/`NodeRef` addressing (ActorRef pattern), multi-agent nodes, loopback routing, message-level interceptors + agent-level `TraceHook`, static discovery via `AddressPage`. Multi-`AgentNode` RC dispatches by language (`ts` → `NativeAgentNode`, `py` → `PythonAgentNode`). No separate messaging layer — Reagent is the messaging system. See [design doc (draft-3)](../docs/m5-ctrl-design.md).
-7. **Execution level** — runtime engines that interpret agent IR via `AgentNode` platform abstraction. `NativeAgentNode` wraps TS `AgentRunner`. `PythonAgentNode` spawns Python child processes with JSON-line IPC. Future: `LososAgentNode` (Kotlin/etcd), `LangGraphAgentNode`.
-8. **Control level** (M6-RT ✅) — Reagent Orchestrator Server (ROS): WebSocket service for compile/deploy/run/debug. `WsNodeLink` for network transport. Two-level debug: `DebugInterceptor` (message-level) + `DebugAdvanceHook` (state-level, zone-aware). `DebugController` coordinates both levels with source-map-based breakpoint resolution. `RemoteNode` connects via WsNodeLink for distributed agent nodes. VSCode extension with DAP debug adapter, debug panel, and inline value decorations. See [design doc](../docs/m6-ros-design.md).
+6. **Connectivity level** (M5-CTRL ✅) — `ReagentController` + `AgentNode` + `NodeLink`: `AgentRef`/`NodeRef` addressing (ActorRef pattern), multi-agent nodes, loopback routing, message-level interceptors + agent-level `TraceHook`, static discovery via `AddressPage`. Multi-`AgentNode` RC dispatches by language (`ts` → `NativeAgentNode`, `py` → `PythonAgentNode`). No separate messaging layer — Reagent is the messaging system. See [connectivity.md](../docs/connectivity.md).
+7. **Execution level** — runtime engines that interpret agent IR via `AgentNode` platform abstraction. `NativeAgentNode` wraps TS `AgentRunner`. `PythonAgentNode` spawns Python child processes with JSON-line IPC. Python `InprocAgentNode` wraps Python `AgentRunner` in-process (zero-serialization). Python `IpcAgentNode` spawns Python subprocesses from the Python RC. Future: `LososAgentNode` (Kotlin/etcd), `LangGraphAgentNode`.
+8. **Control level** (M6-RT ✅) — Reagent Orchestrator Server (ROS): WebSocket service for compile/deploy/run/debug. `WsNodeLink` for network transport. Two-level debug: `DebugInterceptor` (message-level) + `DebugAdvanceHook` (state-level, zone-aware). `DebugController` coordinates both levels with source-map-based breakpoint resolution. `RemoteNode` connects via WsNodeLink for distributed agent nodes. VSCode extension with DAP debug adapter, debug panel, and inline value decorations. See [orchestrator.md](../docs/orchestrator.md).
 
 ## Milestone status
 
@@ -248,9 +264,9 @@ All IR constructs supported at runtime: `initial`, `send`, `receive`, `action`, 
 | M2-LANG | ✅ DONE | Language v0.1: `[*]` wildcard, typed messages, 25 examples updated, 7 RAP specs |
 | M3-LANG | ✅ DONE | Language v0.0.6: `role` construct + `implements` keyword |
 | M4-LANG | ✅ DONE | Language v0.0.7: role-centric refactoring (`extends`, `runs`, role as primary contract) |
-| M5-CTRL | ✅ DONE | Connectivity layer: `AgentRef`/`NodeRef` addressing, `NodeLink`, `ReagentController` (multi-AgentNode), `NativeAgentNode`, `PythonAgentNode`, loopback, interceptors + `TraceHook`, `AddressPage`. C1–C12 pass. [Design](../docs/m5-ctrl-design.md) |
-| M5-LANG | ✅ DONE | Language v0.0.8: `$ctx`/`$flow` split, protocol-level `invoke`/`spawn`/`scatter`, `alt where`, `reagent.break()`, `$ctx.msg` par isolation, message inbox buffering. T28–T36 pass. |
-| M6-RT | ✅ DONE | Orchestrator service (ROS) + two-level debugger + remote nodes + VSCode extension. T21–T27 pass. [Design](../docs/m6-ros-design.md) |
+| M5-CTRL | ✅ DONE | Connectivity layer: `AgentRef`/`NodeRef` addressing, `NodeLink`, `ReagentController` (multi-AgentNode), `NativeAgentNode`, `PythonAgentNode`, loopback, interceptors + `TraceHook`, `AddressPage`. C1–C12 pass. [Design](../docs/connectivity.md) |
+| M5-LANG | ✅ DONE | Language v0.0.8: `$ctx`/`$flow` split, protocol-level `invokes`/`spawns`/`scatter`, `alt where`, `reagent.break()`, `$ctx.msg` par isolation, message inbox buffering. T28–T36 pass. Syntax: `<role> invokes/spawns Proto(...)`. |
+| M6-RT | ✅ DONE | Orchestrator service (ROS) + two-level debugger + remote nodes + VSCode extension. T21–T27 pass. [Design](../docs/orchestrator.md) |
 
 ## Development workflow
 
@@ -267,7 +283,7 @@ Development is **E2E test-driven**:
 |---|---|---|
 | Language (lang-spec.md) | **v0.0.8** | Source of truth for language surface |
 | `@reagent/lang` package | 0.0.8 | Tracks language version directly |
-| `reagent-vscode` extension | 0.1.0 | Tracks language changes; bump minor on syntax changes |
+| `reagent-vscode` extension | 0.0.8 | Tracks language version directly. |
 | `reagent-spec.md` (core spec) | v0.0.1 | Bump when TraceEvent algebra / runtime contract changes |
 
 ## Intended use in CognOS

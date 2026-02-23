@@ -1,8 +1,8 @@
-# M5-CTRL Design: Reagent Connectivity Layer
+# Reagent Connectivity Layer
 
 Version: draft-3
-Status: design
 Date: 2026-02-18
+Milestone: M5-CTRL (done)
 
 ---
 
@@ -900,11 +900,11 @@ protocol ReliableDelivery {
 
 Deferred. When implemented, it should be a standard library protocol, not a transport concern.
 
-### Multi-AgentNode per RC
+### Multi-AgentNode per RC ✅
 
 A single node might host agents in different languages (e.g., TS + Python). This requires multiple `AgentNode` implementations registered with the RC (one per language). The RC would select the right `AgentNode` based on the agent's `lang` tag.
 
-Deferred to a later milestone. For M5-CTRL, one `AgentNode` per RC.
+**Implemented**: both TS and Python RCs support multiple `AgentNode` backends keyed by language. TS RC: `{ ts: NativeAgentNode, py: PythonAgentNode }`. Python RC: `{ py: InprocAgentNode, ipc: IpcAgentNode }` (plus wildcard `"*"` fallback).
 
 ### Agent migration between nodes
 
@@ -922,9 +922,11 @@ Trace collection, debug control, and telemetry can be modeled as Reagent protoco
 
 `NodeLink` connections are currently unauthenticated. Adding TLS, token auth, or mTLS is important for production but deferred.
 
-### Cross-language loopback
+### Cross-language loopback ✅
 
-When TS and Python agents are on the same node (different OS processes), loopback requires IPC rather than in-process dispatch. This overlaps with multi-AgentNode support and is deferred.
+When TS and Python agents are on the same node (different OS processes), loopback requires IPC rather than in-process dispatch.
+
+**Implemented**: TS RC uses `PythonAgentNode` (JSON-line IPC) for Python agents on the same node. Python RC uses `InprocAgentNode` for zero-cost same-process loopback, and `IpcAgentNode` for subprocess-based agents.
 
 ---
 
@@ -995,6 +997,82 @@ This is a **hub-free, link-based** topology. Nodes connect directly to the nodes
 
 ---
 
+## Appendix: Python ReagentController
+
+The Python RC (`runtime/py/reagent_runtime/controller.py`) is a parallel implementation of the TS `ReagentController` for use cases where a pure-Python orchestrator is preferred (e.g., NMMO-style multi-agent simulations, reinforcement learning environments, Jupyter notebooks).
+
+### Architecture
+
+The Python RC mirrors the TS RC's core abstractions:
+
+| TS concept | Python equivalent | Notes |
+|---|---|---|
+| `ReagentController` | `ReagentController` (`controller.py`) | Agent registry, routing, interceptors |
+| `NativeAgentNode` | `InprocAgentNode` (`inproc_agent_node.py`) | In-process agent execution, zero serialization |
+| `PythonAgentNode` | `IpcAgentNode` (`ipc_agent_node.py`) | Subprocess agent via `ipc_agent.py` |
+| `ReagentTransport` | `InprocTransport` (`inproc_transport.py`) | Per-agent, routes via RC callback |
+| `AgentNode` / `AgentHandle` | `AgentNode` / `AgentHandle` protocols (`agent_node.py`) | `typing.Protocol` |
+
+### Key differences from TS RC
+
+1. **No NodeLink abstraction**: the Python RC routes all messages through the single-process routing table. Inter-node communication (via `WsNodeLink` or similar) is not yet implemented.
+2. **InprocTransport instead of ReagentTransport**: `InprocTransport` is a simpler transport that calls the RC's `_route_envelope()` directly. No `AgentRef`/`NodeRef` addressing — envelopes carry `toAgent` fields.
+3. **Wildcard agent node**: `rc.add_agent_node("*", node)` registers a fallback for any language tag not explicitly mapped.
+4. **No NATS dependency**: the `nats` package import is deferred (lazy) so the Python runtime works without it installed.
+
+### Runtime enhancements (both TS and Python)
+
+During Python RC development, several core runtime components were enhanced:
+
+- **Message inbox buffer** (`ProtocolInstance`): messages arriving before a receiver's resolver is registered are buffered in `_message_inbox`. Without this, synchronous in-process routing (where send completes before the receiving `ProtocolInstance` registers its wait) would deadlock.
+- **Invoke/spawn callbacks** (`AgentRunner`): Python `AgentRunner` now wires `invoke_callback` and `spawn_callback` on each `ProtocolInstance` so IR-level `invoke` and `spawn` states create and execute child protocol instances.
+- **JS→Python zone compatibility** (`ZoneExecutor`): basic translation of JS literals and operators (`true`→`True`, `===`→`==`, `||`→`or`, `const`/`let` removal) plus built-in stubs (`Date`, `console`, `JSON`, `Math`) so compiled JS zones can execute in the Python runtime.
+
+### E2E tests
+
+`runtime/tests/test_py_rc.py` (6 tests, inline IR fixtures with Python-compatible zone code):
+
+| # | Test | Constructs |
+|---|---|---|
+| T1 | Inproc loopback | Two inproc agents, send/receive/action |
+| T2 | Inproc invoke | Parent protocol invokes child synchronously |
+| T3 | Inproc spawn | Fire-and-forget child protocol |
+| T4 | Inproc par | fork/join parallel branches |
+| T5 | $flow propagation | $flow propagated from sender to receiver |
+| T6 | IPC agent | One inproc + one subprocess agent via IpcAgentNode |
+
+`runtime/tests/test_py_rc_coverage.py` (8 tests, lang-spec gap coverage):
+
+| # | Test | Constructs |
+|---|---|---|
+| T7 | Loop with guard expression | 3-iteration loop, expression guard, counter in $self |
+| T8 | Timer/wait | Timer state delays 50ms |
+| T9 | Alt expression-based guard | XOR dispatch by expression evaluation |
+| T10 | Alt message-based XOR | Non-deciding agent uses message-wait fallback |
+| T11 | try/catch | Zone throw routes to error path, ErrorCaught trace |
+| T12 | reagent.break() | Break exits loop early, peer exits independently |
+| T13 | protocolCompleted lifecycle | Handler fires and updates $self |
+| T14 | protocolFailed lifecycle | Handler fires on zone throw (no try/catch) |
+
+### TS coverage E2E tests
+
+`runtime/tests/m5-coverage.test.ts` (10 tests, lang-spec gap coverage using TS RC + NativeAgentNode):
+
+| # | Test | Constructs |
+|---|---|---|
+| C13 | Par fan-out (scatter pattern via fork/join) | Fork/join with 3 parallel branches, 3 worker agents |
+| C14 | Alt message-based (reactive XOR) | Non-deciding sender uses message-wait fallback |
+| C15 | Alt XOR message-wait fallback | Expression guard throws → fallback to receive matching |
+| C16 | reagent.break() exits loop mid-iteration | Counter breaks at 3, peer loops independently |
+| C17 | try/catch + $ctx.error verification | Compiled fixture, fail and success paths |
+| C18 | $ctx.msg isolation in par | Each par branch sees its own $ctx.msg |
+| C19 | Role inheritance (extends) | Compiler-flattened, init chained, handlers merged |
+| C20 | protocolCompleted lifecycle across instances | 3 sequential instances, $self accumulation |
+| C21 | protocolFailed lifecycle on zone throw | Zone throw, no try/catch, handler fires |
+| C22 | Wildcard [*] lang tag participant | Message-only participant, no zones |
+
+---
+
 ## Appendix A: Current code mapping
 
 | Current code | New role |
@@ -1023,3 +1101,11 @@ This is a **hub-free, link-based** topology. Nodes connect directly to the nodes
 | `runtime/ts/src/reagent-controller.ts` | `ReagentController` implementation (routing, refs, interceptors) |
 | `runtime/ts/src/inmemory-node-link.ts` | `InMemoryNodeLink` for tests |
 | `runtime/ts/src/nats-node-link.ts` | `NatsNodeLink` for inter-node communication over NATS |
+| `runtime/py/reagent_runtime/controller.py` | Python `ReagentController` implementation |
+| `runtime/py/reagent_runtime/agent_node.py` | Python `AgentHandle`, `AgentNode` protocol types |
+| `runtime/py/reagent_runtime/inproc_agent_node.py` | `InprocAgentNode` — in-process Python agents |
+| `runtime/py/reagent_runtime/ipc_agent_node.py` | `IpcAgentNode` — subprocess Python agents |
+| `runtime/py/reagent_runtime/inproc_transport.py` | `InprocTransport` — per-agent routing via RC callback |
+| `runtime/tests/test_py_rc.py` | Python RC E2E tests (6 tests) |
+| `runtime/tests/test_py_rc_coverage.py` | Python RC coverage tests (8 tests) |
+| `runtime/tests/m5-coverage.test.ts` | TS coverage E2E tests (10 tests, C13–C22) |

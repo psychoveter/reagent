@@ -18,14 +18,13 @@ from .types import (
     trace_subject,
 )
 from .zone_executor import execute_zone, ReagentStub, InvokeRequest, ReturnValue, BreakRequest
-from .nats_transport import NatsTransport
 
 
 class ProtocolInstance:
     def __init__(
         self,
         graph: dict[str, Any],
-        transport: NatsTransport,
+        transport: Any,
         self_state: dict[str, Any],
         config: dict[str, Any],
     ) -> None:
@@ -59,6 +58,7 @@ class ProtocolInstance:
         self._status: str = "running"
         self._message_resolvers: dict[str, asyncio.Future] = {}
         self._xor_resolvers: dict[str, list[dict[str, Any]]] = {}
+        self._message_inbox: list[dict[str, Any]] = []
         self._on_complete: Optional[Callable[[str], None]] = None
         self._traces: list[dict[str, Any]] = []
 
@@ -76,6 +76,9 @@ class ProtocolInstance:
         self._return_value: Any = None
         self._has_return_value: bool = False
 
+        # Native module extras ($agent binding)
+        self._extras: Optional[dict[str, Any]] = config.get("extras")
+
         # Debug advance hook: optional async callable invoked before each state
         self._advance_hook: Optional[Callable] = config.get("advanceHook")
 
@@ -86,6 +89,9 @@ class ProtocolInstance:
     @property
     def traces(self) -> list[dict[str, Any]]:
         return self._traces
+
+    def _zone_extras(self) -> Optional[dict[str, Any]]:
+        return {"agent": self._extras} if self._extras else None
 
     def set_on_complete(self, cb: Callable[[str], None]) -> None:
         self._on_complete = cb
@@ -130,6 +136,10 @@ class ProtocolInstance:
         fut = self._message_resolvers.pop(msg_name, None)
         if fut and not fut.done():
             fut.set_result(env)
+            return
+
+        # Buffer for later — the receive state may not have registered yet
+        self._message_inbox.append(env)
 
     async def run(self) -> None:
         """Start walking the state machine."""
@@ -249,7 +259,7 @@ class ProtocolInstance:
 
         if data.get("preSendZone"):
             self._emit_trace("ActionStarted", {"stateId": state["id"], "zone": "preSend"})
-            execute_zone(data["preSendZone"], self._ctx, self._self_ref, self._reagent, self._flow)
+            execute_zone(data["preSendZone"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
             self._emit_trace("ActionFinished", {"stateId": state["id"], "zone": "preSend"})
 
         payload = self._ctx.get("msg", {})
@@ -304,7 +314,7 @@ class ProtocolInstance:
 
         if data.get("postReceiveZone"):
             self._emit_trace("ActionStarted", {"stateId": state["id"], "zone": "postReceive"})
-            execute_zone(data["postReceiveZone"], self._ctx, self._self_ref, self._reagent, self._flow)
+            execute_zone(data["postReceiveZone"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
             self._emit_trace("ActionFinished", {"stateId": state["id"], "zone": "postReceive"})
 
         self._ctx.pop("msg", None)
@@ -313,7 +323,7 @@ class ProtocolInstance:
         data = state["data"]
         self._emit_trace("ActionStarted", {"stateId": state["id"]})
         try:
-            execute_zone(data["body"], self._ctx, self._self_ref, self._reagent, self._flow)
+            execute_zone(data["body"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
         except ReturnValue as rv:
             self._return_value = rv.value
             self._has_return_value = True
@@ -327,7 +337,7 @@ class ProtocolInstance:
             result = await self._invoke_callback(ir.proto_name, ir.input_data)
             cached_reagent = ReagentStub()
             cached_reagent.invoke = lambda proto=None, args=None: result
-            execute_zone(data["body"], self._ctx, self._self_ref, cached_reagent, self._flow)
+            execute_zone(data["body"], self._ctx, self._self_ref, cached_reagent, self._flow, self._zone_extras())
             self._emit_trace("ActionFinished", {"stateId": state["id"], "invoked": ir.proto_name})
             return
         self._emit_trace("ActionFinished", {"stateId": state["id"]})
@@ -401,7 +411,7 @@ class ProtocolInstance:
                         post_zone = recv_state["data"].get("postReceiveZone")
                         if post_zone:
                             self._emit_trace("ActionStarted", {"stateId": result["targetStateId"], "zone": "postReceive"})
-                            execute_zone(post_zone, self._ctx, self._self_ref, self._reagent, self._flow)
+                            execute_zone(post_zone, self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
                             self._emit_trace("ActionFinished", {"stateId": result["targetStateId"], "zone": "postReceive"})
                     self._ctx.pop("msg", None)
                     self._current_state_id = result["targetStateId"]
@@ -486,7 +496,7 @@ class ProtocolInstance:
                         post_zone = recv_state["data"].get("postReceiveZone")
                         if post_zone:
                             self._emit_trace("ActionStarted", {"stateId": result["targetStateId"], "zone": "postReceive"})
-                            execute_zone(post_zone, self._ctx, self._self_ref, self._reagent, self._flow)
+                            execute_zone(post_zone, self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
                             self._emit_trace("ActionFinished", {"stateId": result["targetStateId"], "zone": "postReceive"})
                     self._ctx.pop("msg", None)
 
@@ -541,7 +551,7 @@ class ProtocolInstance:
             post_zone = matched_state["data"].get("postReceiveZone")
             if post_zone:
                 self._emit_trace("ActionStarted", {"stateId": result["targetStateId"], "zone": "postReceive"})
-                execute_zone(post_zone, self._ctx, self._self_ref, self._reagent, self._flow)
+                execute_zone(post_zone, self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
                 self._emit_trace("ActionFinished", {"stateId": result["targetStateId"], "zone": "postReceive"})
         self._ctx.pop("msg", None)
 
@@ -796,6 +806,13 @@ class ProtocolInstance:
         raise RuntimeError(f"No outgoing transition from state {self._current_state_id}")
 
     def _wait_for_message(self, message_name: str) -> asyncio.Future:
+        for i, env in enumerate(self._message_inbox):
+            if env["messageName"] == message_name:
+                self._message_inbox.pop(i)
+                fut_done: asyncio.Future = asyncio.get_event_loop().create_future()
+                fut_done.set_result(env)
+                return fut_done
+
         loop = asyncio.get_event_loop()
         fut: asyncio.Future = loop.create_future()
         self._message_resolvers[message_name] = fut
@@ -805,16 +822,19 @@ class ProtocolInstance:
         self, guard_id: str, expectations: list[dict[str, Any]]
     ) -> asyncio.Future:
         loop = asyncio.get_event_loop()
+
+        for e in expectations:
+            for i, env in enumerate(self._message_inbox):
+                if env["messageName"] == e["messageName"]:
+                    self._message_inbox.pop(i)
+                    result_imm: asyncio.Future = loop.create_future()
+                    result_imm.set_result({"env": env, "targetStateId": e["targetStateId"]})
+                    return result_imm
+
         result_fut: asyncio.Future = loop.create_future()
         resolvers = []
         for e in expectations:
             per_msg_fut: asyncio.Future = loop.create_future()
-
-            def _make_cb(target_id: str, f: asyncio.Future) -> Callable:
-                def _cb(env: dict[str, Any]) -> None:
-                    if not result_fut.done():
-                        result_fut.set_result({"env": env, "targetStateId": target_id})
-                return _cb
 
             per_msg_fut.add_done_callback(
                 lambda f, tid=e["targetStateId"]: (

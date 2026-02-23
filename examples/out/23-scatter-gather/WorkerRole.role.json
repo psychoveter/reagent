@@ -7,5 +7,10 @@
       "roleName": "worker"
     }
   ],
-  "lifecycleHandlers": []
+  "lifecycleHandlers": [],
+  "version": "2.0.0",
+  "fingerprints": {
+    "playsHash": "4d54b72529259e93121f752edb404bafb9427978f0f71071caa4480ba50da71d",
+    "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+  }
 }

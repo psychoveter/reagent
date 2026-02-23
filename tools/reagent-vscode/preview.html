@@ -1,0 +1,1464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reagent Diagram Mockup – UX Preview</title>
+<style>
+  :root {
+    --vscode-font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    --vscode-editor-background: #1e1e1e;
+    --vscode-foreground: #d4d4d4;
+    --vscode-sideBar-background: #252526;
+    --vscode-panel-border: #333;
+    --vscode-dropdown-background: #3c3c3c;
+    --vscode-dropdown-foreground: #ccc;
+    --vscode-dropdown-border: #555;
+    --vscode-button-background: #0e639c;
+    --vscode-button-foreground: #fff;
+    --vscode-list-hoverBackground: #2a2d2e;
+    --vscode-debugIcon-startForeground: #89d185;
+    --vscode-debugIcon-pauseForeground: #f5c842;
+    --vscode-debugIcon-stopForeground: #f48771;
+    --vscode-editor-inactiveSelectionBackground: #3a3d41;
+    --vscode-charts-blue: #4fc1ff;
+    --vscode-charts-purple: #b180d7;
+    --vscode-charts-orange: #d18616;
+    --vscode-charts-green: #89d185;
+    --vscode-charts-yellow: #cca700;
+    --vscode-charts-red: #f14c4c;
+    --vscode-descriptionForeground: #888;
+    --vscode-editorHoverWidget-background: #252526;
+    --vscode-editorHoverWidget-border: #454545;
+    --vscode-editorHoverWidget-foreground: #ccc;
+    --vscode-editor-font-family: 'SF Mono', 'Menlo', monospace;
+    --vscode-disabledForeground: #555;
+    --vscode-badge-background: #4d4d4d;
+    --vscode-badge-foreground: #d4d4d4;
+    --panel-width: 280px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--vscode-font-family);
+    background: var(--vscode-editor-background);
+    color: var(--vscode-foreground);
+    overflow: hidden;
+    height: 100vh;
+    display: flex; flex-direction: column;
+  }
+
+  /* ── Toolbar ─────────────────────────────────────────────── */
+  .toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 5px 12px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+    background: var(--vscode-sideBar-background);
+    gap: 8px; flex-shrink: 0;
+  }
+  .toolbar-left, .toolbar-center, .toolbar-right {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .toolbar-select {
+    background: var(--vscode-dropdown-background);
+    color: var(--vscode-dropdown-foreground);
+    border: 1px solid var(--vscode-dropdown-border);
+    border-radius: 3px; padding: 3px 6px; font-size: 12px; cursor: pointer;
+  }
+  .tab {
+    background: transparent; border: none; color: var(--vscode-foreground);
+    padding: 4px 12px; cursor: pointer; font-size: 12px; border-radius: 3px;
+  }
+  .tab:hover { background: var(--vscode-list-hoverBackground); }
+  .tab.active {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+  }
+  .debug-toggle {
+    background: transparent; border: 1px solid var(--vscode-panel-border);
+    color: var(--vscode-foreground);
+    padding: 3px 10px; cursor: pointer; font-size: 12px; border-radius: 3px;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .debug-toggle:hover { background: var(--vscode-list-hoverBackground); }
+  .debug-toggle.active {
+    border-color: var(--vscode-debugIcon-startForeground);
+    color: var(--vscode-debugIcon-startForeground);
+  }
+  .debug-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--vscode-foreground); display: inline-block;
+  }
+  .debug-toggle.active .debug-dot {
+    background: var(--vscode-debugIcon-startForeground);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  /* ── Main layout: diagram + side panel ───────────────────── */
+  .main {
+    display: flex; flex: 1; overflow: hidden;
+  }
+  .diagram-area {
+    flex: 1; display: flex; flex-direction: column; overflow: hidden;
+    min-width: 0;
+  }
+
+  /* ── Debug control bar (below toolbar, above diagram) ──── */
+  .debug-controls {
+    display: none; align-items: center; gap: 6px;
+    padding: 4px 12px;
+    background: #1a2e1a;
+    border-bottom: 1px solid var(--vscode-charts-green);
+    flex-shrink: 0;
+  }
+  .debug-controls.visible { display: flex; }
+  .ctrl-btn {
+    background: transparent; border: 1px solid var(--vscode-panel-border);
+    color: var(--vscode-foreground); border-radius: 3px;
+    width: 28px; height: 24px; cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ctrl-btn:hover { background: var(--vscode-list-hoverBackground); }
+  .ctrl-btn.continue-btn { color: var(--vscode-debugIcon-startForeground); }
+  .ctrl-btn.step-btn { color: var(--vscode-charts-blue); }
+  .ctrl-btn.pause-btn { color: var(--vscode-debugIcon-pauseForeground); }
+  .ctrl-btn.stop-btn { color: var(--vscode-debugIcon-stopForeground); }
+  .ctrl-btn.restart-btn { color: var(--vscode-charts-green); }
+  .ctrl-sep { width: 1px; height: 18px; background: var(--vscode-panel-border); }
+  .ctrl-status {
+    font-size: 11px; color: var(--vscode-descriptionForeground);
+    margin-left: 8px; flex: 1;
+  }
+  .ctrl-status .state-name {
+    color: var(--vscode-debugIcon-startForeground); font-weight: 600;
+  }
+  .ctrl-status .step-count {
+    background: var(--vscode-badge-background); color: var(--vscode-badge-foreground);
+    padding: 1px 6px; border-radius: 8px; font-size: 10px; margin-left: 6px;
+  }
+  .ctrl-agent-sel {
+    background: var(--vscode-dropdown-background);
+    color: var(--vscode-dropdown-foreground);
+    border: 1px solid var(--vscode-dropdown-border);
+    border-radius: 3px; padding: 2px 4px; font-size: 11px;
+  }
+
+  /* ── Diagram SVG ─────────────────────────────────────────── */
+  .diagram-container {
+    flex: 1; padding: 12px; overflow: auto;
+    display: flex; align-items: flex-start; justify-content: center;
+  }
+  .diagram-container svg {
+    width: 100%; max-width: 650px;
+  }
+
+  /* ── Side panel ──────────────────────────────────────────── */
+  .side-panel {
+    width: var(--panel-width); flex-shrink: 0;
+    border-left: 1px solid var(--vscode-panel-border);
+    background: var(--vscode-sideBar-background);
+    overflow-y: auto; overflow-x: hidden;
+    font-size: 11px;
+  }
+  .panel-section {
+    border-bottom: 1px solid var(--vscode-panel-border);
+  }
+  .panel-header {
+    padding: 6px 10px; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--vscode-descriptionForeground);
+    background: var(--vscode-editor-background);
+    cursor: pointer; display: flex; align-items: center; gap: 4px;
+    user-select: none;
+  }
+  .panel-header:hover { background: var(--vscode-list-hoverBackground); }
+  .panel-header .chevron { font-size: 9px; transition: transform 0.15s; }
+  .panel-header.collapsed .chevron { transform: rotate(-90deg); }
+  .panel-body { padding: 4px 10px 8px; }
+  .panel-header.collapsed + .panel-body { display: none; }
+
+  /* ── Protocol info ───────────────────────────────────────── */
+  .proto-meta { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
+  .proto-meta dt { color: var(--vscode-descriptionForeground); }
+  .proto-meta dd { color: var(--vscode-foreground); }
+
+  /* ── Agent cards ─────────────────────────────────────────── */
+  .agent-card {
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 4px; padding: 6px 8px; margin: 4px 0;
+  }
+  .agent-card-header {
+    display: flex; align-items: center; gap: 4px; margin-bottom: 4px;
+  }
+  .agent-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .agent-dot.idle { background: var(--vscode-descriptionForeground); }
+  .agent-dot.running { background: var(--vscode-debugIcon-startForeground); animation: pulse 1.5s infinite; }
+  .agent-dot.paused { background: var(--vscode-debugIcon-pauseForeground); }
+  .agent-dot.done { background: var(--vscode-charts-green); }
+  .agent-name { font-weight: 600; font-size: 11px; }
+  .agent-role { color: var(--vscode-descriptionForeground); font-size: 10px; margin-left: auto; }
+
+  .ctx-table { width: 100%; border-collapse: collapse; }
+  .ctx-table td {
+    padding: 1px 0; font-family: var(--vscode-editor-font-family);
+    font-size: 10px; vertical-align: top;
+  }
+  .ctx-table .ctx-key { color: var(--vscode-charts-purple); width: 40%; white-space: nowrap; }
+  .ctx-table .ctx-val { color: var(--vscode-foreground); word-break: break-all; }
+  .ctx-scope-label {
+    font-size: 9px; color: var(--vscode-descriptionForeground);
+    text-transform: uppercase; letter-spacing: 0.3px; margin: 3px 0 1px;
+  }
+
+  /* ── Message log ─────────────────────────────────────────── */
+  .msg-log-entry {
+    display: flex; align-items: center; gap: 4px;
+    padding: 2px 0; font-size: 10px;
+  }
+  .msg-log-entry .msg-dir {
+    font-size: 12px; flex-shrink: 0;
+  }
+  .msg-log-entry .msg-name {
+    color: var(--vscode-charts-blue); font-weight: 500;
+  }
+  .msg-log-entry .msg-route {
+    color: var(--vscode-descriptionForeground);
+  }
+  .msg-log-entry .msg-ts {
+    color: var(--vscode-descriptionForeground); margin-left: auto; font-size: 9px;
+  }
+  .msg-log-entry.held {
+    background: rgba(241, 76, 76, 0.08);
+    border-left: 2px solid var(--vscode-charts-red);
+    padding-left: 4px;
+  }
+
+  /* ── $flow panel ─────────────────────────────────────────── */
+  .flow-entry {
+    display: flex; gap: 6px; padding: 1px 0;
+    font-family: var(--vscode-editor-font-family); font-size: 10px;
+  }
+  .flow-key { color: var(--vscode-charts-green); }
+  .flow-val { color: var(--vscode-foreground); word-break: break-all; }
+
+  /* ── Stats badges ────────────────────────────────────────── */
+  .stats-row {
+    display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 0;
+  }
+  .stat-badge {
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+    padding: 2px 8px; border-radius: 10px; font-size: 10px;
+    display: flex; align-items: center; gap: 3px;
+  }
+  .stat-badge .stat-num { font-weight: 700; }
+  .stat-badge.msg-stat { border-left: 2px solid var(--vscode-charts-blue); }
+  .stat-badge.state-stat { border-left: 2px solid var(--vscode-charts-purple); }
+  .stat-badge.agent-stat { border-left: 2px solid var(--vscode-charts-orange); }
+  .stat-badge.time-stat { border-left: 2px solid var(--vscode-charts-yellow); }
+
+  /* ── Sequence diagram ────────────────────────────────────── */
+  .participant-box { fill: var(--vscode-sideBar-background); stroke: var(--vscode-panel-border); stroke-width: 1.5; }
+  .participant-label { text-anchor: middle; font-size: 13px; font-weight: 600; fill: var(--vscode-foreground); }
+  .lang-tag { font-size: 10px; fill: var(--vscode-descriptionForeground); font-weight: 400; }
+  .lifeline { stroke: var(--vscode-panel-border); stroke-width: 1; stroke-dasharray: 4 3; }
+  .msg-arrow { stroke: var(--vscode-charts-blue); stroke-width: 1.5; }
+  .msg-label { text-anchor: middle; font-size: 11px; font-weight: 500; fill: var(--vscode-charts-blue); }
+  .action-box { fill: var(--vscode-editor-inactiveSelectionBackground); stroke: var(--vscode-charts-purple); stroke-width: 1; }
+  .action-label { text-anchor: middle; font-size: 10px; fill: #cda0e7; }
+  .timer-box { fill: var(--vscode-editor-inactiveSelectionBackground); stroke: var(--vscode-charts-yellow); stroke-width: 1; }
+  .timer-label { text-anchor: middle; font-size: 10px; fill: var(--vscode-charts-yellow); }
+  .control-box { fill: none; stroke-width: 1; stroke-dasharray: 5 3; }
+  .loop-box { stroke: var(--vscode-charts-green); }
+  .alt-box { stroke: var(--vscode-charts-orange); }
+  .control-label { font-size: 10px; font-weight: 600; fill: var(--vscode-descriptionForeground); }
+  .alt-divider { stroke: var(--vscode-panel-border); stroke-width: 0.5; stroke-dasharray: 3 2; }
+  .arrowhead-fill { fill: var(--vscode-charts-blue); }
+
+  /* ── State machine ───────────────────────────────────────── */
+  .sm-edge { stroke: var(--vscode-panel-border); stroke-width: 1.5; }
+  .sm-edge-label { font-size: 9px; fill: var(--vscode-descriptionForeground); }
+  .sm-circle { stroke-width: 2; }
+  .sm-initial { fill: var(--vscode-foreground); stroke: var(--vscode-foreground); }
+  .sm-terminal { fill: none; stroke: var(--vscode-foreground); stroke-width: 3; }
+  .sm-rect { stroke-width: 1.5; }
+  .sm-send { fill: #1a3a5c; stroke: var(--vscode-charts-blue); }
+  .sm-receive { fill: #3d2800; stroke: var(--vscode-charts-orange); }
+  .sm-action { fill: #2d1a4e; stroke: var(--vscode-charts-purple); }
+  .sm-timer { fill: #3d3000; stroke: var(--vscode-charts-yellow); }
+  .sm-diamond { fill: #1a3d1a; stroke: var(--vscode-charts-green); stroke-width: 1.5; }
+  .sm-label-center { text-anchor: middle; font-size: 11px; fill: var(--vscode-foreground); }
+  .sm-node { cursor: pointer; }
+  .sm-node:hover .sm-rect, .sm-node:hover .sm-diamond, .sm-node:hover .sm-circle { filter: brightness(1.3); }
+  .step { cursor: pointer; }
+  .step:hover .msg-arrow { stroke-width: 2.5; }
+  .step:hover .action-box { filter: brightness(1.3); }
+
+  /* ── Debug mode ──────────────────────────────────────────── */
+  .step.visited .msg-arrow, .step.visited .msg-label { opacity: 0.4; }
+  .step.visited .action-box, .step.visited .action-label { opacity: 0.4; }
+  .step.active .msg-arrow { stroke: var(--vscode-debugIcon-startForeground); stroke-width: 2.5; animation: pulse-line 1.5s ease-in-out infinite; }
+  .step.active .msg-label { fill: var(--vscode-debugIcon-startForeground); }
+  .step.active .action-box { stroke: var(--vscode-debugIcon-startForeground); stroke-width: 2; animation: pulse-box 1.5s ease-in-out infinite; }
+  .step.future .msg-arrow, .step.future .msg-label, .step.future .action-box, .step.future .action-label { opacity: 0.25; }
+  .sm-node.visited .sm-rect, .sm-node.visited .sm-diamond, .sm-node.visited .sm-circle, .sm-node.visited .sm-label-center { opacity: 0.4; }
+  .sm-node.active .sm-rect, .sm-node.active .sm-diamond { stroke: var(--vscode-debugIcon-startForeground); stroke-width: 3; animation: pulse-box 1.5s ease-in-out infinite; }
+  .sm-node.active .sm-circle { stroke: var(--vscode-debugIcon-startForeground); animation: pulse-box 1.5s ease-in-out infinite; }
+  .sm-node.future .sm-rect, .sm-node.future .sm-diamond, .sm-node.future .sm-circle, .sm-node.future .sm-label-center { opacity: 0.25; }
+
+  .tooltip {
+    display: none; position: absolute;
+    background: var(--vscode-editorHoverWidget-background);
+    border: 1px solid var(--vscode-editorHoverWidget-border);
+    color: var(--vscode-editorHoverWidget-foreground);
+    padding: 6px 10px; border-radius: 4px;
+    font-size: 11px; font-family: var(--vscode-editor-font-family);
+    white-space: pre; z-index: 100; pointer-events: none;
+    max-width: 350px; box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  @keyframes pulse-line { 0%,100%{stroke-opacity:1} 50%{stroke-opacity:0.5} }
+  @keyframes pulse-box { 0%,100%{stroke-opacity:1} 50%{stroke-opacity:0.4} }
+
+  /* ── Topology view ───────────────────────────────────────── */
+  .topo-rc {
+    fill: var(--vscode-editor-background); stroke: var(--vscode-panel-border); stroke-width: 2; rx: 8;
+  }
+  .topo-rc.selected { stroke: var(--vscode-charts-blue); stroke-width: 2.5; }
+  .topo-rc:hover { stroke: var(--vscode-charts-blue); cursor: pointer; }
+  .topo-rc-label {
+    font-size: 11px; font-weight: 700; fill: var(--vscode-foreground);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .topo-rc-sub { font-size: 9px; fill: var(--vscode-descriptionForeground); }
+  .topo-agent-box { stroke-width: 1.5; rx: 4; cursor: pointer; }
+  .topo-agent-box:hover { filter: brightness(1.3); }
+  .topo-agent-box.lang-ts { fill: #1a3a5c; stroke: var(--vscode-charts-blue); }
+  .topo-agent-box.lang-py { fill: #2d1a4e; stroke: var(--vscode-charts-purple); }
+  .topo-agent-box.lang-any { fill: #3a3d41; stroke: var(--vscode-descriptionForeground); }
+  .topo-agent-box.selected { stroke-width: 2.5; filter: brightness(1.2); }
+  .topo-agent-label { font-size: 10px; fill: var(--vscode-foreground); font-weight: 500; }
+  .topo-agent-role { font-size: 8px; fill: var(--vscode-descriptionForeground); }
+  .topo-link { stroke: var(--vscode-charts-yellow); stroke-width: 2; stroke-dasharray: 6 3; }
+  .topo-link:hover { stroke-width: 3; cursor: pointer; }
+  .topo-link.active { stroke: var(--vscode-charts-green); stroke-dasharray: none; animation: pulse-line 1s infinite; }
+  .topo-link-label { font-size: 9px; fill: var(--vscode-charts-yellow); }
+  .topo-msg-particle { fill: var(--vscode-charts-green); }
+  .topo-status-dot { r: 4; }
+  .topo-status-dot.online { fill: var(--vscode-charts-green); }
+  .topo-status-dot.offline { fill: var(--vscode-descriptionForeground); }
+  .topo-status-dot.error { fill: var(--vscode-charts-red); }
+  .topo-status-dot.discovered { fill: var(--vscode-charts-yellow); }
+  .topo-rc.type-browser { stroke: var(--vscode-charts-orange); }
+  .topo-rc.type-robot { stroke: var(--vscode-charts-yellow); }
+  .topo-rc.type-sim { stroke: var(--vscode-charts-purple); }
+  .topo-rc.type-docker { stroke: var(--vscode-charts-blue); }
+  .topo-node-badge {
+    font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    fill: var(--vscode-editor-background);
+  }
+  .topo-node-badge-bg { rx: 3; height: 14; }
+  .topo-node-badge-bg.runtime-ts { fill: var(--vscode-charts-blue); }
+  .topo-node-badge-bg.runtime-py { fill: var(--vscode-charts-purple); }
+  .topo-node-badge-bg.runtime-ts-browser { fill: var(--vscode-charts-orange); }
+  .topo-agent-count { font-size: 9px; fill: var(--vscode-descriptionForeground); }
+  .topo-constraint { font-size: 8px; fill: var(--vscode-charts-yellow); font-style: italic; }
+
+  /* ── Deployment side panel ───────────────────────────────── */
+  .deploy-card {
+    background: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border);
+    border-radius: 4px; padding: 6px 8px; margin: 4px 0;
+  }
+  .deploy-card-header {
+    display: flex; align-items: center; gap: 4px; margin-bottom: 4px;
+  }
+  .deploy-card .lang-badge {
+    font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 600;
+  }
+  .lang-badge.ts { background: #1a3a5c; color: var(--vscode-charts-blue); border: 1px solid var(--vscode-charts-blue); }
+  .lang-badge.py { background: #2d1a4e; color: var(--vscode-charts-purple); border: 1px solid var(--vscode-charts-purple); }
+  .lang-badge.any { background: #3a3d41; color: var(--vscode-descriptionForeground); border: 1px solid var(--vscode-descriptionForeground); }
+  .deploy-plays { font-size: 9px; color: var(--vscode-descriptionForeground); padding: 2px 0; }
+  .deploy-plays span { color: var(--vscode-charts-blue); }
+  .deploy-action-row {
+    display: flex; gap: 4px; margin-top: 4px;
+  }
+  .deploy-action-btn {
+    background: var(--vscode-dropdown-background); border: 1px solid var(--vscode-dropdown-border);
+    color: var(--vscode-foreground); font-size: 10px; padding: 2px 8px; border-radius: 3px;
+    cursor: pointer;
+  }
+  .deploy-action-btn:hover { background: var(--vscode-list-hoverBackground); }
+  .deploy-action-btn.primary { border-color: var(--vscode-charts-green); color: var(--vscode-charts-green); }
+  .deploy-action-btn.danger { border-color: var(--vscode-charts-red); color: var(--vscode-charts-red); }
+  .link-config {
+    display: grid; grid-template-columns: auto 1fr; gap: 2px 6px;
+    font-size: 10px; padding: 4px 0;
+  }
+  .link-config dt { color: var(--vscode-descriptionForeground); }
+  .link-config dd { color: var(--vscode-foreground); font-family: var(--vscode-editor-font-family); }
+  .node-sel {
+    background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground);
+    border: 1px solid var(--vscode-dropdown-border); border-radius: 3px; padding: 1px 4px;
+    font-size: 10px; width: 100%;
+  }
+  .provision-info {
+    font-size: 9px; color: var(--vscode-descriptionForeground); padding: 4px 0; line-height: 1.4;
+  }
+  .provision-info code {
+    font-family: var(--vscode-editor-font-family); background: var(--vscode-editor-inactiveSelectionBackground);
+    padding: 0 3px; border-radius: 2px; font-size: 9px; color: var(--vscode-foreground);
+  }
+  .node-type-tag {
+    font-size: 8px; padding: 1px 5px; border-radius: 3px; font-weight: 600; display: inline-block; margin-left: 4px;
+  }
+  .node-type-tag.local { background: #2d3a1a; color: var(--vscode-charts-green); border: 1px solid var(--vscode-charts-green); }
+  .node-type-tag.ssh { background: #1a3a5c; color: var(--vscode-charts-blue); border: 1px solid var(--vscode-charts-blue); }
+  .node-type-tag.docker { background: #1a3a5c; color: var(--vscode-charts-blue); border: 1px solid var(--vscode-charts-blue); }
+  .node-type-tag.browser { background: #3d2800; color: var(--vscode-charts-orange); border: 1px solid var(--vscode-charts-orange); }
+  .node-type-tag.robot { background: #3d3000; color: var(--vscode-charts-yellow); border: 1px solid var(--vscode-charts-yellow); }
+  .node-type-tag.sim { background: #2d1a4e; color: var(--vscode-charts-purple); border: 1px solid var(--vscode-charts-purple); }
+</style>
+</head>
+<body>
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <select id="example-select" class="toolbar-select">
+        <option value="01">01 Task Execution Basic</option>
+        <option value="03">03 Loop Retry Backoff</option>
+      </select>
+      <select id="topo-scenario-select" class="toolbar-select" style="display:none">
+        <option value="local">A2: Local Dev (single node)</option>
+        <option value="cross-lang">A5: Cross-Language (TS+Py)</option>
+        <option value="server-cluster" selected>A6d: SSH Server Cluster</option>
+        <option value="py-sim">A6a: Python Simulation</option>
+        <option value="browser-server">A6b: Browser + Server</option>
+        <option value="robot-cloud">A6c: Robot + Cloud</option>
+      </select>
+    </div>
+    <div class="toolbar-center">
+      <button class="tab active" id="btn-seq">Sequence</button>
+      <button class="tab" id="btn-sm">State Machine</button>
+      <button class="tab" id="btn-topo">Topology</button>
+    </div>
+    <div class="toolbar-right">
+      <select id="role-select" class="toolbar-select" style="display:none">
+        <option value="user">user</option>
+        <option value="comma" selected>comma</option>
+        <option value="sia">sia</option>
+      </select>
+      <button class="debug-toggle" id="btn-debug">
+        <span class="debug-dot"></span> Debug
+      </button>
+    </div>
+  </div>
+
+  <!-- Main: diagram + side panel -->
+  <div class="main">
+    <div class="diagram-area">
+      <!-- Debug controls bar -->
+      <div class="debug-controls" id="debug-controls">
+        <button class="ctrl-btn continue-btn" title="Continue (F5)">▶</button>
+        <button class="ctrl-btn step-btn" title="Step Over (F10)" id="btn-step">⤵</button>
+        <button class="ctrl-btn step-btn" title="Step Into (F11)">↓</button>
+        <button class="ctrl-btn step-btn" title="Step Out (⇧F11)">↑</button>
+        <div class="ctrl-sep"></div>
+        <button class="ctrl-btn restart-btn" title="Restart (⇧⌘F5)">↻</button>
+        <button class="ctrl-btn stop-btn" title="Stop (⇧F5)">■</button>
+        <div class="ctrl-sep"></div>
+        <span class="ctrl-status" id="ctrl-status">
+          Paused at <span class="state-name">send_10</span>
+          <span class="step-count">step 5/5</span>
+        </span>
+        <select class="ctrl-agent-sel" id="ctrl-agent">
+          <option>comma</option>
+          <option>user</option>
+          <option>sia</option>
+        </select>
+      </div>
+      <!-- Diagram -->
+      <div class="diagram-container" id="diagram"></div>
+    </div>
+
+    <!-- Side panel -->
+    <div class="side-panel" id="side-panel">
+      <!-- Protocol info -->
+      <div class="panel-section">
+        <div class="panel-header" id="hdr-proto"><span class="chevron">▼</span> Protocol</div>
+        <div class="panel-body" id="panel-proto"></div>
+      </div>
+      <!-- Agents / context -->
+      <div class="panel-section">
+        <div class="panel-header" id="hdr-agents"><span class="chevron">▼</span> Agents</div>
+        <div class="panel-body" id="panel-agents"></div>
+      </div>
+      <!-- $flow -->
+      <div class="panel-section">
+        <div class="panel-header" id="hdr-flow"><span class="chevron">▼</span> $flow</div>
+        <div class="panel-body" id="panel-flow"></div>
+      </div>
+      <!-- Messages -->
+      <div class="panel-section">
+        <div class="panel-header" id="hdr-msgs"><span class="chevron">▼</span> Messages</div>
+        <div class="panel-body" id="panel-msgs"></div>
+      </div>
+      <!-- Stats -->
+      <div class="panel-section">
+        <div class="panel-header" id="hdr-stats"><span class="chevron">▼</span> Stats</div>
+        <div class="panel-body" id="panel-stats"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tooltip" class="tooltip"></div>
+
+<script>
+let viewMode = 'sequence';
+let debugMode = false;
+let selectedExample = '01';
+let selectedRole = 'comma';
+let debugStep = 4;
+let selectedNode = null;
+let selectedAgent = null;
+let selectedScenario = 'server-cluster';
+
+const btnSeq = document.getElementById('btn-seq');
+const btnSm = document.getElementById('btn-sm');
+const btnTopo = document.getElementById('btn-topo');
+const btnDebug = document.getElementById('btn-debug');
+const exampleSel = document.getElementById('example-select');
+const topoScenarioSel = document.getElementById('topo-scenario-select');
+const roleSel = document.getElementById('role-select');
+const btnStep = document.getElementById('btn-step');
+
+btnSeq.addEventListener('click', () => { viewMode = 'sequence'; render(); });
+btnSm.addEventListener('click', () => { viewMode = 'statemachine'; render(); });
+btnTopo.addEventListener('click', () => { viewMode = 'topology'; selectedNode = null; selectedAgent = null; render(); });
+btnDebug.addEventListener('click', () => { debugMode = !debugMode; if (!debugMode) debugStep = 0; render(); });
+exampleSel.addEventListener('change', (e) => {
+  selectedExample = e.target.value;
+  selectedRole = 'comma'; debugStep = 0;
+  render();
+});
+topoScenarioSel.addEventListener('change', (e) => {
+  selectedScenario = e.target.value;
+  selectedNode = null; selectedAgent = null;
+  render();
+});
+roleSel.addEventListener('change', (e) => { selectedRole = e.target.value; render(); });
+btnStep.addEventListener('click', () => {
+  if (!debugMode) return;
+  const max = selectedExample === '01' ? 4 : 7;
+  debugStep = Math.min(debugStep + 1, max);
+  render();
+});
+
+document.querySelectorAll('.panel-header').forEach(h => {
+  h.addEventListener('click', () => h.classList.toggle('collapsed'));
+});
+
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function arrowMarker() {
+  return `<defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" class="arrowhead-fill"/></marker>
+    <marker id="sm-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" class="arrowhead-fill"/></marker>
+  </defs>`;
+}
+
+function stepClass(idx, visitedUpTo, activeIdx) {
+  if (!debugMode) return '';
+  if (idx === activeIdx) return 'active';
+  if (idx <= visitedUpTo) return 'visited';
+  return 'future';
+}
+
+// ── Mock data models ─────────────────────────────────────────
+
+const mockData = {
+  '01': {
+    proto: { name: 'TaskExecutionBasic', participants: ['user [ts]', 'comma [ts]', 'sia [*]'], initiator: 'user', input: 'TaskRequest', messages: ['TaskRequest', 'Greeting', 'SubmitIntent'] },
+    agents: [
+      { name: 'user', role: 'user', lang: 'ts',
+        states: [
+          { $ctx: { 'input.text': '"analyze Q3 revenue"' }, $self: {} },
+          { $ctx: { 'input.text': '"analyze Q3 revenue"' }, $self: {} },
+          { $ctx: { 'input.text': '"analyze Q3 revenue"' }, $self: {} },
+          { $ctx: { 'input.text': '"analyze Q3 revenue"' }, $self: {} },
+          { $ctx: { 'input.text': '"analyze Q3 revenue"' }, $self: {} },
+        ]
+      },
+      { name: 'comma', role: 'comma', lang: 'ts',
+        states: [
+          { $ctx: {}, $self: {} },
+          { $ctx: {}, $self: {} },
+          { $ctx: {}, $self: {} },
+          { $ctx: {}, $self: {} },
+          { $ctx: { 'msg.ref': '"dsi:revenue-q3"' }, $self: {} },
+        ]
+      },
+      { name: 'sia', role: 'sia', lang: '*',
+        states: [
+          { $ctx: {}, $self: {} },
+          { $ctx: {}, $self: {} },
+          { $ctx: {}, $self: {} },
+          { $ctx: {}, $self: {} },
+          { $ctx: {}, $self: {} },
+        ]
+      }
+    ],
+    flow: [
+      {},
+      { taskText: '"analyze Q3 revenue"' },
+      { taskText: '"analyze Q3 revenue"' },
+      { taskText: '"analyze Q3 revenue"', dsiBsi: '"dsi:revenue-q3"' },
+      { taskText: '"analyze Q3 revenue"', dsiBsi: '"dsi:revenue-q3"' },
+    ],
+    msgLog: [
+      { dir: '→', name: 'TaskRequest', from: 'user', to: 'comma', step: 1 },
+      { dir: '←', name: 'Greeting', from: 'comma', to: 'user', step: 2 },
+      { dir: '→', name: 'SubmitIntent', from: 'comma', to: 'sia', step: 4 },
+    ],
+    stateNames: ['act_2 (action)', 'send_3 (→TaskRequest)', 'recv_4 (←Greeting)', 'act_9 ($flow.dsiBsi)', 'send_10 (→SubmitIntent)'],
+    steps: [
+      { y: 70,  label: '$flow.taskText = …', from: 0, to: 0, kind: 'action', line: 18 },
+      { y: 130, label: 'TaskRequest',        from: 0, to: 1, kind: 'message', line: 20 },
+      { y: 190, label: 'Greeting',           from: 1, to: 0, kind: 'message', line: 22 },
+      { y: 250, label: '$flow.dsiBsi = …',   from: 1, to: 1, kind: 'action', line: 28 },
+      { y: 310, label: 'SubmitIntent',       from: 1, to: 2, kind: 'message', line: 32 },
+    ],
+    px: [100, 300, 500], names: ['user','comma','sia'], langs: ['ts','ts','*'], w: 620, h: 380,
+    roles: ['user','comma','sia'],
+  },
+  '03': {
+    proto: { name: 'LoopRetryBackoff', participants: ['comma [ts]', 'sia [*]'], initiator: 'comma', input: 'ValidateIntent', messages: ['ValidateIntent', 'ValidationOk', 'ValidationError'] },
+    agents: [
+      { name: 'comma', role: 'comma', lang: 'ts',
+        states: [
+          { $ctx: { attempt: '0' }, $self: {} },
+          { $ctx: { attempt: '0' }, $self: {} },
+          { $ctx: { attempt: '0' }, $self: {} },
+          { $ctx: { attempt: '0' }, $self: {} },
+          { $ctx: { attempt: '0' }, $self: {} },
+          { $ctx: { attempt: '1' }, $self: {} },
+          { $ctx: { attempt: '1' }, $self: {} },
+          { $ctx: { attempt: '1', valid: 'true' }, $self: {} },
+        ]
+      },
+      { name: 'sia', role: 'sia', lang: '*',
+        states: [
+          { $ctx: {}, $self: {} },
+          { $ctx: {}, $self: {} },
+          { $ctx: {}, $self: {} },
+          { $ctx: {}, $self: {} },
+          { $ctx: {}, $self: {} },
+          { $ctx: {}, $self: {} },
+          { $ctx: {}, $self: {} },
+          { $ctx: {}, $self: {} },
+        ]
+      }
+    ],
+    flow: [
+      {},
+      { intent: '"validate DSI"' },
+      { intent: '"validate DSI"' },
+      { intent: '"validate DSI"' },
+      { intent: '"validate DSI"' },
+      { intent: '"validate DSI"' },
+      { intent: '"validate DSI"' },
+      { intent: '"validate DSI"' },
+    ],
+    msgLog: [
+      { dir: '→', name: 'ValidateIntent', from: 'comma', to: 'sia', step: 1 },
+      { dir: '←', name: 'ValidationError', from: 'sia', to: 'comma', step: 4, detail: '{TRANSIENT}' },
+      { dir: '→', name: 'ValidateIntent', from: 'comma', to: 'sia', step: 5, detail: '(retry 2)' },
+      { dir: '←', name: 'ValidationOk', from: 'sia', to: 'comma', step: 6 },
+    ],
+    stateNames: ['act_2 ($ctx.attempt=0)', 'send_5 (→ValidateIntent)', 'recv (←ValidationOk)', 'act (reagent.break())', 'recv (←Err{TRANSIENT})', 'act ($ctx.attempt++)', 'timer (wait 1s)', 'act (valid=true)'],
+    steps: [
+      { y: 80,  label: '$ctx.attempt = 0',  from: 0, to: 0, kind: 'action', line: 15 },
+      { y: 120, label: 'ValidateIntent',     from: 0, to: 1, kind: 'message', line: 20 },
+      { y: 175, label: 'ValidationOk',       from: 1, to: 0, kind: 'message', line: 26 },
+      { y: 205, label: 'reagent.break()',    from: 0, to: 0, kind: 'action', line: 28 },
+      { y: 250, label: 'Err {TRANSIENT}',   from: 1, to: 0, kind: 'message', line: 29 },
+      { y: 280, label: '$ctx.attempt++',     from: 0, to: 0, kind: 'action', line: 30 },
+      { y: 305, label: 'wait 1s',           from: 0, to: 0, kind: 'timer', line: 31 },
+      { y: 340, label: 'Err {FATAL}',       from: 1, to: 0, kind: 'message', line: 32 },
+    ],
+    px: [140, 360], names: ['comma','sia'], langs: ['ts','*'], w: 500, h: 520,
+    roles: ['comma','sia'],
+  },
+};
+
+// ── Deployment topology data (per scenario) ──────────────────
+
+const scenarios = {
+  'local': {
+    title: 'Local Dev — Single Node RC',
+    description: 'All agents in one local process. Loopback routing, zero network. Click ▶ Run spawns this.',
+    nodes: [
+      { nodeId: 'local', label: 'local', host: 'localhost (PID 4821)', status: 'online', type: 'local', runtime: 'ts',
+        agentNode: 'NativeAgentNode', provision: 'Spawned by extension on ▶ Run',
+        agents: [
+          { name: 'UserAgent', role: 'UserRole', lang: 'ts', plays: [{proto:'TaskExecution',role:'user'}], status: 'online', pid: 4821, mem: '12MB' },
+          { name: 'CommaAgent', role: 'CommaRole', lang: 'ts', plays: [{proto:'TaskExecution',role:'comma'}], status: 'online', pid: 4821, mem: '8MB' },
+          { name: 'SiaAgent', role: 'SiaRole', lang: 'ts', plays: [{proto:'TaskExecution',role:'sia'}], status: 'online', pid: 4821, mem: '6MB' },
+        ] },
+    ],
+    links: [],
+    protocols: ['TaskExecution'],
+    stats: { totalAgents: 3, totalNodes: 1, activeLinks: 0, totalMsgRate: 'loopback' },
+  },
+
+  'cross-lang': {
+    title: 'Cross-Language — TS + Python on local',
+    description: 'One Node.js RC process + one Python subprocess. IPC via JSON-line stdin/stdout.',
+    nodes: [
+      { nodeId: 'local', label: 'local', host: 'localhost', status: 'online', type: 'local', runtime: 'ts+py',
+        agentNode: 'NativeAgentNode + PythonAgentNode', provision: 'Extension spawns Node.js RC; RC spawns Python subprocess',
+        agents: [
+          { name: 'ClientAgent', role: 'ClientRole', lang: 'ts', plays: [{proto:'CrossLangDemo',role:'browser'}], status: 'online', pid: 5100, mem: '14MB' },
+          { name: 'ServerAgent', role: 'ServerRole', lang: 'py', plays: [{proto:'CrossLangDemo',role:'server'}], status: 'online', pid: 5101, mem: '45MB' },
+        ] },
+    ],
+    links: [],
+    protocols: ['CrossLangDemo'],
+    stats: { totalAgents: 2, totalNodes: 1, activeLinks: 0, totalMsgRate: 'loopback + IPC' },
+  },
+
+  'server-cluster': {
+    title: 'SSH Server Cluster',
+    description: 'Multiple VMs provisioned via SSH. NATS for inter-node transport.',
+    nodes: [
+      { nodeId: 'node-1', label: 'node-1 (orchestrator)', host: '10.0.0.1:4000', status: 'online', type: 'ssh', runtime: 'ts',
+        agentNode: 'NativeAgentNode + PythonAgentNode',
+        provision: 'ssh deploy@10.0.0.1 → install runtime → copy IR → start RC',
+        agents: [
+          { name: 'ClientAgent', role: 'ClientRole', lang: 'ts', plays: [{proto:'TaskProcessing',role:'client'},{proto:'HealthCheck',role:'monitor'}], status: 'online', pid: 1201, mem: '24MB' },
+          { name: 'UIAgent', role: 'UIRole', lang: 'ts', plays: [{proto:'TaskProcessing',role:'display'}], status: 'online', pid: 1202, mem: '18MB' },
+        ] },
+      { nodeId: 'node-2', label: 'node-2 (workers)', host: '10.0.0.2:4000', status: 'online', type: 'ssh', runtime: 'ts',
+        agentNode: 'NativeAgentNode + PythonAgentNode',
+        provision: 'ssh deploy@10.0.0.2 → install runtime → copy IR → start RC',
+        agents: [
+          { name: 'WorkerAgent', role: 'WorkerRole', lang: 'ts', plays: [{proto:'TaskProcessing',role:'worker'},{proto:'HealthCheck',role:'worker'}], status: 'online', pid: 2301, mem: '41MB' },
+          { name: 'AnalyzerAgent', role: 'AnalyzerRole', lang: 'py', plays: [{proto:'TaskProcessing',role:'analyzer'}], status: 'online', pid: 2302, mem: '128MB' },
+        ] },
+      { nodeId: 'node-3', label: 'node-3 (ML)', host: '10.0.0.3:4000', status: 'online', type: 'ssh', runtime: 'ts',
+        agentNode: 'NativeAgentNode + PythonAgentNode',
+        provision: 'ssh deploy@10.0.0.3 → GPU node, CUDA available',
+        agents: [
+          { name: 'MLAgent', role: 'MLRole', lang: 'py', plays: [{proto:'Inference',role:'model'},{proto:'HealthCheck',role:'worker'}], status: 'online', pid: 3401, mem: '2.1GB' },
+        ] },
+      { nodeId: 'node-4', label: 'node-4 (standby)', host: '10.0.0.4:4000', status: 'offline', type: 'ssh', runtime: 'ts',
+        agentNode: 'NativeAgentNode', provision: 'Not yet provisioned — click Start node',
+        agents: [] },
+    ],
+    links: [
+      { from: 'node-1', to: 'node-2', type: 'nats', url: 'nats://10.0.0.1:4222', status: 'active', msgRate: '142/s', latency: '0.3ms' },
+      { from: 'node-1', to: 'node-3', type: 'nats', url: 'nats://10.0.0.1:4222', status: 'active', msgRate: '38/s', latency: '1.2ms' },
+      { from: 'node-2', to: 'node-3', type: 'nats', url: 'nats://10.0.0.1:4222', status: 'active', msgRate: '85/s', latency: '0.8ms' },
+      { from: 'node-1', to: 'node-4', type: 'nats', url: 'nats://10.0.0.1:4222', status: 'inactive', msgRate: '0/s', latency: '-' },
+    ],
+    protocols: ['TaskProcessing', 'HealthCheck', 'Inference'],
+    stats: { totalAgents: 5, totalNodes: 4, activeLinks: 3, totalMsgRate: '265/s' },
+  },
+
+  'py-sim': {
+    title: 'Python Multi-Agent Simulation',
+    description: 'All agents in one Python process via InprocAgentNode. Zero serialization, millions msg/s. Jupyter-friendly.',
+    nodes: [
+      { nodeId: 'sim-core-0', label: 'sim-core-0 (main)', host: 'localhost:cpu0', status: 'online', type: 'sim', runtime: 'py',
+        agentNode: 'InprocAgentNode (zero-copy)', provision: 'rc = ReagentController("sim-core-0") in Jupyter',
+        agents: [
+          { name: 'Forager×30', role: 'ForagerRole', lang: 'py', plays: [{proto:'NMMOSim',role:'forager'}], status: 'online', pid: 7700, mem: '180MB' },
+          { name: 'Predator×5', role: 'PredatorRole', lang: 'py', plays: [{proto:'NMMOSim',role:'predator'}], status: 'online', pid: 7700, mem: '95MB' },
+          { name: 'EnvAgent', role: 'EnvironmentRole', lang: 'py', plays: [{proto:'NMMOSim',role:'environment'}], status: 'online', pid: 7700, mem: '210MB' },
+        ] },
+      { nodeId: 'sim-core-1', label: 'sim-core-1', host: 'localhost:cpu1', status: 'online', type: 'sim', runtime: 'py',
+        agentNode: 'InprocAgentNode (zero-copy)', provision: 'Forked from main via multiprocessing',
+        agents: [
+          { name: 'Forager×30', role: 'ForagerRole', lang: 'py', plays: [{proto:'NMMOSim',role:'forager'}], status: 'online', pid: 7701, mem: '175MB' },
+          { name: 'Predator×5', role: 'PredatorRole', lang: 'py', plays: [{proto:'NMMOSim',role:'predator'}], status: 'online', pid: 7701, mem: '90MB' },
+        ] },
+      { nodeId: 'sim-observer', label: 'sim-observer', host: 'localhost:cpu2', status: 'online', type: 'sim', runtime: 'py',
+        agentNode: 'InprocAgentNode', provision: 'Separate process for metrics/visualization',
+        agents: [
+          { name: 'MetricsAgent', role: 'MetricsRole', lang: 'py', plays: [{proto:'NMMOSim',role:'observer'}], status: 'online', pid: 7702, mem: '32MB' },
+        ] },
+    ],
+    links: [
+      { from: 'sim-core-0', to: 'sim-core-1', type: 'shm', url: 'InMemoryNodeLink (shared mem)', status: 'active', msgRate: '48k/s', latency: '0.01ms' },
+      { from: 'sim-core-0', to: 'sim-observer', type: 'tcp', url: 'tcp://localhost:9100', status: 'active', msgRate: '1.2k/s', latency: '0.05ms' },
+      { from: 'sim-core-1', to: 'sim-observer', type: 'tcp', url: 'tcp://localhost:9100', status: 'active', msgRate: '1.1k/s', latency: '0.05ms' },
+    ],
+    protocols: ['NMMOSim'],
+    stats: { totalAgents: 71, totalNodes: 3, activeLinks: 3, totalMsgRate: '50.3k/s' },
+  },
+
+  'browser-server': {
+    title: 'Browser + Server',
+    description: 'Browser tab runs RC with TS agents. Server RC hosts backend agents. Connected via WebSocket.',
+    nodes: [
+      { nodeId: 'server-rc', label: 'server-rc', host: 'api.example.com:4000', status: 'online', type: 'ssh', runtime: 'ts',
+        agentNode: 'NativeAgentNode + PythonAgentNode',
+        provision: 'Node.js server process, listens for WsNodeLink connections',
+        agents: [
+          { name: 'APIAgent', role: 'APIRole', lang: 'ts', plays: [{proto:'AppProtocol',role:'api'}], status: 'online', pid: 3100, mem: '52MB' },
+          { name: 'WorkerAgent', role: 'WorkerRole', lang: 'ts', plays: [{proto:'AppProtocol',role:'worker'}], status: 'online', pid: 3100, mem: '38MB' },
+          { name: 'MLAgent', role: 'MLRole', lang: 'py', plays: [{proto:'AppProtocol',role:'analyzer'}], status: 'online', pid: 3101, mem: '240MB' },
+        ] },
+      { nodeId: 'browser-a3f2', label: 'browser-a3f2', host: 'Chrome 125 (Alice)', status: 'online', type: 'browser', runtime: 'ts-browser',
+        agentNode: 'NativeAgentNode (bundled)', provision: 'User opened app → browser RC auto-initialized → WsNodeLink connected',
+        agents: [
+          { name: 'UIAgent', role: 'UIRole', lang: 'ts', plays: [{proto:'AppProtocol',role:'ui'}], status: 'online', pid: '-', mem: '8MB' },
+          { name: 'ClientAgent', role: 'ClientRole', lang: 'ts', plays: [{proto:'AppProtocol',role:'client'}], status: 'online', pid: '-', mem: '4MB' },
+        ] },
+      { nodeId: 'browser-c1e7', label: 'browser-c1e7', host: 'Firefox 128 (Bob)', status: 'online', type: 'browser', runtime: 'ts-browser',
+        agentNode: 'NativeAgentNode (bundled)', provision: 'User opened app → browser RC auto-initialized → WsNodeLink connected',
+        agents: [
+          { name: 'UIAgent', role: 'UIRole', lang: 'ts', plays: [{proto:'AppProtocol',role:'ui'}], status: 'online', pid: '-', mem: '7MB' },
+          { name: 'ClientAgent', role: 'ClientRole', lang: 'ts', plays: [{proto:'AppProtocol',role:'client'}], status: 'online', pid: '-', mem: '3MB' },
+        ] },
+      { nodeId: 'browser-d82b', label: 'browser-d82b', host: 'Safari 19 (Carol)', status: 'discovered', type: 'browser', runtime: 'ts-browser',
+        agentNode: 'NativeAgentNode (bundled)', provision: 'Self-announced via WsNodeLink — not pinned to deployment plan',
+        agents: [
+          { name: 'UIAgent', role: 'UIRole', lang: 'ts', plays: [{proto:'AppProtocol',role:'ui'}], status: 'online', pid: '-', mem: '9MB' },
+          { name: 'ClientAgent', role: 'ClientRole', lang: 'ts', plays: [{proto:'AppProtocol',role:'client'}], status: 'online', pid: '-', mem: '5MB' },
+        ] },
+    ],
+    links: [
+      { from: 'server-rc', to: 'browser-a3f2', type: 'ws', url: 'wss://api.example.com/reagent', status: 'active', msgRate: '24/s', latency: '12ms' },
+      { from: 'server-rc', to: 'browser-c1e7', type: 'ws', url: 'wss://api.example.com/reagent', status: 'active', msgRate: '18/s', latency: '35ms' },
+      { from: 'server-rc', to: 'browser-d82b', type: 'ws', url: 'wss://api.example.com/reagent', status: 'active', msgRate: '8/s', latency: '180ms' },
+    ],
+    protocols: ['AppProtocol'],
+    stats: { totalAgents: 9, totalNodes: 4, activeLinks: 3, totalMsgRate: '50/s' },
+  },
+
+  'robot-cloud': {
+    title: 'Robot + Cloud',
+    description: 'Edge devices connect outbound to cloud NATS. Robots boot autonomously, self-announce via AddressPage.',
+    nodes: [
+      { nodeId: 'cloud', label: 'cloud (orchestrator)', host: 'cloud.example.com:4000', status: 'online', type: 'ssh', runtime: 'ts',
+        agentNode: 'NativeAgentNode',
+        provision: 'Permanent cloud server, runs orchestrator RC',
+        agents: [
+          { name: 'PlannerAgent', role: 'PlannerRole', lang: 'ts', plays: [{proto:'RobotControl',role:'planner'}], status: 'online', pid: 1001, mem: '64MB' },
+          { name: 'DashboardAgent', role: 'DashboardRole', lang: 'ts', plays: [{proto:'RobotControl',role:'dashboard'}], status: 'online', pid: 1001, mem: '22MB' },
+        ] },
+      { nodeId: 'robot-01', label: 'robot-01', host: 'RPi4 (192.168.1.50)', status: 'online', type: 'robot', runtime: 'py',
+        agentNode: 'InprocAgentNode',
+        provision: 'Boots on power-on, connects outbound to NATS. Cannot SSH in.',
+        agents: [
+          { name: 'SensorAgent', role: 'SensorRole', lang: 'py', plays: [{proto:'RobotControl',role:'sensor'}], status: 'online', pid: 800, mem: '18MB' },
+          { name: 'ActuatorAgent', role: 'ActuatorRole', lang: 'py', plays: [{proto:'RobotControl',role:'actuator'}], status: 'online', pid: 800, mem: '12MB' },
+        ] },
+      { nodeId: 'robot-02', label: 'robot-02', host: 'Jetson Nano (192.168.1.51)', status: 'online', type: 'robot', runtime: 'py',
+        agentNode: 'InprocAgentNode',
+        provision: 'Boots on power-on, connects outbound to NATS. GPU available.',
+        agents: [
+          { name: 'SensorAgent', role: 'SensorRole', lang: 'py', plays: [{proto:'RobotControl',role:'sensor'}], status: 'online', pid: 801, mem: '22MB' },
+          { name: 'VisionAgent', role: 'VisionRole', lang: 'py', plays: [{proto:'RobotControl',role:'vision'}], status: 'online', pid: 801, mem: '380MB' },
+        ] },
+      { nodeId: 'robot-03', label: 'robot-03', host: 'RPi4 (cellular)', status: 'discovered', type: 'robot', runtime: 'py',
+        agentNode: 'InprocAgentNode',
+        provision: 'Self-announced via NATS. Cellular connection — high latency, intermittent.',
+        agents: [
+          { name: 'SensorAgent', role: 'SensorRole', lang: 'py', plays: [{proto:'RobotControl',role:'sensor'}], status: 'online', pid: 802, mem: '15MB' },
+        ] },
+    ],
+    links: [
+      { from: 'cloud', to: 'robot-01', type: 'nats', url: 'nats://cloud.example.com:4222', status: 'active', msgRate: '12/s', latency: '2.1ms' },
+      { from: 'cloud', to: 'robot-02', type: 'nats', url: 'nats://cloud.example.com:4222', status: 'active', msgRate: '28/s', latency: '3.5ms' },
+      { from: 'cloud', to: 'robot-03', type: 'nats', url: 'nats://cloud.example.com:4222', status: 'active', msgRate: '3/s', latency: '180ms' },
+    ],
+    protocols: ['RobotControl'],
+    stats: { totalAgents: 7, totalNodes: 4, activeLinks: 3, totalMsgRate: '43/s' },
+  },
+};
+
+function getDeployData() { return scenarios[selectedScenario]; }
+
+// ── Render side panel ────────────────────────────────────────
+
+function renderSidePanel() {
+  const d = mockData[selectedExample];
+  const step = debugMode ? debugStep : d.steps.length - 1;
+
+  document.getElementById('hdr-proto').innerHTML = '<span class="chevron">▼</span> Protocol';
+  document.getElementById('hdr-agents').innerHTML = '<span class="chevron">▼</span> Agents';
+  document.getElementById('hdr-flow').innerHTML = '<span class="chevron">▼</span> $flow';
+  document.getElementById('hdr-msgs').innerHTML = '<span class="chevron">▼</span> Messages';
+  document.getElementById('hdr-stats').innerHTML = '<span class="chevron">▼</span> Stats';
+
+  // Protocol info
+  document.getElementById('panel-proto').innerHTML = `
+    <dl class="proto-meta">
+      <dt>Protocol</dt><dd>${d.proto.name}</dd>
+      <dt>Participants</dt><dd>${d.proto.participants.join(', ')}</dd>
+      <dt>Initiator</dt><dd>${d.proto.initiator}</dd>
+      <dt>Input</dt><dd>${d.proto.input}</dd>
+      <dt>Messages</dt><dd>${d.proto.messages.join(', ')}</dd>
+    </dl>`;
+
+  // Agents
+  let agentsHtml = '';
+  for (const a of d.agents) {
+    const st = a.states[Math.min(step, a.states.length - 1)];
+    const dotClass = !debugMode ? 'idle' : (step >= d.steps.length - 1 ? 'done' : 'running');
+    const ctxEntries = Object.entries(st.$ctx);
+    const selfEntries = Object.entries(st.$self);
+
+    agentsHtml += `<div class="agent-card">
+      <div class="agent-card-header">
+        <span class="agent-dot ${dotClass}"></span>
+        <span class="agent-name">${a.name}</span>
+        <span class="agent-role">${a.role} [${a.lang}]</span>
+      </div>`;
+
+    if (ctxEntries.length > 0) {
+      agentsHtml += `<div class="ctx-scope-label">$ctx</div><table class="ctx-table">`;
+      for (const [k, v] of ctxEntries) {
+        agentsHtml += `<tr><td class="ctx-key">${esc(k)}</td><td class="ctx-val">${esc(String(v))}</td></tr>`;
+      }
+      agentsHtml += `</table>`;
+    }
+    if (selfEntries.length > 0) {
+      agentsHtml += `<div class="ctx-scope-label">$self</div><table class="ctx-table">`;
+      for (const [k, v] of selfEntries) {
+        agentsHtml += `<tr><td class="ctx-key">${esc(k)}</td><td class="ctx-val">${esc(String(v))}</td></tr>`;
+      }
+      agentsHtml += `</table>`;
+    }
+    if (ctxEntries.length === 0 && selfEntries.length === 0) {
+      agentsHtml += `<div style="color:var(--vscode-disabledForeground);font-size:10px;font-style:italic">No state yet</div>`;
+    }
+    agentsHtml += `</div>`;
+  }
+  document.getElementById('panel-agents').innerHTML = agentsHtml;
+
+  // $flow
+  const flowState = d.flow[Math.min(step, d.flow.length - 1)];
+  const flowEntries = Object.entries(flowState);
+  document.getElementById('panel-flow').innerHTML = flowEntries.length > 0
+    ? flowEntries.map(([k, v]) => `<div class="flow-entry"><span class="flow-key">$flow.${esc(k)}</span> <span class="flow-val">= ${esc(String(v))}</span></div>`).join('')
+    : '<div style="color:var(--vscode-disabledForeground);font-size:10px;font-style:italic">Empty</div>';
+
+  // Messages
+  const visibleMsgs = d.msgLog.filter(m => !debugMode || m.step <= step);
+  const heldMsgs = debugMode ? d.msgLog.filter(m => m.step === step + 1).slice(0, 1) : [];
+  let msgsHtml = '';
+  for (const m of visibleMsgs) {
+    msgsHtml += `<div class="msg-log-entry">
+      <span class="msg-dir">${m.dir === '→' ? '📤' : '📥'}</span>
+      <span class="msg-name">${esc(m.name)}</span>
+      <span class="msg-route">${esc(m.from)} → ${esc(m.to)}</span>
+      ${m.detail ? `<span class="msg-route">${esc(m.detail)}</span>` : ''}
+      <span class="msg-ts">#${m.step}</span>
+    </div>`;
+  }
+  for (const m of heldMsgs) {
+    msgsHtml += `<div class="msg-log-entry held">
+      <span class="msg-dir">⏳</span>
+      <span class="msg-name">${esc(m.name)}</span>
+      <span class="msg-route">${esc(m.from)} → ${esc(m.to)} (held)</span>
+    </div>`;
+  }
+  if (!msgsHtml) msgsHtml = '<div style="color:var(--vscode-disabledForeground);font-size:10px;font-style:italic">No messages yet</div>';
+  document.getElementById('panel-msgs').innerHTML = msgsHtml;
+
+  // Stats
+  const totalMsgs = visibleMsgs.length;
+  const statesVisited = debugMode ? step + 1 : d.steps.length;
+  const totalStates = d.steps.length;
+  document.getElementById('panel-stats').innerHTML = `
+    <div class="stats-row">
+      <span class="stat-badge msg-stat"><span class="stat-num">${totalMsgs}</span> messages</span>
+      <span class="stat-badge state-stat"><span class="stat-num">${statesVisited}/${totalStates}</span> states</span>
+      <span class="stat-badge agent-stat"><span class="stat-num">${d.agents.length}</span> agents</span>
+      ${debugMode ? `<span class="stat-badge time-stat"><span class="stat-num">${(step * 12 + 5)}ms</span> elapsed</span>` : ''}
+    </div>`;
+
+  // Debug controls
+  const ctrlBar = document.getElementById('debug-controls');
+  ctrlBar.classList.toggle('visible', debugMode);
+  if (debugMode) {
+    const sn = d.stateNames[Math.min(step, d.stateNames.length - 1)];
+    document.getElementById('ctrl-status').innerHTML =
+      `Paused at <span class="state-name">${esc(sn)}</span> <span class="step-count">step ${step + 1}/${d.steps.length}</span>`;
+    document.getElementById('ctrl-agent').innerHTML =
+      d.agents.map(a => `<option>${a.name}</option>`).join('');
+  }
+}
+
+// ── Sequence diagrams ────────────────────────────────────────
+
+function seqDiagram() {
+  const d = mockData[selectedExample];
+  const vU = debugMode ? debugStep - 1 : -1;
+  const aI = debugMode ? debugStep : -1;
+
+  let svg = `<svg viewBox="0 0 ${d.w} ${d.h}" xmlns="http://www.w3.org/2000/svg">`;
+  for (let i = 0; i < d.names.length; i++) {
+    svg += `<rect x="${d.px[i]-40}" y="10" width="80" height="36" rx="4" class="participant-box"/>`;
+    svg += `<text x="${d.px[i]}" y="32" class="participant-label">${d.names[i]} <tspan class="lang-tag">[${d.langs[i]}]</tspan></text>`;
+    svg += `<line x1="${d.px[i]}" y1="46" x2="${d.px[i]}" y2="${d.h-20}" class="lifeline"/>`;
+  }
+
+  if (selectedExample === '03') {
+    svg += `<rect x="50" y="50" width="400" height="310" rx="6" class="control-box loop-box"/>`;
+    svg += `<text x="60" y="66" class="control-label">loop ($ctx.attempt &lt; 3)</text>`;
+    svg += `<rect x="70" y="155" width="360" height="195" rx="4" class="control-box alt-box"/>`;
+    svg += `<text x="80" y="171" class="control-label">alt</text>`;
+    svg += `<line x1="70" y1="230" x2="430" y2="230" class="alt-divider"/>`;
+    svg += `<line x1="70" y1="320" x2="430" y2="320" class="alt-divider"/>`;
+  }
+
+  for (let i = 0; i < d.steps.length; i++) {
+    const s = d.steps[i];
+    const cls = stepClass(i, vU, aI);
+    const tt = debugMode ? `data-tooltip="${esc(`Step ${i+1}: ${s.label}`)}"` : '';
+    if (s.kind === 'message') {
+      const x1 = d.px[s.from], x2 = d.px[s.to];
+      svg += `<g class="step ${cls}" data-src-line="${s.line}" ${tt}>`;
+      svg += `<line x1="${x1}" y1="${s.y}" x2="${x2}" y2="${s.y}" class="msg-arrow" marker-end="url(#arrowhead)"/>`;
+      svg += `<text x="${(x1+x2)/2}" y="${s.y-8}" class="msg-label">${esc(s.label)}</text>`;
+      svg += `</g>`;
+    } else if (s.kind === 'timer') {
+      const cx = d.px[s.from];
+      svg += `<g class="step ${cls}" data-src-line="${s.line}" ${tt}>`;
+      svg += `<rect x="${cx-40}" y="${s.y-10}" width="80" height="20" rx="10" class="timer-box"/>`;
+      svg += `<text x="${cx}" y="${s.y+4}" class="timer-label">⏱ ${esc(s.label)}</text>`;
+      svg += `</g>`;
+    } else {
+      const cx = d.px[s.from];
+      svg += `<g class="step ${cls}" data-src-line="${s.line}" ${tt}>`;
+      svg += `<rect x="${cx-60}" y="${s.y-12}" width="120" height="24" rx="3" class="action-box"/>`;
+      svg += `<text x="${cx}" y="${s.y+4}" class="action-label">${esc(s.label)}</text>`;
+      svg += `</g>`;
+    }
+  }
+  svg += arrowMarker() + `</svg>`;
+  return svg;
+}
+
+// ── State machine diagrams ───────────────────────────────────
+
+function smNodeCls(idx, total) {
+  if (!debugMode) return '';
+  const v = debugStep;
+  if (idx === v) return 'active';
+  if (idx < v) return 'visited';
+  return 'future';
+}
+
+function smLinear(w, h, cx, nodes) {
+  let svg = `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">`;
+  for (let i = 0; i < nodes.length - 1; i++) {
+    svg += `<line x1="${cx}" y1="${nodes[i].y+18}" x2="${cx}" y2="${nodes[i+1].y-18}" class="sm-edge" marker-end="url(#sm-arrow)"/>`;
+  }
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i];
+    const cls = smNodeCls(i, nodes.length);
+    const tt = debugMode ? `data-tooltip="${esc(n.id)}"` : '';
+    if (n.kind === 'initial' || n.kind === 'terminal') {
+      svg += `<g class="sm-node ${cls}" data-src-line="${n.line}" ${tt}><circle cx="${cx}" cy="${n.y}" r="14" class="sm-circle sm-${n.kind}"/><text x="${cx}" y="${n.y+5}" class="sm-label-center">${n.label}</text></g>`;
+    } else {
+      svg += `<g class="sm-node ${cls}" data-src-line="${n.line}" ${tt}><rect x="${cx-65}" y="${n.y-16}" width="130" height="32" rx="4" class="sm-rect sm-${n.kind}"/><text x="${cx}" y="${n.y+5}" class="sm-label-center">${esc(n.label)}</text></g>`;
+    }
+  }
+  svg += arrowMarker() + `</svg>`;
+  return svg;
+}
+
+function sm01() {
+  if (selectedRole === 'user') return smLinear(400,380,200,[
+    {id:'init_1',y:40,label:'●',kind:'initial',line:12},{id:'act_2',y:110,label:'$flow.taskText=…',kind:'action',line:18},
+    {id:'send_3',y:180,label:'→ TaskRequest',kind:'send',line:20},{id:'recv_4',y:250,label:'← Greeting',kind:'receive',line:22},
+    {id:'end_5',y:320,label:'◉',kind:'terminal',line:37}]);
+  if (selectedRole === 'comma') return smLinear(400,450,200,[
+    {id:'init_6',y:40,label:'●',kind:'initial',line:12},{id:'recv_7',y:105,label:'← TaskRequest',kind:'receive',line:20},
+    {id:'send_8',y:170,label:'→ Greeting',kind:'send',line:22},{id:'act_9',y:235,label:'$flow.dsiBsi=…',kind:'action',line:28},
+    {id:'send_10',y:300,label:'→ SubmitIntent',kind:'send',line:32},{id:'end_11',y:370,label:'◉',kind:'terminal',line:37}]);
+  return smLinear(400,250,200,[
+    {id:'init',y:40,label:'●',kind:'initial',line:12},{id:'recv',y:120,label:'← SubmitIntent',kind:'receive',line:32},
+    {id:'end',y:200,label:'◉',kind:'terminal',line:37}]);
+}
+
+function sm03() {
+  if (selectedRole === 'sia') return smLinear(400,250,200,[
+    {id:'init',y:40,label:'●',kind:'initial',line:10},{id:'recv',y:120,label:'← ValidateIntent',kind:'receive',line:20},
+    {id:'end',y:200,label:'◉',kind:'terminal',line:36}]);
+
+  const w=500,h=650;
+  const nodes=[
+    {id:'init_1',x:250,y:30,label:'●',kind:'initial',line:10},{id:'act_2',x:250,y:90,label:'$ctx.attempt=0',kind:'action',line:15},
+    {id:'loop_guard',x:250,y:160,label:'attempt<3?',kind:'guard',line:19},{id:'send_5',x:250,y:230,label:'→ ValidateIntent',kind:'send',line:20},
+    {id:'xor_6',x:250,y:300,label:'alt',kind:'guard',line:26},{id:'recv_8',x:100,y:370,label:'← Ok',kind:'receive',line:26},
+    {id:'act_9',x:100,y:430,label:'valid=true',kind:'action',line:27},{id:'act_10',x:100,y:490,label:'break()',kind:'action',line:28},
+    {id:'recv_11',x:250,y:370,label:'← Err{T}',kind:'receive',line:29},{id:'act_12',x:250,y:430,label:'attempt++',kind:'action',line:30},
+    {id:'timer_13',x:250,y:490,label:'⏱ 1s',kind:'timer',line:31},{id:'recv_14',x:400,y:370,label:'← Err{F}',kind:'receive',line:32},
+    {id:'act_15',x:400,y:430,label:'throw',kind:'action',line:33},{id:'merge_7',x:250,y:550,label:'◇',kind:'guard',line:34},
+    {id:'end_16',x:400,y:160,label:'◉',kind:'terminal',line:36}];
+  const edges=[{f:0,t:1},{f:1,t:2},{f:2,t:3,l:'true'},{f:3,t:4},{f:4,t:5,l:'Ok'},{f:4,t:8,l:'Err{T}'},
+    {f:4,t:11,l:'Err{F}'},{f:5,t:6},{f:6,t:7},{f:7,t:13},{f:8,t:9},{f:9,t:10},{f:10,t:13},{f:11,t:12},{f:12,t:13},
+    {f:13,t:2,l:'loop'},{f:2,t:14,l:'false'}];
+  const vU=debugMode?debugStep-1:-1, aI=debugMode?debugStep:-1;
+
+  let svg=`<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">`;
+  for(const e of edges){const a=nodes[e.f],b=nodes[e.t];
+    svg+=`<line x1="${a.x}" y1="${a.y+18}" x2="${b.x}" y2="${b.y-18}" class="sm-edge" marker-end="url(#sm-arrow)"/>`;
+    if(e.l){const mx=(a.x+b.x)/2+8,my=(a.y+b.y)/2;svg+=`<text x="${mx}" y="${my}" class="sm-edge-label">${esc(e.l)}</text>`;}}
+  for(let i=0;i<nodes.length;i++){const n=nodes[i];
+    let cls='';if(debugMode){if(i===aI)cls='active';else if(i<=vU)cls='visited';else cls='future';}
+    const tt=debugMode?`data-tooltip="${esc(n.id)}"`:'';
+    if(n.kind==='initial'||n.kind==='terminal'){
+      svg+=`<g class="sm-node ${cls}" data-src-line="${n.line}" ${tt}><circle cx="${n.x}" cy="${n.y}" r="14" class="sm-circle sm-${n.kind}"/><text x="${n.x}" y="${n.y+5}" class="sm-label-center">${n.label}</text></g>`;
+    }else if(n.kind==='guard'){
+      svg+=`<g class="sm-node ${cls}" data-src-line="${n.line}" ${tt}><polygon points="${n.x},${n.y-20} ${n.x+30},${n.y} ${n.x},${n.y+20} ${n.x-30},${n.y}" class="sm-diamond sm-guard"/><text x="${n.x}" y="${n.y+5}" class="sm-label-center">${esc(n.label)}</text></g>`;
+    }else if(n.kind==='timer'){
+      svg+=`<g class="sm-node ${cls}" data-src-line="${n.line}" ${tt}><rect x="${n.x-45}" y="${n.y-14}" width="90" height="28" rx="14" class="sm-rect sm-timer"/><text x="${n.x}" y="${n.y+5}" class="sm-label-center">${esc(n.label)}</text></g>`;
+    }else{
+      svg+=`<g class="sm-node ${cls}" data-src-line="${n.line}" ${tt}><rect x="${n.x-55}" y="${n.y-14}" width="110" height="28" rx="4" class="sm-rect sm-${n.kind}"/><text x="${n.x}" y="${n.y+5}" class="sm-label-center">${esc(n.label)}</text></g>`;
+    }}
+  svg+=arrowMarker()+`</svg>`;
+  return svg;
+}
+
+// ── Topology diagram ──────────────────────────────────────────
+
+function topoDiagram() {
+  const dd = getDeployData();
+  const W = 900, H = 580;
+  const nodeW = 220, nodeH_base = 64, agentH = 36, agentGap = 6, nodePad = 10;
+
+  const layoutPositions = {
+    1: [{x:300,y:100}],
+    2: [{x:100,y:100},{x:520,y:100}],
+    3: [{x:300,y:30},{x:80,y:300},{x:520,y:300}],
+    4: [{x:80,y:30},{x:520,y:30},{x:80,y:300},{x:520,y:300}],
+  };
+  const count = dd.nodes.length;
+  const positions = layoutPositions[Math.min(count, 4)] || layoutPositions[4];
+
+  const nodeRects = dd.nodes.map((n, i) => {
+    const p = positions[i % positions.length];
+    const extraY = i >= 4 ? 260 : 0;
+    const agentCount = Math.max(n.agents.length, 0);
+    const h = nodeH_base + agentCount * (agentH + agentGap) + nodePad;
+    return { ...n, x: p.x, y: p.y + extraY, w: nodeW + 60, h, cx: p.x + (nodeW + 60) / 2, cy: p.y + extraY + h / 2 };
+  });
+
+  const nodeMap = {};
+  nodeRects.forEach(n => nodeMap[n.nodeId] = n);
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  svg += `<defs>
+    <marker id="topo-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0,8 3,0 6" fill="var(--vscode-charts-yellow)"/>
+    </marker>
+    <marker id="topo-arrow-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0,8 3,0 6" fill="var(--vscode-charts-green)"/>
+    </marker>
+  </defs>`;
+
+  for (const link of dd.links) {
+    const a = nodeMap[link.from], b = nodeMap[link.to];
+    if (!a || !b) continue;
+    const cls = link.status === 'active' ? 'topo-link active' : 'topo-link';
+    const marker = link.status === 'active' ? 'url(#topo-arrow-green)' : 'url(#topo-arrow)';
+    const ax = a.cx, ay = a.cy, bx = b.cx, by = b.cy;
+    const dx = bx - ax, dy = by - ay;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const nx = dx / dist, ny = dy / dist;
+    const x1 = ax + nx * 50, y1 = ay + ny * 30;
+    const x2 = bx - nx * 50, y2 = by - ny * 30;
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    svg += `<g class="topo-link-group" data-link-from="${link.from}" data-link-to="${link.to}">`;
+    svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="${cls}" marker-end="${marker}"/>`;
+    const badge = link.status === 'active' ? `${link.type.toUpperCase()} ${link.msgRate}` : `${link.type.toUpperCase()} (down)`;
+    svg += `<rect x="${mx - 45}" y="${my - 9}" width="90" height="18" rx="9" fill="var(--vscode-editor-background)" stroke="${link.status==='active'?'var(--vscode-charts-green)':'var(--vscode-panel-border)'}" stroke-width="1"/>`;
+    svg += `<text x="${mx}" y="${my + 4}" text-anchor="middle" class="topo-link-label" style="fill:${link.status==='active'?'var(--vscode-charts-green)':'var(--vscode-descriptionForeground)'}">${esc(badge)}</text>`;
+    svg += `</g>`;
+  }
+
+  for (const n of nodeRects) {
+    const sel = n.nodeId === selectedNode;
+    const typeCls = n.type ? ` type-${n.type}` : '';
+    svg += `<g class="topo-node-group" data-node-id="${n.nodeId}">`;
+    svg += `<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" class="topo-rc${sel ? ' selected' : ''}${typeCls}"/>`;
+    svg += `<circle cx="${n.x + 14}" cy="${n.y + 18}" class="topo-status-dot ${n.status}" r="4"/>`;
+    svg += `<text x="${n.x + 24}" y="${n.y + 22}" class="topo-rc-label">${esc(n.nodeId)}</text>`;
+
+    const rtColor = (n.runtime||'').includes('py') ? 'runtime-py' : (n.runtime||'').includes('browser') ? 'runtime-ts-browser' : 'runtime-ts';
+    const rtLabel = n.runtime || 'ts';
+    const rtW = rtLabel.length * 6 + 10;
+    svg += `<rect x="${n.x + n.w - rtW - 28}" y="${n.y + 10}" width="${rtW}" height="14" class="topo-node-badge-bg ${rtColor}"/>`;
+    svg += `<text x="${n.x + n.w - rtW/2 - 28}" y="${n.y + 20}" text-anchor="middle" class="topo-node-badge">${esc(rtLabel)}</text>`;
+
+    const typeIcon = n.type === 'browser' ? '🌐' : n.type === 'robot' ? '🤖' : n.type === 'sim' ? '🧪' : n.type === 'ssh' ? '🖥' : n.type === 'docker' ? '🐳' : '💻';
+    svg += `<text x="${n.x + n.w - 16}" y="${n.y + 22}" text-anchor="end" style="font-size:12px">${typeIcon}</text>`;
+
+    svg += `<text x="${n.x + 14}" y="${n.y + 36}" class="topo-rc-sub">${esc(n.host)}</text>`;
+
+    if (n.status === 'discovered') {
+      svg += `<text x="${n.x + n.w - 14}" y="${n.y + 36}" text-anchor="end" class="topo-constraint">discovered</text>`;
+    }
+
+    let ay = n.y + 44;
+    for (const agent of n.agents) {
+      const agentSel = selectedAgent === agent.name;
+      const langCls = agent.lang === 'ts' ? 'lang-ts' : agent.lang === 'py' ? 'lang-py' : 'lang-any';
+      svg += `<g class="topo-agent-group" data-agent-name="${agent.name}">`;
+      svg += `<rect x="${n.x + 8}" y="${ay}" width="${n.w - 16}" height="${agentH}" class="topo-agent-box ${langCls}${agentSel ? ' selected' : ''}"/>`;
+      svg += `<circle cx="${n.x + 20}" cy="${ay + agentH/2}" class="topo-status-dot ${agent.status}" r="3"/>`;
+      svg += `<text x="${n.x + 30}" y="${ay + 14}" class="topo-agent-label">${esc(agent.name)}</text>`;
+      svg += `<text x="${n.x + n.w - 16}" y="${ay + 14}" text-anchor="end" class="topo-agent-role">[${agent.lang}]</text>`;
+      const playsStr = agent.plays.map(p => p.proto + '.' + p.role).join(', ');
+      svg += `<text x="${n.x + 30}" y="${ay + 28}" class="topo-agent-role">${esc(playsStr)}</text>`;
+      svg += `</g>`;
+      ay += agentH + agentGap;
+    }
+
+    if (n.agents.length === 0) {
+      svg += `<text x="${n.x + n.w/2}" y="${n.y + 56}" text-anchor="middle" style="font-size:10px;fill:var(--vscode-disabledForeground);font-style:italic">No agents deployed</text>`;
+    }
+    svg += `</g>`;
+  }
+
+  svg += `</svg>`;
+  return svg;
+}
+
+// ── Topology side panel ───────────────────────────────────────
+
+function renderTopoSidePanel() {
+  const dd = getDeployData();
+  const node = selectedNode ? dd.nodes.find(n => n.nodeId === selectedNode) : dd.nodes[0];
+
+  document.getElementById('hdr-proto').innerHTML = '<span class="chevron">▼</span> Scenario';
+  document.getElementById('hdr-agents').innerHTML = '<span class="chevron">▼</span> Node Inspector';
+  document.getElementById('hdr-flow').innerHTML = '<span class="chevron">▼</span> Node Links';
+  document.getElementById('hdr-msgs').innerHTML = '<span class="chevron">▼</span> Deploy Actions';
+  document.getElementById('hdr-stats').innerHTML = '<span class="chevron">▼</span> Cluster Stats';
+
+  document.getElementById('panel-stats').innerHTML = `
+    <div class="stats-row">
+      <span class="stat-badge agent-stat"><span class="stat-num">${dd.stats.totalAgents}</span> agents</span>
+      <span class="stat-badge msg-stat"><span class="stat-num">${dd.stats.totalNodes}</span> nodes</span>
+      <span class="stat-badge state-stat"><span class="stat-num">${dd.stats.activeLinks}</span> links</span>
+      <span class="stat-badge time-stat"><span class="stat-num">${dd.stats.totalMsgRate}</span> throughput</span>
+    </div>`;
+
+  document.getElementById('panel-proto').innerHTML = `
+    <div style="font-size:11px;font-weight:600;margin-bottom:4px">${esc(dd.title)}</div>
+    <div class="provision-info">${esc(dd.description)}</div>
+    <dl class="proto-meta" style="margin-top:6px">
+      <dt>Protocols</dt><dd>${dd.protocols.join(', ')}</dd>
+      <dt>Nodes</dt><dd>${dd.nodes.filter(n=>n.status==='online'||n.status==='discovered').length} online / ${dd.nodes.length} total</dd>
+      <dt>Links</dt><dd>${dd.links.length === 0 ? 'none (loopback only)' : dd.links.filter(l=>l.status==='active').length + ' active'}</dd>
+    </dl>`;
+
+  let agentsHtml = '';
+
+  if (node) {
+    const typeCls = node.type || 'local';
+    const canSSH = node.type === 'ssh' || node.type === 'local';
+    const canMigrate = node.type !== 'browser' && node.type !== 'robot';
+    const isDiscovered = node.status === 'discovered';
+
+    agentsHtml += `<div class="deploy-card" style="border-color:var(--vscode-charts-blue)">
+      <div class="deploy-card-header">
+        <span class="agent-dot ${node.status === 'online' ? 'running' : node.status === 'discovered' ? 'running' : 'idle'}"></span>
+        <span class="agent-name">${esc(node.label)}</span>
+        <span class="node-type-tag ${typeCls}">${esc(typeCls)}</span>
+      </div>
+      <div class="link-config">
+        <dt>Host</dt><dd>${esc(node.host)}</dd>
+        <dt>Runtime</dt><dd>${esc(node.runtime)}</dd>
+        <dt>AgentNode</dt><dd style="font-size:9px">${esc(node.agentNode)}</dd>
+        <dt>Agents</dt><dd>${node.agents.length}</dd>
+      </div>
+      <div class="provision-info">⚙ ${esc(node.provision)}</div>
+      <div class="deploy-action-row">
+        ${canSSH ? '<button class="deploy-action-btn primary">Deploy protocol</button>' : ''}
+        ${canSSH ? '<button class="deploy-action-btn">Add agent</button>' : ''}
+        ${node.status === 'offline' && canSSH ? '<button class="deploy-action-btn primary">Start node</button>' : ''}
+        ${node.status !== 'offline' && canSSH ? '<button class="deploy-action-btn danger">Stop node</button>' : ''}
+        ${isDiscovered ? '<button class="deploy-action-btn">Pin to plan</button>' : ''}
+        ${!canSSH && !isDiscovered ? '<span class="provision-info" style="padding:2px 0">Node self-manages — cannot provision remotely</span>' : ''}
+      </div>
+    </div>`;
+
+    for (const a of node.agents) {
+      const langBadge = `<span class="lang-badge ${a.lang === 'ts' ? 'ts' : a.lang === 'py' ? 'py' : 'any'}">${a.lang}</span>`;
+      agentsHtml += `<div class="deploy-card${selectedAgent === a.name ? ' selected' : ''}" data-agent-card="${a.name}" style="${selectedAgent===a.name?'border-color:var(--vscode-charts-green)':''}">
+        <div class="deploy-card-header">
+          <span class="agent-dot ${a.status === 'online' ? 'running' : 'idle'}"></span>
+          <span class="agent-name">${esc(a.name)}</span>
+          ${langBadge}
+        </div>
+        <div class="deploy-plays">Role: <span>${esc(a.role)}</span></div>
+        <div class="deploy-plays">Plays: ${a.plays.map(p => `<span>${esc(p.proto)}.${esc(p.role)}</span>`).join(', ')}</div>
+        <div class="link-config">
+          <dt>PID</dt><dd>${a.pid}</dd>
+          <dt>Memory</dt><dd>${esc(a.mem)}</dd>
+        </div>
+        <div class="deploy-action-row">
+          <button class="deploy-action-btn">Restart</button>
+          ${canMigrate ? '<button class="deploy-action-btn">Migrate</button>' : ''}
+          <button class="deploy-action-btn danger">Remove</button>
+        </div>
+      </div>`;
+    }
+
+    if (node.agents.length === 0 && node.status === 'offline') {
+      agentsHtml += `<div style="text-align:center;padding:12px 0;color:var(--vscode-disabledForeground);font-size:11px;font-style:italic">
+        Node is offline — ${canSSH ? 'click Start node to provision' : 'waiting for self-announcement'}
+      </div>`;
+    }
+  }
+
+  document.getElementById('panel-agents').innerHTML = agentsHtml;
+
+  let linksHtml = '';
+  const nodeId = node ? node.nodeId : '';
+  const nodeLinks = dd.links.filter(l => l.from === nodeId || l.to === nodeId);
+  for (const link of nodeLinks) {
+    const peer = link.from === nodeId ? link.to : link.from;
+    linksHtml += `<div class="deploy-card">
+      <div class="deploy-card-header">
+        <span class="agent-dot ${link.status === 'active' ? 'running' : 'idle'}"></span>
+        <span class="agent-name">${esc(nodeId)} ↔ ${esc(peer)}</span>
+      </div>
+      <div class="link-config">
+        <dt>Type</dt><dd>${esc(link.type.toUpperCase())}</dd>
+        <dt>URL</dt><dd style="font-size:9px;word-break:break-all">${esc(link.url)}</dd>
+        <dt>Rate</dt><dd>${esc(link.msgRate)}</dd>
+        <dt>Latency</dt><dd>${esc(link.latency)}</dd>
+      </div>
+      <div class="deploy-action-row">
+        ${link.status === 'active' ? '<button class="deploy-action-btn danger">Disconnect</button>' : '<button class="deploy-action-btn primary">Reconnect</button>'}
+      </div>
+    </div>`;
+  }
+  if (dd.links.length === 0) {
+    linksHtml = '<div class="provision-info" style="font-style:italic">No links — all agents on single node, loopback routing (zero-copy)</div>';
+  } else if (!linksHtml) {
+    linksHtml = '<div style="color:var(--vscode-disabledForeground);font-size:10px;font-style:italic">Select a node to see its links</div>';
+  }
+
+  document.getElementById('panel-flow').innerHTML = linksHtml;
+
+  const hasProvisionable = dd.nodes.some(n => n.type === 'ssh' || n.type === 'local' || n.type === 'docker');
+  document.getElementById('panel-msgs').innerHTML = `
+    <div class="deploy-action-row" style="flex-wrap:wrap;gap:4px">
+      <select class="node-sel">${dd.protocols.map(p => `<option>${p}</option>`).join('')}</select>
+      <select class="node-sel">${dd.nodes.map(n => `<option value="${n.nodeId}">${n.label}</option>`).join('')}</select>
+      <button class="deploy-action-btn primary" style="flex:1">Deploy to node</button>
+    </div>
+    <div class="deploy-action-row" style="flex-wrap:wrap;gap:4px;margin-top:6px">
+      ${hasProvisionable ? '<button class="deploy-action-btn" style="flex:1">Add Node</button>' : ''}
+      <button class="deploy-action-btn" style="flex:1">Auto-balance</button>
+      <button class="deploy-action-btn danger" style="flex:1">Teardown all</button>
+    </div>`;
+}
+
+// ── Render all ────────────────────────────────────────────────
+
+function render() {
+  btnSeq.className = `tab ${viewMode==='sequence'?'active':''}`;
+  btnSm.className = `tab ${viewMode==='statemachine'?'active':''}`;
+  btnTopo.className = `tab ${viewMode==='topology'?'active':''}`;
+  btnDebug.className = `debug-toggle ${debugMode?'active':''}`;
+  roleSel.style.display = viewMode==='statemachine'?'':'none';
+  exampleSel.style.display = viewMode==='topology'?'none':'';
+  topoScenarioSel.style.display = viewMode==='topology'?'':'none';
+
+  if (viewMode === 'topology') {
+    document.getElementById('diagram').innerHTML = topoDiagram();
+    renderTopoSidePanel();
+    wireTopoInteractions();
+    const ctrlBar = document.getElementById('debug-controls');
+    ctrlBar.classList.remove('visible');
+    return;
+  }
+
+  const d = mockData[selectedExample];
+  if (!d || !d.roles) return;
+  roleSel.innerHTML = d.roles.map(r=>`<option value="${r}" ${selectedRole===r?'selected':''}>${r}</option>`).join('');
+
+  const svg = viewMode==='sequence'
+    ? seqDiagram()
+    : (selectedExample==='01' ? sm01() : sm03());
+  document.getElementById('diagram').innerHTML = svg;
+
+  renderSidePanel();
+  wireInteractions();
+}
+
+function wireInteractions() {
+  const tooltip = document.getElementById('tooltip');
+  document.querySelectorAll('[data-src-line]').forEach(el => {
+    el.addEventListener('click', () => {
+      const line = el.getAttribute('data-src-line');
+      const file = selectedExample==='01'?'01-task-execution-basic.rg':'03-loop-retry-backoff.rg';
+      console.log(`editor.revealRange → line ${line} of ${file}`);
+    });
+  });
+  document.querySelectorAll('[data-tooltip]').forEach(el => {
+    el.addEventListener('mouseenter', (e) => { if(!tooltip)return; tooltip.textContent=el.getAttribute('data-tooltip'); tooltip.style.display='block'; tooltip.style.left=e.pageX+12+'px'; tooltip.style.top=e.pageY-8+'px'; });
+    el.addEventListener('mousemove', (e) => { if(!tooltip)return; tooltip.style.left=e.pageX+12+'px'; tooltip.style.top=e.pageY-8+'px'; });
+    el.addEventListener('mouseleave', () => { if(tooltip)tooltip.style.display='none'; });
+  });
+}
+
+function wireTopoInteractions() {
+  const tooltip = document.getElementById('tooltip');
+  document.querySelectorAll('.topo-node-group').forEach(el => {
+    el.addEventListener('click', () => {
+      selectedNode = el.getAttribute('data-node-id');
+      selectedAgent = null;
+      render();
+    });
+  });
+  document.querySelectorAll('.topo-agent-group').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectedAgent = el.getAttribute('data-agent-name');
+      const parentNode = el.closest('.topo-node-group');
+      if (parentNode) selectedNode = parentNode.getAttribute('data-node-id');
+      render();
+    });
+  });
+  document.querySelectorAll('.topo-link-group').forEach(el => {
+    el.addEventListener('mouseenter', (e) => {
+      const from = el.getAttribute('data-link-from'), to = el.getAttribute('data-link-to');
+      const link = getDeployData().links.find(l => l.from === from && l.to === to);
+      if (!link || !tooltip) return;
+      tooltip.textContent = `${link.type.toUpperCase()} ${link.url}\nRate: ${link.msgRate}  Latency: ${link.latency}`;
+      tooltip.style.display = 'block';
+      tooltip.style.left = e.pageX + 12 + 'px';
+      tooltip.style.top = e.pageY - 8 + 'px';
+    });
+    el.addEventListener('mousemove', (e) => { if(tooltip){ tooltip.style.left=e.pageX+12+'px'; tooltip.style.top=e.pageY-8+'px'; }});
+    el.addEventListener('mouseleave', () => { if(tooltip) tooltip.style.display='none'; });
+  });
+  document.querySelectorAll('[data-agent-card]').forEach(el => {
+    el.addEventListener('click', () => {
+      selectedAgent = el.getAttribute('data-agent-card');
+      render();
+    });
+  });
+}
+
+render();
+</script>
+</body>
+</html>

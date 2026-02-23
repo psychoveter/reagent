@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
 import { RapClient } from './rapClient';
+import { ReagentDebugPanelProvider } from './debugPanelProvider';
+import { ReagentInlineValues } from './inlineValues';
+import type { RosManager } from './rosManager';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -20,10 +23,12 @@ interface SourceMapEntry {
   column: number;
 }
 
-/**
- * Inline debug adapter that speaks DAP to VS Code and RAP to the ROS.
- */
-class ReagentDebugSession implements vscode.DebugAdapter {
+export interface DebugSinks {
+  debugPanel: ReagentDebugPanelProvider;
+  inlineValues: ReagentInlineValues;
+}
+
+export class ReagentDebugSession implements vscode.DebugAdapter {
   private sendMessage: vscode.EventEmitter<vscode.DebugProtocolMessage> = new vscode.EventEmitter();
   readonly onDidSendMessage: vscode.Event<vscode.DebugProtocolMessage> = this.sendMessage.event;
 
@@ -36,6 +41,13 @@ class ReagentDebugSession implements vscode.DebugAdapter {
   private stoppedReason = '';
   private stoppedDetail: Record<string, unknown> = {};
   private seq = 0;
+
+  static activeSession: ReagentDebugSession | null = null;
+
+  constructor(private readonly sinks?: DebugSinks, private readonly rosManager?: RosManager) {}
+
+  getRapClient(): RapClient | null { return this.rap; }
+  getSessionId(): string | null { return this.sessionId; }
 
   handleMessage(message: vscode.DebugProtocolMessage): void {
     const msg = message as { type: string; command?: string; seq: number; arguments?: Record<string, unknown> };
@@ -135,12 +147,28 @@ class ReagentDebugSession implements vscode.DebugAdapter {
     this.rap = new RapClient(`ws://${rosHost}:${rosPort}`);
     try {
       await this.rap.connect();
-    } catch (err) {
-      this.sendErrorResponse(reqSeq, 'launch', `Cannot connect to ROS at ws://${rosHost}:${rosPort}: ${err}`);
-      return;
+    } catch {
+      // Auto-start ROS if available
+      if (this.rosManager) {
+        const ok = await this.rosManager.ensureRunning();
+        if (!ok) {
+          this.sendErrorResponse(reqSeq, 'launch', `Cannot start ROS. Check Reagent ROS output.`);
+          return;
+        }
+        try {
+          this.rap = new RapClient(`ws://${rosHost}:${rosPort}`);
+          await this.rap.connect();
+        } catch (err2) {
+          this.sendErrorResponse(reqSeq, 'launch', `ROS started but cannot connect: ${err2}`);
+          return;
+        }
+      } else {
+        this.sendErrorResponse(reqSeq, 'launch', `Cannot connect to ROS at ws://${rosHost}:${rosPort}. Start ROS first (Ctrl+Shift+P → Reagent: Start ROS).`);
+        return;
+      }
     }
 
-    // Listen for Stopped events from ROS
+    // Listen for Stopped events from ROS → DAP + debug panel + inline values
     this.disposables.push(this.rap.on('Stopped', (msg) => {
       this.paused = true;
       this.stoppedReason = String(msg.payload?.reason || 'breakpoint');
@@ -151,6 +179,7 @@ class ReagentDebugSession implements vscode.DebugAdapter {
         description: this.stoppedReason,
         allThreadsStopped: true,
       });
+      this.pushStateToSinks();
     }));
 
     // Listen for RunCompleted
@@ -158,14 +187,21 @@ class ReagentDebugSession implements vscode.DebugAdapter {
       this.sendEvent('terminated', {});
     }));
 
-    // Listen for TraceEvents (emit as output)
+    // Listen for TraceEvents → output channel + debug panel
     this.disposables.push(this.rap.on('TraceEvent', (msg) => {
-      const p = msg.payload || {};
-      const kind = p.kind || 'trace';
-      const agent = p.agentName || '';
+      const p = (msg.payload || {}) as Record<string, unknown>;
+      const kind = (p.kind || 'trace') as string;
+      const agent = (p.agentName || '') as string;
       this.sendEvent('output', {
         category: 'console',
         output: `[${kind}] ${agent}: ${JSON.stringify(p)}\n`,
+      });
+      this.sinks?.debugPanel.addTrace({
+        kind,
+        agentName: agent || undefined,
+        instanceId: p.instanceId as string | undefined,
+        timestamp: Date.now(),
+        detail: p,
       });
     }));
 
@@ -178,8 +214,8 @@ class ReagentDebugSession implements vscode.DebugAdapter {
       return;
     }
 
-    // Compile
-    const compileResp = await this.rap.request('Compile', { source: rgSource }, 'CompileSuccess', 15000);
+    // Compile (field name must match ROS expectation: rgSource, fileName)
+    const compileResp = await this.rap.request('Compile', { rgSource, fileName: path.basename(this.rgFilePath) }, 'CompileSuccess', 15000);
     if (compileResp.rap === 'CompileError') {
       this.sendErrorResponse(reqSeq, 'launch', `Compile error: ${JSON.stringify(compileResp.payload)}`);
       return;
@@ -194,6 +230,7 @@ class ReagentDebugSession implements vscode.DebugAdapter {
       payload: { sessionId: this.sessionId, mode: 'debug' },
     });
 
+    ReagentDebugSession.activeSession = this;
     this.sendResponse(reqSeq, 'launch');
   }
 
@@ -284,13 +321,13 @@ class ReagentDebugSession implements vscode.DebugAdapter {
 
     if (this.rap?.connected && this.paused) {
       try {
+        const agentName = (this.stoppedDetail.agentName || '') as string;
         this.rap.send({
           rap: 'GetState',
           sessionId: this.sessionId || 'default',
-          payload: { sessionId: this.sessionId || 'default' },
+          payload: { sessionId: this.sessionId || 'default', agentName },
         });
 
-        // Wait for StateSnapshot
         const snapshot = await new Promise<Record<string, unknown>>((resolve, reject) => {
           const timer = setTimeout(() => reject(new Error('Timeout')), 3000);
           const disposable = this.rap!.on('StateSnapshot', (msg) => {
@@ -358,7 +395,41 @@ class ReagentDebugSession implements vscode.DebugAdapter {
     this.disposables = [];
     this.rap?.close();
     this.rap = null;
+    if (ReagentDebugSession.activeSession === this) {
+      ReagentDebugSession.activeSession = null;
+    }
     this.sendResponse(reqSeq, 'disconnect');
+  }
+
+  private pushStateToSinks(): void {
+    if (!this.sinks || !this.rap?.connected) return;
+
+    const stateId = this.stoppedDetail.stateId as string | undefined;
+    const mapped = stateId ? this.sourceMap.find(e => e.stateId === stateId) : undefined;
+    const agentName = (this.stoppedDetail.agentName || 'agent') as string;
+
+    this.rap.send({
+      rap: 'GetState',
+      sessionId: this.sessionId || 'default',
+      payload: { sessionId: this.sessionId || 'default', agentName },
+    });
+
+    const disposable = this.rap.on('StateSnapshot', (snapMsg) => {
+      disposable.dispose();
+      const snap = (snapMsg.payload || {}) as Record<string, unknown>;
+      const ctx = (snap.ctx || {}) as Record<string, unknown>;
+      const self = (snap.self || {}) as Record<string, unknown>;
+      const held = (snap.heldMessages || []) as Array<{ messageName: string; from: string; to: string }>;
+
+      this.sinks!.debugPanel.updateAgentState(agentName, { $ctx: ctx, $self: self });
+      this.sinks!.debugPanel.updateHeldMessages(held);
+
+      if (mapped) {
+        this.sinks!.inlineValues.showValues(this.rgFilePath, mapped.line, ctx, self);
+      }
+    });
+
+    setTimeout(() => disposable.dispose(), 3000);
   }
 
   private sendResponse(reqSeq: number, command: string, body?: Record<string, unknown>): void {
@@ -396,6 +467,9 @@ class ReagentDebugSession implements vscode.DebugAdapter {
     for (const d of this.disposables) d.dispose();
     this.disposables = [];
     this.rap?.close();
+    if (ReagentDebugSession.activeSession === this) {
+      ReagentDebugSession.activeSession = null;
+    }
     this.sendMessage.dispose();
   }
 }
@@ -404,9 +478,11 @@ class ReagentDebugSession implements vscode.DebugAdapter {
  * Factory that creates inline ReagentDebugSession instances for each debug session.
  */
 export class ReagentDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
+  constructor(private readonly sinks?: DebugSinks, private readonly rosManager?: RosManager) {}
+
   createDebugAdapterDescriptor(
     _session: vscode.DebugSession
   ): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
-    return new vscode.DebugAdapterInlineImplementation(new ReagentDebugSession());
+    return new vscode.DebugAdapterInlineImplementation(new ReagentDebugSession(this.sinks, this.rosManager));
   }
 }

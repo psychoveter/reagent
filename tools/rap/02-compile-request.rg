@@ -8,6 +8,7 @@ message Compile {
 }
 
 message CompileSuccess {
+  sessionId: string
   irGraphs: any[]
   roleIRs: any[]
   agentIRs: any[]

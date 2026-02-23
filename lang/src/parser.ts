@@ -563,7 +563,7 @@ function pMessageStmtFromIdent(c: Cursor, from: string, fromStart: Pos): Message
 const PROTOCOL_KEYWORDS = new Set([
   "protocol", "alt", "loop", "par", "try", "catch", "else", "wait",
   "timeout", "and", "import", "break", "participants", "initiator", "input",
-  "agent", "plays", "init", "on", "invoke", "spawn", "scatter", "where", "as",
+  "agent", "plays", "init", "on", "invokes", "spawns", "scatter", "where", "as",
 ]);
 
 function pAgentZoneFromIdent(c: Cursor, agent: string, agentStart: Pos, lang: LangTag): AgentZone | null {
@@ -868,10 +868,11 @@ function pTryStmt(c: Cursor): TryStmt | null {
 }
 
 // ── Invoke statement ────────────────────────────────────────────────
+// Syntax: <role> invokes <Proto>(args) { roleMap } -> $flow.target
 
-function pInvokeStmt(c: Cursor): InvokeStmt | null {
-  const start = c.pos();
-  if (!consumeKeyword(c, "invoke")) return null;
+function pInvokeStmtFromIdent(c: Cursor, callerRole: string, startPos: ReturnType<Cursor["pos"]>): InvokeStmt | null {
+  // `invokes` keyword already peeked by caller; consume it
+  if (!consumeKeyword(c, "invokes")) return null;
   skipWSAndComments(c);
 
   // Protocol name (may be dotted: derive.DeriveDsiBsi)
@@ -899,15 +900,6 @@ function pInvokeStmt(c: Cursor): InvokeStmt | null {
     input += ch;
   }
   input = input.trim();
-
-  skipWSAndComments(c);
-
-  // `as <role>`
-  if (!consumeKeyword(c, "as")) return null;
-  skipWSAndComments(c);
-  const roleId = readIdent(c);
-  if (!roleId) return null;
-  const callerRole = roleId.name;
 
   skipWSAndComments(c);
 
@@ -955,15 +947,16 @@ function pInvokeStmt(c: Cursor): InvokeStmt | null {
     callerRole,
     roleMapping,
     resultTarget,
-    loc: c.locFrom(start),
+    loc: c.locFrom(startPos),
   };
 }
 
 // ── Spawn statement ─────────────────────────────────────────────────
+// Syntax: <role> spawns <Proto>(args) { roleMap }
 
-function pSpawnStmt(c: Cursor): SpawnStmt | null {
-  const start = c.pos();
-  if (!consumeKeyword(c, "spawn")) return null;
+function pSpawnStmtFromIdent(c: Cursor, callerRole: string, startPos: ReturnType<Cursor["pos"]>): SpawnStmt | null {
+  // `spawns` keyword already peeked by caller; consume it
+  if (!consumeKeyword(c, "spawns")) return null;
   skipWSAndComments(c);
 
   const protoId = readIdent(c);
@@ -990,15 +983,6 @@ function pSpawnStmt(c: Cursor): SpawnStmt | null {
     input += ch;
   }
   input = input.trim();
-
-  skipWSAndComments(c);
-
-  // `as <role>`
-  if (!consumeKeyword(c, "as")) return null;
-  skipWSAndComments(c);
-  const roleId = readIdent(c);
-  if (!roleId) return null;
-  const callerRole = roleId.name;
 
   skipWSAndComments(c);
 
@@ -1031,7 +1015,7 @@ function pSpawnStmt(c: Cursor): SpawnStmt | null {
     input,
     callerRole,
     roleMapping,
-    loc: c.locFrom(start),
+    loc: c.locFrom(startPos),
   };
 }
 
@@ -1118,8 +1102,6 @@ function pProtocolItem(c: Cursor): ProtocolItem | null {
   if (startsWithKeyword(c, "par")) return pParStmt(c);
   if (startsWithKeyword(c, "wait")) return pWaitStmt(c);
   if (startsWithKeyword(c, "try")) return pTryStmt(c);
-  if (startsWithKeyword(c, "invoke")) return pInvokeStmt(c);
-  if (startsWithKeyword(c, "spawn")) return pSpawnStmt(c);
   if (startsWithKeyword(c, "scatter")) return pScatterStmt(c);
 
   // `break` inside loops — parsed as a special WaitStmt-like sentinel
@@ -1148,6 +1130,16 @@ function pProtocolItem(c: Cursor): ProtocolItem | null {
   }
 
   skipWSAndComments(c);
+
+  // `<role> invokes <Proto>(...)`
+  if (startsWithKeyword(c, "invokes")) {
+    return pInvokeStmtFromIdent(c, id.name, id.loc.start);
+  }
+
+  // `<role> spawns <Proto>(...)`
+  if (startsWithKeyword(c, "spawns")) {
+    return pSpawnStmtFromIdent(c, id.name, id.loc.start);
+  }
 
   // If next char is `{`, it's an agent zone (if id is a known participant and not a keyword)
   if (c.peek() === "{" && !PROTOCOL_KEYWORDS.has(id.name)) {

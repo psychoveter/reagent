@@ -3,9 +3,9 @@
 // The adapter announces its capabilities; the orchestrator accepts or rejects.
 
 message Register {
-  adapterId: string
-  capabilities: string[]
-  maxAgents: number
+  nodeId: string
+  capabilities?: string[]
+  maxAgents?: number
   supportedLangs: string[]
 }
 

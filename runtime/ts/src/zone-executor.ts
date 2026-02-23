@@ -95,6 +95,34 @@ export function executeZone(
   return true;
 }
 
+/**
+ * Async zone executor — for zone bodies that contain `await`.
+ * Uses AsyncFunction constructor to support top-level await in zone scope.
+ */
+export async function executeZoneAsync(
+  body: string,
+  ctx: Record<string, unknown>,
+  self: Record<string, unknown>,
+  reagent: ReagentStub,
+  flow?: Record<string, unknown>,
+  extras?: Record<string, unknown>,
+): Promise<boolean> {
+  const paramNames = ["$ctx", "$self", "reagent", "$flow"];
+  const paramValues: unknown[] = [ctx, self, reagent, flow ?? {}];
+
+  if (extras) {
+    for (const [k, v] of Object.entries(extras)) {
+      paramNames.push(k);
+      paramValues.push(v);
+    }
+  }
+
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  const fn = new AsyncFunction(...paramNames, body);
+  await fn(...paramValues);
+  return true;
+}
+
 export class ZoneError extends Error {
   constructor(public readonly cause: unknown) {
     super(cause instanceof Error ? cause.message : String(cause));

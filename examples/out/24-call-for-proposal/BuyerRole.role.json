@@ -20,5 +20,10 @@
         "lang": "ts"
       }
     }
-  ]
+  ],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "a24865d676494bea25b52e0f2a12feb3eaaee123c31d2254efffede1e1f192ac",
+    "behaviorHash": "578289fed3c70dc78b8e58df54735401114b83be59a9a6bf2fa46bbf003fc6d8"
+  }
 }

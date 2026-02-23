@@ -36,6 +36,7 @@ export class NativeAgentNode implements AgentNode {
     roleIR: RoleIR,
     graphs: Map<string, IRGraph>,
     transport: ReagentTransport,
+    extras?: Record<string, unknown>,
   ): AgentHandle {
     const agentIR: AgentIR = {
       agentName,
@@ -53,6 +54,7 @@ export class NativeAgentNode implements AgentNode {
       roleToAgent: this.roleToAgent,
       traceHook: this.traceHook,
       advanceHook: this.advanceHook,
+      extras,
     });
 
     return new NativeAgentHandle(agentName, runner);

@@ -33,5 +33,10 @@
         "lang": "ts"
       }
     }
-  ]
+  ],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "cc8df10d61521c48251bdc6ae68e752393b4027230c439c8e118f18e86264c8d",
+    "behaviorHash": "3d64fdd86f616457d3cc19349ee54a8f584e9713a2987a997162aaf12576aa0d"
+  }
 }

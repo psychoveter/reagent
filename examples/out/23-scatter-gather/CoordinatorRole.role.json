@@ -11,5 +11,10 @@
     "body": "\n    $self.scattersCompleted = 0\n  ",
     "lang": "ts"
   },
-  "lifecycleHandlers": []
+  "lifecycleHandlers": [],
+  "version": "1.0.0",
+  "fingerprints": {
+    "playsHash": "ce296cb2d6edeb3ca7f91bdf2349d5881fd8b1485f5d1cdc77e7110e45e58ff3",
+    "behaviorHash": "995b644300b189b4641ffd1df5e563f14cd2a0ceeeb1133c867698328de1ca21"
+  }
 }

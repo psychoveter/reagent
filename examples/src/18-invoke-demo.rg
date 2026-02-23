@@ -1,5 +1,5 @@
-// Example 18: child protocol invocation (protocol-level invoke / reagent.return)
-// Uses protocol-level invoke instead of zone-level reagent.invoke().
+// Example 18: child protocol invocation (protocol-level invokes / reagent.return)
+// Uses protocol-level invokes instead of zone-level reagent.invoke().
 
 message ComputeRequest {}
 message ComputeResult {}
@@ -31,7 +31,7 @@ protocol InvokeDemo {
     }
   }
 
-  invoke ComputeSquare({ value: $ctx.receivedValue }) as responder -> $flow.squared
+  responder invokes ComputeSquare({ value: $ctx.receivedValue }) -> $flow.squared
 
   responder --> caller: ComputeResult = {
     onSend {

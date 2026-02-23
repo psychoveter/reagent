@@ -20,7 +20,7 @@ protocol TaskExecution {
   }
   user --> comma: TaskRequest = { }
 
-  invoke derive.DeriveDsiBsi({ taskText: $flow.taskText }) as comma -> $flow.dsiBsi
+  comma invokes derive.DeriveDsiBsi({ taskText: $flow.taskText }) -> $flow.dsiBsi
 
   comma {
     $self.lastDsiBsi = $flow.dsiBsi

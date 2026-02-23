@@ -100,5 +100,18 @@
   "initialStateId": "init_22",
   "terminalStateIds": [
     "end_27"
+  ],
+  "version": "0.1.0",
+  "fingerprints": {
+    "structureHash": "e112bf69cf8625fa9003dd6a675b5be40f5266031da9c139911e57bae94fb514",
+    "schemaHash": "aa9cda3f6da6cbebfb2ae776e859bada96fdec5699c9336bcf3c285d8d25725b",
+    "implHash": "77f1dc7ff6eab8e355391b4cdfe93bdb206eaa159b4ea51b3c786824655f01ab"
+  },
+  "dependencies": [
+    {
+      "protocolName": "v.ValidateIntentWithSia",
+      "structureHash": "",
+      "version": ""
+    }
   ]
 }

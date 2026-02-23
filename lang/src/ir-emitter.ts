@@ -44,6 +44,13 @@ import type {
   RoleIR,
 } from "./ir.js";
 
+// ── Helpers ─────────────────────────────────────────────────────────
+
+/** Detect if a zone body contains `await` keyword (simple heuristic). */
+function zoneContainsAwait(body: string): boolean {
+  return /\bawait\b/.test(body);
+}
+
 // ── Public API ──────────────────────────────────────────────────────
 
 export type SourceMapEntry = {
@@ -366,6 +373,7 @@ class GraphBuilder {
         arrow: msg.arrow,
         messageName: msg.messageName,
         preSendZone,
+        ...(preSendZone && zoneContainsAwait(preSendZone) ? { preSendAsync: true } : {}),
         propagateFlow: true,
       }, { kind: "default" }, msg.loc);
     }
@@ -390,6 +398,7 @@ class GraphBuilder {
         arrow: msg.arrow,
         messageName: msg.messageName,
         postReceiveZone,
+        ...(postReceiveZone && zoneContainsAwait(postReceiveZone) ? { postReceiveAsync: true } : {}),
         pattern,
         propagateFlow: true,
       }, { kind: "default" }, msg.loc);
@@ -402,10 +411,12 @@ class GraphBuilder {
     if (zone.agent !== this.role) return;
 
     const id = nextId("act");
+    const isAsync = zoneContainsAwait(zone.body);
     this.advance(id, {
       kind: "action",
       body: zone.body,
       lang: zone.lang,
+      ...(isAsync ? { async: true } : {}),
     }, { kind: "default" }, zone.loc);
   }
 

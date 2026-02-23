@@ -10,6 +10,7 @@ One OS process per agent. Manages:
 
 from __future__ import annotations
 import asyncio
+import uuid
 from typing import Any, Optional, Callable
 
 from .protocol_instance import ProtocolInstance
@@ -34,6 +35,7 @@ class AgentRunner:
             self._is_nats = True
 
         self._advance_hook = config.get("advanceHook")
+        self._extras: Optional[dict[str, Any]] = config.get("extras")
         self._self: dict[str, Any] = {}
         self._instances: dict[str, ProtocolInstance] = {}
         self._completed_count = 0
@@ -47,7 +49,8 @@ class AgentRunner:
         init_action = self._agent_ir.get("initAction")
         if init_action:
             reagent = ReagentStub()
-            execute_zone(init_action["body"], {}, self._self, reagent)
+            extras = {"agent": self._extras} if self._extras else None
+            execute_zone(init_action["body"], {}, self._self, reagent, extras=extras)
 
         if self._is_nats:
             await self._transport.subscribe(
@@ -153,7 +156,7 @@ class AgentRunner:
 
         rta = role_to_agent_override or self._role_to_agent
 
-        config = {
+        config: dict[str, Any] = {
             "instanceId": instance_id,
             "protocolName": protocol_name,
             "agentName": self.agent_name,
@@ -162,6 +165,8 @@ class AgentRunner:
             "input": input_data,
             "advanceHook": self._advance_hook,
         }
+        if self._extras:
+            config["extras"] = self._extras
 
         instance = ProtocolInstance(graph, self._transport, self._self, config)
         self._instances[instance_id] = instance
@@ -170,8 +175,111 @@ class AgentRunner:
             lambda status, iid=instance_id, pn=protocol_name: self._handle_instance_complete(iid, pn, status)
         )
 
+        instance.set_invoke_callback(
+            lambda child_proto, child_input: self._invoke_child_protocol(instance_id, child_proto, child_input)
+        )
+        instance.set_spawn_callback(
+            lambda child_proto, child_input: self._spawn_child_protocol(instance_id, child_proto, child_input)
+        )
+
         asyncio.get_event_loop().create_task(instance.run())
         return instance
+
+    async def _invoke_child_protocol(
+        self, parent_instance_id: str, child_proto_name: str, child_input: Optional[dict[str, Any]] = None,
+    ) -> Any:
+        binding = next(
+            (p for p in self._agent_ir["plays"] if p["protocolName"] == child_proto_name), None,
+        )
+        if not binding:
+            raise RuntimeError(f"Agent {self.agent_name} has no binding for protocol '{child_proto_name}'")
+
+        graph_key = f"{child_proto_name}.{binding['roleName']}"
+        graph = self._graphs.get(graph_key)
+        if not graph:
+            raise RuntimeError(f"No graph for '{graph_key}'")
+
+        child_id = f"{parent_instance_id}__invoke__{child_proto_name}__{uuid.uuid4().hex[:8]}"
+        rta = self._role_to_agent
+
+        config: dict[str, Any] = {
+            "instanceId": child_id,
+            "protocolName": child_proto_name,
+            "agentName": self.agent_name,
+            "roleName": binding["roleName"],
+            "roleToAgent": rta,
+            "input": child_input,
+            "advanceHook": self._advance_hook,
+        }
+        if self._extras:
+            config["extras"] = self._extras
+
+        child_instance = ProtocolInstance(graph, self._transport, self._self, config)
+        self._instances[child_id] = child_instance
+
+        child_instance.set_invoke_callback(
+            lambda proto, inp: self._invoke_child_protocol(child_id, proto, inp)
+        )
+        child_instance.set_spawn_callback(
+            lambda proto, inp: self._spawn_child_protocol(child_id, proto, inp)
+        )
+
+        result_future: asyncio.Future = asyncio.get_event_loop().create_future()
+
+        def _on_child_complete(status: str) -> None:
+            if status == "completed":
+                val, _ = child_instance.get_return_value()
+                result_future.set_result(val)
+            else:
+                result_future.set_exception(RuntimeError(f"Child protocol '{child_proto_name}' {status}"))
+
+        child_instance.set_on_complete(_on_child_complete)
+        asyncio.get_event_loop().create_task(child_instance.run())
+        return await result_future
+
+    def _spawn_child_protocol(
+        self, parent_instance_id: str, child_proto_name: str, child_input: Optional[dict[str, Any]] = None,
+    ) -> None:
+        binding = next(
+            (p for p in self._agent_ir["plays"] if p["protocolName"] == child_proto_name), None,
+        )
+        if not binding:
+            return
+
+        graph_key = f"{child_proto_name}.{binding['roleName']}"
+        graph = self._graphs.get(graph_key)
+        if not graph:
+            return
+
+        child_id = f"{parent_instance_id}__spawn__{child_proto_name}__{uuid.uuid4().hex[:8]}"
+        rta = self._role_to_agent
+
+        config: dict[str, Any] = {
+            "instanceId": child_id,
+            "protocolName": child_proto_name,
+            "agentName": self.agent_name,
+            "roleName": binding["roleName"],
+            "roleToAgent": rta,
+            "input": child_input,
+            "advanceHook": self._advance_hook,
+        }
+        if self._extras:
+            config["extras"] = self._extras
+
+        child_instance = ProtocolInstance(graph, self._transport, self._self, config)
+        self._instances[child_id] = child_instance
+
+        child_instance.set_invoke_callback(
+            lambda proto, inp: self._invoke_child_protocol(child_id, proto, inp)
+        )
+        child_instance.set_spawn_callback(
+            lambda proto, inp: self._spawn_child_protocol(child_id, proto, inp)
+        )
+
+        child_instance.set_on_complete(
+            lambda status, iid=child_id, pn=child_proto_name: self._handle_instance_complete(iid, pn, status)
+        )
+        asyncio.get_event_loop().create_task(child_instance.run())
 
     def _handle_instance_complete(self, instance_id: str, protocol_name: str, status: str) -> None:
         self._completed_count += 1

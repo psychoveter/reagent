@@ -86,5 +86,18 @@
   "initialStateId": "init_6",
   "terminalStateIds": [
     "end_10"
+  ],
+  "version": "0.1.0",
+  "fingerprints": {
+    "structureHash": "4a061b1a788075f188c4d94ace03e9ad338a65e95430c16a10dcbca7671528c1",
+    "schemaHash": "38619be48e8c92713d985a46f3a64c2d864543de5ddcf289f0024992d97e89f1",
+    "implHash": "b0c700c1c1b586e340d3e8db8bb767cedc19724ceb82a8b4ffc000e4af157d19"
+  },
+  "dependencies": [
+    {
+      "protocolName": "ComputeSquare",
+      "structureHash": "f80c2de181c1fe0c44f9ddad622b67a344552d3676b560c48dc7679ef687fa5c",
+      "version": "0.1.0"
+    }
   ]
 }

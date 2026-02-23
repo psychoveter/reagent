@@ -1,20 +1,22 @@
-# M6-RT: Reagent Orchestrator Service (ROS) — Design
+# Reagent Orchestrator Service (ROS)
 
-**Status**: draft-1
-**Depends on**: M5-CTRL (done)
+Version: draft-1
+Depends on: Connectivity layer (done)
+Milestone: M6-RT (done), extended by M8 (reconciler)
 
 ---
 
 ## 1. Overview
 
-The Reagent Orchestrator Service (ROS) is a long-lived Node.js process that replaces the old monolithic `orchestrator.ts`. It provides:
+The Reagent Orchestrator Service (ROS) is a long-lived Node.js process. It provides:
 
 - **Compile**: `.rg` → IR on demand
 - **Deploy**: create agent nodes, distribute IR, configure routing
 - **Run**: trigger protocols, collect traces, report results
 - **Debug**: breakpoints, stepping, state inspection
+- **Reconcile** (M8): desired-state management — compare DeploySpec against RC registries, drive convergence. See [protocol-versioning.md §13](protocol-versioning.md).
 
-External tools (VSCode extension, CLI, web UI) connect to the ROS via **WebSocket** using the **RAP protocol** (7 sub-protocols specced as `.rg` files with role definitions in `tools/rap/`).
+External tools (VSCode extension, CLI, web UI) connect to the ROS via **WebSocket** using the **RAP protocol** (sub-protocols specced as `.rg` files with role definitions in `tools/rap/`).
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -336,26 +338,30 @@ Response:
 
 ### 3.2 Sub-protocol mapping
 
-The 7 existing RAP `.rg` specs map directly to WS message types:
+The 9 RAP `.rg` specs (`tools/rap/01-09`) map directly to WS message types:
 
 | RAP Protocol | Request | Response(s) | Direction |
 |---|---|---|---|
-| `CompileRequest` | `Compile` | `CompileSuccess` / `CompileError` | client → ROS |
-| `DeployAgent` | `Deploy` | `Deployed` / `DeployFailed` | ROS → adapter (or internal) |
-| `RunProtocol` | `RunStart` | `RunCompleted` | ROS → adapter (or internal) |
-| `SetBreakpoints` | `SetBreakpointsRequest` | `BreakpointsResolved` | client → ROS |
-| `DebugSession` | `DebugCommand` | `Stopped` | client → ROS → adapter |
-| `InspectState` | `GetState` | `StateSnapshot` | client → ROS → adapter |
 | `AdapterHandshake` | `Register` | `Accepted` / `Rejected` | adapter → ROS |
+| `CompileRequest` | `Compile` | `CompileSuccess` (incl. `sessionId`) / `CompileError` | client → ROS |
+| `DeployAgent` | `Deploy` | `Deployed` / `DeployFailed` | ROS → adapter (or internal) |
+| `RunProtocol` | `RunStart` | `RunCompleted` / `RunFailed` | ROS → adapter (or internal) |
+| `DebugSession` | `DebugCommand` | `DebugAck` (immediate) + `Stopped` (async event) | client → ROS → adapter |
+| `InspectState` | `GetState` | `StateSnapshot` / `InspectError` | client → ROS → adapter |
+| `SetBreakpoints` | `SetBreakpointsRequest` | `BreakpointsResolved` | client → ROS |
+| `TraceStream` | — | `TraceEvent`, `SessionStatus` (streaming push) | adapter → ROS → client |
+| `TriggerProtocol` | `TriggerProtocol` | `TriggerAck` / `TriggerFailed` | ROS → adapter |
 
-### 3.3 Streaming events
+### 3.3 Streaming events (TraceStream sub-protocol)
 
-In addition to request-response, the ROS pushes real-time events to connected clients:
+In addition to request-response, the ROS pushes real-time events to connected clients. These are specified in `08-trace-stream.rg`:
 
 ```json
-{"rap": "TraceEvent", "payload": { "instanceId": "...", "kind": "MessageSent", ... }}
+{"rap": "TraceEvent", "payload": { "instanceId": "...", "kind": "MessageSent", "agentName": "...", ... }}
 {"rap": "SessionStatus", "payload": { "sessionId": "...", "status": "paused", "reason": "breakpoint" }}
 ```
+
+The `DebugSession` sub-protocol (`05-debug-session.rg`) uses an async command+event model: `DebugCommand` is acknowledged immediately with `DebugAck`, while `Stopped` events are pushed asynchronously. A single `continue` command may produce zero or multiple `Stopped` events across agents.
 
 ---
 

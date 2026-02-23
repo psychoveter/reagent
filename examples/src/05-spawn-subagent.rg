@@ -5,7 +5,7 @@ message Done {}
 
 // Example 05: spawn subagent (subprotocol / agent creation)
 // Intent: comma spawns a subagent to do planning, then continues with result.
-// Uses protocol-level `spawn` instead of zone-level reagent.spawn().
+// Uses protocol-level `spawns` instead of zone-level reagent.spawn().
 
 protocol SpawnSubagent {
   participants: user [ts], comma [ts], planner [ts]
@@ -19,7 +19,7 @@ protocol SpawnSubagent {
 
   comma --> user: Greeting = { }
 
-  spawn Subagent({ text: $flow.taskText }) as comma {
+  comma spawns Subagent({ text: $flow.taskText }) {
     planner: planner
   }
 

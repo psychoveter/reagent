@@ -99,4 +99,9 @@ export class SessionManager {
   all(): Session[] {
     return [...this.sessions.values()];
   }
+
+  getLatest(): Session | undefined {
+    const sessions = [...this.sessions.values()];
+    return sessions[sessions.length - 1];
+  }
 }

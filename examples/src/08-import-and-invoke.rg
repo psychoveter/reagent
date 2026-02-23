@@ -1,8 +1,8 @@
 message TaskRequest {}
 message SubmitIntent {}
 
-// Example 08: imports of protocols + invoke
-// Uses protocol-level `invoke` with imported protocol.
+// Example 08: imports of protocols + invokes
+// Uses protocol-level `invokes` with imported protocol.
 
 import "./lib/derive-dsi-bsi.rg" as derive
 
@@ -16,7 +16,7 @@ protocol TaskExecutionWithImport {
   }
   user --> comma: TaskRequest = { }
 
-  invoke derive.DeriveDsiBsi({ taskText: $flow.taskText }) as comma -> $flow.dsiBsi
+  comma invokes derive.DeriveDsiBsi({ taskText: $flow.taskText }) -> $flow.dsiBsi
 
   comma --> sia: SubmitIntent = { }
 }

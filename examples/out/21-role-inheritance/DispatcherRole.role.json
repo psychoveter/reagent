@@ -11,5 +11,10 @@
     "body": "\n    $self.lastResult = \"\"\n  ",
     "lang": "ts"
   },
-  "lifecycleHandlers": []
+  "lifecycleHandlers": [],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "d498c2ba655ad7e5d93767b8a53d1dcb8373a97c25a99bafab65d4f1970a3e63",
+    "behaviorHash": "b896f9a93934f0972ca028c3432607ba47ddcffd23f8f3213378b63ef017df85"
+  }
 }

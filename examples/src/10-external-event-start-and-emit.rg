@@ -17,3 +17,18 @@ protocol TaskExecutionFromEvent {
     reagent.emit("TaskSubmitted", { kind: "task.submitted", ref: $flow.intent })
   }
 }
+
+role CommaRole [ts] {
+  plays TaskExecutionFromEvent as comma
+
+  on protocolStarted(TaskExecutionFromEvent) {
+    $self.lastTaskText = $ctx.input.text
+  }
+}
+
+role SiaRole [*] {
+  plays TaskExecutionFromEvent as sia
+}
+
+agent Comma runs CommaRole
+agent Sia runs SiaRole

@@ -20,5 +20,10 @@
         "lang": "py"
       }
     }
-  ]
+  ],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "5fd08edda8d615b8f1adc31388d1b15a5bb4ce8fc1cc0c1ee1800aa0d4734b5d",
+    "behaviorHash": "3738b034a36a3bee10469f1d5d40bd0c1d3d2f868ee600043518215d15a3087e"
+  }
 }

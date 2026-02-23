@@ -1,0 +1,28 @@
+{
+  "private": true,
+  "name": "reagent",
+  "version": "0.0.8",
+  "description": "Reagent protocol language — compiler, reference runtimes, and tooling",
+  "scripts": {
+    "build:lang": "cd lang && npm run build",
+    "build:runtime": "cd runtime/ts && npx tsc -p tsconfig.json",
+    "build": "npm run build:lang && npm run build:runtime",
+    "compile:examples": "for f in examples/src/*.rg; do node lang/dist/cli.js compile \"$f\" \"examples/out/$(basename \"$f\" .rg)\"; done",
+    "test:ctrl": "cd runtime/ts && node --import tsx --test ../tests/m5-ctrl.test.ts",
+    "test:lang": "cd runtime/ts && node --import tsx --test ../tests/m5-lang.test.ts",
+    "test:coverage": "cd runtime/ts && node --import tsx --test ../tests/m5-coverage.test.ts",
+    "test:ros": "cd runtime/ts && NODE_PATH=./node_modules node --import tsx --test ../tests/m6-ros.test.ts",
+    "test:m8a:fp": "cd runtime/ts && node --import tsx --test ../tests/m8a-fingerprints.test.ts",
+    "test:m8a:reg": "cd runtime/ts && node --import tsx --test ../tests/m8a-registry.test.ts",
+    "test:m8a:dec": "cd runtime/ts && node --import tsx --test ../tests/m8a-decompiler.test.ts",
+    "test:m8a": "npm run test:m8a:fp && npm run test:m8a:reg && npm run test:m8a:dec",
+    "test:m8b:agent": "cd runtime/ts && node --import tsx --test ../tests/m8b-agent-model.test.ts",
+    "test:m8b:rec": "cd runtime/ts && node --import tsx --test ../tests/m8b-reconciler.test.ts",
+    "test:m8b": "npm run test:m8b:agent && npm run test:m8b:rec",
+    "test:py": "python runtime/tests/test_py_rc.py",
+    "test:py:coverage": "python runtime/tests/test_py_rc_coverage.py",
+    "test:ts": "npm run test:ctrl && npm run test:lang && npm run test:coverage && npm run test:ros && npm run test:m8a",
+    "test": "npm run test:ts && npm run test:py && npm run test:py:coverage",
+    "validate:examples": "for f in examples/src/*.rg; do node lang/dist/cli.js validate \"$f\"; done"
+  }
+}

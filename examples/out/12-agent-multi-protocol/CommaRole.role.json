@@ -40,5 +40,10 @@
         "lang": "ts"
       }
     }
-  ]
+  ],
+  "version": "1.0.0",
+  "fingerprints": {
+    "playsHash": "c1ebfa09d085bb379a098f050b87cf4193b64714849da7c36480462d18cdc6da",
+    "behaviorHash": "6c9a6242fca2132097085defabab7de2d62f526f498be33d020ef4d1c8ea4c4a"
+  }
 }

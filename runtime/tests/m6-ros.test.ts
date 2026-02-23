@@ -356,15 +356,15 @@ async function testT27(): Promise<TestResult> {
     const adapterWs = new WebSocket(`ws://127.0.0.1:${port}`);
     await waitForOpen(adapterWs);
 
-    // Register adapter
+    // Register adapter via RAP Register message
     adapterWs.send(JSON.stringify({
-      nodeId: "remote-node-1",
-      supportedLangs: ["ts"],
+      rap: "Register",
+      payload: { nodeId: "remote-node-1", supportedLangs: ["ts"] },
     }));
 
-    // Wait for handshake ack
-    const ack = await waitForRap(adapterWs, "HandshakeAck", 3000);
-    assert(!!ack.payload, "HandshakeAck should have payload");
+    // Wait for Accepted response
+    const ack = await waitForRap(adapterWs, "Accepted", 3000);
+    assert(!!ack.payload, "Accepted should have payload");
     assert(ack.payload!.nodeId === "remote-node-1", "nodeId should match");
 
     // Verify adapter is registered

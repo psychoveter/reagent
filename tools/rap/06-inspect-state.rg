@@ -8,13 +8,19 @@ message GetState {
 
 message StateSnapshot {
   agentName: string
-  stateId: string
-  stateKind: string
-  ctx: any
+  stateId?: string
+  stateKind?: string
+  ctx?: any
   self: any
-  pendingMessages: string[]
+  pendingMessages?: string[]
   recentTraces: any[]
-  instanceStatuses: any
+  heldMessages?: any[]
+  instanceStatuses?: any
+}
+
+message InspectError {
+  agentName?: string
+  error: string
 }
 
 protocol InspectState {
@@ -25,8 +31,11 @@ protocol InspectState {
   client --> orchestrator: GetState
   orchestrator --> adapter: GetState
 
-  adapter --> orchestrator: StateSnapshot
-  orchestrator --> client: StateSnapshot
+  alt (adapter --> orchestrator: StateSnapshot) {
+    orchestrator --> client: StateSnapshot
+  } else (adapter --> orchestrator: InspectError) {
+    orchestrator --> client: InspectError
+  }
 }
 
 role RAPInspectClient [*] {

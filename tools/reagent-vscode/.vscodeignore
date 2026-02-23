@@ -1,6 +1,16 @@
 src/**
-node_modules/**
+node_modules/**/.package-lock.json
+node_modules/**/test/**
+node_modules/**/tests/**
+node_modules/**/example/**
+node_modules/**/examples/**
+node_modules/**/*.md
+node_modules/**/*.map
+node_modules/**/LICENSE
+node_modules/@types/**
 tsconfig.json
 .vscodeignore
 *.ts
 !out/**
+preview.html
+*.vsix

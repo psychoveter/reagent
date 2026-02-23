@@ -331,27 +331,35 @@ try {
 
 The `(error)` in `catch (error)` is a **syntactic label** (for readability). The actual error value is always bound to `$ctx.error` by the runtime. Inside the `catch` body, `$ctx.error` contains the exception/failure object.
 
-#### `invoke` — synchronous child protocol call (protocol-level)
+#### `<role> invokes` — synchronous child protocol call (protocol-level)
 
 ```
-invoke ComputeSquare({ value: $ctx.receivedValue }) -> $flow.squared
+responder invokes ComputeSquare({ value: $ctx.receivedValue }) -> $flow.squared
 ```
 
-- `invoke ProtoName(inputExpr)` calls a child protocol synchronously.
+- `<role> invokes ProtoName(inputExpr)` calls a child protocol synchronously from the named role.
 - `-> $flow.target` or `-> $ctx.target` assigns the return value.
 - The calling role blocks until the child completes.
 - The child's `reagent.return()` value is the result.
-- Placement follows the same rules as agent zones: placed at the role that initiates the child.
+- The role is explicit — no ambiguity about which participant initiates the call.
 
-#### `spawn` — fire-and-forget child protocol (protocol-level)
+With role mapping for multi-party child protocols:
 
 ```
-spawn BackgroundTask({ taskName: $flow.taskName })
+comma invokes v.ValidateIntentWithSia({ intent: $flow.intent }) {
+  sia: sia
+} -> $flow.validation
 ```
 
-- `spawn ProtoName(inputExpr)` creates an independent child protocol instance.
+#### `<role> spawns` — fire-and-forget child protocol (protocol-level)
+
+```
+orchestrator spawns BackgroundTask({ taskName: $flow.taskName })
+```
+
+- `<role> spawns ProtoName(inputExpr)` creates an independent child protocol instance from the named role.
 - **Fire-and-forget**: the parent does not block.
-- Placement follows the same rules as agent zones.
+- The role is explicit.
 
 #### `scatter` — dynamic multicast to participant list
 
@@ -396,7 +404,7 @@ Inside agent zones, there are two kinds of calls:
 - **`reagent.*`** functions (`reagent.return`, `reagent.emit`, `reagent.break`) — provided by the auto-imported Reagent runtime library. These interact with the protocol engine.
 - **Everything else** (e.g. `compensate(...)`, `taskToDsiBsi(...)`, `merge(...)`) — opaque host-language calls. The Reagent parser treats them as raw code.
 
-Note: `invoke` and `spawn` are now **protocol-level** constructs (see §1.9), not zone-level `reagent.*` functions. Legacy `reagent.invoke()` and `reagent.spawn()` in zones are still supported at runtime for backward compatibility but are deprecated.
+Note: `invokes` and `spawns` are now **protocol-level** constructs (see §1.9), not zone-level `reagent.*` functions. The syntax is `<role> invokes Proto(...)` / `<role> spawns Proto(...)`, making the caller role explicit. Legacy `reagent.invoke()` and `reagent.spawn()` in zones are still supported at runtime for backward compatibility but are deprecated.
 
 ### 1.12 Reagent as a meta-language
 
@@ -409,7 +417,7 @@ The engine is responsible for:
 - Parsing zone bodies in the appropriate host language.
 - Injecting `$ctx`, `$flow`, `$self`, and `reagent` into zone execution contexts.
 - Implementing the `reagent.*` API (`return`, `emit`, `break`).
-- Executing protocol-level `invoke`, `spawn`, `scatter` by managing child instances.
+- Executing protocol-level `invokes`, `spawns`, `scatter` by managing child instances.
 - Propagating `$flow` snapshots with messages.
 - Bridging host-language `throw` to protocol-level `try` semantics.
 - Enforcing message ordering and protocol semantics.
@@ -618,8 +626,10 @@ AgentZone       ::= Ident WS* "{" ZoneBody "}"
 ZoneBody        ::= BalancedText   // raw host-language code; braces balanced, strings/comments skipped
                                    // language is determined by the participant's [LangTag] declaration
 
-InvokeStmt      ::= "invoke" WS+ Ident "(" ZoneBody ")" (WS* "->" WS* Target)?
-SpawnStmt       ::= "spawn" WS+ Ident "(" ZoneBody ")"
+InvokeStmt      ::= Ident WS+ "invokes" WS+ DottedIdent "(" ZoneBody ")" (WS* RoleMapping)? (WS* "->" WS* Target)?
+SpawnStmt       ::= Ident WS+ "spawns" WS+ DottedIdent "(" ZoneBody ")" (WS* RoleMapping)?
+DottedIdent     ::= Ident ("." Ident)*
+RoleMapping     ::= "{" WS* (Ident ":" Ident ("," WS* Ident ":" Ident)*)? WS* "}"
 ScatterStmt     ::= "scatter" WS* "(" WS* Expr WS+ "as" WS+ Ident WS* ")" WS* "{" ProtocolBody "}"
 Target          ::= "$flow." Ident | "$ctx." Ident
 
@@ -721,8 +731,8 @@ WS              ::= (" " | "\t" | "\r" | "\n")+
 
 **Changes in v0.0.8 (M5-LANG)**:
 - **`$ctx`/`$flow` split**: `$ctx` is now per-role isolated (never propagated). `$flow` is message-propagated (snapshot travels with every message). This replaces the ambiguous single `$ctx` for inter-role data transfer.
-- **Protocol-level `invoke`**: `invoke ProtoName(inputExpr) -> $flow.result` — synchronous child protocol call at protocol level (was zone-level `reagent.invoke()`).
-- **Protocol-level `spawn`**: `spawn ProtoName(inputExpr)` — fire-and-forget child protocol at protocol level (was zone-level `reagent.spawn()`).
+- **Protocol-level `invokes`**: `<role> invokes ProtoName(inputExpr) -> $flow.result` — synchronous child protocol call at protocol level with explicit caller role (was zone-level `reagent.invoke()`).
+- **Protocol-level `spawns`**: `<role> spawns ProtoName(inputExpr)` — fire-and-forget child protocol at protocol level with explicit caller role (was zone-level `reagent.spawn()`).
 - **`scatter`/`gather`**: `scatter (collection as itemRole) { ... }` — dynamic multicast to a list of participants. Enables CFP, map-reduce, fan-out/fan-in patterns.
 - **`alt where`**: `where { key: value }` keyword for pattern matching in `alt` guards, disambiguating from `= { onSend { ... } }` hook syntax.
 - **`reagent.break()`**: zone-level function to exit the enclosing `loop`. Replaces bare `break` (host-language construct).
@@ -730,8 +740,9 @@ WS              ::= (" " | "\t" | "\r" | "\n")+
 - **Message inbox buffering**: messages arriving before a resolver is registered are buffered (fixes synchronous loopback transport with `par`).
 - **`MessageEnvelope.flow`**: optional `flow` field carries `$flow` snapshot.
 - New IR state kinds: `invoke`, `spawn`, `scatter`. Send/receive states gain `propagateFlow` flag.
-- New keywords: `invoke`, `spawn`, `scatter`, `gather`, `where`.
+- New keywords: `invokes`, `spawns`, `scatter`, `gather`, `where`.
 - Legacy `reagent.invoke()` / `reagent.spawn()` in zones remain supported at runtime but are deprecated.
+- Syntax changed from `invoke Proto(...) as <role>` to `<role> invokes Proto(...)` — caller role is now the grammatical subject.
 
 ---
 
@@ -758,8 +769,8 @@ The full AST covers all language constructs:
 - `ParStmt` (branches separated by `and`)
 - `WaitStmt` (duration literal)
 - `TryStmt` (try body + catch label + catch body)
-- `InvokeStmt` (protocol name + input expression + optional result target — **protocol-level synchronous call**)
-- `SpawnStmt` (protocol name + input expression — **protocol-level fire-and-forget**)
+- `InvokeStmt` (caller role + protocol name + input expression + optional role mapping + optional result target — **protocol-level synchronous call**: `<role> invokes Proto(...)`)
+- `SpawnStmt` (caller role + protocol name + input expression + optional role mapping — **protocol-level fire-and-forget**: `<role> spawns Proto(...)`)
 - `ScatterStmt` (collection expression + item role + body — **dynamic multicast**)
 - `RoleDef` (role name + optional lang tag + optional extends + plays bindings + init block + lifecycle handlers — **primary behavioral contract**)
 - `AgentDef` (agent name + optional lang tag + `runs` role name — **thin deployment binding**)
@@ -824,13 +835,34 @@ The `compile` command produces:
 
 ### 4.7 Reference runtimes
 
-Lightweight **reference runners** (TypeScript and Python) interpret IR JSON directly over NATS:
+Lightweight **reference runners** (TypeScript and Python) interpret IR JSON directly:
 
-- **AgentRunner** — one instance per agent. Manages `$self`, lifecycle handlers, message routing to ProtocolInstances.
-- **ProtocolInstance** — interprets one IRGraph state machine per protocol instance. Has its own `$ctx`.
-- **Zone Executor** — executes raw zone body strings with `$ctx`, `$self`, `reagent` in scope.
-- **NATS transport** — message subjects: `reagent.msg.<instanceId>.<toAgent>.<messageName>`.
+- **AgentRunner** — one instance per agent. Manages `$self`, lifecycle handlers, message routing to ProtocolInstances. Wires `invoke_callback` and `spawn_callback` for IR-level `invoke`/`spawn` states.
+- **ProtocolInstance** — interprets one IRGraph state machine per protocol instance. Has its own `$ctx` and `$flow`. Includes a **message inbox buffer** for messages arriving before receivers register (critical for synchronous loopback transport).
+- **Zone Executor** — executes raw zone body strings with `$ctx`, `$self`, `$flow`, `reagent` in scope. Python executor includes JS→Python compatibility layer (`true`→`True`, `===`→`==`, etc.).
 
-See `runtime/ts/` (TypeScript) and `runtime/py/` (Python) for implementations.
+#### TypeScript orchestrator (`ReagentController`)
 
-For the mapping from IR to Losos runtime primitives, see `docs/ir-to-losos-mapping.md`.
+The TS `ReagentController` (in `runtime/ts/`) manages agent registry, routing table, interceptor chain, and NodeLink management. It supports multiple `AgentNode` backends keyed by language (`ts` → `NativeAgentNode`, `py` → `PythonAgentNode`). Transport is abstracted via `ReagentTransport` — no direct NATS dependency. See `docs/connectivity.md`.
+
+#### Python orchestrator (`ReagentController`)
+
+The Python `ReagentController` (in `runtime/py/reagent_runtime/controller.py`) mirrors the TS RC architecture as a pure-Python orchestrator. No NATS or TS parent required. Key components:
+
+- **`InprocAgentNode`** — runs agents in the same process via `AgentRunner` + `InprocTransport`. Zero serialization overhead. Primary mode for NMMO-style multi-agent simulations.
+- **`IpcAgentNode`** — runs agents as subprocesses via `ipc_agent.py` with JSON-line stdin/stdout IPC.
+- **`InprocTransport`** — per-agent transport that routes envelopes through the RC's routing table via a callback. Traces go to an optional trace callback. Subscriptions are no-ops.
+
+Usage:
+
+```python
+rc = ReagentController(node_id="sim")
+rc.add_agent_node("*", InprocAgentNode(role_to_agent=rta))
+rc.register_agent("Agent0", role_ir, graphs)
+await rc.start()
+rc.trigger_protocol("Agent0", trigger)
+```
+
+See `runtime/py/` for implementations and `runtime/tests/test_py_rc.py` for E2E tests.
+
+For the mapping from IR to Losos runtime primitives, see `docs/ir-losos-mapping.md`.

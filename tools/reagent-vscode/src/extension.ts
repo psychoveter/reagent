@@ -11,9 +11,13 @@ import {
   registerDefinitionDelegation,
   setupDiagnosticForwarding,
 } from './embeddedLanguageMiddleware';
-import { ReagentDebugAdapterFactory } from './reagentDebugAdapter';
+import { ReagentDebugAdapterFactory, ReagentDebugSession } from './reagentDebugAdapter';
 import { ReagentDebugPanelProvider } from './debugPanelProvider';
 import { ReagentInlineValues } from './inlineValues';
+import { ReagentDiagramPanel } from './diagramPanel';
+import { RunController } from './runController';
+import { ReagentCodeLensProvider } from './codeLensProvider';
+import { RosManager } from './rosManager';
 
 export function activate(context: vscode.ExtensionContext): void {
   const outputChannel = vscode.window.createOutputChannel('Reagent Language');
@@ -95,12 +99,6 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }
 
-  // ── Debug adapter ───────────────────────────────────────────────
-  const debugAdapterFactory = new ReagentDebugAdapterFactory();
-  context.subscriptions.push(
-    vscode.debug.registerDebugAdapterDescriptorFactory('reagent', debugAdapterFactory)
-  );
-
   // ── Debug panel webview ────────────────────────────────────────
   const debugPanelProvider = new ReagentDebugPanelProvider(context.extensionUri);
   context.subscriptions.push(
@@ -114,6 +112,19 @@ export function activate(context: vscode.ExtensionContext): void {
   const inlineValues = new ReagentInlineValues();
   context.subscriptions.push(inlineValues);
 
+  // ── ROS manager (auto-start/stop) ──────────────────────────────
+  const rosManager = new RosManager();
+  context.subscriptions.push(rosManager);
+
+  // ── Debug adapter (wired to panel + inline values + ROS manager) ─
+  const debugAdapterFactory = new ReagentDebugAdapterFactory({
+    debugPanel: debugPanelProvider,
+    inlineValues,
+  }, rosManager);
+  context.subscriptions.push(
+    vscode.debug.registerDebugAdapterDescriptorFactory('reagent', debugAdapterFactory)
+  );
+
   context.subscriptions.push(
     vscode.debug.onDidTerminateDebugSession(() => {
       inlineValues.clearDecorations();
@@ -121,7 +132,32 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
+  // ── Run controller (no-debug, in-process) ─────────────────────
+  const runController = new RunController();
+  context.subscriptions.push(runController);
+
+  // ── CodeLens (▶ Run / 🔍 Debug on protocol lines) ────────────
+  const codeLensProvider = new ReagentCodeLensProvider();
+  context.subscriptions.push(
+    vscode.languages.registerCodeLensProvider({ language: 'reagent' }, codeLensProvider)
+  );
+  context.subscriptions.push(codeLensProvider);
+
   // ── Commands ───────────────────────────────────────────────────
+  context.subscriptions.push(
+    vscode.commands.registerCommand('reagent.run', async (rgFilePath?: string) => {
+      if (!rgFilePath) {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.document.languageId !== 'reagent') {
+          vscode.window.showWarningMessage('Open a .rg file first');
+          return;
+        }
+        rgFilePath = editor.document.uri.fsPath;
+      }
+      await runController.run(rgFilePath);
+    })
+  );
+
   context.subscriptions.push(
     vscode.commands.registerCommand('reagent.startDebug', async () => {
       const editor = vscode.window.activeTextEditor;
@@ -146,12 +182,64 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand('reagent.inspectAgent', async () => {
+      const session = ReagentDebugSession.activeSession;
+      const rap = session?.getRapClient();
+      const sessionId = session?.getSessionId();
+      if (!rap?.connected || !sessionId) {
+        vscode.window.showWarningMessage('No active Reagent debug session');
+        return;
+      }
+
       const agentName = await vscode.window.showInputBox({
         prompt: 'Agent name to inspect',
         placeHolder: 'e.g. handler',
       });
       if (!agentName) return;
-      outputChannel.appendLine(`Inspect agent: ${agentName} — use Debug panel`);
+
+      rap.send({
+        rap: 'GetState',
+        sessionId,
+        payload: { sessionId, agentName },
+      });
+
+      const disposable = rap.on('StateSnapshot', (msg) => {
+        disposable.dispose();
+        const snap = (msg.payload || {}) as Record<string, unknown>;
+        outputChannel.appendLine(`\n── Inspect: ${agentName} ──`);
+        outputChannel.appendLine(`$self: ${JSON.stringify(snap.self, null, 2)}`);
+        if (snap.ctx) outputChannel.appendLine(`$ctx: ${JSON.stringify(snap.ctx, null, 2)}`);
+        const held = snap.heldMessages as unknown[] | undefined;
+        if (held?.length) outputChannel.appendLine(`Held messages: ${JSON.stringify(held, null, 2)}`);
+        const traces = snap.recentTraces as unknown[] | undefined;
+        if (traces?.length) outputChannel.appendLine(`Recent traces (last ${traces.length}):`);
+        outputChannel.show(true);
+      });
+
+      const errorDisposable = rap.on('InspectError', (msg) => {
+        errorDisposable.dispose();
+        const err = (msg.payload as Record<string, unknown>)?.error || 'Unknown error';
+        vscode.window.showErrorMessage(`Inspect ${agentName}: ${err}`);
+      });
+
+      setTimeout(() => { disposable.dispose(); errorDisposable.dispose(); }, 5000);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('reagent.openDiagram', () => {
+      ReagentDiagramPanel.createOrShow(context.extensionUri);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('reagent.startRos', () => rosManager.start())
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('reagent.stopRos', () => rosManager.stop())
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('reagent.toggleRos', () => {
+      if (rosManager.running) { rosManager.stop(); } else { rosManager.start(); }
     })
   );
 

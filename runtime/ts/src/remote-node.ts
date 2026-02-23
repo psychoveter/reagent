@@ -59,8 +59,10 @@ export class RemoteNode {
     return new Promise((resolve, reject) => {
       this.ws = new WebSocket(this.rosUrl);
       this.ws.on("open", () => {
-        // Send handshake
-        this.ws!.send(JSON.stringify({ nodeId: this.nodeId }));
+        this.ws!.send(JSON.stringify({
+          rap: "Register",
+          payload: { nodeId: this.nodeId, supportedLangs: this.supportedLangs },
+        }));
 
         // Create WsNodeLink for envelope routing
         this.link = new WsNodeLink({
@@ -109,6 +111,11 @@ export class RemoteNode {
 
   private handleControlMessage(msg: { rap: string; payload?: Record<string, unknown> }): void {
     switch (msg.rap) {
+      case "Accepted":
+        break;
+      case "Rejected":
+        console.error(`[RemoteNode ${this.nodeId}] Registration rejected: ${msg.payload?.reason}`);
+        break;
       case "Deploy":
         this.handleDeploy(msg.payload ?? {});
         break;
@@ -143,12 +150,10 @@ export class RemoteNode {
 
   private handleTrigger(payload: Record<string, unknown>): void {
     const agentName = payload.agentName as string;
-    const raw = payload.trigger as Record<string, unknown>;
-    this.rc.triggerProtocol(agentName, {
-      instanceId: raw.instanceId as string,
-      protocolName: raw.protocolName as string,
-      input: (raw.input as Record<string, unknown>) ?? {},
-      roleToAgent: (raw.roleToAgent as Record<string, string>) ?? this.roleToAgent,
-    });
+    const instanceId = payload.instanceId as string;
+    const protocolName = payload.protocolName as string;
+    const input = (payload.input as Record<string, unknown>) ?? {};
+    const roleToAgent = (payload.roleToAgent as Record<string, string>) ?? this.roleToAgent;
+    this.rc.triggerProtocol(agentName, { instanceId, protocolName, input, roleToAgent });
   }
 }

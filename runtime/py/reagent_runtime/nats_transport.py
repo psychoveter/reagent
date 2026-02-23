@@ -5,20 +5,16 @@ NATS Transport — wraps nats-py connection with Reagent subject conventions.
 from __future__ import annotations
 import asyncio
 import json
-from typing import Any, Callable, Awaitable
-
-import nats
-from nats.aio.client import Client as NatsClient
-from nats.aio.subscription import Subscription
-
+from typing import Any, Callable, Awaitable, TYPE_CHECKING
 
 class NatsTransport:
     def __init__(self, nats_url: str) -> None:
         self._nats_url = nats_url
-        self._nc: NatsClient | None = None
-        self._subs: list[Subscription] = []
+        self._nc: Any = None
+        self._subs: list[Any] = []
 
     async def connect(self) -> None:
+        import nats
         self._nc = await nats.connect(self._nats_url)
 
     async def close(self) -> None:
@@ -60,7 +56,7 @@ class NatsTransport:
         return sub
 
     @property
-    def connection(self) -> NatsClient:
+    def connection(self) -> Any:
         if not self._nc:
             raise RuntimeError("Not connected")
         return self._nc

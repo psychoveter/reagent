@@ -15,5 +15,10 @@
     "body": "\n    $self.spawned = 0\n    $self.bgTasksCompleted = 0\n    $self.lastResult = \"\"\n  ",
     "lang": "ts"
   },
-  "lifecycleHandlers": []
+  "lifecycleHandlers": [],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "903ca1e33a21fea2effba45fa2b043ac04608497dc53b665a645294d69c708da",
+    "behaviorHash": "dd7cccb581752e52a3a3941823c7522ca72e6d025d6ac0c6617902d069b212de"
+  }
 }

@@ -1,5 +1,5 @@
 // Example 11: calling llmbroka and returning a value
-// Uses protocol-level invoke for the child LLM call.
+// Uses protocol-level invokes for the child LLM call.
 
 message TaskRequest {}
 message Greeting {}
@@ -28,7 +28,7 @@ protocol CommaAsksLlmAndReplies {
     }
   }
 
-  invoke llm.CallLlm($ctx.llmReq) as comma {
+  comma invokes llm.CallLlm($ctx.llmReq) {
     llmbroka: llmbroka
   } -> $flow.llmAnswer
 

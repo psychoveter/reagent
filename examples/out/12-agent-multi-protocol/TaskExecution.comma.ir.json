@@ -101,5 +101,18 @@
   "initialStateId": "init_5",
   "terminalStateIds": [
     "end_10"
+  ],
+  "version": "1.0.0",
+  "fingerprints": {
+    "structureHash": "849553e07db67ebdf2260d62bf5881e071cf9ee9eebdb28623bf27ed08a8fbdd",
+    "schemaHash": "3ff741769ea2af2c94ab665342ce44cb8474c89539c481b8ab462ceb042038e8",
+    "implHash": "bdbae3ab2ce81c50d80b77ffee5859e8378f27552920b4599ac4682a91a8f484"
+  },
+  "dependencies": [
+    {
+      "protocolName": "derive.DeriveDsiBsi",
+      "structureHash": "",
+      "version": ""
+    }
   ]
 }

@@ -11,11 +11,17 @@ message RunStart {
 }
 
 message RunCompleted {
-  instanceId: string
+  sessionId: string
   status: string
+  agentStates?: any
   returnValue?: any
   finalCtx?: any
   finalSelf?: any
+}
+
+message RunFailed {
+  sessionId: string
+  error: string
 }
 
 protocol RunProtocol {
@@ -24,7 +30,10 @@ protocol RunProtocol {
   input: RunStart
 
   orchestrator --> adapter: RunStart
-  adapter --> orchestrator: RunCompleted
+
+  alt (adapter --> orchestrator: RunCompleted) {
+  } else (adapter --> orchestrator: RunFailed) {
+  }
 }
 
 role RAPRunner [*] {

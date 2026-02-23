@@ -19,6 +19,9 @@ import type { IRGraph, RoleIR, TraceEvent } from "./types.js";
 import type { TraceHook } from "./interceptor.js";
 import { DebugController, type Breakpoint } from "./debug-controller.js";
 import type { AdvanceHook } from "./protocol-instance.js";
+import { reconcile, planSummary, type ReconciliationPlan } from "./reconciler.js";
+import type { DeploySpec } from "./deploy-spec.js";
+import { createEmptyView, mergeNodeProtocols, type RegistryView } from "./registry-view.js";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -125,6 +128,7 @@ export class ReagentOrchestratorServer {
 
   private sendRap(ws: WebSocket, rap: string, id: string | undefined, payload: Record<string, unknown>): void {
     if (ws.readyState !== WebSocket.OPEN) return;
+    console.log(`[ROS] → ${rap} id=${id ?? '-'}`);
     ws.send(JSON.stringify({ rap, id, payload }));
   }
 
@@ -136,15 +140,11 @@ export class ReagentOrchestratorServer {
       return;
     }
 
-    // Check for adapter handshake (nodeId field)
-    if ((msg as any).nodeId && !msg.rap) {
-      this.handleAdapterHandshake(ws, msg as any);
-      return;
-    }
+    console.log(`[ROS] ← ${msg.rap} id=${msg.id ?? '-'}`);
 
     switch (msg.rap) {
       case "Compile":
-        this.handleCompile(ws, msg);
+        this.handleCompile(ws, msg).catch(e => console.error(`[ROS] Compile error:`, e));
         break;
       case "RunStart":
         this.handleRunStart(ws, msg);
@@ -166,6 +166,21 @@ export class ReagentOrchestratorServer {
         break;
       case "TraceEvent":
         this.handleAdapterTrace(ws, msg);
+        break;
+      case "ListProtocols":
+        this.handleListProtocols(ws, msg);
+        break;
+      case "DeployProtocol":
+        this.handleDeployProtocol(ws, msg);
+        break;
+      case "ClusterStatus":
+        this.handleClusterStatus(ws, msg);
+        break;
+      case "SubmitDeploySpec":
+        this.handleSubmitDeploySpec(ws, msg);
+        break;
+      case "StopAgent":
+        this.handleStopAgent(ws, msg);
         break;
       default:
         break;
@@ -459,9 +474,28 @@ export class ReagentOrchestratorServer {
   private handleSetBreakpoints(ws: WebSocket, msg: RAPMessage): void {
     const payload = msg.payload ?? {};
     const sessionId = payload.sessionId as string;
-    const breakpoints = (payload.breakpoints as Breakpoint[]) ?? [];
 
-    // Ensure debug session exists with source map from compiled artifacts
+    // Accept both the spec format (separate arrays) and the legacy format (breakpoints[])
+    let breakpoints: Breakpoint[];
+    if (Array.isArray(payload.breakpoints)) {
+      breakpoints = payload.breakpoints as Breakpoint[];
+    } else {
+      breakpoints = [];
+      const msgBps = (payload.messageBreakpoints as string[]) ?? [];
+      const srcLocs = (payload.sourceLocations as Array<{ file: string; line: number }>) ?? [];
+      const kindBps = (payload.stateKindBreakpoints as string[]) ?? [];
+
+      for (const name of msgBps) {
+        breakpoints.push({ type: "message", value: name });
+      }
+      for (const loc of srcLocs) {
+        breakpoints.push({ type: "sourceLine", value: `${loc.file}:${loc.line}`, file: loc.file, line: loc.line });
+      }
+      for (const kind of kindBps) {
+        breakpoints.push({ type: "stateKind", value: kind });
+      }
+    }
+
     const session = this.sessions.get(sessionId);
     if (session?.compiled?.sourceMap) {
       this.debugController.createSession(sessionId, session.compiled.sourceMap);
@@ -503,13 +537,13 @@ export class ReagentOrchestratorServer {
 
     const session = this.sessions.get(sessionId);
     if (!session?.rc) {
-      this.sendRap(ws, "StateSnapshot", msg.id, { error: "Session not found" });
+      this.sendRap(ws, "InspectError", msg.id, { agentName, error: "Session not found" });
       return;
     }
 
     const handle = session.rc.getAgent(agentName);
     if (!handle) {
-      this.sendRap(ws, "StateSnapshot", msg.id, { error: `Agent ${agentName} not found` });
+      this.sendRap(ws, "InspectError", msg.id, { agentName, error: `Agent ${agentName} not found` });
       return;
     }
 
@@ -530,21 +564,15 @@ export class ReagentOrchestratorServer {
 
   // ── Adapter management ───────────────────────────────────────────
 
-  private handleAdapterHandshake(ws: WebSocket, msg: { nodeId: string; supportedLangs?: string[] }): void {
-    const adapter: AdapterInfo = {
-      nodeId: msg.nodeId,
-      ws,
-      supportedLangs: msg.supportedLangs ?? ["ts"],
-      deployedAgents: [],
-    };
-    this.adapters.set(msg.nodeId, adapter);
-    this.sendRap(ws, "HandshakeAck", undefined, { nodeId: msg.nodeId });
-  }
-
   private handleAdapterRegister(ws: WebSocket, msg: RAPMessage): void {
     const payload = msg.payload ?? {};
     const nodeId = payload.nodeId as string;
     const supportedLangs = (payload.supportedLangs as string[]) ?? ["ts"];
+
+    if (!nodeId) {
+      this.sendRap(ws, "Rejected", msg.id, { reason: "Missing nodeId" });
+      return;
+    }
 
     const adapter: AdapterInfo = {
       nodeId,
@@ -553,7 +581,7 @@ export class ReagentOrchestratorServer {
       deployedAgents: [],
     };
     this.adapters.set(nodeId, adapter);
-    this.sendRap(ws, "RegisterAck", msg.id, { nodeId });
+    this.sendRap(ws, "Accepted", msg.id, { nodeId });
   }
 
   private handleAdapterDeployed(_ws: WebSocket, msg: RAPMessage): void {
@@ -581,6 +609,7 @@ export class ReagentOrchestratorServer {
    */
   deployToAdapter(
     nodeId: string,
+    sessionId: string,
     agentName: string,
     roleIR: RoleIR,
     graphs: Map<string, IRGraph>,
@@ -595,6 +624,7 @@ export class ReagentOrchestratorServer {
     adapter.ws.send(JSON.stringify({
       rap: "Deploy",
       payload: {
+        sessionId,
         agentName,
         roleIR,
         graphs: graphsObj,
@@ -616,11 +646,182 @@ export class ReagentOrchestratorServer {
 
     adapter.ws.send(JSON.stringify({
       rap: "TriggerProtocol",
-      payload: { agentName, trigger },
+      payload: {
+        agentName,
+        instanceId: trigger.instanceId,
+        protocolName: trigger.protocolName,
+        input: trigger.input,
+        roleToAgent: trigger.roleToAgent,
+      },
     }));
   }
 
   getAdapters(): Map<string, AdapterInfo> {
     return this.adapters;
+  }
+
+  // ── Reconciler RAP handlers (10-14) ──────────────────────────────
+
+  private currentView: RegistryView = createEmptyView();
+  private currentSpec: DeploySpec | null = null;
+  private lastPlan: ReconciliationPlan | null = null;
+
+  private handleListProtocols(ws: WebSocket, msg: RAPMessage): void {
+    const session = this.sessions.getLatest();
+    if (!session?.rc) {
+      this.sendRap(ws, "ListProtocolsResponse", msg.id, {
+        requestId: msg.payload?.requestId ?? msg.id,
+        nodeId: "ros-local",
+        protocols: [],
+      });
+      return;
+    }
+
+    const registry = session.rc.registry;
+    const protocols = registry.list().map((entry: any) => ({
+      name: entry.name,
+      version: entry.version,
+      fingerprints: entry.fingerprints,
+      dependencies: entry.dependencies,
+      boundAgents: registry.agentsForProtocol(entry.name),
+    }));
+
+    this.sendRap(ws, "ListProtocolsResponse", msg.id, {
+      requestId: msg.payload?.requestId ?? msg.id,
+      nodeId: "ros-local",
+      protocols,
+    });
+  }
+
+  private handleDeployProtocol(ws: WebSocket, msg: RAPMessage): void {
+    const payload = msg.payload ?? {};
+    const protoName = payload.protocolName as string;
+    const version = payload.version as string;
+
+    const session = this.sessions.getLatest();
+    if (!session?.rc) {
+      this.sendRap(ws, "DeployProtocolFailed", msg.id, {
+        requestId: payload.requestId ?? msg.id,
+        protocolName: protoName,
+        error: "No active session with RC",
+      });
+      return;
+    }
+
+    try {
+      const irGraphs = payload.irGraphs as Record<string, any> | undefined;
+      if (irGraphs) {
+        const graphMap = new Map<string, IRGraph>();
+        for (const [k, v] of Object.entries(irGraphs)) {
+          graphMap.set(k, v as IRGraph);
+        }
+
+        const compat = session.rc.registry.canDeploy({
+          name: protoName,
+          version,
+          fingerprints: payload.fingerprints as any ?? { structureHash: "", schemaHash: "", implHash: "" },
+          dependencies: (payload.dependencies as any) ?? [],
+          irGraphs: graphMap,
+          registeredAt: Date.now(),
+        });
+
+        if (!compat.compatible) {
+          const reasons = [...compat.details, ...compat.dependencyConflicts.map((c: any) => c.message)];
+          this.sendRap(ws, "DeployProtocolFailed", msg.id, {
+            requestId: payload.requestId ?? msg.id,
+            protocolName: protoName,
+            error: `Incompatible: ${reasons.join("; ")}`,
+          });
+          return;
+        }
+      }
+
+      this.sendRap(ws, "DeployProtocolSuccess", msg.id, {
+        requestId: payload.requestId ?? msg.id,
+        protocolName: protoName,
+        version,
+      });
+    } catch (err) {
+      this.sendRap(ws, "DeployProtocolFailed", msg.id, {
+        requestId: payload.requestId ?? msg.id,
+        protocolName: protoName,
+        error: String(err),
+      });
+    }
+  }
+
+  private handleClusterStatus(ws: WebSocket, msg: RAPMessage): void {
+    this.sendRap(ws, "ClusterStatusResponse", msg.id, {
+      requestId: msg.payload?.requestId ?? msg.id,
+      nodes: this.currentView.nodes,
+      protocols: this.currentView.protocols,
+      agents: this.currentView.agents,
+      timestamp: Date.now(),
+    });
+  }
+
+  private handleSubmitDeploySpec(ws: WebSocket, msg: RAPMessage): void {
+    const payload = msg.payload ?? {};
+    const spec = payload.deploySpec as DeploySpec | undefined;
+
+    if (!spec) {
+      this.sendRap(ws, "SubmitDeploySpecRejected", msg.id, {
+        requestId: payload.requestId ?? msg.id,
+        error: "Missing deploySpec in payload",
+        conflicts: [],
+      });
+      return;
+    }
+
+    this.currentSpec = spec;
+    const plan = reconcile(spec, this.currentView);
+    this.lastPlan = plan;
+
+    if (plan.conflicts.length > 0) {
+      this.sendRap(ws, "SubmitDeploySpecRejected", msg.id, {
+        requestId: payload.requestId ?? msg.id,
+        error: "Reconciliation has conflicts",
+        conflicts: plan.conflicts,
+      });
+      return;
+    }
+
+    const summary = planSummary(plan);
+    this.sendRap(ws, "SubmitDeploySpecAccepted", msg.id, {
+      requestId: payload.requestId ?? msg.id,
+      deploymentId: spec.deploymentId,
+      planSummary: summary,
+      actionCount: plan.actions.length,
+      conflictCount: plan.conflicts.length,
+    });
+  }
+
+  private async handleStopAgent(ws: WebSocket, msg: RAPMessage): Promise<void> {
+    const payload = msg.payload ?? {};
+    const agentName = payload.agentName as string;
+
+    const session = this.sessions.getLatest();
+    if (!session?.rc) {
+      this.sendRap(ws, "StopAgentFailed", msg.id, {
+        requestId: payload.requestId ?? msg.id,
+        agentName,
+        error: "No active session",
+      });
+      return;
+    }
+
+    try {
+      await session.rc.destroyAgent(agentName);
+      this.sendRap(ws, "StopAgentSuccess", msg.id, {
+        requestId: payload.requestId ?? msg.id,
+        agentName,
+      });
+    } catch (err) {
+      this.sendRap(ws, "StopAgentFailed", msg.id, {
+        requestId: payload.requestId ?? msg.id,
+        agentName,
+        error: String(err),
+      });
+    }
   }
 }

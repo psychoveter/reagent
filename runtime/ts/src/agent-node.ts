@@ -43,6 +43,7 @@ export interface AgentNode {
     roleIR: RoleIR,
     graphs: Map<string, IRGraph>,
     transport: ReagentTransport,
+    extras?: Record<string, unknown>,
   ): AgentHandle;
 
   destroyAgent(handle: AgentHandle): Promise<void>;

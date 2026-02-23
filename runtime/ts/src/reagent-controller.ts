@@ -14,6 +14,7 @@ import { createMessageEnvelope } from "./types.js";
 import type { NodeRef, AgentRef, ReagentTransport, NodeLink } from "./transport.js";
 import type { AgentNode, AgentHandle } from "./agent-node.js";
 import type { InterceptorFn, InterceptorContext, MessageDirection, AddressPage } from "./interceptor.js";
+import { ProtocolRegistry, type ProtocolEntry, type CompatibilityReport } from "./protocol-registry.js";
 
 // ── Configuration ───────────────────────────────────────────────────
 
@@ -30,6 +31,7 @@ export interface ReagentControllerConfig {
 
 export class ReagentController {
   readonly nodeId: string;
+  readonly registry: ProtocolRegistry;
 
   /** lang → AgentNode backend */
   private agentNodes: Record<string, AgentNode>;
@@ -62,6 +64,7 @@ export class ReagentController {
     }
 
     this.interceptors = [...(config.interceptors ?? [])];
+    this.registry = new ProtocolRegistry();
 
     this.loopbackRef = {
       nodeId: this.nodeId,
@@ -75,6 +78,7 @@ export class ReagentController {
     agentName: string,
     roleIR: RoleIR,
     graphs: Map<string, IRGraph>,
+    extras?: Record<string, unknown>,
   ): void {
     const lang = (roleIR.lang ?? "ts") as string;
     const node = this.agentNodes[lang];
@@ -86,18 +90,43 @@ export class ReagentController {
     }
 
     const transport = this.createTransport(agentName);
-    const handle = node.createAgent(agentName, roleIR, graphs, transport);
+    const handle = node.createAgent(agentName, roleIR, graphs, transport, extras);
     this.agents.set(agentName, handle);
     this.agentOwners.set(agentName, node);
     this.routingTable.set(agentName, this.loopbackRef);
+
+    // Populate protocol registry from agent's graphs
+    const registeredProtos = new Set<string>();
+    for (const graph of graphs.values()) {
+      const protoName = graph.protocolName;
+      if (registeredProtos.has(protoName)) continue;
+      registeredProtos.add(protoName);
+
+      if (!this.registry.get(protoName)) {
+        const protoGraphs = new Map<string, IRGraph>();
+        for (const [key, g] of graphs) {
+          if (g.protocolName === protoName) protoGraphs.set(key, g);
+        }
+        this.registry.register({
+          name: protoName,
+          version: graph.version ?? "0.0.0",
+          fingerprints: graph.fingerprints ?? { structureHash: "", schemaHash: "", implHash: "" },
+          dependencies: graph.dependencies ?? [],
+          irGraphs: protoGraphs,
+          registeredAt: Date.now(),
+        });
+      }
+      this.registry.bindAgent(protoName, agentName);
+    }
   }
 
   spawnAgent(
     agentName: string,
     roleIR: RoleIR,
     graphs: Map<string, IRGraph>,
+    extras?: Record<string, unknown>,
   ): void {
-    this.registerAgent(agentName, roleIR, graphs);
+    this.registerAgent(agentName, roleIR, graphs, extras);
     const handle = this.agents.get(agentName)!;
     handle.start();
   }
@@ -123,6 +152,16 @@ export class ReagentController {
 
   getAgent(agentName: string): AgentHandle | undefined {
     return this.agents.get(agentName);
+  }
+
+  // ── Protocol registry convenience ──────────────────────────────
+
+  listProtocols(): ProtocolEntry[] {
+    return this.registry.list();
+  }
+
+  canDeploy(entry: ProtocolEntry): CompatibilityReport {
+    return this.registry.canDeploy(entry);
   }
 
   // ── Interceptor chain ───────────────────────────────────────────

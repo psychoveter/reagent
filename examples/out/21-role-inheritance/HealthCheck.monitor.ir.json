@@ -67,5 +67,11 @@
   "initialStateId": "init_1",
   "terminalStateIds": [
     "end_4"
-  ]
+  ],
+  "version": "1.0.0",
+  "fingerprints": {
+    "structureHash": "87ef2ffe47bf4c0f2e5e15320107c2eac0325a368464079bd633ce0b60ab5beb",
+    "schemaHash": "4ab1b58940301b8acd55f43b1bcbbdfaccf4159a4ee2bb684afb9d11e9404018",
+    "implHash": "b4c6b65cba51041bc66d3ff63cbc364201174871548de0d895ae236523a43f1a"
+  }
 }

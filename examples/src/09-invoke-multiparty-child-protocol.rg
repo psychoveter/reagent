@@ -1,5 +1,5 @@
 // Example 09: invoke a multi-party child protocol
-// Uses protocol-level `invoke` with role mapping for multi-party child.
+// Uses protocol-level `invokes` with role mapping for multi-party child.
 
 message TaskRequest {}
 message Done {}
@@ -21,7 +21,7 @@ protocol TaskExecutionWithMultipartyChild {
     $flow.intent = taskToDsiBsi($flow.taskText)
   }
 
-  invoke v.ValidateIntentWithSia({ intent: $flow.intent }) as comma {
+  comma invokes v.ValidateIntentWithSia({ intent: $flow.intent }) {
     sia: sia
   } -> $flow.validation
 

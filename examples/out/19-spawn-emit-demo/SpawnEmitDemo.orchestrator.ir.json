@@ -117,5 +117,18 @@
   "initialStateId": "init_1",
   "terminalStateIds": [
     "end_7"
+  ],
+  "version": "0.1.0",
+  "fingerprints": {
+    "structureHash": "1efe4f46d27f7d4beedd8d9c65f19354ae15a01c8c182d4beb49a97a6250ad1f",
+    "schemaHash": "9697e5f70fda03c84bdca3be81d2820c296901e4625f462fe3d238731765b440",
+    "implHash": "855c6be76236287e078d6e497304538115455250b377d308ed33eb52ebe2d6f4"
+  },
+  "dependencies": [
+    {
+      "protocolName": "BackgroundTask",
+      "structureHash": "f80c2de181c1fe0c44f9ddad622b67a344552d3676b560c48dc7679ef687fa5c",
+      "version": "0.1.0"
+    }
   ]
 }

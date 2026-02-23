@@ -16,12 +16,35 @@
 
 import type { RoleEventKind, ArrowKind, Duration, LangTag, TypeExpr } from "./ast.js";
 
+// ── Fingerprints & Versioning (M8a) ─────────────────────────────────
+
+export type ProtocolFingerprint = {
+  structureHash: string;
+  schemaHash: string;
+  implHash: string;
+};
+
+export type RoleFingerprint = {
+  playsHash: string;
+  behaviorHash: string;
+};
+
+export type ProtocolDependency = {
+  protocolName: string;
+  structureHash: string;
+  version: string;
+};
+
 // ── IR Graph (per-role) ─────────────────────────────────────────────
 
 export type IRGraph = {
   protocolName: string;
   role: string;
   lang: LangTag;
+  version?: string;
+  fingerprints?: ProtocolFingerprint;
+  dependencies?: ProtocolDependency[];
+  initiator?: string;
   states: IRState[];
   transitions: IRTransition[];
   initialStateId: string;
@@ -77,6 +100,8 @@ export type IRSendData = {
   messageName: string;
   /** Zone body to execute before sending (onSend hook or inline) */
   preSendZone?: string;
+  /** If true, preSendZone contains `await` and requires async execution */
+  preSendAsync?: boolean;
   /** If true, $flow is serialized into the envelope on send */
   propagateFlow?: boolean;
 };
@@ -88,6 +113,8 @@ export type IRReceiveData = {
   messageName: string;
   /** Zone body to execute after receiving (onReceive hook) */
   postReceiveZone?: string;
+  /** If true, postReceiveZone contains `await` and requires async execution */
+  postReceiveAsync?: boolean;
   /** Pattern/guard for message matching in alt branches */
   pattern?: Record<string, string>;
   /** If true, $flow is deserialized from the envelope on receive */
@@ -99,6 +126,8 @@ export type IRActionData = {
   /** Raw host-language code body */
   body: string;
   lang: LangTag;
+  /** If true, zone body contains `await` and requires async execution */
+  async?: boolean;
 };
 
 export type IRGuardData = {
@@ -182,6 +211,8 @@ export type IRTransitionLabel =
 export type RoleIR = {
   roleName: string;
   lang?: LangTag;
+  version?: string;
+  fingerprints?: RoleFingerprint;
   extends?: string;
   plays: AgentPlaysBinding[];
   initAction?: AgentAction;

@@ -1,5 +1,5 @@
-// Example 19: protocol-level spawn (fire-and-forget) + reagent.emit (event broadcasting)
-// Uses protocol-level spawn instead of zone-level reagent.spawn().
+// Example 19: protocol-level spawns (fire-and-forget) + reagent.emit (event broadcasting)
+// Uses protocol-level spawns instead of zone-level reagent.spawn().
 
 message WorkRequest {}
 message WorkResult {}
@@ -23,7 +23,7 @@ protocol SpawnEmitDemo {
     $flow.taskName = "compute"
   }
 
-  spawn BackgroundTask({ taskName: $flow.taskName }) as orchestrator
+  orchestrator spawns BackgroundTask({ taskName: $flow.taskName })
 
   orchestrator {
     $self.spawned = ($self.spawned || 0) + 1

@@ -81,13 +81,44 @@ class ReagentStub:
 
 
 def _translate_dollar_vars(body: str) -> str:
-    """Replace $ctx/$self/$flow with Python-safe names, and reagent.return/break with Python methods."""
+    """Replace $ctx/$self/$flow with Python-safe names, reagent.return/break with
+    Python methods, and basic JS literals/patterns with Python equivalents."""
     body = re.sub(r'\$ctx\b', 'ctx', body)
     body = re.sub(r'\$self\b', 'self_state', body)
     body = re.sub(r'\$flow\b', 'flow', body)
     body = re.sub(r'reagent\.return\b', 'reagent.return_value', body)
     body = re.sub(r'reagent\.break\b', 'reagent.break_loop', body)
+    body = re.sub(r'===', '==', body)
+    body = re.sub(r'!==', '!=', body)
+    body = re.sub(r'\btrue\b', 'True', body)
+    body = re.sub(r'\bfalse\b', 'False', body)
+    body = re.sub(r'\bnull\b', 'None', body)
+    body = re.sub(r'\bundefined\b', 'None', body)
+    body = re.sub(r'\bconst\s+', '', body)
+    body = re.sub(r'\blet\s+', '', body)
+    body = re.sub(r'\bvar\s+', '', body)
+    body = re.sub(r'\|\|', ' or ', body)
+    body = re.sub(r'(?<!=)&&', ' and ', body)
+    body = re.sub(r'\.push\(', '.append(', body)
     return body
+
+
+class _DateStub:
+    @staticmethod
+    def now() -> float:
+        import time
+        return time.time() * 1000
+
+
+_JS_COMPAT_BUILTINS: dict[str, Any] = {
+    "Date": _DateStub,
+    "console": type("Console", (), {"log": staticmethod(print)})(),
+    "JSON": type("JSON", (), {
+        "stringify": staticmethod(lambda x, *a: __import__("json").dumps(x)),
+        "parse": staticmethod(lambda x: __import__("json").loads(x)),
+    })(),
+    "Math": __import__("math"),
+}
 
 
 def _dedent(body: str) -> str:
@@ -119,7 +150,45 @@ def execute_zone(
     }
     if extras:
         namespace.update(extras)
-    exec(translated, {"__builtins__": __builtins__}, namespace)
+    exec(translated, {"__builtins__": __builtins__, **_JS_COMPAT_BUILTINS}, namespace)
+
+    ctx.update(ctx_wrapper)
+    self_state.update(self_wrapper)
+    if flow is not None:
+        flow.update(flow_wrapper)
+    return True
+
+
+async def execute_zone_async(
+    body: str,
+    ctx: dict[str, Any],
+    self_state: dict[str, Any],
+    reagent: ReagentStub,
+    flow: dict[str, Any] | None = None,
+    extras: dict[str, Any] | None = None,
+) -> bool:
+    """Async zone executor for zone bodies containing `await`."""
+    import textwrap
+    translated = _dedent(_translate_dollar_vars(body))
+
+    ctx_wrapper = AttrDict(ctx) if not isinstance(ctx, AttrDict) else ctx
+    self_wrapper = AttrDict(self_state) if not isinstance(self_state, AttrDict) else self_state
+    flow_wrapper = AttrDict(flow if flow is not None else {}) if not isinstance(flow, AttrDict) else flow
+
+    namespace: dict[str, Any] = {
+        "ctx": ctx_wrapper,
+        "self_state": self_wrapper,
+        "flow": flow_wrapper,
+        "reagent": reagent,
+        "__builtins__": __builtins__,
+        **_JS_COMPAT_BUILTINS,
+    }
+    if extras:
+        namespace.update(extras)
+
+    wrapped = f"async def __zone__():\n{textwrap.indent(translated, '    ')}"
+    exec(wrapped, namespace)
+    await namespace["__zone__"]()
 
     ctx.update(ctx_wrapper)
     self_state.update(self_wrapper)

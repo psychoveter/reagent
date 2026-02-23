@@ -21,6 +21,7 @@ export type AgentRunnerConfig = {
   roleToAgent: Record<string, string>;
   traceHook?: TraceHook;
   advanceHook?: AdvanceHook;
+  extras?: Record<string, unknown>;
 };
 
 export class AgentRunner {
@@ -33,6 +34,7 @@ export class AgentRunner {
   private traceHook?: TraceHook;
 
   private advanceHook?: AdvanceHook;
+  private extras?: Record<string, unknown>;
   private self: Record<string, unknown> = {};
   private instances: Map<string, ProtocolInstance> = new Map();
   private completedCount = 0;
@@ -46,12 +48,13 @@ export class AgentRunner {
     this.roleToAgent = config.roleToAgent;
     this.traceHook = config.traceHook;
     this.advanceHook = config.advanceHook;
+    this.extras = config.extras;
   }
 
   async start(): Promise<void> {
     if (this.agentIR.initAction) {
       const reagent = createReagentStub();
-      executeZone(this.agentIR.initAction.body, {}, this.self, reagent);
+      executeZone(this.agentIR.initAction.body, {}, this.self, reagent, undefined, this.extras ? { $agent: this.extras } : undefined);
     }
 
     this.transport.onMessage((env) => this.handleMessage(env));
@@ -149,6 +152,7 @@ export class AgentRunner {
       input,
       traceHook: this.traceHook,
       advanceHook: this.advanceHook,
+      extras: this.extras,
     };
 
     const instance = new ProtocolInstance(graph, this.transport, this.self, instanceConfig);
@@ -192,7 +196,7 @@ export class AgentRunner {
     for (const handler of this.agentIR.lifecycleHandlers) {
       if (handler.event === "protocolEvent" && handler.protocolFilter === eventName) {
         const reagent = createReagentStub();
-        executeZone(handler.action.body, { eventName, data }, this.self, reagent);
+        executeZone(handler.action.body, { eventName, data }, this.self, reagent, undefined, this.extras ? { $agent: this.extras } : undefined);
       }
     }
   }
@@ -222,6 +226,7 @@ export class AgentRunner {
       roleToAgent: this.roleToAgent,
       input: childInput,
       traceHook: this.traceHook,
+      extras: this.extras,
     };
 
     const childInstance = new ProtocolInstance(graph, this.transport, this.self, childConfig);

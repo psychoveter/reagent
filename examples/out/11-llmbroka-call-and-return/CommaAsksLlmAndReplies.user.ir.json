@@ -101,5 +101,18 @@
   "initialStateId": "init_1",
   "terminalStateIds": [
     "end_6"
+  ],
+  "version": "0.1.0",
+  "fingerprints": {
+    "structureHash": "281a2907069d9761f9a93db238b6bc22d4776651b6c5003df265fcad0fba9077",
+    "schemaHash": "7e381ea1bf16b01c0308a63e3303e82e6bc9aa580e295e95472b7e604a73b606",
+    "implHash": "46c5bf92001d45dc4f3468cea80aa9c2feedb319760f1b49562efd949bb06cd1"
+  },
+  "dependencies": [
+    {
+      "protocolName": "llm.CallLlm",
+      "structureHash": "",
+      "version": ""
+    }
   ]
 }

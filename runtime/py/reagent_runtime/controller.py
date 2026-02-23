@@ -1,0 +1,249 @@
+"""
+ReagentController — Python-native routing and agent orchestration core.
+
+Mirrors the TS ReagentController.  One RC per process.  Manages:
+- Agent registry (which agents live on this node)
+- Routing table (agentName → "local"; extensible to remote NodeRefs)
+- Transport factory (per-agent InprocTransport)
+- Interceptor chain (message-level middleware)
+- Lifecycle (start / stop all agents)
+
+Usage::
+
+    rc = ReagentController(node_id="sim")
+    rc.add_agent_node("py", InprocAgentNode(role_to_agent=rta))
+    rc.register_agent("A", role_ir_a, graphs_a)
+    rc.register_agent("B", role_ir_b, graphs_b)
+    await rc.start()
+    rc.trigger_protocol("A", trigger)
+    ...
+    await rc.stop()
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, Callable, Optional
+
+from .agent_node import AgentHandle, AgentNode
+from .inproc_transport import InprocTransport
+from .protocol_registry import ProtocolRegistry, ProtocolEntry
+from .ir_fingerprint import read_protocol_fingerprint, read_protocol_version, read_protocol_dependencies
+
+log = logging.getLogger(__name__)
+
+MessageDirection = str  # "loopback" | "outbound" | "inbound"
+
+
+class InterceptorContext:
+    __slots__ = ("envelope", "direction", "node_id")
+
+    def __init__(self, envelope: dict[str, Any], direction: MessageDirection, node_id: str) -> None:
+        self.envelope = envelope
+        self.direction = direction
+        self.node_id = node_id
+
+
+InterceptorFn = Callable[[InterceptorContext, Callable[[], None]], None]
+
+
+class ReagentController:
+    """Python-native multi-agent orchestrator."""
+
+    def __init__(
+        self,
+        node_id: str = "py-node",
+        agent_node: Optional[AgentNode] = None,
+        agent_nodes: Optional[dict[str, AgentNode]] = None,
+        interceptors: Optional[list[InterceptorFn]] = None,
+    ) -> None:
+        self.node_id = node_id
+
+        self._agent_nodes: dict[str, AgentNode] = {}
+        if agent_nodes:
+            self._agent_nodes.update(agent_nodes)
+        if agent_node:
+            self._agent_nodes.setdefault("py", agent_node)
+
+        self._interceptors: list[InterceptorFn] = list(interceptors or [])
+
+        self.registry = ProtocolRegistry()
+
+        self._agents: dict[str, AgentHandle] = {}
+        self._agent_owners: dict[str, AgentNode] = {}
+        self._routing_table: dict[str, str] = {}  # agent_name → "local"
+
+    # ── Agent node management ─────────────────────────────────────
+
+    def add_agent_node(self, lang: str, node: AgentNode) -> None:
+        self._agent_nodes[lang] = node
+
+    # ── Agent registry ────────────────────────────────────────────
+
+    def register_agent(
+        self,
+        agent_name: str,
+        role_ir: dict[str, Any],
+        graphs: dict[str, dict[str, Any]],
+        extras: Optional[dict[str, Any]] = None,
+    ) -> None:
+        lang = role_ir.get("lang") or "py"
+        node = self._agent_nodes.get(lang) or self._agent_nodes.get("*")
+        if not node:
+            raise RuntimeError(
+                f"[RC {self.node_id}] No AgentNode for lang '{lang}' (agent {agent_name}). "
+                f"Available: {list(self._agent_nodes.keys())}"
+            )
+
+        transport = self._create_transport(agent_name)
+        handle = node.create_agent(agent_name, role_ir, graphs, transport, extras)
+        self._agents[agent_name] = handle
+        self._agent_owners[agent_name] = node
+        self._routing_table[agent_name] = "local"
+
+        # Populate protocol registry from agent's graphs
+        registered_protos: set[str] = set()
+        for graph in graphs.values():
+            proto_name = graph.get("protocolName", "")
+            if proto_name in registered_protos:
+                continue
+            registered_protos.add(proto_name)
+
+            if not self.registry.get(proto_name):
+                proto_graphs = {k: g for k, g in graphs.items() if g.get("protocolName") == proto_name}
+                fp = read_protocol_fingerprint(graph)
+                self.registry.register(ProtocolEntry(
+                    name=proto_name,
+                    version=read_protocol_version(graph) or "0.0.0",
+                    fingerprints=fp or {"structureHash": "", "schemaHash": "", "implHash": ""},
+                    dependencies=read_protocol_dependencies(graph),
+                    ir_graphs=proto_graphs,
+                ))
+            self.registry.bind_agent(proto_name, agent_name)
+
+    async def destroy_agent(self, agent_name: str) -> None:
+        handle = self._agents.get(agent_name)
+        if not handle:
+            return
+        owner = self._agent_owners.get(agent_name)
+        if owner:
+            await owner.destroy_agent(handle)
+        else:
+            await handle.stop()
+        self._agents.pop(agent_name, None)
+        self._agent_owners.pop(agent_name, None)
+        self._routing_table.pop(agent_name, None)
+
+    def has_agent(self, agent_name: str) -> bool:
+        return agent_name in self._agents
+
+    def get_agent(self, agent_name: str) -> Optional[AgentHandle]:
+        return self._agents.get(agent_name)
+
+    # ── Protocol registry convenience ──────────────────────────────
+
+    def list_protocols(self) -> list[ProtocolEntry]:
+        return self.registry.list()
+
+    def handle_list_protocols_rap(self, request_id: str) -> dict[str, Any]:
+        """Handle RAP ListProtocols request and return response payload."""
+        entries = self.registry.list()
+        return {
+            "requestId": request_id,
+            "nodeId": self.node_id,
+            "protocols": [
+                {
+                    "name": e.name,
+                    "version": e.version,
+                    "fingerprints": e.fingerprints,
+                    "dependencies": e.dependencies,
+                    "boundAgents": self.registry.agents_for_protocol(e.name),
+                }
+                for e in entries
+            ],
+        }
+
+    # ── Interceptor chain ─────────────────────────────────────────
+
+    def add_interceptor(self, fn: InterceptorFn) -> None:
+        self._interceptors.append(fn)
+
+    # ── Lifecycle ─────────────────────────────────────────────────
+
+    async def start(self) -> None:
+        for handle in self._agents.values():
+            await handle.start()
+
+    async def stop(self) -> None:
+        for handle in self._agents.values():
+            await handle.stop()
+
+    # ── External trigger ──────────────────────────────────────────
+
+    def trigger_protocol(self, agent_name: str, trigger: dict[str, Any]) -> None:
+        handle = self._agents.get(agent_name)
+        if not handle:
+            log.warning("[RC %s] triggerProtocol: no local agent %s", self.node_id, agent_name)
+            return
+        handle.trigger_protocol(trigger)
+
+    # ── Transport factory ─────────────────────────────────────────
+
+    def _create_transport(self, agent_name: str) -> InprocTransport:
+        return InprocTransport(
+            agent_name=agent_name,
+            route_callback=self._route_envelope,
+            trace_callback=self._handle_trace,
+        )
+
+    # ── Internal routing ──────────────────────────────────────────
+
+    def _route_envelope(self, envelope: dict[str, Any]) -> None:
+        target_agent = envelope.get("to", {}).get("agent")
+        if not target_agent:
+            log.warning("[RC %s] Envelope missing to.agent", self.node_id)
+            return
+
+        route = self._routing_table.get(target_agent)
+        if not route:
+            log.warning("[RC %s] No route for agent %s", self.node_id, target_agent)
+            return
+
+        direction: MessageDirection = "loopback" if route == "local" else "outbound"
+
+        self._run_interceptors(envelope, direction, lambda: self._dispatch_local(envelope))
+
+    def _dispatch_local(self, envelope: dict[str, Any]) -> None:
+        target_agent = envelope["to"]["agent"]
+        handle = self._agents.get(target_agent)
+        if handle:
+            handle.dispatch_message(envelope)
+        else:
+            log.warning("[RC %s] No agent for %s", self.node_id, target_agent)
+
+    def _handle_trace(self, event: dict[str, Any]) -> None:
+        pass
+
+    def _run_interceptors(
+        self,
+        envelope: dict[str, Any],
+        direction: MessageDirection,
+        deliver: Callable[[], None],
+    ) -> None:
+        if not self._interceptors:
+            deliver()
+            return
+
+        ctx = InterceptorContext(envelope, direction, self.node_id)
+        idx = 0
+
+        def next_fn() -> None:
+            nonlocal idx
+            if idx < len(self._interceptors):
+                fn = self._interceptors[idx]
+                idx += 1
+                fn(ctx, next_fn)
+            else:
+                deliver()
+
+        next_fn()

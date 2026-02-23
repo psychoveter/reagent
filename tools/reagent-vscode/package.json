@@ -2,7 +2,7 @@
   "name": "reagent-vscode",
   "displayName": "Reagent Language Support",
   "description": "Language support for Reagent protocol DSL (.rg) with embedded language intelligence in agent zones.",
-  "version": "0.1.0",
+  "version": "0.0.8",
   "publisher": "psychoveter",
   "engines": {
     "vscode": "^1.80.0"
@@ -92,8 +92,14 @@
     ],
     "commands": [
       {
+        "command": "reagent.run",
+        "title": "Reagent: Run Protocol",
+        "icon": "$(play)"
+      },
+      {
         "command": "reagent.startDebug",
-        "title": "Reagent: Start Debug Session"
+        "title": "Reagent: Start Debug Session",
+        "icon": "$(debug-alt)"
       },
       {
         "command": "reagent.showTraceTimeline",
@@ -102,8 +108,33 @@
       {
         "command": "reagent.inspectAgent",
         "title": "Reagent: Inspect Agent State"
+      },
+      {
+        "command": "reagent.openDiagram",
+        "title": "Reagent: Open Protocol Diagram"
+      },
+      {
+        "command": "reagent.startRos",
+        "title": "Reagent: Start ROS"
+      },
+      {
+        "command": "reagent.stopRos",
+        "title": "Reagent: Stop ROS"
+      },
+      {
+        "command": "reagent.toggleRos",
+        "title": "Reagent: Toggle ROS"
       }
     ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "reagent.run",
+          "when": "resourceLangId == reagent",
+          "group": "navigation"
+        }
+      ]
+    },
     "views": {
       "debug": [
         {
