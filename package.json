@@ -19,6 +19,7 @@
     "test:m8b:agent": "cd runtime/ts && node --import tsx --test ../tests/m8b-agent-model.test.ts",
     "test:m8b:rec": "cd runtime/ts && node --import tsx --test ../tests/m8b-reconciler.test.ts",
     "test:m8b": "npm run test:m8b:agent && npm run test:m8b:rec",
+    "test:m9:scatter": "cd runtime/ts && node --import tsx --test ../tests/m9-scatter-async.test.ts",
     "test:py": "python runtime/tests/test_py_rc.py",
     "test:py:coverage": "python runtime/tests/test_py_rc_coverage.py",
     "test:ts": "npm run test:ctrl && npm run test:lang && npm run test:coverage && npm run test:ros && npm run test:m8a",

@@ -1,0 +1,8 @@
+{
+  "name": "Auctioneer",
+  "role": "SellerRole",
+  "module": "./module.py",
+  "config": {
+    "defaultReserve": 100
+  }
+}

@@ -50,14 +50,24 @@
     "messageDef": {
       "patterns": [
         {
+          "name": "meta.definition.message.inline.reagent",
+          "match": "^\\s*(message)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*(\\{)\\s*(\\})",
+          "captures": {
+            "1": { "name": "keyword.control.reagent" },
+            "2": { "name": "entity.name.type.message.reagent" },
+            "3": { "name": "punctuation.section.block.begin.reagent" },
+            "4": { "name": "punctuation.section.block.end.reagent" }
+          }
+        },
+        {
           "name": "meta.definition.message.reagent",
-          "begin": "^\\s*(message)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*(\\{)",
+          "begin": "^\\s*(message)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*(\\{)\\s*$",
           "beginCaptures": {
             "1": { "name": "keyword.control.reagent" },
             "2": { "name": "entity.name.type.message.reagent" },
             "3": { "name": "punctuation.section.block.begin.reagent" }
           },
-          "end": "^\\s*\\}",
+          "end": "\\}",
           "endCaptures": {
             "0": { "name": "punctuation.section.block.end.reagent" }
           },
@@ -352,6 +362,22 @@
         {
           "name": "variable.language.self.reagent",
           "match": "\\$self\\b"
+        },
+        {
+          "name": "variable.language.agent.reagent",
+          "match": "\\$agent\\b"
+        },
+        {
+          "name": "keyword.control.zone.reagent",
+          "match": "\\b(await|return|if|else|for|while|import|from|def|class|try|except|raise|with|as|in|not|and|or|is|elif|pass|break|continue|lambda|yield|async|None|True|False|const|let|var|function|new|this|throw|catch|finally|typeof|instanceof|void)\\b"
+        },
+        {
+          "name": "keyword.operator.zone.reagent",
+          "match": "(===|!==|==|!=|>=|<=|=>|\\|\\||&&|\\+\\+|--)"
+        },
+        {
+          "name": "support.function.builtin.reagent",
+          "match": "\\b(print|len|range|enumerate|isinstance|type|dict|list|set|tuple|int|float|str|bool|map|filter|sorted|getattr|setattr|hasattr|super|push|pop|append|get|keys|values|items|join|split|strip|replace|startswith|endswith|format|console|Math|JSON|Object|Array|Promise|setTimeout)\\b"
         }
       ]
     },

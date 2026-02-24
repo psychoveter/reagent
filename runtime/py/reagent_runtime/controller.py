@@ -22,13 +22,16 @@ Usage::
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 from typing import Any, Callable, Optional
 
 from .agent_node import AgentHandle, AgentNode
 from .inproc_transport import InprocTransport
 from .protocol_registry import ProtocolRegistry, ProtocolEntry
 from .ir_fingerprint import read_protocol_fingerprint, read_protocol_version, read_protocol_dependencies
+from .agent_manifest import load_agent_manifest, load_agent_module
 
 log = logging.getLogger(__name__)
 
@@ -120,6 +123,60 @@ class ReagentController:
                     ir_graphs=proto_graphs,
                 ))
             self.registry.bind_agent(proto_name, agent_name)
+
+    def load(self, ir_dir: str) -> dict[str, str]:
+        """Load all agents from a compiled IR directory.
+
+        Reads deployment.json, loads role IRs and protocol graphs for each
+        agent, resolves agent.json manifests (injecting $agent native modules),
+        and registers everything.
+
+        Returns the roleToAgent mapping from deployment.json.
+        """
+        deployment_path = os.path.join(ir_dir, "deployment.json")
+        if not os.path.exists(deployment_path):
+            raise FileNotFoundError(f"deployment.json not found in {ir_dir}")
+
+        with open(deployment_path) as f:
+            deployment = json.load(f)
+
+        role_to_agent: dict[str, str] = deployment.get("roleToAgent", {})
+
+        for node in self._agent_nodes.values():
+            if hasattr(node, "_role_to_agent"):
+                node._role_to_agent.update(role_to_agent)
+
+        for agent_entry in deployment.get("agents", []):
+            agent_name = agent_entry["agentName"]
+            if self.has_agent(agent_name):
+                continue
+
+            role_ir_file = agent_entry["roleIRFile"]
+            with open(os.path.join(ir_dir, role_ir_file)) as f:
+                role_ir = json.load(f)
+
+            graphs: dict[str, Any] = {}
+            for role_entry in agent_entry.get("roles", []):
+                graph_key = f"{role_entry['protocolName']}.{role_entry['roleName']}"
+                with open(os.path.join(ir_dir, role_entry["irGraphFile"])) as f:
+                    graphs[graph_key] = json.load(f)
+
+            extras: Optional[dict[str, Any]] = None
+            manifest_candidates = [
+                os.path.join(ir_dir, f"{agent_name}.manifest.json"),
+                os.path.join(ir_dir, "..", "agents", f"{agent_name.lower()}.agent.json"),
+            ]
+            for mp in manifest_candidates:
+                if os.path.exists(mp):
+                    manifest = load_agent_manifest(mp)
+                    module_obj = load_agent_module(mp, manifest)
+                    if module_obj is not None:
+                        extras = module_obj
+                    break
+
+            self.register_agent(agent_name, role_ir, graphs, extras)
+
+        return role_to_agent
 
     async def destroy_agent(self, agent_name: str) -> None:
         handle = self._agents.get(agent_name)

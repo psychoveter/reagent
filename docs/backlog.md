@@ -791,9 +791,11 @@ ROS evolves from a session-centric compile/run/debug server into a **reconciliat
 
 ---
 
-## M9-DX — Developer Experience Revision ⬜ NOT STARTED
+## M9-DX — NMMO-Driven Developer Experience 🔧 IN PROGRESS
 
 **Intent**: revise and complete M7-DX phases 1–7 to incorporate language changes (M5-LANG: `$flow`, `scatter`, `invoke`/`spawn`, `alt where`), the Python RC library (M6-PYRC), and protocol versioning/registry (M8a). M7-DX was designed before these milestones existed; M9-DX reconciles the tooling with the evolved language and runtime.
+
+**Driving example**: the `nmmo-reagent` project (`montevideo/Montevideo/nmmo-reagent/`) serves as the primary use case for validating and prioritizing DX features. All tooling improvements are validated against NMMO multi-agent protocols.
 
 **Prerequisite**: M8a completed (M8b is not required for DX tooling).
 
@@ -818,52 +820,111 @@ M7-DX Phase 0 and 0.5 are done. The remaining phases (1–7) were designed again
 | Project structure (M8a/P4) | `reagent.json`, `protocols/`, `agents/`, `reagent init` | LSP: workspace-level indexing from reagent.json; Run/Debug use project root; deployment from project; file watcher respects project layout |
 | IR decompiler (M8a/P4) | IR → .rg round-trip | New command: "Decompile IR" → open .rg preview; runtime introspection in debugger |
 
-### Phase 1-R: Run + IR-Driven Diagrams (revision) ⬜ (~5 days)
+### Phase 1-R: Run + IR-Driven Diagrams (revision) ✅ DONE
 
 **Goal**: same as M7-DX Phase 1, plus `scatter`, protocol-level `invoke`/`spawn`, `$flow` in the diagram pipeline.
 
 **New/revised tasks** (on top of existing Phase 1 items):
 
-- [ ] `scatter` in sequence diagram — fan-out arrows from sender to a group (dynamic participant set), labeled with iteration variable; `gather` join-point
-- [ ] `scatter` in state machine — scatter node (hexagon) with N outgoing edges, join node after all branches complete
-- [ ] Protocol-level `invoke` in sequence diagram — nested sub-diagram block (or folded box with expand-on-click)
-- [ ] Protocol-level `spawn` in sequence diagram — dashed nested block (fire-and-forget semantics visualized)
-- [ ] `alt where` labels — where-clause condition displayed on alt branch edges
-- [ ] `$flow` in replay mode — when replaying trace, show `$flow` state alongside `$ctx` in tooltip
-- [ ] Version badge — if IR contains `version` (M8a), show it in diagram header (e.g., "TaskExecution v1.2.0")
+- [x] `scatter` in sequence diagram — fan-out arrows from sender to a group (dynamic participant set), labeled with iteration variable; `gather` join-point
+- [x] `scatter` in state machine — scatter node (hexagon) with N outgoing edges, join node after all branches complete
+- [x] Protocol-level `invoke` in sequence diagram — nested sub-diagram block (or folded box with expand-on-click)
+- [x] Protocol-level `spawn` in sequence diagram — dashed nested block (fire-and-forget semantics visualized)
+- [x] `alt where` labels — where-clause condition displayed on alt branch edges
+- [x] `$flow` in replay mode — when replaying trace, show `$flow` state alongside `$ctx` in tooltip
+- [x] Version badge — if IR contains `version` (M8a), show it in diagram header (e.g., "TaskExecution v1.2.0")
 
-### Phase 2-R: LSP Core (revision) ⬜ (~5 days)
+**Completed components**:
+- `lang/src/diagram.ts` — IR-to-diagram data model with scatter/invoke/spawn support
+- `tools/reagent-vscode/src/renderers/sequenceDiagram.ts` — SVG renderer for sequence diagrams
+- `tools/reagent-vscode/src/renderers/stateMachineDiagram.ts` — SVG renderer for state machine diagrams
+- Live reload: `.rg` save → recompile → re-render via `diagramPanel.ts`
+
+**Pre-requisites completed**:
+- Scatter + async zones E2E test (`runtime/tests/m9-scatter-async.test.ts`) — validates async zones within scatter branches
+- `rc.load(ir_dir)` in Python `ReagentController` — bulk project loading for simulation workflows
+
+### Phase 1.5-R: Infrastructure + Project Overview ✅ DONE
+
+**Goal**: make the extension self-contained and add project-level architecture visualization.
+
+**Completed tasks**:
+
+- [x] **Self-contained VSIX** — bundled `lang/dist` compiler into extension as `lang/` directory with ESM package.json. Build step: `bundle-lang` copies compiler artifacts. No dependency on source tree.
+- [x] **ROS manager hardening** — TCP-level port probe (not WebSocket), adopt existing server on start, `freePort()` kills stale processes via `lsof`, clean exit handler. Fixes EADDRINUSE on reload.
+- [x] **File icon** for `.rg` files — benzene hexagon ring SVG (light + dark themes) in `icons/`. Wired via `language.icon` in `package.json`.
+- [x] **Project Overview Diagram** — new `projectDiagram.ts` (scanner + renderer) + `projectDiagramPanel.ts` (webview panel):
+  - Scans `.rg` files scoped to nearest `reagent.json` (not whole workspace)
+  - Three-column layout: Agents (orange pills) → Roles (green hexagons) → Protocols (blue boxes)
+  - Edges: `runs` (agent→role) and `plays as` (role→protocol) with bezier curves
+  - Click any node to navigate to source file/line
+  - Auto-refreshes on `.rg`/`agent.json`/`reagent.json` save
+  - Command: `reagent.openProjectDiagram`, toolbar button `$(graph)` on `.rg` editor title
+- [x] **Protocol diagram fix** — `selectedRole` resets when switching between `.rg` files with different role sets
+- [x] **nmmo-reagent agent restructure** — agents moved to per-agent folders (`agents/coordinator/`, `agents/commander/`, `agents/entity/`), each with `agent.json` + `<name>.rg` + `module.py`
+
+**New files**:
+- `tools/reagent-vscode/src/projectDiagram.ts` — project-level scanner (regex-based) + SVG renderer
+- `tools/reagent-vscode/src/projectDiagramPanel.ts` — webview panel for project architecture diagram
+- `tools/reagent-vscode/icons/reagent-light.svg`, `reagent-dark.svg` — file icons
+
+### Phase 2-R: LSP Core (revision) ✅ DONE (core)
 
 **Goal**: same as M7-DX Phase 2, plus new constructs and project awareness.
 
-**New/revised tasks**:
+Full LSP design and backlog: **[lsp.md](lsp.md)**.
 
-- [ ] Completion for `scatter`, `invokes`, `spawns`, `where` keywords and their arguments
-- [ ] Completion inside `where { }` blocks — field names from the message type schema
-- [ ] Go-to-definition on `invokes <Protocol>` → target protocol definition
-- [ ] Go-to-definition on `spawns <Protocol>` → target protocol definition
-- [ ] Hover on `$flow.field` — show field origin (which role last wrote it)
-- [ ] Hover on protocol name — show version + fingerprint (if compiled IR available)
-- [ ] Diagnostics: undeclared scatter iterator variable, scatter on non-collection type
-- [ ] Diagnostics: version mismatch warning (compile-time fingerprint vs last known)
-- [ ] Workspace indexing from `reagent.json` — resolve imports, multi-file go-to-def
-- [ ] `$agent.method()` completion in zones — from `agent.json` manifest + native module signatures
+**Completed**: document symbols, go-to-definition, hover, context-aware completion, parse + semantic diagnostics. Single-file scope.
 
-### Phase 3-R: Visual Debugger (revision) ⬜ (~4 days)
+**Remaining**: cross-file indexing, semantic tokens, find references, rename, `$flow` tracking, `$agent.method()` completion — see `lsp.md` backlog (L-01 through L-21).
+
+**Files**: `tools/reagent-vscode/server/src/server.ts`, `tools/reagent-vscode/server/tsconfig.json`
+
+### Phase 2.5-R: Grammar + Diagram Polish (v0.0.9) ✅ DONE
+
+**Goal**: improve TextMate grammar for zone highlighting and polish sequence diagram layout/styling.
+
+**Completed tasks**:
+
+- [x] **TextMate grammar v0.0.9** — expanded zone keyword highlighting:
+  - `$agent` added to zone keywords (was missing — only `$ctx`, `$flow`, `$self`)
+  - Python/JS keywords in zones: `await`, `return`, `if`, `else`, `for`, `while`, `import`, `from`, `def`, `class`, `try`, `except`, `raise`, `None`, `True`, `False`, `async`, `const`, `let`, `var`, `function`, etc.
+  - Builtin functions: `print`, `len`, `range`, `enumerate`, `push`, `append`, `console`, `Math`, `JSON`, etc.
+  - Operators: `===`, `!==`, `==`, `!=`, `>=`, `<=`, `=>`, `||`, `&&`
+  - Fixed single-line empty `message Name {}` definitions (regex could not match `{` and `}` on same line)
+- [x] **Sequence diagram layout** — action boxes no longer overlap control frame borders:
+  - `FRAME_OPEN_PAD = 30` (was 20) — vertical space after frame label before first inner element
+  - `FRAME_CLOSE_PAD = 16` — breathing room before frame bottom edge
+  - Wider columns (`COLUMN_WIDTH = 220`), taller header area, more padding
+  - Participant header boxes auto-sized to name length
+- [x] **Sequence diagram styling** — cleaner, softer appearance:
+  - System font stack, semi-transparent action box fills, thinner strokes
+  - Control frames: 50% opacity strokes, colored labels per type (green/orange/red/purple)
+  - Tag backgrounds with rounded top corners (tab-like look)
+  - Action boxes: smaller (24px height), tighter text
+
+**Example project**: `examples/projects/auction-sim/` — first project-style example using `reagent init`, validates scatter-based bidding protocol with seller + N buyers (all Python).
+
+### Phase 3-R: Visual Debugger (revision) ✅ DONE (core)
 
 **Goal**: same as M7-DX Phase 3, plus `$flow` inspection and scatter stepping.
 
 **New/revised tasks**:
 
-- [ ] `$flow` in variable scopes — DAP variables response includes `$flow` alongside `$ctx` and `$self`
-- [ ] `$flow` inline values — `showInlineValues()` renders `$flow.key = val` decorations at paused line
-- [ ] `$flow` hover on diagram — tooltip at any visited node shows `$flow` snapshot
-- [ ] Scatter step-in — when paused at a scatter state, "Step In" enters the first branch; "Step Over" completes all branches
-- [ ] Scatter branch visualization — active branches highlighted, completed branches dimmed, pending branches faint
-- [ ] Invoke/spawn step-in — "Step In" on protocol-level invoke enters the child protocol diagram; "Step Out" returns to parent
-- [ ] Protocol stack display — when inside a child protocol, call stack shows parent → child chain
+- [x] `$flow` in variable scopes — DAP variables response includes `$flow` alongside `$ctx` and `$self` (`reagentDebugAdapter.ts`: handleScopes adds $flow ref 400, handleVariables reads `snapshot.flow`)
+- [x] `$flow` inline values — `showInlineValues()` renders `$flow.key = val` decorations at paused line (`inlineValues.ts`: 3rd decoration line)
+- [x] `$flow` hover on diagram — tooltip at any visited node shows `$flow` snapshot (via `pushStateToSinks` → `updateAgentState` with `$flow`)
+- [x] Scatter step-in — when paused at a scatter state, "Step In" enters the first branch; "Step Over" completes all branches (`handleStepIn`/`handleStepOver` with `stateKind` dispatch)
+- [x] Scatter branch visualization — active branches highlighted, completed branches dimmed, pending branches faint (via `DiagramController` → `updateDebug` with visited state tracking)
+- [x] Invoke/spawn step-in — "Step In" on protocol-level invoke enters the child protocol; "Step Out" returns to parent (`handleStepIn`/`handleStepOut` with `protocolStack`)
+- [x] Protocol stack display — when inside a child protocol, call stack shows parent → child chain (`handleStackTrace` with `protocolStack` frames)
 - [ ] `$agent` state inspection — if agent has native module, show `$agent` properties in scopes
 - [ ] IR decompiler preview — "Show IR" command opens decompiled `.rg` in read-only editor (from M8/P4)
+
+**Completed components**:
+- `reagentDebugAdapter.ts` — scatter/invoke step-in/step-over/step-out, protocol stack, $flow scopes
+- `inlineValues.ts` — $flow inline decorations
+- `diagramController.ts` — bridges DAP Stopped events → diagram webview (state highlighting, visited states)
 
 ### Phase 4-R: Deployment Schema + Topology View (revision) ⬜ (~4 days)
 
@@ -880,13 +941,13 @@ M7-DX Phase 0 and 0.5 are done. The remaining phases (1–7) were designed again
 
 ### Phase 5-R: Python Simulation (revision) ⬜ (~3 days)
 
-**Goal**: same as M7-DX Phase 5, but leveraging existing M6-PYRC rather than building from scratch.
+**Goal**: same as M7-DX Phase 5, but leveraging existing M6-PYRC rather than building from scratch. The `nmmo-reagent` project (`montevideo/Montevideo/nmmo-reagent/`) is the primary validation target: NMMO multi-agent simulation with Python RC driving hundreds of agents.
 
 **Revised foundation**: M6-PYRC already provides `ReagentController`, `InprocAgentNode`, `InprocTransport`, `IpcAgentNode`. Phase 5-R focuses on the integration layer, not the runtime.
 
 **New/revised tasks**:
 
-- [ ] `rc.load(ir_dir)` — reads compiled IR artifacts, resolves agent manifests, registers agents. Uses existing `InprocAgentNode` from M6-PYRC
+- [x] `rc.load(ir_dir)` — reads compiled IR artifacts, resolves agent manifests, registers agents. Uses existing `InprocAgentNode` from M6-PYRC (completed as M9-DX pre-requisite)
 - [ ] Jupyter convenience wrapper — `from reagent_runtime import ReagentController; rc = ReagentController("sim"); rc.load("./out"); await rc.start()`
 - [ ] Multi-process scale-out — `rc.fork(n=4)` splits agents across processes via `InprocTransport` (intra-process) + `IpcAgentNode` (inter-process)
 - [ ] VSCode bridge — Python RC pushes agent status, trace events via control socket → extension topology view updates. Protocol: subset of RAP over TCP
@@ -922,27 +983,34 @@ M7-DX Phase 0 and 0.5 are done. The remaining phases (1–7) were designed again
 - [ ] Project-level commands: `reagent init` creates scaffold with `reagent.json`, `protocols/`, `agents/`
 - [ ] Multi-instance visualization: `invoke`/`spawn` child diagrams as expandable sub-graphs
 
-### New files (M9-DX, planned)
+### New files (M9-DX)
 
-| File | Purpose | Phase |
-|---|---|---|
-| `lang/src/diagram.ts` (extend) | Scatter, invoke/spawn in diagram model | 1-R |
-| `tools/reagent-vscode/src/renderers/sequenceDiagram.ts` (extend) | Scatter fan-out, invoke nested block | 1-R |
-| `tools/reagent-vscode/src/renderers/stateMachineDiagram.ts` (extend) | Scatter hexagon, invoke/spawn node links | 1-R |
-| `tools/reagent-vscode/server/src/flowTracker.ts` | LSP: $flow field tracking and origin resolution | 2-R |
-| `tools/reagent-vscode/server/src/projectIndex.ts` | LSP: reagent.json-based workspace indexing | 2-R |
-| `tools/reagent-vscode/src/diagramController.ts` (extend) | Scatter branch stepping, invoke drill-down | 3-R |
-| `tools/reagent-vscode/src/registryPanel.ts` | Protocol registry dashboard | 4-R |
-| `runtime/py/reagent_runtime/vscode_bridge.py` | Python RC → VSCode control socket | 5-R |
-| `runtime/py/reagent_runtime/jupyter.py` | Jupyter convenience wrapper | 5-R |
+| File | Purpose | Phase | Status |
+|---|---|---|---|
+| `lang/src/diagram.ts` | IR-to-diagram data model (sequence + state machine) with scatter/invoke/spawn | 1-R | ✅ |
+| `tools/reagent-vscode/src/renderers/sequenceDiagram.ts` | SVG renderer for sequence diagrams | 1-R | ✅ |
+| `tools/reagent-vscode/src/renderers/stateMachineDiagram.ts` | SVG renderer for state machine diagrams | 1-R | ✅ |
+| `tools/reagent-vscode/src/diagramController.ts` | Bridges DAP Stopped events → diagram webview (state highlighting) | 3-R | ✅ |
+| `tools/reagent-vscode/src/projectDiagram.ts` | Project-level scanner + SVG renderer (agents/roles/protocols) | 1.5-R | ✅ |
+| `tools/reagent-vscode/src/projectDiagramPanel.ts` | Webview panel for project architecture diagram | 1.5-R | ✅ |
+| `tools/reagent-vscode/icons/reagent-{light,dark}.svg` | Benzene hexagon file icons for `.rg` files | 1.5-R | ✅ |
+| `tools/reagent-vscode/server/src/server.ts` | LSP server (symbols, go-to-def, hover, completion, diagnostics) | 2-R | ✅ |
+| `runtime/tests/m9-scatter-async.test.ts` | E2E test for async zones in scatter branches (SA1-SA4) | Pre-req | ✅ |
+| `tools/reagent-vscode/server/src/flowTracker.ts` | LSP: $flow field tracking and origin resolution | 2-R | ⬜ |
+| `tools/reagent-vscode/server/src/projectIndex.ts` | LSP: reagent.json-based workspace indexing | 2-R | ⬜ |
+| `tools/reagent-vscode/src/registryPanel.ts` | Protocol registry dashboard | 4-R | ⬜ |
+| `runtime/py/reagent_runtime/vscode_bridge.py` | Python RC → VSCode control socket | 5-R | ⬜ |
+| `runtime/py/reagent_runtime/jupyter.py` | Jupyter convenience wrapper | 5-R | ⬜ |
 
 ### Use case enablement (cumulative with M7-DX Phase 0/0.5)
 
-| After phase | New capabilities |
-|---|---|
-| **1-R** | Scatter/invoke/spawn in diagrams, version badges, $flow in replay |
-| **2-R** | LSP for all v0.0.8 constructs, project-level indexing, $agent completion |
-| **3-R** | $flow in debugger, scatter stepping, invoke drill-down, protocol stack |
+| After phase | New capabilities | Status |
+|---|---|---|
+| **1-R** | Scatter/invoke/spawn in diagrams, version badges, $flow in replay | ✅ |
+| **1.5-R** | Project overview diagram, self-contained VSIX, file icons, ROS robustness | ✅ |
+| **2-R** | LSP core: symbols, go-to-def, hover, completion, parse+semantic diagnostics | ✅ |
+| **2.5-R** | TextMate grammar v0.0.9 (zone keywords, builtins), diagram layout/styling polish, auction-sim example | ✅ |
+| **3-R** | $flow in debugger, scatter stepping, invoke drill-down, protocol stack | ✅ (core) |
 | **4-R** | Registry-driven topology, version-aware deployment planning, dependency graph |
 | **5-R** | Python simulation with live VSCode bridge (built on real M6-PYRC) |
 | **6-R** | Version-aware multi-node deployment, registry dashboard, hot deploy preview |
@@ -950,19 +1018,21 @@ M7-DX Phase 0 and 0.5 are done. The remaining phases (1–7) were designed again
 
 ### Effort estimate
 
-| Phase | Effort | Parallelizable with |
-|---|---|---|
-| Phase 1-R: Diagrams revision | 5 days | Phase 2-R |
-| Phase 2-R: LSP revision | 5 days | Phase 1-R |
-| Phase 3-R: Debugger revision | 4 days | — |
-| Phase 4-R: Topology revision | 4 days | — |
-| Phase 5-R: Py simulation revision | 3 days | Phase 6-R |
-| Phase 6-R: Multi-node revision | 5 days | Phase 5-R |
-| Phase 7-R: Polish revision | 3 days | — |
+| Phase | Effort | Status | Parallelizable with |
+|---|---|---|---|
+| Phase 1-R: Diagrams revision | 5 days | ✅ DONE | Phase 2-R |
+| Phase 1.5-R: Infra + Project Overview | 2 days | ✅ DONE | — |
+| Phase 2-R: LSP core | 1 day | ✅ DONE | Phase 1-R |
+| Phase 2.5-R: Grammar + Diagram polish | 0.5 day | ✅ DONE | — |
+| Phase 3-R: Debugger revision | 4 days | ✅ DONE (core) | — |
+| Phase 4-R: Topology revision | 4 days | ⬜ | — |
+| Phase 5-R: Py simulation revision | 3 days | ⬜ | Phase 6-R |
+| Phase 6-R: Multi-node revision | 5 days | ⬜ | Phase 5-R |
+| Phase 7-R: Polish revision | 3 days | ⬜ | — |
 
-**Critical path** (longest sequential chain): 1-R → 3-R → 4-R → 6-R → 7-R = **21 days**.
+**Remaining critical path**: 2-R → 4-R → 6-R → 7-R = **17 days**.
 
-**With parallelism** (1-R ∥ 2-R, 5-R ∥ 6-R): **~22–24 working days total**.
+**With parallelism** (5-R ∥ 6-R): **~15–17 working days remaining**.
 
 ---
 
@@ -980,6 +1050,7 @@ Ideas and milestones considered but not yet scheduled.
 - **P2P gossip for node discovery**: nodes exchange `AddressPage`s directly, converging to consistent cluster view without central orchestrator.
 - **NatsNodeLink**: wrap NATS as a `NodeLink` implementation. Single subject per node-pair. Fast follow after M5-CTRL.
 - ~~**Cross-language loopback**~~: ✅ Done in M5-CTRL / Phase E. `PythonAgentNode` bridges Python child processes via JSON-line IPC. Multi-`AgentNode` RC routes by language.
+- **RAP as a Reagent project**: extract the 14 RAP sub-protocols from `tools/rap/` into a proper Reagent project (`reagent-rap` or `@reagent/rap`) with its own `reagent.json`, versioned independently. Currently RAP specs live as loose `.rg` files under `tools/`; they should be a first-class package that other projects can depend on via `reagent.json` `dependencies`. This also validates the package/import resolution system (M8a/P4) end-to-end. Concrete steps: (1) `reagent init` a new project, (2) move `tools/rap/*.rg` into `protocols/`, (3) add `reagent.json` with name `@reagent/rap`, (4) verify `reagent build` compiles all 14, (5) update ROS + CLI to resolve RAP protocols from the package instead of hardcoded paths, (6) publish as the first `reagent_packages/` dependency example.
 - **Production hardening**: AuthN/AuthZ on `NodeLink` connections (TLS, mTLS, token auth), quotas, backpressure, operational tooling, crash recovery.
 - **Hot protocol deployment**: deploy new protocols to a running cluster without stopping existing agents. Depends on M8a fingerprints + registry + M8b reconciler. See [protocol-versioning.md §12-13](protocol-versioning.md).
 
@@ -1063,10 +1134,15 @@ Ideas and milestones considered but not yet scheduled.
 | DeploySpec + RegistryView | Desired/actual state models for reconciliation | M8b / 5 ✅ | REC1 |
 | RAP reconciliation protocols | 10-list-protocols through 14-stop-agent | M8b / 5 ✅ | REC1 |
 | `reagent deploy` CLI | Submit deploy spec, wait for reconciliation | M8b / 5 ✅ | REC4 |
-| Scatter/invoke/spawn in diagrams | IR-driven rendering of v0.0.8 constructs | M9-DX / 1-R ⬜ | — |
-| LSP for v0.0.8 constructs | scatter, invokes, spawns, where, $flow completion | M9-DX / 2-R ⬜ | — |
-| $flow in debugger | $flow inspection, inline values, diagram hover | M9-DX / 3-R ⬜ | — |
-| Scatter/invoke step-in | Branch stepping, child protocol drill-down | M9-DX / 3-R ⬜ | — |
+| Scatter/invoke/spawn in diagrams | IR-driven rendering of v0.0.8 constructs | M9-DX / 1-R ✅ | — |
+| Project Overview Diagram | Agents→Roles→Protocols graph scoped to reagent.json | M9-DX / 1.5-R ✅ | — |
+| Self-contained VSIX | Bundled lang compiler, no source tree dependency | M9-DX / 1.5-R ✅ | — |
+| .rg file icon | Benzene hexagon ring (light + dark) | M9-DX / 1.5-R ✅ | — |
+| ROS manager robustness | Port probe, adopt existing, freePort(), TCP probe | M9-DX / 1.5-R ✅ | — |
+| LSP core | Document symbols, go-to-def, hover, completion, diagnostics | M9-DX / 2-R ✅ | — |
+| $flow in debugger | $flow inspection, inline values, diagram hover | M9-DX / 3-R ✅ | — |
+| Scatter/invoke step-in | Branch stepping, child protocol drill-down | M9-DX / 3-R ✅ | — |
+| Diagram ↔ debug sync | DiagramController: DAP events → diagram state highlighting | M9-DX / 3-R ✅ | — |
 | Registry-driven topology | Version badges, canDeploy, dependency graph | M9-DX / 4-R ⬜ | — |
 | Python simulation bridge | Python RC → VSCode live topology | M9-DX / 5-R ⬜ | — |
 | Version-aware deployment | Fingerprint checks, registry dashboard, hot deploy | M9-DX / 6-R ⬜ | — |

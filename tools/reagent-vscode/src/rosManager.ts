@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { ChildProcess, spawn } from 'child_process';
+import * as net from 'net';
+import { ChildProcess, spawn, execSync } from 'child_process';
 import { RapClient } from './rapClient';
 
 export class RosManager implements vscode.Disposable {
@@ -25,6 +26,19 @@ export class RosManager implements vscode.Disposable {
 
   async start(): Promise<void> {
     if (this._running) return;
+
+    // If something is already listening on the port and responds as a healthy
+    // WebSocket server, adopt it instead of spawning a duplicate.
+    if (await this.probe()) {
+      this._running = true;
+      this.outputChannel.appendLine(`Adopted existing ROS at ${this.rosUrl}`);
+      this.updateStatusBar();
+      return;
+    }
+
+    // Port may be occupied by a stale/unresponsive process — kill it so the
+    // new spawn doesn't crash with EADDRINUSE.
+    this.freePort();
 
     const rosCliPath = this.findRosCli();
     if (!rosCliPath) {
@@ -67,6 +81,7 @@ export class RosManager implements vscode.Disposable {
 
     this.process.on('exit', (code) => {
       this._running = false;
+      this.process = null;
       this.outputChannel.appendLine(`ROS exited (code ${code})`);
       this.updateStatusBar();
     });
@@ -108,15 +123,16 @@ export class RosManager implements vscode.Disposable {
     return this._running;
   }
 
-  private async probe(): Promise<boolean> {
-    try {
-      const client = new RapClient(this.rosUrl);
-      await client.connect();
-      client.close();
-      return true;
-    } catch {
-      return false;
-    }
+  /** TCP-level port probe — fast and reliable without a full WS handshake. */
+  private probe(): Promise<boolean> {
+    return new Promise((resolve) => {
+      const socket = new net.Socket();
+      socket.setTimeout(1000);
+      socket.once('connect', () => { socket.destroy(); resolve(true); });
+      socket.once('error', () => { socket.destroy(); resolve(false); });
+      socket.once('timeout', () => { socket.destroy(); resolve(false); });
+      socket.connect(this.port, this.host);
+    });
   }
 
   private async waitForReady(timeoutMs: number): Promise<boolean> {
@@ -148,6 +164,20 @@ export class RosManager implements vscode.Disposable {
     const runtimeTs = path.dirname(path.dirname(rosCliPath));
     const tsxBin = path.join(runtimeTs, 'node_modules', '.bin', 'tsx');
     return fs.existsSync(tsxBin) ? tsxBin : null;
+  }
+
+  /** Kill any process holding this.port so a fresh spawn doesn't get EADDRINUSE. */
+  private freePort(): void {
+    try {
+      const pids = execSync(`lsof -ti :${this.port}`, { timeout: 3000 })
+        .toString().trim().split('\n').filter(Boolean);
+      for (const pid of pids) {
+        try {
+          process.kill(Number(pid), 'SIGKILL');
+          this.outputChannel.appendLine(`Killed stale process ${pid} on port ${this.port}`);
+        } catch { /* already gone */ }
+      }
+    } catch { /* lsof returned nothing — port is free */ }
   }
 
   private updateStatusBar(): void {

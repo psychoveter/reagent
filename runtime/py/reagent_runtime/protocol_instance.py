@@ -17,7 +17,7 @@ from .types import (
     msg_subject,
     trace_subject,
 )
-from .zone_executor import execute_zone, ReagentStub, InvokeRequest, ReturnValue, BreakRequest
+from .zone_executor import execute_zone, execute_zone_async, ReagentStub, InvokeRequest, ReturnValue, BreakRequest
 
 
 class ProtocolInstance:
@@ -259,7 +259,10 @@ class ProtocolInstance:
 
         if data.get("preSendZone"):
             self._emit_trace("ActionStarted", {"stateId": state["id"], "zone": "preSend"})
-            execute_zone(data["preSendZone"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
+            if data.get("preSendAsync"):
+                await execute_zone_async(data["preSendZone"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
+            else:
+                execute_zone(data["preSendZone"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
             self._emit_trace("ActionFinished", {"stateId": state["id"], "zone": "preSend"})
 
         payload = self._ctx.get("msg", {})
@@ -314,7 +317,10 @@ class ProtocolInstance:
 
         if data.get("postReceiveZone"):
             self._emit_trace("ActionStarted", {"stateId": state["id"], "zone": "postReceive"})
-            execute_zone(data["postReceiveZone"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
+            if data.get("postReceiveAsync"):
+                await execute_zone_async(data["postReceiveZone"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
+            else:
+                execute_zone(data["postReceiveZone"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
             self._emit_trace("ActionFinished", {"stateId": state["id"], "zone": "postReceive"})
 
         self._ctx.pop("msg", None)
@@ -323,7 +329,10 @@ class ProtocolInstance:
         data = state["data"]
         self._emit_trace("ActionStarted", {"stateId": state["id"]})
         try:
-            execute_zone(data["body"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
+            if data.get("async"):
+                await execute_zone_async(data["body"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
+            else:
+                execute_zone(data["body"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
         except ReturnValue as rv:
             self._return_value = rv.value
             self._has_return_value = True
@@ -623,31 +632,39 @@ class ProtocolInstance:
         join_id = self._find_join_for_fork(state["id"])
         branch_start_id = data["branchStartIds"][0]
 
-        async def run_branch() -> None:
-            current = branch_start_id
-            while True:
-                if join_id and current == join_id:
-                    return
-                st = self._state_map.get(current)
-                if not st:
-                    raise RuntimeError(f"State {current} not found in scatter branch")
-                k = st["data"]["kind"]
-                if k == "send":
-                    await self._handle_send(st)
-                    current = self._follow_default_from(current)
-                elif k == "receive":
-                    await self._handle_receive(st)
-                    current = self._follow_default_from(current)
-                elif k == "action":
-                    await self._handle_action(st)
-                    current = self._follow_default_from(current)
-                elif k == "timer":
-                    await self._handle_timer(st)
-                    current = self._follow_default_from(current)
-                else:
-                    current = self._follow_default_from(current)
+        async def run_branch(item: Any, idx: int) -> None:
+            saved_flow = self._flow
+            branch_flow = dict(self._flow)
+            branch_flow["_scatterItem"] = item
+            branch_flow["_scatterIdx"] = idx
+            self._flow = branch_flow
+            try:
+                current = branch_start_id
+                while True:
+                    if join_id and current == join_id:
+                        return
+                    st = self._state_map.get(current)
+                    if not st:
+                        raise RuntimeError(f"State {current} not found in scatter branch")
+                    k = st["data"]["kind"]
+                    if k == "send":
+                        await self._handle_send(st)
+                        current = self._follow_default_from(current)
+                    elif k == "receive":
+                        await self._handle_receive(st)
+                        current = self._follow_default_from(current)
+                    elif k == "action":
+                        await self._handle_action(st)
+                        current = self._follow_default_from(current)
+                    elif k == "timer":
+                        await self._handle_timer(st)
+                        current = self._follow_default_from(current)
+                    else:
+                        current = self._follow_default_from(current)
+            finally:
+                self._flow = saved_flow
 
-        tasks = [run_branch() for _ in coll]
+        tasks = [run_branch(item, idx) for idx, item in enumerate(coll)]
         await asyncio.gather(*tasks)
         self._emit_trace("ScatterCompleted", {"stateId": state["id"], "count": len(coll)})
         if join_id:

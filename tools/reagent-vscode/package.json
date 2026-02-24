@@ -2,7 +2,7 @@
   "name": "reagent-vscode",
   "displayName": "Reagent Language Support",
   "description": "Language support for Reagent protocol DSL (.rg) with embedded language intelligence in agent zones.",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "publisher": "psychoveter",
   "engines": {
     "vscode": "^1.80.0"
@@ -25,7 +25,11 @@
         "extensions": [
           ".rg"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/reagent-light.svg",
+          "dark": "./icons/reagent-dark.svg"
+        }
       }
     ],
     "grammars": [
@@ -44,10 +48,14 @@
       {
         "type": "reagent",
         "label": "Reagent Debug",
-        "languages": ["reagent"],
+        "languages": [
+          "reagent"
+        ],
         "configurationAttributes": {
           "launch": {
-            "required": ["rgFile"],
+            "required": [
+              "rgFile"
+            ],
             "properties": {
               "rgFile": {
                 "type": "string",
@@ -111,7 +119,13 @@
       },
       {
         "command": "reagent.openDiagram",
-        "title": "Reagent: Open Protocol Diagram"
+        "title": "Reagent: Open Protocol Diagram",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "reagent.openProjectDiagram",
+        "title": "Reagent: Open Project Overview",
+        "icon": "$(graph)"
       },
       {
         "command": "reagent.startRos",
@@ -128,6 +142,16 @@
     ],
     "menus": {
       "editor/title": [
+        {
+          "command": "reagent.openProjectDiagram",
+          "when": "resourceLangId == reagent",
+          "group": "navigation"
+        },
+        {
+          "command": "reagent.openDiagram",
+          "when": "resourceLangId == reagent",
+          "group": "navigation"
+        },
         {
           "command": "reagent.run",
           "when": "resourceLangId == reagent",
@@ -146,11 +170,15 @@
     }
   },
   "scripts": {
-    "compile": "tsc -p ./",
+    "bundle-lang": "rm -rf lang && cp -r ../../lang/dist lang && echo '{\"type\":\"module\"}' > lang/package.json",
+    "compile": "npm run bundle-lang && tsc -p ./ && tsc -p server/",
     "watch": "tsc -watch -p ./",
-    "package": "vsce package --no-dependencies"
+    "package": "npm run compile && vsce package"
   },
   "dependencies": {
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12",
     "ws": "^8.18.0"
   },
   "devDependencies": {

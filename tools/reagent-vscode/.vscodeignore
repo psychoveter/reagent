@@ -1,4 +1,6 @@
 src/**
+server/src/**
+server/tsconfig.json
 node_modules/**/.package-lock.json
 node_modules/**/test/**
 node_modules/**/tests/**
@@ -12,5 +14,6 @@ tsconfig.json
 .vscodeignore
 *.ts
 !out/**
+!lang/**
 preview.html
 *.vsix

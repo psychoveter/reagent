@@ -1,4 +1,11 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
+import {
+  LanguageClient,
+  LanguageClientOptions,
+  ServerOptions,
+  TransportKind,
+} from 'vscode-languageclient/node';
 import {
   ReagentVirtualDocumentProvider,
   REAGENT_EMBEDDED_SCHEME,
@@ -18,10 +25,28 @@ import { ReagentDiagramPanel } from './diagramPanel';
 import { RunController } from './runController';
 import { ReagentCodeLensProvider } from './codeLensProvider';
 import { RosManager } from './rosManager';
+import { DiagramController } from './diagramController';
+import { ProjectDiagramPanel } from './projectDiagramPanel';
+
+let languageClient: LanguageClient | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   const outputChannel = vscode.window.createOutputChannel('Reagent Language');
   outputChannel.appendLine('Reagent Language extension activating...');
+
+  // ── Language Server ───────────────────────────────────────────────
+  const serverModule = context.asAbsolutePath(path.join('out', 'server', 'server.js'));
+  const serverOptions: ServerOptions = {
+    run: { module: serverModule, transport: TransportKind.ipc },
+    debug: { module: serverModule, transport: TransportKind.ipc, options: { execArgv: ['--nolazy', '--inspect=6009'] } },
+  };
+  const clientOptions: LanguageClientOptions = {
+    documentSelector: [{ scheme: 'file', language: 'reagent' }],
+    outputChannel,
+  };
+  languageClient = new LanguageClient('reagent-lsp', 'Reagent Language Server', serverOptions, clientOptions);
+  languageClient.start();
+  context.subscriptions.push({ dispose: () => { languageClient?.stop(); } });
 
   // 1. Register virtual document provider
   const virtualProvider = new ReagentVirtualDocumentProvider();
@@ -132,6 +157,10 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
+  // ── Diagram ↔ Debug controller ──────────────────────────────
+  const diagramController = new DiagramController();
+  context.subscriptions.push(diagramController);
+
   // ── Run controller (no-debug, in-process) ─────────────────────
   const runController = new RunController();
   context.subscriptions.push(runController);
@@ -228,6 +257,12 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('reagent.openDiagram', () => {
       ReagentDiagramPanel.createOrShow(context.extensionUri);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('reagent.openProjectDiagram', () => {
+      ProjectDiagramPanel.createOrShow();
     })
   );
 

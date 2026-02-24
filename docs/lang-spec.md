@@ -9,7 +9,7 @@ Design goals:
 - Human-writable, line-oriented protocol choreography.
 - Extensible "props-like" dictionaries on message steps (for runtime hooks).
 - **Agent functional zones** are host-language code blocks: `AgentName { ... }` (language from `participants:`).
-- Three runtime-injected bindings: `$ctx` (per-role isolated), `$flow` (message-propagated), `$self` (role-level persistent).
+- Five runtime-injected bindings: `$ctx` (per-role isolated), `$flow` (message-propagated), `$self` (role-level persistent), `reagent` (runtime library), `$agent` (optional native module).
 - Produces a well-defined **AST** with source locations, suitable for Cursor plugins.
 
 Non-goals (v0):
@@ -105,15 +105,57 @@ The zone body is written in that host language.
 
 Zone body is **raw host-language code** — stored as text by the parser (braces are balanced, strings/comments skipped).
 
-**Runtime injection**: the engine injects four bindings into every zone:
+**Runtime injection**: the engine injects five bindings into every zone:
 - `$ctx` — **per-role isolated** working memory. Each role has its own `$ctx` that is not shared.
 - `$flow` — **message-propagated** state. Written by one role, carried with messages, readable by the receiving role.
 - `$self` — **role-level persistent state**. Survives across protocol instances.
 - `reagent` — the **Reagent runtime library** (see §1.4).
+- `$agent` — **optional native module binding** (see §1.3.1). Present when the agent has an `agent.json` manifest with a `module` field. Provides access to host-language methods exported by the native module (e.g. `await $agent.think(prompt)`, `$agent.query(id)`). Absent for agents without a native module — zones that reference `$agent` on such agents will get `undefined`.
+
+**Async zones**: if a zone body contains the `await` keyword, the compiler marks the corresponding IR state as asynchronous (`async: true` on `action`, `preSendAsync` on `send`, `postReceiveAsync` on `receive`). The runtime detects this flag and executes the zone with an async executor (`AsyncFunction` in TS, `async def` wrapper in Python). This is transparent to the `.rg` author — no special syntax is needed beyond writing `await` in the host-language code inside the zone. Async zones are typically used with `$agent` methods that perform I/O (LLM calls, database queries, HTTP requests).
 
 **Important constraints**:
 - Zones of **different roles** MUST NOT be adjacent without an intervening message (ordering guarantee).
 - Multiple consecutive zones of the **same role** are allowed (they execute sequentially on that agent).
+
+### 1.3.1 `$agent` — native module binding
+
+The `$agent` binding exposes a host-language object (the default export of a native module) to all zones executed by that agent. It is the bridge between protocol choreography and external I/O or domain-specific logic that cannot be expressed as inline zone code.
+
+**When available**: an agent has `$agent` if and only if its `agent.json` manifest specifies a `module` field pointing to a host-language file. The runtime loads the module at agent registration time and injects its default export as `$agent` into every zone scope for that agent.
+
+```
+// agent.json
+{
+  "name": "Alice",
+  "role": "AliceRole",
+  "module": "./impl.py",
+  "config": { "apiKey": "${LLM_API_KEY}" }
+}
+```
+
+```
+// impl.py — the default export becomes $agent
+class AliceModule:
+    def __init__(self, config):
+        self.llm = LLMClient(config["apiKey"])
+
+    async def think(self, prompt):
+        return await self.llm.call(prompt)
+```
+
+```
+// In a .rg protocol zone:
+alice {
+  $ctx.result = await $agent.think("Analyze: " + $self.worldModel)
+}
+```
+
+**Design principle**: `$agent` should be a **thin I/O wrapper**. It provides access to external resources (LLM APIs, databases, environment handles, hardware interfaces) that zones cannot create or manage inline. All protocol logic — state management, decision making, prompt assembly — belongs in zones using `$ctx`, `$flow`, and `$self`. This keeps protocols self-describing and debuggable.
+
+**When absent**: agents without `agent.json` (or without a `module` field) do not have `$agent` in scope. Referencing `$agent` in such zones evaluates to `undefined` (TS/JS) or raises `NameError` (Python). The `.rg` agent declaration (`agent X runs Role`) works as before — `$agent` is purely additive.
+
+See also: protocol-versioning.md §9.3–9.4 for `agent.json` format and native module loading.
 
 ### 1.4 Reagent runtime library (`reagent.*`)
 
@@ -238,6 +280,33 @@ import "./lib/helpers.ts" as helpers
 
 Makes host-language functions/values available inside agent zones of the matching language.
 Code imports are resolved by the engine at zone execution time.
+
+#### Zone helper functions — patterns by language
+
+Zones often need helper functions for domain logic (e.g. `updateWorldModel()`, `translateGoalToAction()`). The mechanism differs by host language:
+
+**Python** (`[py]`): use standard `import` statements inside the zone body. The Python zone executor runs the zone via `exec()`, so top-level imports work:
+
+```
+entity {
+  from nmmo_helpers import updateWorldModel, translateGoalToAction
+  $self.worldModel = updateWorldModel($self.worldModel, $ctx.msg.obs)
+  $ctx.action = translateGoalToAction($self.currentGoal, $ctx.msg.obs, $self.worldModel)
+}
+```
+
+**TypeScript/JavaScript** (`[ts]`, `[js]`): zone code runs inside `new Function(...)`, which does not support `import` statements. Two options:
+
+1. **`$agent` methods** (preferred): put helpers on the native module and call via `$agent`:
+   ```
+   sender {
+     $ctx.result = $agent.computeHash($flow.data)
+   }
+   ```
+
+2. **Code module imports** (above): `import "./helpers.ts" as helpers` makes the module available in zones.
+
+**Kotlin** (`[kt]`): follows the same pattern as TypeScript — use `$agent` for external logic.
 
 ### 1.9 Protocol-level control flow (reserved syntax)
 
@@ -380,6 +449,23 @@ scatter ($flow.workers as worker) {
 - All branches execute concurrently and join when all complete (like `par`).
 - Designed for patterns like **Call for Proposal** (CFP), map-reduce, and fan-out/fan-in.
 
+**Per-branch variables**: inside each scatter branch, the runtime injects two special `$flow` fields:
+- `$flow._scatterIdx` — the zero-based index of the current item in the collection.
+- `$flow._scatterItem` — the current item value from the collection.
+
+These fields are scoped to each branch (not visible to the parent or sibling branches). Use them to access per-item data:
+
+```
+scatter ($flow.agentIds as worker) {
+  coordinator --> worker: Task = {
+    onSend {
+      $ctx.msg.id = $flow._scatterItem
+      $ctx.msg.index = $flow._scatterIdx
+    }
+  }
+}
+```
+
 ---
 
 **Not at protocol level** (handled in zones or by host-language):
@@ -465,6 +551,8 @@ message Rejected {
 - `message Name { ... }` declares a named payload schema.
 - Fields are `name: type` (one per line, optional trailing comma).
 - Empty bodies (`message Ack {}`) declare a message with no user-defined payload.
+
+**Dynamic payload construction**: the runtime initializes `$ctx.msg = {}` before every `onSend` zone. The zone populates fields dynamically (e.g. `$ctx.msg.obs = ...`). This means empty `message` declarations are fully usable — the schema is documentary, and the actual payload is whatever the zone writes to `$ctx.msg`. This is by design: Reagent does not enforce message schemas at runtime (v0).
 
 **Type system (minimal)**:
 - Scalars: `string`, `number`, `boolean`
@@ -744,6 +832,11 @@ WS              ::= (" " | "\t" | "\r" | "\n")+
 - Legacy `reagent.invoke()` / `reagent.spawn()` in zones remain supported at runtime but are deprecated.
 - Syntax changed from `invoke Proto(...) as <role>` to `<role> invokes Proto(...)` — caller role is now the grammatical subject.
 
+**Runtime changes in M8b (Agent Model Evolution)** (no syntax changes):
+- **`$agent` binding**: new optional 5th runtime-injected binding in zone scope. Present when the agent has an `agent.json` manifest with a `module` field. Provides access to native host-language module methods (see §1.3.1).
+- **Async zones**: if a zone body contains `await`, the compiler sets `async: true` (action), `preSendAsync` (send), or `postReceiveAsync` (receive) on the IR state. The runtime uses `AsyncFunction` (TS) or `async def` wrapper (Python) to execute such zones. No `.rg` syntax change — `await` is host-language code inside `{ }`.
+- **`agent.json` manifest**: per-agent manifest file (`name`, `role`, `module`, `config`) that takes priority over `.rg` `agent` declarations when present. See protocol-versioning.md §9.4.
+
 ---
 
 ## 3. Example: task execution protocol (user → comma → sia)
@@ -798,6 +891,9 @@ The compiler produces per-role **Protocol IR** — directed graphs of states and
 - `invoke` state: `protocolName`, `input` expression, optional `resultTarget`
 - `spawn` state: `protocolName`, `input` expression
 - `scatter` state: `collection` expression, `itemRole`, `branchStartIds`
+- `action` states have optional `async: true` flag (zone body contains `await`)
+- `send` states have optional `preSendAsync: true` (onSend zone contains `await`)
+- `receive` states have optional `postReceiveAsync: true` (onReceive zone contains `await`)
 
 ### 4.4 Role IR (v0.0.8)
 

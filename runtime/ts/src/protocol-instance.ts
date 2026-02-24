@@ -368,13 +368,14 @@ export class ProtocolInstance {
   }
 
   private async handleSend(state: IRState): Promise<void> {
-    const data = state.data as { kind: "send"; to: string; messageName: string; preSendZone?: string; propagateFlow?: boolean };
+    const data = state.data as { kind: "send"; to: string; messageName: string; preSendZone?: string; preSendAsync?: boolean; propagateFlow?: boolean };
 
     this.ctx.msg = {};
 
     if (data.preSendZone) {
       this.emitTrace("ActionStarted", { stateId: state.id, zone: "preSend" });
-      executeZone(data.preSendZone, this.ctx, this.selfRef, this.reagent, this.flow, this.zoneExtras());
+      const result = this.execZone(data.preSendZone, !!data.preSendAsync);
+      if (result instanceof Promise) await result;
       this.emitTrace("ActionFinished", { stateId: state.id, zone: "preSend" });
     }
 
@@ -412,7 +413,7 @@ export class ProtocolInstance {
   }
 
   private async handleReceive(state: IRState): Promise<void> {
-    const data = state.data as { kind: "receive"; from: string; messageName: string; postReceiveZone?: string; propagateFlow?: boolean };
+    const data = state.data as { kind: "receive"; from: string; messageName: string; postReceiveZone?: string; postReceiveAsync?: boolean; propagateFlow?: boolean };
 
     const env = await this.waitForMessage(data.messageName);
 
@@ -430,7 +431,8 @@ export class ProtocolInstance {
 
     if (data.postReceiveZone) {
       this.emitTrace("ActionStarted", { stateId: state.id, zone: "postReceive" });
-      executeZone(data.postReceiveZone, this.ctx, this.selfRef, this.reagent, this.flow, this.zoneExtras());
+      const result = this.execZone(data.postReceiveZone, !!data.postReceiveAsync);
+      if (result instanceof Promise) await result;
       this.emitTrace("ActionFinished", { stateId: state.id, zone: "postReceive" });
     }
 
@@ -830,7 +832,10 @@ export class ProtocolInstance {
     const joinId = this.findJoinForFork(state.id);
     const branchStartId = data.branchStartIds[0];
 
-    const branchPromises = list.map(async () => {
+    const branchPromises = list.map(async (item, idx) => {
+      const branchFlow = Object.create(this.flow);
+      branchFlow._scatterItem = item;
+      branchFlow._scatterIdx = idx;
       const branchRunner = new BranchRunner(
         this.graph,
         this.transport,
@@ -843,7 +848,7 @@ export class ProtocolInstance {
         this.messageResolvers,
         this.xorResolvers,
         (kind, d) => this.emitTrace(kind, d),
-        this.flow,
+        branchFlow,
         this.messageInbox,
       );
       await branchRunner.runFrom(branchStartId, joinId);
@@ -1133,11 +1138,15 @@ class BranchRunner {
 
       switch (state.data.kind) {
         case "send": {
-          const data = state.data as { kind: "send"; to: string; messageName: string; preSendZone?: string; propagateFlow?: boolean };
+          const data = state.data as { kind: "send"; to: string; messageName: string; preSendZone?: string; preSendAsync?: boolean; propagateFlow?: boolean };
           this.ctx.msg = {};
           if (data.preSendZone) {
             this.emitTrace("ActionStarted", { stateId: state.id, zone: "preSend" });
-            executeZone(data.preSendZone, this.ctx, this.selfRef, this.reagent, this.flow, this.zoneExtras());
+            if (data.preSendAsync) {
+              await executeZoneAsync(data.preSendZone, this.ctx, this.selfRef, this.reagent, this.flow, this.zoneExtras());
+            } else {
+              executeZone(data.preSendZone, this.ctx, this.selfRef, this.reagent, this.flow, this.zoneExtras());
+            }
             this.emitTrace("ActionFinished", { stateId: state.id, zone: "preSend" });
           }
           const payload = (this.ctx.msg as Record<string, unknown>) ?? {};
@@ -1158,7 +1167,7 @@ class BranchRunner {
           break;
         }
         case "receive": {
-          const data = state.data as { kind: "receive"; from: string; messageName: string; postReceiveZone?: string; propagateFlow?: boolean };
+          const data = state.data as { kind: "receive"; from: string; messageName: string; postReceiveZone?: string; postReceiveAsync?: boolean; propagateFlow?: boolean };
           const inboxIdx = this.messageInbox.findIndex(e => e.messageName === data.messageName);
           const env = inboxIdx >= 0
             ? this.messageInbox.splice(inboxIdx, 1)[0]
@@ -1172,7 +1181,11 @@ class BranchRunner {
           this.ctx.msg = env.payload;
           if (data.postReceiveZone) {
             this.emitTrace("ActionStarted", { stateId: state.id, zone: "postReceive" });
-            executeZone(data.postReceiveZone, this.ctx, this.selfRef, this.reagent, this.flow, this.zoneExtras());
+            if (data.postReceiveAsync) {
+              await executeZoneAsync(data.postReceiveZone, this.ctx, this.selfRef, this.reagent, this.flow, this.zoneExtras());
+            } else {
+              executeZone(data.postReceiveZone, this.ctx, this.selfRef, this.reagent, this.flow, this.zoneExtras());
+            }
             this.emitTrace("ActionFinished", { stateId: state.id, zone: "postReceive" });
           }
           delete this.ctx.msg;
@@ -1180,9 +1193,13 @@ class BranchRunner {
           break;
         }
         case "action": {
-          const data = state.data as { kind: "action"; body: string };
+          const data = state.data as { kind: "action"; body: string; async?: boolean };
           this.emitTrace("ActionStarted", { stateId: state.id });
-          executeZone(data.body, this.ctx, this.selfRef, this.reagent, this.flow, this.zoneExtras());
+          if (data.async) {
+            await executeZoneAsync(data.body, this.ctx, this.selfRef, this.reagent, this.flow, this.zoneExtras());
+          } else {
+            executeZone(data.body, this.ctx, this.selfRef, this.reagent, this.flow, this.zoneExtras());
+          }
           this.emitTrace("ActionFinished", { stateId: state.id });
           currentId = this.followDefault(currentId);
           break;

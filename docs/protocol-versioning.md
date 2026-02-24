@@ -464,9 +464,10 @@ zone execution scope, but there is no mechanism to provide them.
   - **Native**: Reagent is the application framework (Cognos). Agents are
     rich entities with state, persistence, and domain logic.
 
-### 9.3 Future model
+### 9.3 Agent model — `$agent` binding (implemented, M8b Phase 3)
 
-An agent gains a host-language extension point via `agent.json`:
+An agent gains a host-language extension point via `agent.json`. The native
+module's default export is injected into every zone scope as `$agent`:
 
 ```
 agents/alice/agent.json    # manifest: role, native module, config
@@ -480,7 +481,7 @@ impl.ts:
   }
 ```
 
-Zone bodies gain access to native methods via a new `$agent` binding:
+Zone bodies access native methods via `$agent`:
 
 ```rg
 greeter {
@@ -488,11 +489,19 @@ greeter {
 }
 ```
 
-**`agent` keyword in `.rg` remains but becomes optional.** If `agent.json`
+**Implementation status**: fully implemented in M8b Phase 3. The `extras`
+parameter is wired through the entire runtime stack in both TS and Python:
+`AgentNode` → `AgentRunner` → `ProtocolInstance` → zone executor. Async
+zones (detected by `await` in zone body at compile time) use
+`executeZoneAsync` (TS: `AsyncFunction`, Python: `async def` wrapper).
+E2E tests A1–A6 validate `$agent` binding, async zones, and `agent.json`
+manifests. See lang-spec.md §1.3.1 for the language-level specification.
+
+**`agent` keyword in `.rg` remains but is optional.** If `agent.json`
 exists for an agent, it takes priority (native module, config). If no
 `agent.json` exists, the `.rg` `agent X runs Role` declaration works exactly
 as before — backward compatible. This preserves the existing pipeline:
-23 examples, compiler, deployment.json `roleToAgent`, ROS, E2E tests,
+29 examples, compiler, deployment.json `roleToAgent`, ROS, E2E tests,
 RunController, TextMate grammar — all unchanged.
 
 The `.rg` language continues to describe protocols, roles, messages, and

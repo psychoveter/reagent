@@ -1,0 +1,28 @@
+{
+  "protocols": {
+    "Auction": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "structureHash": "0cc118b7dd3c01c14b12a5ad9aa6230168ad9555dd51880d08d6ea9c319f79fc",
+        "schemaHash": "94e14fc869c90741f844af7799959f8b86663f3f944517d294e214ee02507c48",
+        "implHash": "bfd49bd3386d2ad805a41a516f97c3d30b67e033dbc3ed0e06ef5a975bd56a91"
+      }
+    }
+  },
+  "roles": {
+    "SellerRole": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "playsHash": "71e9167fdcf4a959d7715d85847775d32b397b9f93317d540677a01560b24f1d",
+        "behaviorHash": "e1b537472e593fd6ea913513dbc2191b7b9a9a4f8ca9e8ebe69eec17f9eabf91"
+      }
+    },
+    "BuyerRole": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "playsHash": "d974905d48678b3804bca9192b875e0197191cb229586a7ba71fc156582a9b4a",
+        "behaviorHash": "e1b537472e593fd6ea913513dbc2191b7b9a9a4f8ca9e8ebe69eec17f9eabf91"
+      }
+    }
+  }
+}

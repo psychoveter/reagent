@@ -223,6 +223,54 @@
         "schemaHash": "21b81feb8eddceb596f9a7440f752f4c88125168661be87c564d13c0cdcb6031",
         "implHash": "8503bb61c8c82a8557f3b01b2e69c61bef193807312e6d87ceccc908f7cc2357"
       }
+    },
+    "TickCycle": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "structureHash": "423a3610183cbb0a4b8281ae6eb95e241d6f89793c0d737f25b91525b1aeef9f",
+        "schemaHash": "b3670adca07f8fb877caac8ff31ae8d1b3f2eb6adc675fa95bc36d52bac42f85",
+        "implHash": "b4144d788da86c4b1e8d5dd61cc5d3eb519a562db35fd97e30f75cb4063994b8"
+      }
+    },
+    "ExploreRegion": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "structureHash": "5f65a0f864c70a2aff85d16e0cd0070f0b64200721194ab7234647ec98866455",
+        "schemaHash": "cbc767ec08fdc6947227e56849704fe2455e7097378e2834ff742b42d4c4d35f",
+        "implHash": "d42a3a3bf345b032a8d13e70545892ef171d57b0e902470f30bd0edfd11df364"
+      }
+    },
+    "CollectResource": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "structureHash": "d792b80a1579c568815a4377f0f25bad4500fca9f958d9ac426fdbb0b43bf97f",
+        "schemaHash": "4a44255e6379a720828556ac501560561f1c6a9490b5a47f946a1d603fbe4007",
+        "implHash": "aa3dcbb2a6e2d76c144e1bc3d617d60b00b2af937c3d51c22e222545ab9e4353"
+      }
+    },
+    "TeamStrategy": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "structureHash": "789f40363275402a3837d410f0fe9d75087247cd28b8c8c54436e314c0b1519f",
+        "schemaHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "implHash": "e1fc46ec7e6cb647e5b56ac6e073b6c8038b2e563c66a011ce2bf271a8fd02aa"
+      }
+    },
+    "DefendPosition": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "structureHash": "88acd65d233ed1ec98df144306eedcfd0151bd7b5348d03852fe62376f73683c",
+        "schemaHash": "c3ab4ee228287dc80d44cd7ee44819293e0b1ddd0cefcf8648cb7e0800145286",
+        "implHash": "e29aa5f515051af42cfb39ec11329c1935af4697671af90e434110cd10ea6d6d"
+      }
+    },
+    "SurvivalOverride": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "structureHash": "f1e5883192a3b5ff4fc43c0eb331cd3c9f5e18d33b9cad5af40a25e536902c34",
+        "schemaHash": "a02bc79e78cdfc4caa242a3f6f53ea1126b8de205f5bd701b670ebb192524b73",
+        "implHash": "c8c7b3990a7baf3002ad71b2e13a1b8e0f695e5907aafa6210d484b692df1026"
+      }
     }
   },
   "roles": {
@@ -283,10 +331,10 @@
       }
     },
     "CoordinatorRole": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "playsHash": "ce296cb2d6edeb3ca7f91bdf2349d5881fd8b1485f5d1cdc77e7110e45e58ff3",
-        "behaviorHash": "995b644300b189b4641ffd1df5e563f14cd2a0ceeeb1133c867698328de1ca21"
+        "playsHash": "6785e1975863511ee4e980ad46d00f7384636f13214197376d634e8f9ce52287",
+        "behaviorHash": "e1b537472e593fd6ea913513dbc2191b7b9a9a4f8ca9e8ebe69eec17f9eabf91"
       }
     },
     "WorkerARole": {
@@ -392,6 +440,48 @@
       "fingerprints": {
         "playsHash": "7692bee19cf887dec71a4db97d9bd5c6f6687b636d2840f3d2131a28d540f1ae",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+      }
+    },
+    "EntityRole": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "playsHash": "a0547bbef312f768db15a6d92ad0e2e8f05f7d2b91a87c5cae3bbbbf08cde15d",
+        "behaviorHash": "4032add48675e02210a76ada36824171fc206e6b6d3e5da37ce5c6bc05bc9334"
+      }
+    },
+    "ScoutRole": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "playsHash": "6237c509d06b64395a9c3d8aca562b92b7d1098acb82019c8abd939bf15eb00a",
+        "behaviorHash": "84290ec2d47b774d3c892e922007b52b107c48be5a0f5e0f921c3df495895d42"
+      }
+    },
+    "CommanderRole": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "playsHash": "d23c1a4c87a91cf4e9d51615da45c559a73b613c911a306133607ea124ab3261",
+        "behaviorHash": "cc1944d9b68fe952f11303a84dfb5b7bdc6385ac19fb17629ec1c021060c5f56"
+      }
+    },
+    "GathererRole": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "playsHash": "d1c195c34213478b36f40a3c7dcbf4824b19eb2fd2f8e1780de577e3bb0352da",
+        "behaviorHash": "517b16f99572eeacd343989dab73eb8f4321979957d0948830728acd96398da9"
+      }
+    },
+    "StrategicCommanderRole": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "playsHash": "489890be5f99b0c1bc55108cad1ebcc5f5186e563a4a39001f5abaad72160047",
+        "behaviorHash": "cc1944d9b68fe952f11303a84dfb5b7bdc6385ac19fb17629ec1c021060c5f56"
+      }
+    },
+    "FighterRole": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "playsHash": "4795e71ad277a72a79665112097a76fef3abd81e16d23c1445c402f704602e89",
+        "behaviorHash": "2902a058b154f695dc45f8791c97d24d1210544c065888563c44fc888dc97f2c"
       }
     }
   }

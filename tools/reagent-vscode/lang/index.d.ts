@@ -1,0 +1,16 @@
+export * from "./ast.js";
+export { parseProgram } from "./parser.js";
+export type { ParseError, ParseResult } from "./parser.js";
+export * from "./ir.js";
+export { emitIR, emitAgentIR, emitMessageSchema, emitRoleIR, resetIdCounter } from "./ir-emitter.js";
+export type { EmitResult, AgentEmitResult, RoleEmitResult } from "./ir-emitter.js";
+export { validateIRGraph } from "./ir-validator.js";
+export type { ValidationError, ValidationResult } from "./ir-validator.js";
+export { computeStructureHash, computeSchemaHash, computeImplHash, computeProtocolFingerprint, computeRoleFingerprint, extractUsedMessageNames, extractDependencies, } from "./ir-fingerprint.js";
+export { readLock, writeLock, bumpVersion, classifyProtocolChange, classifyRoleChange, computeProtocolVersion, computeRoleVersion, } from "./versioning.js";
+export type { ReagentLock, ReagentLockEntry, ReagentLockRoleEntry, ChangeLevel } from "./versioning.js";
+export { loadManifest, resolveGlobs, resolveImport, scaffoldProject, } from "./project.js";
+export type { ReagentManifest, ResolvedImport } from "./project.js";
+export { decompileSingleRole, decompileMultiRole, cmdDecompile } from "./ir-decompiler.js";
+export { buildSequenceDiagram, buildStateMachineDiagram, } from "./diagram.js";
+export type { SequenceDiagram, StateMachineDiagram, Participant, SeqElement, SeqElementKind, SmNode, SmEdge, SmNodeShape, } from "./diagram.js";

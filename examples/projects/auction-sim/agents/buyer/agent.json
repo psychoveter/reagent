@@ -1,0 +1,8 @@
+{
+  "name": "Buyer",
+  "role": "BuyerRole",
+  "module": "./module.py",
+  "config": {
+    "maxBudget": 500
+  }
+}

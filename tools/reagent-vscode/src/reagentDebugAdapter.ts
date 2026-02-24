@@ -42,6 +42,17 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
   private stoppedDetail: Record<string, unknown> = {};
   private seq = 0;
 
+  /** Stack of protocol frames when stepping into invoke/spawn children. */
+  private protocolStack: Array<{
+    protocolName: string;
+    role: string;
+    stateId: string;
+    sessionId: string;
+  }> = [];
+
+  /** When inside a scatter, tracks which branch index we're stepping through. */
+  private scatterBranchIndex: number | null = null;
+
   static activeSession: ReagentDebugSession | null = null;
 
   constructor(private readonly sinks?: DebugSinks, private readonly rosManager?: RosManager) {}
@@ -111,15 +122,15 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
           break;
 
         case 'next':
-          await this.handleStep(reqSeq, 'stepState');
+          await this.handleStepOver(reqSeq);
           break;
 
         case 'stepIn':
-          await this.handleStep(reqSeq, 'stepState');
+          await this.handleStepIn(reqSeq);
           break;
 
         case 'stepOut':
-          await this.handleStep(reqSeq, 'stepOver');
+          await this.handleStepOut(reqSeq);
           break;
 
         case 'pause':
@@ -173,6 +184,18 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
       this.paused = true;
       this.stoppedReason = String(msg.payload?.reason || 'breakpoint');
       this.stoppedDetail = (msg.payload || {}) as Record<string, unknown>;
+
+      // Update scatter branch tracking from ROS payload
+      const branchIdx = this.stoppedDetail.scatterBranchIndex;
+      if (typeof branchIdx === 'number') {
+        this.scatterBranchIndex = branchIdx;
+      }
+
+      // Auto-pop protocol stack when ROS signals we've returned to a parent protocol
+      if (this.stoppedDetail.returnedFromChild && this.protocolStack.length > 0) {
+        this.protocolStack.pop();
+      }
+
       this.sendEvent('stopped', {
         reason: 'breakpoint',
         threadId: THREAD_ID,
@@ -287,9 +310,20 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
       const agentName = this.stoppedDetail.agentName as string | undefined;
       const mapped = stateId ? this.sourceMap.find(e => e.stateId === stateId) : undefined;
 
+      const protocolName = this.stoppedDetail.protocolName as string | undefined;
+      const role = this.stoppedDetail.role as string | undefined;
+      const prefix = protocolName && role
+        ? `${protocolName}.${role}`
+        : (agentName || 'agent');
+      let frameName = `${prefix} @ ${stateKind || 'state'} (${stateId || '?'})`;
+
+      if (this.scatterBranchIndex !== null) {
+        frameName += ` [branch ${this.scatterBranchIndex}]`;
+      }
+
       frames.push({
         id: 1,
-        name: `${agentName || 'agent'} @ ${stateKind || 'state'} (${stateId || '?'})`,
+        name: frameName,
         source: {
           name: path.basename(this.rgFilePath),
           path: this.rgFilePath,
@@ -297,6 +331,21 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
         line: mapped?.line || 1,
         column: mapped?.column || 0,
       });
+
+      for (let i = this.protocolStack.length - 1; i >= 0; i--) {
+        const parent = this.protocolStack[i];
+        const parentMapped = this.sourceMap.find(e => e.stateId === parent.stateId);
+        frames.push({
+          id: frames.length + 1,
+          name: `${parent.protocolName}.${parent.role} @ ${parent.stateId}`,
+          source: {
+            name: path.basename(this.rgFilePath),
+            path: this.rgFilePath,
+          },
+          line: parentMapped?.line || 1,
+          column: parentMapped?.column || 0,
+        });
+      }
     }
 
     this.sendResponse(reqSeq, 'stackTrace', {
@@ -310,6 +359,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
       scopes: [
         { name: '$ctx', variablesReference: 100, expensive: false },
         { name: '$self', variablesReference: 200, expensive: false },
+        { name: '$flow', variablesReference: 400, expensive: false },
         { name: 'Held Messages', variablesReference: 300, expensive: false },
       ],
     });
@@ -347,6 +397,11 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
           for (const [key, value] of Object.entries(self)) {
             variables.push({ name: key, value: JSON.stringify(value), variablesReference: 0 });
           }
+        } else if (ref === 400) {
+          const flow = (snapshot.flow || {}) as Record<string, unknown>;
+          for (const [key, value] of Object.entries(flow)) {
+            variables.push({ name: key, value: JSON.stringify(value), variablesReference: 0 });
+          }
         } else if (ref === 300) {
           const held = (snapshot.heldMessages || []) as Array<{ messageName?: string; from?: string; to?: string }>;
           for (let i = 0; i < held.length; i++) {
@@ -378,16 +433,90 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     this.sendResponse(reqSeq, 'continue', { allThreadsContinued: true });
   }
 
-  private async handleStep(reqSeq: number, stepType: string): Promise<void> {
-    if (this.rap?.connected) {
-      this.rap.send({
-        rap: 'DebugCommand',
-        sessionId: this.sessionId || 'default',
-        payload: { sessionId: this.sessionId || 'default', command: stepType },
-      });
+  private sendDebugCommand(command: string, extra?: Record<string, unknown>): void {
+    if (!this.rap?.connected) return;
+    this.rap.send({
+      rap: 'DebugCommand',
+      sessionId: this.sessionId || 'default',
+      payload: { sessionId: this.sessionId || 'default', command, ...extra },
+    });
+  }
+
+  /**
+   * Step Over (F10 / "next"):
+   * - At scatter: execute all branches to join, stop after join.
+   * - At invoke/spawn: execute child protocol to completion, stop after return.
+   * - Otherwise: advance one IR state.
+   */
+  private async handleStepOver(reqSeq: number): Promise<void> {
+    const kind = this.stoppedDetail.stateKind as string | undefined;
+
+    if (kind === 'scatter' || kind === 'fork') {
+      this.scatterBranchIndex = null;
+      this.sendDebugCommand('stepOverScatter');
+    } else if (kind === 'invoke' || kind === 'spawn') {
+      this.sendDebugCommand('stepOverInvoke');
+    } else {
+      this.sendDebugCommand('stepState');
     }
+
     this.paused = false;
-    this.sendResponse(reqSeq, stepType === 'stepState' ? 'next' : 'stepOut');
+    this.sendResponse(reqSeq, 'next');
+  }
+
+  /**
+   * Step In (F11 / "stepIn"):
+   * - At scatter: enter branch 0, stepping one state at a time within that branch.
+   * - At invoke/spawn: push current frame, enter child protocol.
+   * - Otherwise: same as step-over (advance one state).
+   */
+  private async handleStepIn(reqSeq: number): Promise<void> {
+    const kind = this.stoppedDetail.stateKind as string | undefined;
+
+    if (kind === 'scatter' || kind === 'fork') {
+      this.scatterBranchIndex = 0;
+      this.sendDebugCommand('stepIntoScatter', { branchIndex: 0 });
+    } else if (kind === 'invoke' || kind === 'spawn') {
+      const stateId = this.stoppedDetail.stateId as string | undefined;
+      const protocolName = this.stoppedDetail.protocolName as string | undefined;
+      const role = this.stoppedDetail.role as string | undefined;
+
+      if (stateId && protocolName && role) {
+        this.protocolStack.push({
+          protocolName,
+          role,
+          stateId,
+          sessionId: this.sessionId || 'default',
+        });
+      }
+      this.sendDebugCommand('stepIntoInvoke');
+    } else {
+      this.sendDebugCommand('stepState');
+    }
+
+    this.paused = false;
+    this.sendResponse(reqSeq, 'stepIn');
+  }
+
+  /**
+   * Step Out (Shift+F11 / "stepOut"):
+   * - Inside scatter branch: jump to scatter join, resume parent flow.
+   * - Inside invoked/spawned child: pop frame, return to parent protocol.
+   * - Otherwise: run to end of current scope / protocol.
+   */
+  private async handleStepOut(reqSeq: number): Promise<void> {
+    if (this.scatterBranchIndex !== null) {
+      this.scatterBranchIndex = null;
+      this.sendDebugCommand('stepOutScatter');
+    } else if (this.protocolStack.length > 0) {
+      this.protocolStack.pop();
+      this.sendDebugCommand('stepOutInvoke');
+    } else {
+      this.sendDebugCommand('stepOver');
+    }
+
+    this.paused = false;
+    this.sendResponse(reqSeq, 'stepOut');
   }
 
   private handleDisconnect(reqSeq: number): void {
@@ -419,13 +548,14 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
       const snap = (snapMsg.payload || {}) as Record<string, unknown>;
       const ctx = (snap.ctx || {}) as Record<string, unknown>;
       const self = (snap.self || {}) as Record<string, unknown>;
+      const flow = (snap.flow || {}) as Record<string, unknown>;
       const held = (snap.heldMessages || []) as Array<{ messageName: string; from: string; to: string }>;
 
-      this.sinks!.debugPanel.updateAgentState(agentName, { $ctx: ctx, $self: self });
+      this.sinks!.debugPanel.updateAgentState(agentName, { $ctx: ctx, $self: self, $flow: flow });
       this.sinks!.debugPanel.updateHeldMessages(held);
 
       if (mapped) {
-        this.sinks!.inlineValues.showValues(this.rgFilePath, mapped.line, ctx, self);
+        this.sinks!.inlineValues.showValues(this.rgFilePath, mapped.line, ctx, self, flow);
       }
     });
 

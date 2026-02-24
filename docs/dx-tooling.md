@@ -14,19 +14,23 @@ This milestone turns Reagent from a language with test-driven runtimes into a **
 
 | Component | Status |
 |---|---|
-| TextMate grammar (syntax highlighting) | Done — full `.rg` coverage |
+| TextMate grammar (syntax highlighting) | Done — full `.rg` coverage incl. zone keywords (`await`, `None`, `$agent`, Python/JS builtins) |
+| `.rg` file icon (benzene hexagon) | Done — light/dark SVG icons |
 | Embedded language support (completion, hover, go-to-def in zones) | Done — virtual document delegation to host-language LSPs |
-| **Reagent LSP (language server for `.rg` itself)** | **Not started** — no completion, hover, diagnostics, go-to-def for Reagent constructs |
+| Reagent LSP (language server for `.rg` itself) | Done — symbols, go-to-def, hover, completion, diagnostics. See [lsp.md](lsp.md) |
 | DAP debug adapter → ROS | Done — breakpoints (4 types), step/continue, variable inspection |
-| Debug panel webview (trace timeline, agent state, held messages) | Done — **but not wired to debug adapter events** |
-| Inline value decorations (`$ctx`/`$self` at paused line) | Done — **`showValues()` never called** |
-| `inspectAgent` command | Stub — logs to output channel |
-| Protocol visualization / diagrams | UX mockup done — sequence, state machine, topology views |
+| ROS manager | Done — TCP port probe, adopt existing, `freePort()` stale cleanup |
+| Debug panel webview (trace timeline, agent state, held messages) | Done — wired to debug adapter events |
+| Inline value decorations (`$ctx`/`$self`/`$flow` at paused line) | Done — wired via `pushStateToSinks()` |
+| `inspectAgent` command | Done — GetState → Output channel with InspectError handling |
+| IR-driven protocol diagrams (sequence + state machine) | Done — live reload on `.rg` save, click-to-source, role selector, zone summaries, nested frame margins |
+| Project overview diagram (agents/roles/protocols) | Done — scoped to `reagent.json`, three-column layout, click-to-navigate |
+| Self-contained VSIX packaging | Done — bundled `lang/dist` compiler, no source tree dependency |
+| One-click run (no debug) | Done — `RunController`, CodeLens ▶ Run on `protocol` lines |
 | Deployment topology view | UX mockup done — multi-RC nodes, agents, links, deploy actions |
-| One-click run (no debug) | Not started |
 | Mermaid / export | Not started |
 
-The current extension has no language server for Reagent itself — it only delegates to host-language LSPs (TypeScript, Python) for code inside agent zones. The `.rg` DSL has zero IDE intelligence: no completion for `protocol`/`role`/`agent`/`message` constructs, no hover docs, no "go to definition" from message reference to `message Name { }` declaration, no rename, no diagnostics beyond the compiler CLI.
+The Reagent LSP is implemented and provides single-file intelligence: document symbols, go-to-definition, hover, context-aware completion, and parse + semantic diagnostics. For the full LSP design, current state, and backlog see **[lsp.md](lsp.md)**.
 
 ### Design goals
 
@@ -1210,31 +1214,28 @@ This phase can run **in parallel** with Phase 5 because they share only the Phas
 
 ### Language Server
 
+See [lsp.md](lsp.md) for full architecture, current state, and backlog.
+
 | File | Purpose |
 |---|---|
-| `tools/reagent-vscode/server/src/server.ts` | LSP server entry, capabilities, request routing |
-| `tools/reagent-vscode/server/src/astIndex.ts` | Per-document AST index (symbols, scopes, references) |
-| `tools/reagent-vscode/server/src/workspaceIndex.ts` | Cross-file symbol table (imports, global names) |
-| `tools/reagent-vscode/server/src/completionProvider.ts` | Context-aware completion |
-| `tools/reagent-vscode/server/src/hoverProvider.ts` | Hover (message schema, role def, protocol sig) |
-| `tools/reagent-vscode/server/src/definitionProvider.ts` | Go-to-definition |
-| `tools/reagent-vscode/server/src/referencesProvider.ts` | Find all references |
-| `tools/reagent-vscode/server/src/symbolProvider.ts` | Document symbols (outline) |
-| `tools/reagent-vscode/server/src/diagnosticsProvider.ts` | Real-time + IR-level diagnostics |
-| `tools/reagent-vscode/server/src/semanticTokensProvider.ts` | Semantic token classification |
-| `tools/reagent-vscode/server/src/renameProvider.ts` | Rename symbol |
-| `tools/reagent-vscode/server/package.json` | Server dependencies |
+| `tools/reagent-vscode/server/src/server.ts` | LSP server — all providers (symbols, go-to-def, hover, completion, diagnostics) in one file |
+| `tools/reagent-vscode/server/tsconfig.json` | Server TypeScript config |
 
 ### Visualization & Tooling
 
 | File | Purpose |
 |---|---|
 | `tools/reagent-vscode/src/diagramController.ts` | Manages diagram webview lifecycle, syncs with debug adapter |
-| `tools/reagent-vscode/src/diagramPanel.ts` | WebviewPanel provider for the interactive diagram |
+| `tools/reagent-vscode/src/diagramPanel.ts` | WebviewPanel provider for the interactive protocol diagram |
+| `tools/reagent-vscode/src/projectDiagram.ts` | Project-level scanner (regex) + SVG renderer for agents/roles/protocols |
+| `tools/reagent-vscode/src/projectDiagramPanel.ts` | Webview panel for project architecture diagram (scoped to `reagent.json`) |
 | `tools/reagent-vscode/src/renderers/sequenceDiagram.ts` | IR → sequence diagram SVG renderer |
 | `tools/reagent-vscode/src/renderers/stateMachineDiagram.ts` | IR → state machine SVG renderer (uses ELK) |
 | `tools/reagent-vscode/src/renderers/mermaidExport.ts` | IR → Mermaid text export |
+| `tools/reagent-vscode/src/rosManager.ts` | ROS lifecycle: TCP probe, adopt, freePort(), spawn, status bar |
 | `tools/reagent-vscode/src/runController.ts` | Handles `reagent.run` command and Output channel |
 | `tools/reagent-vscode/src/codeLensProvider.ts` | Run/Debug CodeLens on `protocol` lines |
+| `tools/reagent-vscode/icons/reagent-light.svg` | File icon for `.rg` files (light theme) |
+| `tools/reagent-vscode/icons/reagent-dark.svg` | File icon for `.rg` files (dark theme) |
 | `lang/src/diagram.ts` | Shared IR → diagram data model (used by both CLI and VSCode) |
 | `lang/src/mermaid.ts` | IR → Mermaid text generation (used by CLI) |

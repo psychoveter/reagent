@@ -1,0 +1,364 @@
+/**
+ * IR Decompiler — reconstructs .rg source from compiled IR JSON.
+ *
+ * Two modes:
+ * 1. Single-role view: walks one IRGraph via BFS, emits pseudo-.rg for that role's perspective.
+ * 2. Multi-role merge: loads all role graphs for a protocol, correlates send/receive pairs.
+ *
+ * CLI entry point: cmdDecompile(path) — accepts a directory or single .ir.json file.
+ */
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+// ── CLI entry point ──────────────────────────────────────────────────
+export function cmdDecompile(target) {
+    const stat = statSync(target, { throwIfNoEntry: false });
+    if (!stat) {
+        console.error(`Not found: ${target}`);
+        process.exit(1);
+    }
+    if (stat.isDirectory()) {
+        decompileDirectory(target);
+    }
+    else if (target.endsWith(".ir.json")) {
+        const graph = loadGraph(target);
+        const output = decompileSingleRole(graph);
+        process.stdout.write(output);
+    }
+    else {
+        console.error(`Expected a directory or .ir.json file: ${target}`);
+        process.exit(1);
+    }
+}
+function decompileDirectory(dir) {
+    const files = readdirSync(dir).filter(f => f.endsWith(".ir.json")).sort();
+    if (files.length === 0) {
+        console.error(`No .ir.json files found in ${dir}`);
+        process.exit(1);
+    }
+    const byProtocol = new Map();
+    for (const f of files) {
+        const graph = loadGraph(join(dir, f));
+        const list = byProtocol.get(graph.protocolName) ?? [];
+        list.push(graph);
+        byProtocol.set(graph.protocolName, list);
+    }
+    for (const [protoName, graphs] of byProtocol) {
+        console.log(`\n// === ${protoName} ===\n`);
+        if (graphs.length > 1) {
+            console.log(decompileMultiRole(graphs));
+        }
+        else {
+            console.log(decompileSingleRole(graphs[0]));
+        }
+    }
+}
+function loadGraph(path) {
+    return JSON.parse(readFileSync(path, "utf8"));
+}
+// ── Single-role decompiler ──────────────────────────────────────────
+export function decompileSingleRole(graph) {
+    const ctx = createContext(graph);
+    const lines = [];
+    lines.push(`// Single-role view: ${graph.role} in ${graph.protocolName}`);
+    if (graph.version)
+        lines.push(`// version: ${graph.version}`);
+    lines.push("");
+    const body = decompileFromState(ctx, graph.initialStateId, 0);
+    lines.push(...body);
+    return lines.join("\n") + "\n";
+}
+// ── Multi-role merge decompiler ─────────────────────────────────────
+export function decompileMultiRole(graphs) {
+    if (graphs.length === 0)
+        return "";
+    const protoName = graphs[0].protocolName;
+    const lines = [];
+    const participants = graphs.map(g => {
+        const langTag = g.lang && g.lang !== "*" ? ` [${g.lang}]` : "";
+        return `  ${g.role}${langTag}`;
+    });
+    const initiator = graphs[0].initiator ?? graphs[0].role;
+    lines.push(`protocol ${protoName} {`);
+    lines.push(`  participants:`);
+    lines.push(...participants.map(p => p + ","));
+    lines.push("");
+    lines.push(`  initiator: ${initiator}`);
+    lines.push("");
+    const sendReceivePairs = buildSendReceivePairs(graphs);
+    const initiatorGraph = graphs.find(g => g.role === initiator) ?? graphs[0];
+    const ctx = createContext(initiatorGraph);
+    const body = decompileFromState(ctx, initiatorGraph.initialStateId, 1);
+    lines.push(...body);
+    lines.push("}");
+    return lines.join("\n") + "\n";
+}
+// ── Core decompilation engine ───────────────────────────────────────
+function createContext(graph) {
+    const stateMap = new Map();
+    for (const s of graph.states)
+        stateMap.set(s.id, s);
+    const transMap = new Map();
+    for (const t of graph.transitions) {
+        const list = transMap.get(t.from) ?? [];
+        list.push(t);
+        transMap.set(t.from, list);
+    }
+    return { graph, stateMap, transMap, visited: new Set(), indent: 0 };
+}
+function decompileFromState(ctx, stateId, indent) {
+    const lines = [];
+    let currentId = stateId;
+    while (currentId) {
+        if (ctx.visited.has(currentId))
+            break;
+        const state = ctx.stateMap.get(currentId);
+        if (!state)
+            break;
+        ctx.visited.add(currentId);
+        const transitions = ctx.transMap.get(currentId) ?? [];
+        const pad = "  ".repeat(indent);
+        switch (state.data.kind) {
+            case "initial":
+                currentId = followDefault(transitions);
+                break;
+            case "send": {
+                const d = state.data;
+                lines.push(`${pad}${ctx.graph.role} --> ${d.to}: ${d.messageName}`);
+                if (d.preSendZone) {
+                    lines.push(`${pad}  onSend { ${d.preSendZone.trim()} }`);
+                }
+                currentId = followDefault(transitions);
+                break;
+            }
+            case "receive": {
+                const d = state.data;
+                lines.push(`${pad}${d.from} --> ${ctx.graph.role}: ${d.messageName}`);
+                if (d.postReceiveZone) {
+                    lines.push(`${pad}  onReceive { ${d.postReceiveZone.trim()} }`);
+                }
+                currentId = followDefault(transitions);
+                break;
+            }
+            case "action": {
+                const d = state.data;
+                const body = d.body.trim();
+                lines.push(`${pad}${ctx.graph.role} {`);
+                for (const line of body.split("\n")) {
+                    lines.push(`${pad}  ${line}`);
+                }
+                lines.push(`${pad}}`);
+                currentId = followDefault(transitions);
+                break;
+            }
+            case "guard": {
+                const d = state.data;
+                const nonDefault = transitions.filter(t => t.label.kind !== "default");
+                const isPassthrough = nonDefault.length === 0 && transitions.length <= 1;
+                if (isPassthrough) {
+                    currentId = followDefault(transitions);
+                }
+                else if (d.guardType === "expression" && hasBackEdge(ctx, currentId)) {
+                    const result = decompileLoop(ctx, state, transitions, indent);
+                    lines.push(...result.lines);
+                    currentId = result.nextId;
+                }
+                else if (d.guardType === "xor" || d.guardType === "expression" || d.guardType === "timeout") {
+                    const result = decompileAlt(ctx, state, transitions, indent);
+                    lines.push(...result.lines);
+                    currentId = result.nextId;
+                }
+                else {
+                    currentId = followDefault(transitions);
+                }
+                break;
+            }
+            case "fork": {
+                const result = decompilePar(ctx, state, transitions, indent);
+                lines.push(...result.lines);
+                currentId = result.nextId;
+                break;
+            }
+            case "join":
+                currentId = followDefault(transitions);
+                break;
+            case "timer": {
+                const d = state.data;
+                lines.push(`${pad}wait ${d.duration.value}${d.duration.unit}`);
+                currentId = followDefault(transitions);
+                break;
+            }
+            case "invoke": {
+                const d = state.data;
+                const argsStr = d.input ? `(${d.input})` : "";
+                const resultStr = d.resultTarget ? ` -> ${d.resultTarget}` : "";
+                lines.push(`${pad}${ctx.graph.role} invokes ${d.protocolName}${argsStr}${resultStr}`);
+                currentId = followDefault(transitions);
+                break;
+            }
+            case "spawn": {
+                const d = state.data;
+                const argsStr = d.input ? `(${d.input})` : "";
+                lines.push(`${pad}${ctx.graph.role} spawns ${d.protocolName}${argsStr}`);
+                currentId = followDefault(transitions);
+                break;
+            }
+            case "scatter": {
+                const d = state.data;
+                const pad2 = "  ".repeat(indent + 1);
+                lines.push(`${pad}scatter (${d.collection} as ${d.itemRole}) {`);
+                for (const branchStartId of d.branchStartIds) {
+                    const branchLines = decompileFromState(ctx, branchStartId, indent + 1);
+                    lines.push(...branchLines);
+                }
+                lines.push(`${pad}}`);
+                currentId = followDefault(transitions);
+                break;
+            }
+            case "error": {
+                const d = state.data;
+                lines.push(`${pad}// error: ${d.label}`);
+                currentId = followDefault(transitions);
+                break;
+            }
+            case "terminal":
+                currentId = null;
+                break;
+            default:
+                currentId = followDefault(transitions);
+                break;
+        }
+    }
+    return lines;
+}
+// ── Pattern detectors ───────────────────────────────────────────────
+function hasBackEdge(ctx, guardId) {
+    const transitions = ctx.transMap.get(guardId) ?? [];
+    for (const t of transitions) {
+        if (ctx.visited.has(t.to))
+            return true;
+        const targetTransitions = ctx.transMap.get(t.to) ?? [];
+        for (const tt of targetTransitions) {
+            if (tt.to === guardId)
+                return true;
+        }
+    }
+    return false;
+}
+function decompileLoop(ctx, state, transitions, indent) {
+    const d = state.data;
+    const pad = "  ".repeat(indent);
+    const lines = [];
+    const exprBranch = transitions.find(t => t.label.kind === "expression");
+    const elseBranch = transitions.find(t => t.label.kind === "else" || t.label.kind === "default");
+    const expr = d.expr ?? exprBranch?.label?.expr ?? "true";
+    lines.push(`${pad}loop (${expr}) {`);
+    if (exprBranch) {
+        const bodyLines = decompileFromState(ctx, exprBranch.to, indent + 1);
+        lines.push(...bodyLines);
+    }
+    lines.push(`${pad}}`);
+    const nextId = elseBranch?.to ?? null;
+    return { lines, nextId };
+}
+function decompileAlt(ctx, state, transitions, indent) {
+    const d = state.data;
+    const pad = "  ".repeat(indent);
+    const lines = [];
+    const exprOrMsg = transitions.filter(t => t.label.kind !== "else" && t.label.kind !== "default");
+    const elseBranch = transitions.find(t => t.label.kind === "else");
+    const defaultBranch = transitions.find(t => t.label.kind === "default");
+    const expr = d.expr ?? "";
+    lines.push(`${pad}alt (${expr}) {`);
+    for (const branch of exprOrMsg) {
+        const branchCtx = { ...ctx, visited: new Set(ctx.visited) };
+        const branchLines = decompileFromState(branchCtx, branch.to, indent + 1);
+        lines.push(...branchLines);
+    }
+    if (elseBranch) {
+        lines.push(`${pad}} else {`);
+        const elseCtx = { ...ctx, visited: new Set(ctx.visited) };
+        const elseLines = decompileFromState(elseCtx, elseBranch.to, indent + 1);
+        lines.push(...elseLines);
+    }
+    lines.push(`${pad}}`);
+    const mergeId = findMergePoint(ctx, transitions);
+    return { lines, nextId: mergeId ?? (defaultBranch?.to ?? null) };
+}
+function decompilePar(ctx, state, transitions, indent) {
+    const d = state.data;
+    const pad = "  ".repeat(indent);
+    const lines = [];
+    const joinId = findJoinAfterFork(ctx, d.branchStartIds);
+    lines.push(`${pad}par {`);
+    for (let i = 0; i < d.branchStartIds.length; i++) {
+        if (i > 0)
+            lines.push(`${pad}} and {`);
+        const branchCtx = { ...ctx, visited: new Set() };
+        if (joinId)
+            branchCtx.visited.add(joinId);
+        const branchLines = decompileFromState(branchCtx, d.branchStartIds[i], indent + 1);
+        lines.push(...branchLines);
+    }
+    lines.push(`${pad}}`);
+    if (joinId)
+        ctx.visited.add(joinId);
+    const nextId = joinId ? followDefaultFromId(ctx, joinId) : null;
+    return { lines, nextId };
+}
+// ── Helpers ─────────────────────────────────────────────────────────
+function followDefault(transitions) {
+    const def = transitions.find(t => t.label.kind === "default");
+    return def?.to ?? transitions[0]?.to ?? null;
+}
+function followDefaultFromId(ctx, stateId) {
+    const transitions = ctx.transMap.get(stateId) ?? [];
+    return followDefault(transitions);
+}
+function findMergePoint(ctx, transitions) {
+    const targets = new Set();
+    for (const t of transitions) {
+        collectTerminals(ctx, t.to, targets, new Set());
+    }
+    if (targets.size === 1)
+        return [...targets][0];
+    return null;
+}
+function collectTerminals(ctx, stateId, terminals, visited) {
+    if (visited.has(stateId))
+        return;
+    visited.add(stateId);
+    const state = ctx.stateMap.get(stateId);
+    if (!state)
+        return;
+    if (state.data.kind === "terminal") {
+        terminals.add(stateId);
+        return;
+    }
+    const transitions = ctx.transMap.get(stateId) ?? [];
+    if (transitions.length === 0) {
+        terminals.add(stateId);
+        return;
+    }
+    for (const t of transitions) {
+        collectTerminals(ctx, t.to, terminals, visited);
+    }
+}
+function findJoinAfterFork(ctx, branchStartIds) {
+    for (const state of ctx.graph.states) {
+        if (state.data.kind === "join")
+            return state.id;
+    }
+    return null;
+}
+function buildSendReceivePairs(graphs) {
+    const pairs = new Map();
+    for (const g of graphs) {
+        for (const s of g.states) {
+            if (s.data.kind === "send") {
+                const d = s.data;
+                pairs.set(d.messageName, { sender: g.role, receiver: d.to });
+            }
+        }
+    }
+    return pairs;
+}
