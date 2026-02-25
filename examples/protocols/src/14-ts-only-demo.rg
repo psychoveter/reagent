@@ -1,5 +1,5 @@
 // Example 14: TS-only demo for runtime E2E tests
-// $flow carries queryText between client and handler.
+// $ctx carries queryText between client and handler.
 // $ctx is per-role (handler has its own $ctx.result, client cannot see it).
 
 message Query {}
@@ -12,12 +12,12 @@ protocol TsDemo {
   input: Request
 
   client {
-    $flow.queryText = $ctx.input.text
+    $ctx.queryText = $ctx.input.text
   }
 
   client --> handler: Query = {
     onSend {
-      $ctx.msg.text = $flow.queryText
+      $ctx.msg.text = $ctx.queryText
     }
     onReceive {
       $ctx.queryText = $ctx.msg.text

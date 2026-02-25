@@ -24,6 +24,7 @@ export class NativeAgentNode implements AgentNode {
   private roleToAgent: Record<string, string>;
   private traceHook?: TraceHook;
   private advanceHook?: AdvanceHook;
+  private handles: NativeAgentHandle[] = [];
 
   constructor(config: NativeAgentNodeConfig) {
     this.roleToAgent = config.roleToAgent;
@@ -57,7 +58,16 @@ export class NativeAgentNode implements AgentNode {
       extras,
     });
 
-    return new NativeAgentHandle(agentName, runner);
+    const handle = new NativeAgentHandle(agentName, runner);
+    this.handles.push(handle);
+    return handle;
+  }
+
+  setAdvanceHook(hook: AdvanceHook | undefined): void {
+    this.advanceHook = hook;
+    for (const h of this.handles) {
+      h.getRunner().setAdvanceHook(hook);
+    }
   }
 
   async destroyAgent(handle: AgentHandle): Promise<void> {

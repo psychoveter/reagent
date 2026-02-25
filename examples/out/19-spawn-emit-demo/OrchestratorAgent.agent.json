@@ -1,0 +1,6 @@
+{
+  "agentName": "OrchestratorAgent",
+  "lang": "ts",
+  "roleName": "OrchestratorRole",
+  "roleFile": "OrchestratorRole.role.json"
+}

@@ -11,7 +11,7 @@ const decorationType = vscode.window.createTextEditorDecorationType({
 
 /**
  * Manages inline value decorations for Reagent debug sessions.
- * Shows $ctx, $self, and $flow values at the current paused line.
+ * Shows $ctx and $self values at the current paused line.
  */
 export class ReagentInlineValues implements vscode.Disposable {
   private disposables: vscode.Disposable[] = [];
@@ -28,7 +28,6 @@ export class ReagentInlineValues implements vscode.Disposable {
     line: number,
     ctx: Record<string, unknown>,
     self: Record<string, unknown>,
-    flow?: Record<string, unknown>,
   ): void {
     const editor = vscode.window.visibleTextEditors.find(
       e => e.document.uri.fsPath === filePath && e.document.languageId === 'reagent'
@@ -40,7 +39,6 @@ export class ReagentInlineValues implements vscode.Disposable {
 
     const ctxEntries = Object.entries(ctx);
     const selfEntries = Object.entries(self);
-    const flowEntries = Object.entries(flow ?? {});
 
     if (ctxEntries.length > 0) {
       const ctxText = ctxEntries
@@ -62,18 +60,6 @@ export class ReagentInlineValues implements vscode.Disposable {
         range: new vscode.Range(zeroBasedLine + 1, 0, zeroBasedLine + 1, 0),
         renderOptions: {
           after: { contentText: `  ${selfText}` },
-        },
-      });
-    }
-
-    if (flowEntries.length > 0 && zeroBasedLine + 2 < editor.document.lineCount) {
-      const flowText = flowEntries
-        .map(([k, v]) => `$flow.${k} = ${formatValue(v)}`)
-        .join('  ');
-      decorations.push({
-        range: new vscode.Range(zeroBasedLine + 2, 0, zeroBasedLine + 2, 0),
-        renderOptions: {
-          after: { contentText: `  ${flowText}` },
         },
       });
     }

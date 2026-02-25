@@ -1,0 +1,110 @@
+{
+  "protocolName": "CallLlm",
+  "role": "caller",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.req = $ctx.input\n    $ctx.prompt = [\n      { role: \"system\", content: $ctx.req.system },\n      { role: \"user\", content: $ctx.req.user }\n    ]\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_3",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "llmbroka",
+        "arrow": "-->",
+        "messageName": "LlmPrompt",
+        "preSendZone": "\n      $ctx.msg.model = $ctx.req.model\n      $ctx.msg.messages = $ctx.prompt\n      $ctx.msg.temperature = $ctx.req.temperature\n    "
+      }
+    },
+    {
+      "id": "recv_4",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "llmbroka",
+        "arrow": "-->",
+        "messageName": "LlmAnswer",
+        "postReceiveZone": "\n      $ctx.answer = $ctx.msg.text\n    "
+      }
+    },
+    {
+      "id": "act_5",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    reagent.return($ctx.answer)\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "end_6",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "act_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_2",
+      "to": "send_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_3",
+      "to": "recv_4",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_4",
+      "to": "act_5",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_5",
+      "to": "end_6",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_6"
+  ],
+  "initiator": "caller",
+  "version": "0.1.0",
+  "fingerprints": {
+    "structureHash": "1155efd9c780db5b97327792cc9ecc18dd1f706c7d54c7b13b34901b48c0f160",
+    "schemaHash": "1a2ee90c737e97d024137eabc98c74236b5c2b2305ab123641ebbb7435a85b18",
+    "implHash": "145f8210541c02dcb1b94a251e6f38eb05cec90e8ddc524a6d2bc45dde976ca0"
+  }
+}

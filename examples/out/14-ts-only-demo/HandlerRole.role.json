@@ -1,0 +1,29 @@
+{
+  "roleName": "HandlerRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "TsDemo",
+      "roleName": "handler"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.queriesHandled = 0\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolCompleted",
+      "protocolFilter": "TsDemo",
+      "action": {
+        "body": "\n    $self.lastCompletedAt = Date.now()\n  ",
+        "lang": "ts"
+      }
+    }
+  ],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "cc68444ce3f3dbbd7941ecb8c07997420586ac4039b50d3a0e47e14fb9eaeb0a",
+    "behaviorHash": "730827edea47fb29bc679948c4ee401e1bfd419681a83ec8b2258299db79c10b"
+  }
+}

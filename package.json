@@ -1,13 +1,13 @@
 {
   "private": true,
   "name": "reagent",
-  "version": "0.0.8",
+  "version": "0.0.11",
   "description": "Reagent protocol language — compiler, reference runtimes, and tooling",
   "scripts": {
     "build:lang": "cd lang && npm run build",
     "build:runtime": "cd runtime/ts && npx tsc -p tsconfig.json",
     "build": "npm run build:lang && npm run build:runtime",
-    "compile:examples": "for f in examples/src/*.rg; do node lang/dist/cli.js compile \"$f\" \"examples/out/$(basename \"$f\" .rg)\"; done",
+    "compile:examples": "for f in examples/protocols/src/*.rg; do node lang/dist/cli.js compile \"$f\" \"examples/out/$(basename \"$f\" .rg)\"; done",
     "test:ctrl": "cd runtime/ts && node --import tsx --test ../tests/m5-ctrl.test.ts",
     "test:lang": "cd runtime/ts && node --import tsx --test ../tests/m5-lang.test.ts",
     "test:coverage": "cd runtime/ts && node --import tsx --test ../tests/m5-coverage.test.ts",
@@ -24,6 +24,6 @@
     "test:py:coverage": "python runtime/tests/test_py_rc_coverage.py",
     "test:ts": "npm run test:ctrl && npm run test:lang && npm run test:coverage && npm run test:ros && npm run test:m8a",
     "test": "npm run test:ts && npm run test:py && npm run test:py:coverage",
-    "validate:examples": "for f in examples/src/*.rg; do node lang/dist/cli.js validate \"$f\"; done"
+    "validate:examples": "for f in examples/protocols/src/*.rg; do node lang/dist/cli.js validate \"$f\"; done"
   }
 }

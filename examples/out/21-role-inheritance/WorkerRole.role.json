@@ -1,0 +1,42 @@
+{
+  "roleName": "WorkerRole",
+  "lang": "ts",
+  "extends": "BaseMonitored",
+  "plays": [
+    {
+      "protocolName": "HealthCheck",
+      "roleName": "node"
+    },
+    {
+      "protocolName": "TaskProcessing",
+      "roleName": "worker"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.healthy = true\n    $self.uptime = 0\n  \n\n    $self.tasksCompleted = 0\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolFailed",
+      "protocolFilter": "HealthCheck",
+      "action": {
+        "body": "\n    $self.healthy = false\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "event": "protocolCompleted",
+      "protocolFilter": "TaskProcessing",
+      "action": {
+        "body": "\n    $self.uptime = $self.uptime + 1\n  ",
+        "lang": "ts"
+      }
+    }
+  ],
+  "version": "12.0.0",
+  "fingerprints": {
+    "playsHash": "cc8df10d61521c48251bdc6ae68e752393b4027230c439c8e118f18e86264c8d",
+    "behaviorHash": "3d64fdd86f616457d3cc19349ee54a8f584e9713a2987a997162aaf12576aa0d"
+  }
+}

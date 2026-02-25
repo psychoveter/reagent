@@ -5,7 +5,7 @@ message SubmitIntent {}
 // Example 00: protocol wrapper + participants + initiator + input(start)
 //
 // Demonstrates the canonical top-level structure.
-// $ctx is per-role isolated state. $flow is propagated with every message.
+// $ctx is per-role isolated working memory. $self is persistent state.
 // onSend / onReceive in message props open inline agent zones.
 
 protocol TaskExecution {
@@ -14,7 +14,7 @@ protocol TaskExecution {
   input: TaskRequest
 
   user {
-    $flow.taskText = $ctx.input.text
+    $ctx.taskText = $ctx.input.text
   }
   user --> comma: TaskRequest = { }
 
@@ -25,13 +25,13 @@ protocol TaskExecution {
   }
 
   comma {
-    const dsiBsi = taskToDsiBsi($flow.taskText)
-    $flow.dsiBsi = dsiBsi
+    const dsiBsi = taskToDsiBsi($ctx.taskText)
+    $ctx.dsiBsi = dsiBsi
   }
 
   comma --> sia: SubmitIntent = {
     onSend {
-      $ctx.msg.ref = $flow.dsiBsi
+      $ctx.msg.ref = $ctx.dsiBsi
     }
   }
 }

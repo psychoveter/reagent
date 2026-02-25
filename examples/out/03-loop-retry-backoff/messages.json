@@ -1,0 +1,14 @@
+[
+  {
+    "name": "ValidateIntent",
+    "fields": []
+  },
+  {
+    "name": "ValidationOk",
+    "fields": []
+  },
+  {
+    "name": "ValidationError",
+    "fields": []
+  }
+]

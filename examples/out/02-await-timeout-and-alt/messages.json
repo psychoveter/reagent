@@ -1,0 +1,14 @@
+[
+  {
+    "name": "SubmitIntent",
+    "fields": []
+  },
+  {
+    "name": "Accept",
+    "fields": []
+  },
+  {
+    "name": "Reject",
+    "fields": []
+  }
+]

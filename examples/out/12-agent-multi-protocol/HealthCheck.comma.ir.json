@@ -1,0 +1,77 @@
+{
+  "protocolName": "HealthCheck",
+  "role": "comma",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_5",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_6",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "monitor",
+        "arrow": "-->",
+        "messageName": "Ping"
+      }
+    },
+    {
+      "id": "send_7",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "monitor",
+        "arrow": "-->",
+        "messageName": "Pong",
+        "preSendZone": "\n      $ctx.msg.tasksCompleted = $self.tasksCompleted\n      $ctx.msg.ready = $self.ready\n    "
+      }
+    },
+    {
+      "id": "end_8",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_5",
+      "to": "recv_6",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_6",
+      "to": "send_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_7",
+      "to": "end_8",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_5",
+  "terminalStateIds": [
+    "end_8"
+  ],
+  "initiator": "monitor",
+  "version": "12.0.0",
+  "fingerprints": {
+    "structureHash": "d41ae77849da37d8fcf8e8f17cc35c7cb89a049c755f023cf2a722e3c8c713e1",
+    "schemaHash": "4ab1b58940301b8acd55f43b1bcbbdfaccf4159a4ee2bb684afb9d11e9404018",
+    "implHash": "773217bd22228b0af73e766ee0e38cbd020be8c497ad4563a66cf10ed79701c1"
+  }
+}

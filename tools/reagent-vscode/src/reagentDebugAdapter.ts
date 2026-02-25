@@ -12,6 +12,10 @@ interface LaunchConfig extends vscode.DebugConfiguration {
   rgFile: string;
   rosHost?: string;
   rosPort?: number;
+  /** When set, the session attaches to an existing cluster debug instead of compiling/running. */
+  clusterSessionId?: string;
+  /** Pre-connected RAP client to reuse (set programmatically, not from JSON). */
+  _rapClient?: RapClient;
 }
 
 interface SourceMapEntry {
@@ -41,6 +45,12 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
   private stoppedReason = '';
   private stoppedDetail: Record<string, unknown> = {};
   private seq = 0;
+  private isClusterAttach = false;
+
+  /** Pending cluster-attach RAP client, set before startDebugging(). */
+  static pendingClusterRap: RapClient | null = null;
+  /** Pending source map for cluster-attach, set before startDebugging(). */
+  static pendingSourceMap: SourceMapEntry[] | null = null;
 
   /** Stack of protocol frames when stepping into invoke/spawn children. */
   private protocolStack: Array<{
@@ -88,7 +98,11 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
           break;
 
         case 'launch':
-          await this.handleLaunch(reqSeq, args as unknown as LaunchConfig);
+          if ((args as any).clusterSessionId) {
+            await this.handleClusterAttach(reqSeq, args as unknown as LaunchConfig);
+          } else {
+            await this.handleLaunch(reqSeq, args as unknown as LaunchConfig);
+          }
           break;
 
         case 'configurationDone':
@@ -257,34 +271,149 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     this.sendResponse(reqSeq, 'launch');
   }
 
+  /**
+   * Attach to an existing cluster debug session — reuses the cluster's RAP
+   * connection and source map without compiling/running.
+   */
+  private async handleClusterAttach(reqSeq: number, config: LaunchConfig): Promise<void> {
+    this.rgFilePath = config.rgFile || '';
+    this.sessionId = config.clusterSessionId!;
+    this.isClusterAttach = true;
+
+    const pendingRap = ReagentDebugSession.pendingClusterRap;
+    ReagentDebugSession.pendingClusterRap = null;
+
+    if (pendingRap && pendingRap.connected) {
+      this.rap = pendingRap;
+    } else {
+      const rosHost = config.rosHost || '127.0.0.1';
+      const rosPort = config.rosPort || 18789;
+      this.rap = new RapClient(`ws://${rosHost}:${rosPort}`);
+      try {
+        await this.rap.connect();
+      } catch {
+        this.sendErrorResponse(reqSeq, 'launch', 'Cannot connect to ROS for cluster attach');
+        return;
+      }
+    }
+
+    // Use pre-computed source map from the diagram panel
+    const pendingMap = ReagentDebugSession.pendingSourceMap;
+    ReagentDebugSession.pendingSourceMap = null;
+    if (pendingMap && pendingMap.length > 0) {
+      this.sourceMap = pendingMap;
+    }
+
+    // Listen for Stopped events from cluster
+    this.disposables.push(this.rap.on('Stopped', (msg) => {
+      const payload = (msg.payload || {}) as Record<string, unknown>;
+      const sid = payload.sessionId as string | undefined;
+      if (sid && sid !== this.sessionId) return;
+
+      this.paused = true;
+      this.stoppedReason = String(payload.reason || 'breakpoint');
+      this.stoppedDetail = payload;
+
+      const branchIdx = payload.scatterBranchIndex;
+      if (typeof branchIdx === 'number') {
+        this.scatterBranchIndex = branchIdx;
+      }
+      if (payload.returnedFromChild && this.protocolStack.length > 0) {
+        this.protocolStack.pop();
+      }
+
+      this.sendEvent('stopped', {
+        reason: 'breakpoint',
+        threadId: THREAD_ID,
+        description: this.stoppedReason,
+        allThreadsStopped: true,
+      });
+      this.pushStateToSinks();
+    }));
+
+    // Listen for TraceEvent with ProtocolCompleted to auto-terminate
+    this.disposables.push(this.rap.on('TraceEvent', (msg) => {
+      const p = (msg.payload || {}) as Record<string, unknown>;
+      const kind = (p.kind || '') as string;
+      const agent = (p.agentName || '') as string;
+
+      this.sendEvent('output', {
+        category: 'console',
+        output: `[${kind}] ${agent}: ${JSON.stringify(p)}\n`,
+      });
+      this.sinks?.debugPanel.addTrace({
+        kind,
+        agentName: agent || undefined,
+        instanceId: p.instanceId as string | undefined,
+        timestamp: Date.now(),
+        detail: p,
+      });
+
+      if (kind === 'ProtocolCompleted' || kind === 'ProtocolFailed') {
+        this.sendEvent('terminated', {});
+      }
+    }));
+
+    ReagentDebugSession.activeSession = this;
+    this.sendResponse(reqSeq, 'launch');
+  }
+
   private async handleSetBreakpoints(reqSeq: number, args: Record<string, unknown>): Promise<void> {
     const source = args.source as { path?: string } | undefined;
     const bpArgs = args.breakpoints as Array<{ line: number }> | undefined;
     const breakpoints: Array<{ verified: boolean; line: number; message?: string }> = [];
 
     if (this.rap?.connected && bpArgs && bpArgs.length > 0) {
-      const locations = bpArgs.map(bp => ({
-        type: 'sourceLine' as const,
-        file: source?.path || this.rgFilePath,
-        line: bp.line,
-      }));
-
-      this.rap.send({
-        rap: 'SetBreakpointsRequest',
-        sessionId: this.sessionId || 'default',
-        payload: {
-          sessionId: this.sessionId || 'default',
-          breakpoints: locations,
-        },
-      });
-
-      for (const bp of bpArgs) {
-        const mapped = this.sourceMap.find(e => e.line === bp.line);
-        breakpoints.push({
-          verified: !!mapped,
+      if (this.isClusterAttach) {
+        // Resolve source lines to state IDs locally and send to cluster
+        const stateIds: string[] = [];
+        for (const bp of bpArgs) {
+          const mapped = this.sourceMap.find(e => e.line === bp.line);
+          if (mapped) {
+            stateIds.push(mapped.stateId);
+            breakpoints.push({
+              verified: true,
+              line: bp.line,
+              message: `→ ${mapped.stateId} (${mapped.protocolName}.${mapped.role})`,
+            });
+          } else {
+            breakpoints.push({ verified: false, line: bp.line, message: 'No IR state at this line' });
+          }
+        }
+        if (stateIds.length > 0) {
+          this.rap.send({
+            rap: 'DebugCommand',
+            payload: {
+              sessionId: this.sessionId || 'default',
+              command: 'setBreakpoints',
+              breakpoints: stateIds,
+            },
+          });
+        }
+      } else {
+        const locations = bpArgs.map(bp => ({
+          type: 'sourceLine' as const,
+          file: source?.path || this.rgFilePath,
           line: bp.line,
-          message: mapped ? `→ ${mapped.stateId} (${mapped.protocolName}.${mapped.role})` : 'No IR state at this line',
+        }));
+
+        this.rap.send({
+          rap: 'SetBreakpointsRequest',
+          sessionId: this.sessionId || 'default',
+          payload: {
+            sessionId: this.sessionId || 'default',
+            breakpoints: locations,
+          },
         });
+
+        for (const bp of bpArgs) {
+          const mapped = this.sourceMap.find(e => e.line === bp.line);
+          breakpoints.push({
+            verified: !!mapped,
+            line: bp.line,
+            message: mapped ? `→ ${mapped.stateId} (${mapped.protocolName}.${mapped.role})` : 'No IR state at this line',
+          });
+        }
       }
     } else if (bpArgs) {
       for (const bp of bpArgs) {
@@ -359,7 +488,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
       scopes: [
         { name: '$ctx', variablesReference: 100, expensive: false },
         { name: '$self', variablesReference: 200, expensive: false },
-        { name: '$flow', variablesReference: 400, expensive: false },
+        { name: 'Instance', variablesReference: 500, expensive: false },
         { name: 'Held Messages', variablesReference: 300, expensive: false },
       ],
     });
@@ -369,56 +498,97 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     const ref = args.variablesReference as number;
     const variables: Array<{ name: string; value: string; variablesReference: number }> = [];
 
-    if (this.rap?.connected && this.paused) {
-      try {
-        const agentName = (this.stoppedDetail.agentName || '') as string;
-        this.rap.send({
-          rap: 'GetState',
-          sessionId: this.sessionId || 'default',
-          payload: { sessionId: this.sessionId || 'default', agentName },
-        });
-
-        const snapshot = await new Promise<Record<string, unknown>>((resolve, reject) => {
-          const timer = setTimeout(() => reject(new Error('Timeout')), 3000);
-          const disposable = this.rap!.on('StateSnapshot', (msg) => {
-            clearTimeout(timer);
-            disposable.dispose();
-            resolve((msg.payload || {}) as Record<string, unknown>);
+    if (this.paused) {
+      if (this.isClusterAttach) {
+        // For cluster-attach, use the ctx/self from the Stopped payload
+        this.extractVariablesFromStoppedDetail(ref, variables);
+      } else if (this.rap?.connected) {
+        try {
+          const agentName = (this.stoppedDetail.agentName || '') as string;
+          this.rap.send({
+            rap: 'GetState',
+            sessionId: this.sessionId || 'default',
+            payload: { sessionId: this.sessionId || 'default', agentName },
           });
-        });
 
-        if (ref === 100) {
-          const ctx = (snapshot.ctx || {}) as Record<string, unknown>;
-          for (const [key, value] of Object.entries(ctx)) {
-            variables.push({ name: key, value: JSON.stringify(value), variablesReference: 0 });
-          }
-        } else if (ref === 200) {
-          const self = (snapshot.self || {}) as Record<string, unknown>;
-          for (const [key, value] of Object.entries(self)) {
-            variables.push({ name: key, value: JSON.stringify(value), variablesReference: 0 });
-          }
-        } else if (ref === 400) {
-          const flow = (snapshot.flow || {}) as Record<string, unknown>;
-          for (const [key, value] of Object.entries(flow)) {
-            variables.push({ name: key, value: JSON.stringify(value), variablesReference: 0 });
-          }
-        } else if (ref === 300) {
-          const held = (snapshot.heldMessages || []) as Array<{ messageName?: string; from?: string; to?: string }>;
-          for (let i = 0; i < held.length; i++) {
-            const h = held[i];
-            variables.push({
-              name: `[${i}]`,
-              value: `${h.messageName || '?'} (${h.from} → ${h.to})`,
-              variablesReference: 0,
+          const snapshot = await new Promise<Record<string, unknown>>((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error('Timeout')), 3000);
+            const disposable = this.rap!.on('StateSnapshot', (msg) => {
+              clearTimeout(timer);
+              disposable.dispose();
+              resolve((msg.payload || {}) as Record<string, unknown>);
             });
+          });
+
+          if (ref === 100) {
+            const ctx = (snapshot.ctx || {}) as Record<string, unknown>;
+            for (const [key, value] of Object.entries(ctx)) {
+              variables.push({ name: key, value: JSON.stringify(value), variablesReference: 0 });
+            }
+          } else if (ref === 200) {
+            const self = (snapshot.self || {}) as Record<string, unknown>;
+            for (const [key, value] of Object.entries(self)) {
+              variables.push({ name: key, value: JSON.stringify(value), variablesReference: 0 });
+            }
+          } else if (ref === 500) {
+            const fields: Array<[string, string]> = [
+              ['instanceId', String(this.stoppedDetail.instanceId ?? '')],
+              ['protocolName', String(this.stoppedDetail.protocolName ?? '')],
+              ['roleName', String(this.stoppedDetail.roleName ?? '')],
+              ['agentName', String(this.stoppedDetail.agentName ?? '')],
+              ['stateId', String(this.stoppedDetail.stateId ?? '')],
+              ['stateKind', String(this.stoppedDetail.stateKind ?? '')],
+            ];
+            for (const [name, value] of fields) {
+              if (value) variables.push({ name, value: JSON.stringify(value), variablesReference: 0 });
+            }
+          } else if (ref === 300) {
+            const held = (snapshot.heldMessages || []) as Array<{ messageName?: string; from?: string; to?: string }>;
+            for (let i = 0; i < held.length; i++) {
+              const h = held[i];
+              variables.push({
+                name: `[${i}]`,
+                value: `${h.messageName || '?'} (${h.from} → ${h.to})`,
+                variablesReference: 0,
+              });
+            }
           }
+        } catch {
+          variables.push({ name: '(error)', value: 'Failed to fetch state', variablesReference: 0 });
         }
-      } catch {
-        variables.push({ name: '(error)', value: 'Failed to fetch state', variablesReference: 0 });
       }
     }
 
     this.sendResponse(reqSeq, 'variables', { variables });
+  }
+
+  private extractVariablesFromStoppedDetail(
+    ref: number,
+    variables: Array<{ name: string; value: string; variablesReference: number }>,
+  ): void {
+    if (ref === 100) {
+      const ctx = (this.stoppedDetail.ctx || {}) as Record<string, unknown>;
+      for (const [key, value] of Object.entries(ctx)) {
+        variables.push({ name: key, value: JSON.stringify(value), variablesReference: 0 });
+      }
+    } else if (ref === 200) {
+      const self = (this.stoppedDetail.self || {}) as Record<string, unknown>;
+      for (const [key, value] of Object.entries(self)) {
+        variables.push({ name: key, value: JSON.stringify(value), variablesReference: 0 });
+      }
+    } else if (ref === 500) {
+      const fields: Array<[string, string]> = [
+        ['instanceId', String(this.stoppedDetail.instanceId ?? '')],
+        ['protocolName', String(this.stoppedDetail.protocolName ?? '')],
+        ['roleName', String(this.stoppedDetail.roleName ?? '')],
+        ['agentName', String(this.stoppedDetail.agentName ?? '')],
+        ['stateId', String(this.stoppedDetail.stateId ?? '')],
+        ['stateKind', String(this.stoppedDetail.stateKind ?? '')],
+      ];
+      for (const [name, value] of fields) {
+        if (value) variables.push({ name, value: JSON.stringify(value), variablesReference: 0 });
+      }
+    }
   }
 
   private async handleContinue(reqSeq: number): Promise<void> {
@@ -520,9 +690,17 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
   }
 
   private handleDisconnect(reqSeq: number): void {
+    if (this.isClusterAttach && this.rap?.connected && this.sessionId) {
+      this.rap.send({
+        rap: 'DebugCommand',
+        payload: { sessionId: this.sessionId, command: 'stop' },
+      });
+    }
     for (const d of this.disposables) d.dispose();
     this.disposables = [];
-    this.rap?.close();
+    if (!this.isClusterAttach) {
+      this.rap?.close();
+    }
     this.rap = null;
     if (ReagentDebugSession.activeSession === this) {
       ReagentDebugSession.activeSession = null;
@@ -548,14 +726,13 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
       const snap = (snapMsg.payload || {}) as Record<string, unknown>;
       const ctx = (snap.ctx || {}) as Record<string, unknown>;
       const self = (snap.self || {}) as Record<string, unknown>;
-      const flow = (snap.flow || {}) as Record<string, unknown>;
       const held = (snap.heldMessages || []) as Array<{ messageName: string; from: string; to: string }>;
 
-      this.sinks!.debugPanel.updateAgentState(agentName, { $ctx: ctx, $self: self, $flow: flow });
+      this.sinks!.debugPanel.updateAgentState(agentName, { $ctx: ctx, $self: self });
       this.sinks!.debugPanel.updateHeldMessages(held);
 
       if (mapped) {
-        this.sinks!.inlineValues.showValues(this.rgFilePath, mapped.line, ctx, self, flow);
+        this.sinks!.inlineValues.showValues(this.rgFilePath, mapped.line, ctx, self);
       }
     });
 
@@ -596,7 +773,10 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
   dispose(): void {
     for (const d of this.disposables) d.dispose();
     this.disposables = [];
-    this.rap?.close();
+    if (!this.isClusterAttach) {
+      this.rap?.close();
+    }
+    this.rap = null;
     if (ReagentDebugSession.activeSession === this) {
       ReagentDebugSession.activeSession = null;
     }

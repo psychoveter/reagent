@@ -1,0 +1,76 @@
+{
+  "protocolName": "HealthCheck",
+  "role": "monitor",
+  "lang": "*",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "send_2",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "node",
+        "arrow": "-->",
+        "messageName": "Ping"
+      }
+    },
+    {
+      "id": "recv_3",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "node",
+        "arrow": "-->",
+        "messageName": "Pong"
+      }
+    },
+    {
+      "id": "end_4",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "send_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_2",
+      "to": "recv_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_3",
+      "to": "end_4",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_4"
+  ],
+  "initiator": "monitor",
+  "version": "13.0.0",
+  "fingerprints": {
+    "structureHash": "87ef2ffe47bf4c0f2e5e15320107c2eac0325a368464079bd633ce0b60ab5beb",
+    "schemaHash": "4ab1b58940301b8acd55f43b1bcbbdfaccf4159a4ee2bb684afb9d11e9404018",
+    "implHash": "b4c6b65cba51041bc66d3ff63cbc364201174871548de0d895ae236523a43f1a"
+  }
+}

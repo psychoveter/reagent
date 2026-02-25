@@ -111,11 +111,11 @@ function createInlineSetup(
 
 function sInitial(id: string) { return { id, kind: "initial", data: { kind: "initial" } }; }
 function sAction(id: string, body: string) { return { id, kind: "action", data: { kind: "action", body, lang: "ts" } }; }
-function sSend(id: string, to: string, msg: string, opts: { preSendZone?: string; propagateFlow?: boolean } = {}) {
-  return { id, kind: "send", data: { kind: "send", to, arrow: "-->", messageName: msg, ...(opts.preSendZone ? { preSendZone: opts.preSendZone } : {}), propagateFlow: opts.propagateFlow ?? true } };
+function sSend(id: string, to: string, msg: string, opts: { preSendZone?: string } = {}) {
+  return { id, kind: "send", data: { kind: "send", to, arrow: "-->", messageName: msg, ...(opts.preSendZone ? { preSendZone: opts.preSendZone } : {}) } };
 }
-function sRecv(id: string, from: string, msg: string, opts: { postReceiveZone?: string; propagateFlow?: boolean; pattern?: Record<string, string> } = {}) {
-  return { id, kind: "receive", data: { kind: "receive", from, arrow: "-->", messageName: msg, ...(opts.postReceiveZone ? { postReceiveZone: opts.postReceiveZone } : {}), ...(opts.pattern ? { pattern: opts.pattern } : {}), propagateFlow: opts.propagateFlow ?? true } };
+function sRecv(id: string, from: string, msg: string, opts: { postReceiveZone?: string; pattern?: Record<string, string> } = {}) {
+  return { id, kind: "receive", data: { kind: "receive", from, arrow: "-->", messageName: msg, ...(opts.postReceiveZone ? { postReceiveZone: opts.postReceiveZone } : {}), ...(opts.pattern ? { pattern: opts.pattern } : {}) } };
 }
 function sTerminal(id: string) { return { id, kind: "terminal", data: { kind: "terminal", status: "completed" } }; }
 function sGuardExpr(id: string, expr?: string) { return { id, kind: "guard", data: { kind: "guard", guardType: "expression", ...(expr ? { expr } : {}) } }; }

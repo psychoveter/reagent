@@ -1,0 +1,29 @@
+{
+  "roleName": "ProcessorRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "TryCatchDemo",
+      "roleName": "processor"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.processed = 0\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolCompleted",
+      "protocolFilter": "TryCatchDemo",
+      "action": {
+        "body": "\n    $self.processed = ($self.processed || 0) + 1\n  ",
+        "lang": "ts"
+      }
+    }
+  ],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "09e431c7f91a4ebffc2fab6f8f1ebd1496292a98584e4db41cee9107e068b3b0",
+    "behaviorHash": "afea9621a8a309f743afaa1c27ba7c4bc5627a5a7378193312fc6442cd832499"
+  }
+}

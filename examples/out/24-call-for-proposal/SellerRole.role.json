@@ -1,0 +1,16 @@
+{
+  "roleName": "SellerRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "CallForProposal",
+      "roleName": "seller"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "7692bee19cf887dec71a4db97d9bd5c6f6687b636d2840f3d2131a28d540f1ae",
+    "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+  }
+}

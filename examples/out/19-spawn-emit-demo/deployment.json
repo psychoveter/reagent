@@ -1,0 +1,53 @@
+{
+  "agents": [
+    {
+      "agentName": "OrchestratorAgent",
+      "lang": "ts",
+      "roleName": "OrchestratorRole",
+      "agentIRFile": "OrchestratorAgent.agent.json",
+      "roleIRFile": "OrchestratorRole.role.json",
+      "roles": [
+        {
+          "protocolName": "SpawnEmitDemo",
+          "roleName": "orchestrator",
+          "irGraphFile": "SpawnEmitDemo.orchestrator.ir.json"
+        },
+        {
+          "protocolName": "BackgroundTask",
+          "roleName": "worker",
+          "irGraphFile": "BackgroundTask.worker.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "HelperAgent",
+      "lang": "ts",
+      "roleName": "HelperRole",
+      "agentIRFile": "HelperAgent.agent.json",
+      "roleIRFile": "HelperRole.role.json",
+      "roles": [
+        {
+          "protocolName": "SpawnEmitDemo",
+          "roleName": "helper",
+          "irGraphFile": "SpawnEmitDemo.helper.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "SpawnEmitDemo.orchestrator": "OrchestratorAgent",
+    "BackgroundTask.worker": "OrchestratorAgent",
+    "SpawnEmitDemo.helper": "HelperAgent"
+  },
+  "roles": [
+    {
+      "name": "OrchestratorRole",
+      "file": "OrchestratorRole.role.json"
+    },
+    {
+      "name": "HelperRole",
+      "file": "HelperRole.role.json"
+    }
+  ],
+  "messages": "messages.json"
+}

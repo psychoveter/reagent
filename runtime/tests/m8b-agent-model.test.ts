@@ -80,12 +80,12 @@ protocol SimpleTask {
   client --> worker: TaskRequest
 
   worker {
-    $flow.result = $agent.process($ctx.msg.text)
+    $ctx.result = $agent.process($ctx.msg.text)
   }
 
   worker --> client: TaskResponse = {
     onSend {
-      $ctx.msg.result = $flow.result
+      $ctx.msg.result = $ctx.result
     }
   }
 }
@@ -107,7 +107,6 @@ agent workerAgent runs WorkerRole
 test("A1: $agent.method() callable in TS zone", async () => {
   const ctx: Record<string, unknown> = { msg: { text: "hello" } };
   const self: Record<string, unknown> = {};
-  const flow: Record<string, unknown> = {};
   const reagent = createReagentStub();
 
   const agentModule = {
@@ -115,12 +114,12 @@ test("A1: $agent.method() callable in TS zone", async () => {
   };
 
   executeZone(
-    '$flow.result = $agent.process($ctx.msg.text)',
-    ctx, self, reagent, flow,
+    '$ctx.result = $agent.process($ctx.msg.text)',
+    ctx, self, reagent,
     { $agent: agentModule },
   );
 
-  assert.equal(flow.result, "processed: hello");
+  assert.equal(ctx.result, "processed: hello");
   console.log("  A1: PASS");
 });
 
@@ -134,7 +133,6 @@ from reagent_runtime.zone_executor import execute_zone, ReagentStub, AttrDict
 
 ctx = AttrDict({'msg': AttrDict({'text': 'world'})})
 self_s = {}
-flow = AttrDict({})
 reagent = ReagentStub()
 
 class Agent:
@@ -142,11 +140,11 @@ class Agent:
         return 'processed: ' + text
 
 execute_zone(
-    '\\$flow.result = agent.process(\\$ctx.msg.text)',
-    ctx, self_s, reagent, flow, {'agent': Agent()}
+    '\\$ctx.result = agent.process(\\$ctx.msg.text)',
+    ctx, self_s, reagent, {'agent': Agent()}
 )
 
-assert flow['result'] == 'processed: world', f'Expected processed: world, got {flow[\"result\"]}'
+assert ctx['result'] == 'processed: world', f'Expected processed: world, got {ctx[\"result\"]}'
 print('A2: PASS')
 "`,
     { encoding: "utf8", cwd: join(__dirname, "..", "py") },
@@ -160,7 +158,6 @@ print('A2: PASS')
 test("A3: Zone with await $agent.asyncMethod() (TS)", async () => {
   const ctx: Record<string, unknown> = {};
   const self: Record<string, unknown> = {};
-  const flow: Record<string, unknown> = {};
   const reagent = createReagentStub();
 
   const agentModule = {
@@ -170,12 +167,12 @@ test("A3: Zone with await $agent.asyncMethod() (TS)", async () => {
   };
 
   await executeZoneAsync(
-    '$flow.result = await $agent.asyncMethod()',
-    ctx, self, reagent, flow,
+    '$ctx.result = await $agent.asyncMethod()',
+    ctx, self, reagent,
     { $agent: agentModule },
   );
 
-  assert.equal(flow.result, "async-result");
+  assert.equal(ctx.result, "async-result");
   console.log("  A3: PASS");
 });
 
@@ -190,7 +187,6 @@ from reagent_runtime.zone_executor import execute_zone_async, ReagentStub, AttrD
 async def run():
     ctx = AttrDict({})
     self_s = {}
-    flow = AttrDict({})
     reagent = ReagentStub()
 
     class Agent:
@@ -198,11 +194,11 @@ async def run():
             return 'async-py-result'
 
     await execute_zone_async(
-        '\\$flow.result = await agent.async_method()',
-        ctx, self_s, reagent, flow, {'agent': Agent()}
+        '\\$ctx.result = await agent.async_method()',
+        ctx, self_s, reagent, {'agent': Agent()}
     )
 
-    assert flow['result'] == 'async-py-result', f'Got {flow[\"result\"]}'
+    assert ctx['result'] == 'async-py-result', f'Got {ctx[\"result\"]}'
     print('A4: PASS')
 
 asyncio.run(run())
@@ -263,7 +259,7 @@ protocol AsyncProto {
   a --> b: Req
 
   b {
-    $flow.result = await $agent.fetchData($ctx.msg.data)
+    $ctx.result = await $agent.fetchData($ctx.msg.data)
   }
 
   b --> a: Res

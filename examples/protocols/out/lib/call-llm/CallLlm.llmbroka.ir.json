@@ -1,0 +1,77 @@
+{
+  "protocolName": "CallLlm",
+  "role": "llmbroka",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_7",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_8",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "caller",
+        "arrow": "-->",
+        "messageName": "LlmPrompt",
+        "postReceiveZone": "\n      $ctx.model = $ctx.msg.model\n      $ctx.messages = $ctx.msg.messages\n    "
+      }
+    },
+    {
+      "id": "send_9",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "caller",
+        "arrow": "-->",
+        "messageName": "LlmAnswer"
+      }
+    },
+    {
+      "id": "end_10",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_7",
+      "to": "recv_8",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_8",
+      "to": "send_9",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_9",
+      "to": "end_10",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_7",
+  "terminalStateIds": [
+    "end_10"
+  ],
+  "initiator": "caller",
+  "version": "0.1.0",
+  "fingerprints": {
+    "structureHash": "1155efd9c780db5b97327792cc9ecc18dd1f706c7d54c7b13b34901b48c0f160",
+    "schemaHash": "1a2ee90c737e97d024137eabc98c74236b5c2b2305ab123641ebbb7435a85b18",
+    "implHash": "145f8210541c02dcb1b94a251e6f38eb05cec90e8ddc524a6d2bc45dde976ca0"
+  }
+}

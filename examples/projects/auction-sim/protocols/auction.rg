@@ -31,26 +31,27 @@ protocol Auction {
   input: AuctionStart
 
   seller {
-    $flow.itemName = $ctx.input.itemName
-    $flow.reservePrice = $ctx.input.reservePrice
-    $flow.buyerIds = await $agent.get_buyer_ids()
-    $flow.bids = []
+    $ctx.itemName = $ctx.input.itemName
+    $ctx.reservePrice = $ctx.input.reservePrice
+    $ctx.buyerIds = await $agent.get_buyer_ids()
+    $ctx.bids = []
   }
 
   // Scatter: announce item to all buyers, collect bids
-  scatter ($flow.buyerIds as buyer) {
+  scatter ($ctx.buyerIds as buyer) {
     seller --> buyer: AuctionStart = {
       onSend {
-        $ctx.msg.itemName = $flow.itemName
-        $ctx.msg.reservePrice = $flow.reservePrice
+        $ctx.msg.itemName = $ctx.itemName
+        $ctx.msg.reservePrice = $ctx.reservePrice
       }
       onReceive {
         $self.currentItem = $ctx.msg.itemName
+        $self.reservePrice = $ctx.msg.reservePrice
       }
     }
 
     buyer {
-      $ctx.bidAmount = await $agent.decide_bid($self.currentItem, $ctx.msg.reservePrice)
+      $ctx.bidAmount = await $agent.decide_bid($self.currentItem, $self.reservePrice)
     }
 
     buyer --> seller: Bid = {
@@ -58,40 +59,37 @@ protocol Auction {
         $ctx.msg.amount = $ctx.bidAmount
       }
       onReceive {
-        $flow.bids.push({
-          buyerIdx: $flow._scatterIdx,
-          amount: $ctx.msg.amount
-        })
+        $ctx.bids.push($ctx.msg.amount)
       }
     }
   }
 
   // Seller evaluates all bids
   seller {
-    $ctx.result = await $agent.evaluate_bids($flow.bids, $flow.reservePrice)
-    $flow.winnerIdx = $ctx.result.winnerIdx
-    $flow.finalPrice = $ctx.result.finalPrice
+    $ctx.result = await $agent.evaluate_bids($ctx.bids, $ctx.reservePrice)
+    $ctx.winnerIdx = $ctx.result.winnerIdx
+    $ctx.finalPrice = $ctx.result.finalPrice
   }
 
   // Notify each buyer of the result
-  scatter ($flow.buyerIds as buyer) {
+  scatter ($ctx.buyerIds as buyer) {
     seller --> buyer: BidResult = {
       onSend {
-        $ctx.msg.won = ($flow._scatterIdx == $flow.winnerIdx)
-        $ctx.msg.finalPrice = $flow.finalPrice
+        $ctx.msg.won = ($ctx._scatterIdx == $ctx.winnerIdx)
+        $ctx.msg.finalPrice = $ctx.finalPrice
       }
       onReceive {
-        $self.lastResult = $ctx.msg.won ? "won" : "lost"
+        $self.lastResult = "won" if $ctx.msg.won else "lost"
       }
     }
   }
 
   seller {
     $self.auctionLog = {
-      item: $flow.itemName,
-      winner: $flow.winnerIdx,
-      price: $flow.finalPrice,
-      totalBids: $flow.bids.length
+      "item": $ctx.itemName,
+      "winner": $ctx.winnerIdx,
+      "price": $ctx.finalPrice,
+      "totalBids": len($ctx.bids)
     }
   }
 }

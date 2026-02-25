@@ -1,0 +1,6 @@
+{
+  "agentName": "WorkerBAgent",
+  "lang": "ts",
+  "roleName": "WorkerBRole",
+  "roleFile": "WorkerBRole.role.json"
+}

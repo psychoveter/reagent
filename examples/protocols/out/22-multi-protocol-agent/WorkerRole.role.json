@@ -33,7 +33,7 @@
       }
     }
   ],
-  "version": "1.0.0",
+  "version": "10.0.0",
   "fingerprints": {
     "playsHash": "bbfff7d3260f0f5bc6908a274fbce48997ac3f0aac9f31354003c6f5d6f8a440",
     "behaviorHash": "0550070c29e721c627260e432b230f87836914a033090a8e01d9e6a5e60da4b6"

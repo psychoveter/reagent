@@ -43,6 +43,9 @@ class AgentRunner:
         self._completion_event: asyncio.Event = asyncio.Event()
         self._expected_count = 0
 
+    def set_advance_hook(self, hook: Optional[Callable]) -> None:
+        self._advance_hook = hook
+
     async def start(self) -> None:
         await self._transport.connect()
 
@@ -95,12 +98,37 @@ class AgentRunner:
     # ── Public dispatch API (used by IPC driver) ─────────────────
 
     def dispatch_message(self, env: dict[str, Any]) -> None:
-        """Route an inbound message envelope to the correct ProtocolInstance."""
+        """Route an inbound message envelope to the correct ProtocolInstance.
+
+        If no instance exists for the given instanceId, auto-creates one
+        (joining an in-flight protocol initiated by another agent).
+        """
         instance_id = env.get("instanceId")
         instance = self._instances.get(instance_id)
         if not instance:
+            protocol_name = env.get("protocolName")
+            if protocol_name:
+                rta = env.get("roleToAgent") or self._role_to_agent
+                asyncio.ensure_future(
+                    self._auto_join_and_deliver(instance_id, protocol_name, rta, env)
+                )
             return
         instance.dispatch_message(env)
+
+    async def _auto_join_and_deliver(
+        self,
+        instance_id: str,
+        protocol_name: str,
+        role_to_agent: dict[str, str],
+        pending_env: dict[str, Any],
+    ) -> None:
+        """Create a protocol instance on-the-fly and deliver the pending message."""
+        inst = await self.start_protocol_instance(
+            instance_id, protocol_name, None, role_to_agent,
+        )
+        if inst:
+            await asyncio.sleep(0)
+            inst.dispatch_message(pending_env)
 
     async def trigger_protocol(
         self,

@@ -14,6 +14,7 @@ from .agent_node import AgentHandle, AgentNode
 from .inproc_agent_node import InprocAgentNode, InprocAgentHandle
 from .ipc_agent_node import IpcAgentNode, IpcAgentHandle
 from .inproc_transport import InprocTransport
+from .remote_node import RemoteNode
 
 __all__ = [
     "AgentRunner",
@@ -29,4 +30,5 @@ __all__ = [
     "IpcAgentNode",
     "IpcAgentHandle",
     "InprocTransport",
+    "RemoteNode",
 ]

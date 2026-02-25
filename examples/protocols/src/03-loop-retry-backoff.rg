@@ -19,7 +19,7 @@ protocol LoopRetryBackoff {
   loop ($ctx.attempt < 3) {
     comma --> sia: ValidateIntent = {
       onSend {
-        $ctx.msg.ref = $flow.intent
+        $ctx.msg.ref = $ctx.intent
       }
     }
 

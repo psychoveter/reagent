@@ -13,7 +13,7 @@ protocol ExceptionAbortCompensate {
   input: TaskRequest
 
   user {
-    $flow.taskText = $ctx.input.text
+    $ctx.taskText = $ctx.input.text
   }
   user --> comma: TaskRequest = { }
 
@@ -23,7 +23,7 @@ protocol ExceptionAbortCompensate {
     comma --> user: Done = { }
   } catch (error) {
     comma {
-      compensate("sia.cancelIntent", { ref: $flow.intentRef })
+      compensate("sia.cancelIntent", { ref: $ctx.intentRef })
     }
     comma --> user: Failed = {
       onSend {

@@ -1,0 +1,12 @@
+{
+  "entries": [
+    {
+      "stateId": "act_2",
+      "protocolName": "DeriveDsiBsi",
+      "role": "comma",
+      "file": "examples/protocols/src/lib/derive-dsi-bsi.rg",
+      "line": 8,
+      "column": 3
+    }
+  ]
+}

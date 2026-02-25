@@ -71,8 +71,6 @@ export type SeqElement = {
   duration?: { value: number; unit: string };
   /** Whether zone is async */
   async?: boolean;
-  /** $flow propagation annotations */
-  propagateFlow?: boolean;
 };
 
 export type SequenceDiagram = {
@@ -185,7 +183,6 @@ function walkForSequence(
         to: sd.to,
         label: sd.messageName,
         async: sd.preSendAsync,
-        propagateFlow: sd.propagateFlow,
       });
       break;
     }
@@ -199,7 +196,6 @@ function walkForSequence(
         to: role,
         label: rd.messageName,
         async: rd.postReceiveAsync,
-        propagateFlow: rd.propagateFlow,
       });
       break;
     }
@@ -478,31 +474,41 @@ function summarizeZone(body: string): string {
   const trimmed = body.trim();
   const lines = trimmed.split("\n").map(l => l.trim()).filter(Boolean);
 
-  const names: string[] = [];
+  const calls: string[] = [];
+  const assigns: string[] = [];
+
   for (const line of lines) {
-    const assign = line.match(/^(\$(?:ctx|flow|self)\.\w+)\s*=/);
-    if (assign) { names.push(assign[1]); continue; }
     const awaitCall = line.match(/await\s+\$agent\.(\w+)/);
-    if (awaitCall) { names.push(`$agent.${awaitCall[1]}()`); continue; }
+    if (awaitCall) { calls.push(awaitCall[1]); continue; }
     const agentCall = line.match(/\$agent\.(\w+)\s*\(/);
-    if (agentCall) { names.push(`$agent.${agentCall[1]}()`); continue; }
+    if (agentCall) { calls.push(agentCall[1]); continue; }
     const reagentCall = line.match(/reagent\.(\w+)\s*\(/);
-    if (reagentCall) { names.push(`reagent.${reagentCall[1]}()`); continue; }
+    if (reagentCall) { calls.push(reagentCall[1]); continue; }
+
+    const assign = line.match(/^\$(?:ctx|self)\.(\w+)\s*=/);
+    if (assign) { assigns.push(assign[1]); continue; }
+
     const fnCall = line.match(/^(\w+)\s*\(/);
     if (fnCall && !line.startsWith("if") && !line.startsWith("for") && !line.startsWith("while")) {
-      names.push(`${fnCall[1]}()`); continue;
+      calls.push(fnCall[1]); continue;
     }
   }
 
-  if (names.length === 0) {
-    const firstLine = lines[0] ?? "";
-    if (firstLine.length > 30) return firstLine.slice(0, 27) + "...";
-    return firstLine || "action";
+  if (calls.length > 0) {
+    const label = calls.slice(0, 2).join(", ");
+    const suffix = assigns.length > 0 ? ` → ${assigns[0]}` : "";
+    const full = label + suffix;
+    return full.length > 28 ? full.slice(0, 25) + "…" : full;
   }
 
-  const summary = names.slice(0, 3).join(", ");
-  if (summary.length > 40) return summary.slice(0, 37) + "...";
-  return summary;
+  if (assigns.length > 0) {
+    const label = assigns.slice(0, 2).join(", ");
+    return label.length > 28 ? label.slice(0, 25) + "…" : label;
+  }
+
+  const firstLine = lines[0] ?? "";
+  if (firstLine.length > 28) return firstLine.slice(0, 25) + "…";
+  return firstLine || "action";
 }
 
 function stateLabel(state: IRState): string {

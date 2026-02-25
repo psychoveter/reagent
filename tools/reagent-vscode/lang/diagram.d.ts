@@ -39,8 +39,6 @@ export type SeqElement = {
     };
     /** Whether zone is async */
     async?: boolean;
-    /** $flow propagation annotations */
-    propagateFlow?: boolean;
 };
 export type SequenceDiagram = {
     protocolName: string;

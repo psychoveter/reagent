@@ -18,15 +18,15 @@ protocol CallForProposal {
   input: CFPRequest
 
   buyer {
-    $flow.candidates = $ctx.input.sellerIds
-    $flow.spec = $ctx.input.spec
-    $flow.proposals = []
+    $ctx.candidates = $ctx.input.sellerIds
+    $ctx.spec = $ctx.input.spec
+    $ctx.proposals = []
   }
 
-  scatter ($flow.candidates as seller) {
+  scatter ($ctx.candidates as seller) {
     buyer --> seller: CFP = {
       onSend {
-        $ctx.msg.spec = $flow.spec
+        $ctx.msg.spec = $ctx.spec
       }
       onReceive {
         $ctx.spec = $ctx.msg.spec
@@ -44,7 +44,7 @@ protocol CallForProposal {
           $ctx.msg.sellerId = $ctx.msg.sellerId
         }
         onReceive {
-          $flow.proposals.push($ctx.msg)
+          $ctx.proposals.push($ctx.msg)
         }
       }
     } else {
@@ -53,13 +53,13 @@ protocol CallForProposal {
   }
 
   buyer {
-    $flow.winner = selectBest($flow.proposals)
+    $ctx.winner = selectBest($ctx.proposals)
   }
 
   // Notify winner (simplified: in real CFP, you'd scatter accept/reject to all)
   buyer --> seller: Accept = {
     onSend {
-      $ctx.msg.winnerId = $flow.winner.sellerId
+      $ctx.msg.winnerId = $ctx.winner.sellerId
     }
   }
 }

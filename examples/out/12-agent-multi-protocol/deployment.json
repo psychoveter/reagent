@@ -1,0 +1,34 @@
+{
+  "agents": [
+    {
+      "agentName": "Comma",
+      "lang": "ts",
+      "roleName": "CommaRole",
+      "agentIRFile": "Comma.agent.json",
+      "roleIRFile": "CommaRole.role.json",
+      "roles": [
+        {
+          "protocolName": "TaskExecution",
+          "roleName": "comma",
+          "irGraphFile": "TaskExecution.comma.ir.json"
+        },
+        {
+          "protocolName": "HealthCheck",
+          "roleName": "comma",
+          "irGraphFile": "HealthCheck.comma.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "TaskExecution.comma": "Comma",
+    "HealthCheck.comma": "Comma"
+  },
+  "roles": [
+    {
+      "name": "CommaRole",
+      "file": "CommaRole.role.json"
+    }
+  ],
+  "messages": "messages.json"
+}

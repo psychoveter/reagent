@@ -356,7 +356,7 @@
           "match": "\\$ctx\\b"
         },
         {
-          "name": "variable.language.flow.reagent",
+          "name": "invalid.deprecated.flow.reagent",
           "match": "\\$flow\\b"
         },
         {

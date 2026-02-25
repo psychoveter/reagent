@@ -1,0 +1,66 @@
+{
+  "agents": [
+    {
+      "agentName": "CoordinatorAgent",
+      "lang": "ts",
+      "roleName": "CoordinatorRole",
+      "agentIRFile": "CoordinatorAgent.agent.json",
+      "roleIRFile": "CoordinatorRole.role.json",
+      "roles": [
+        {
+          "protocolName": "ParDemo",
+          "roleName": "coordinator",
+          "irGraphFile": "ParDemo.coordinator.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "WorkerAAgent",
+      "lang": "ts",
+      "roleName": "WorkerARole",
+      "agentIRFile": "WorkerAAgent.agent.json",
+      "roleIRFile": "WorkerARole.role.json",
+      "roles": [
+        {
+          "protocolName": "ParDemo",
+          "roleName": "workerA",
+          "irGraphFile": "ParDemo.workerA.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "WorkerBAgent",
+      "lang": "ts",
+      "roleName": "WorkerBRole",
+      "agentIRFile": "WorkerBAgent.agent.json",
+      "roleIRFile": "WorkerBRole.role.json",
+      "roles": [
+        {
+          "protocolName": "ParDemo",
+          "roleName": "workerB",
+          "irGraphFile": "ParDemo.workerB.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "ParDemo.coordinator": "CoordinatorAgent",
+    "ParDemo.workerA": "WorkerAAgent",
+    "ParDemo.workerB": "WorkerBAgent"
+  },
+  "roles": [
+    {
+      "name": "CoordinatorRole",
+      "file": "CoordinatorRole.role.json"
+    },
+    {
+      "name": "WorkerARole",
+      "file": "WorkerARole.role.json"
+    },
+    {
+      "name": "WorkerBRole",
+      "file": "WorkerBRole.role.json"
+    }
+  ],
+  "messages": "messages.json"
+}

@@ -13,20 +13,20 @@ protocol SpawnSubagent {
   input: TaskRequest
 
   user {
-    $flow.taskText = $ctx.input.text
+    $ctx.taskText = $ctx.input.text
   }
   user --> comma: TaskRequest = { }
 
   comma --> user: Greeting = { }
 
-  comma spawns Subagent({ text: $flow.taskText }) {
+  comma spawns Subagent({ text: $ctx.taskText }) {
     planner: planner
   }
 
   planner --> comma: PlanReady = {
     onReceive {
-      $flow.dsi = $ctx.msg.dsi
-      $flow.bsi = $ctx.msg.bsi
+      $ctx.dsi = $ctx.msg.dsi
+      $ctx.bsi = $ctx.msg.bsi
     }
   }
 

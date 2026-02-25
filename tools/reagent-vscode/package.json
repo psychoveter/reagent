@@ -2,7 +2,7 @@
   "name": "reagent-vscode",
   "displayName": "Reagent Language Support",
   "description": "Language support for Reagent protocol DSL (.rg) with embedded language intelligence in agent zones.",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "publisher": "psychoveter",
   "engines": {
     "vscode": "^1.80.0"
@@ -12,7 +12,24 @@
   ],
   "main": "./out/extension.js",
   "activationEvents": [
-    "onLanguage:reagent"
+    "onLanguage:reagent",
+    "workspaceContains:**/reagent.json",
+    "onCommand:reagent.startRos",
+    "onCommand:reagent.stopRos",
+    "onCommand:reagent.toggleRos",
+    "onCommand:reagent.connectCluster",
+    "onCommand:reagent.disconnectCluster",
+    "onCommand:reagent.refreshCluster",
+    "onCommand:reagent.triggerProtocol",
+    "onCommand:reagent.inspectNode",
+    "onCommand:reagent.deployProject",
+    "onCommand:reagent.compileProject",
+    "onCommand:reagent.run",
+    "onCommand:reagent.startDebug",
+    "onCommand:reagent.openDiagram",
+    "onCommand:reagent.openProjectDiagram",
+    "onCommand:reagent.devCycle",
+    "onCommand:reagent.stopDevCycle"
   ],
   "contributes": {
     "languages": [
@@ -119,7 +136,7 @@
       },
       {
         "command": "reagent.openDiagram",
-        "title": "Reagent: Open Protocol Diagram",
+        "title": "Reagent: Protocol View",
         "icon": "$(type-hierarchy)"
       },
       {
@@ -138,6 +155,49 @@
       {
         "command": "reagent.toggleRos",
         "title": "Reagent: Toggle ROS"
+      },
+      {
+        "command": "reagent.connectCluster",
+        "title": "Reagent: Connect to Cluster"
+      },
+      {
+        "command": "reagent.disconnectCluster",
+        "title": "Reagent: Disconnect from Cluster"
+      },
+      {
+        "command": "reagent.refreshCluster",
+        "title": "Reagent: Refresh Cluster",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "reagent.triggerProtocol",
+        "title": "Reagent: Trigger Protocol on Cluster",
+        "icon": "$(run)"
+      },
+      {
+        "command": "reagent.inspectNode",
+        "title": "Reagent: Inspect Node State",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "reagent.deployProject",
+        "title": "Reagent: Deploy Project to Cluster",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "reagent.compileProject",
+        "title": "Reagent: Compile Project",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "reagent.devCycle",
+        "title": "Reagent: Dev Cycle (Start All)",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "reagent.stopDevCycle",
+        "title": "Reagent: Stop Dev Cycle",
+        "icon": "$(debug-stop)"
       }
     ],
     "menus": {
@@ -151,11 +211,25 @@
           "command": "reagent.openDiagram",
           "when": "resourceLangId == reagent",
           "group": "navigation"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "reagent.deployProject",
+          "when": "view == reagentCluster",
+          "group": "navigation@1"
         },
         {
-          "command": "reagent.run",
-          "when": "resourceLangId == reagent",
-          "group": "navigation"
+          "command": "reagent.refreshCluster",
+          "when": "view == reagentCluster",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "reagent.inspectNode",
+          "when": "view == reagentCluster && viewItem == node",
+          "group": "inline"
         }
       ]
     },
@@ -165,9 +239,39 @@
           "id": "reagentDebugPanel",
           "name": "Reagent Debug",
           "when": "debugType == 'reagent'"
+        },
+        {
+          "id": "reagentDebugCluster",
+          "name": "Reagent Cluster",
+          "when": "debugType == 'reagent'"
+        },
+        {
+          "id": "reagentDebugTracePanel",
+          "name": "Reagent Traces",
+          "when": "debugType == 'reagent'",
+          "type": "webview"
+        }
+      ],
+      "explorer": [
+        {
+          "id": "reagentCluster",
+          "name": "Reagent Cluster",
+          "when": "reagent.clusterVisible && !reagent.debugActive"
+        },
+        {
+          "id": "reagentTracePanel",
+          "name": "Reagent Traces",
+          "when": "reagent.clusterVisible && !reagent.debugActive",
+          "type": "webview"
         }
       ]
-    }
+    },
+    "viewsWelcome": [
+      {
+        "view": "reagentCluster",
+        "contents": "Not connected to ROS.\n[Connect to Cluster](command:reagent.connectCluster)"
+      }
+    ]
   },
   "scripts": {
     "bundle-lang": "rm -rf lang && cp -r ../../lang/dist lang && echo '{\"type\":\"module\"}' > lang/package.json",

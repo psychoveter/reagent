@@ -1,0 +1,6 @@
+{
+  "agentName": "HandlerAgent",
+  "lang": "ts",
+  "roleName": "HandlerRole",
+  "roleFile": "HandlerRole.role.json"
+}

@@ -11,6 +11,7 @@ import { NativeAgentNode } from "./native-agent-node.js";
 import { WsNodeLink } from "./ws-node-link.js";
 import type { IRGraph, RoleIR, TraceEvent, MessageEnvelope } from "./types.js";
 import type { TraceHook } from "./interceptor.js";
+import { DebugAdvanceHook } from "./debug-advance-hook.js";
 
 export interface RemoteNodeConfig {
   nodeId: string;
@@ -31,6 +32,7 @@ export class RemoteNode {
   private roleToAgent: Record<string, string> = {};
   private traceHook: TraceHook;
   private supportedLangs: string[];
+  private debugHooks = new Map<string, DebugAdvanceHook>();
 
   constructor(config: RemoteNodeConfig) {
     this.nodeId = config.nodeId;
@@ -122,6 +124,12 @@ export class RemoteNode {
       case "TriggerProtocol":
         this.handleTrigger(msg.payload ?? {});
         break;
+      case "NodeInspect":
+        this.handleNodeInspect(msg);
+        break;
+      case "DebugCommand":
+        this.handleDebugCommand(msg.payload ?? {});
+        break;
       default:
         break;
     }
@@ -148,12 +156,103 @@ export class RemoteNode {
     this.sendControl("Deployed", { agentName, nodeId: this.nodeId });
   }
 
+  private handleNodeInspect(msg: { rap: string; id?: string; payload?: Record<string, unknown> }): void {
+    const data = this.rc.inspect();
+    this.sendControl("NodeInspectResult", {
+      requestId: msg.id,
+      ...data,
+    });
+  }
+
   private handleTrigger(payload: Record<string, unknown>): void {
     const agentName = payload.agentName as string;
     const instanceId = payload.instanceId as string;
     const protocolName = payload.protocolName as string;
     const input = (payload.input as Record<string, unknown>) ?? {};
     const roleToAgent = (payload.roleToAgent as Record<string, string>) ?? this.roleToAgent;
+    const mode = payload.mode as string | undefined;
+    const sessionId = payload.sessionId as string | undefined;
+
+    if (mode === "debug" && sessionId) {
+      const breakpoints = (payload.breakpoints as string[]) ?? [];
+      this.installDebugHook(sessionId, breakpoints);
+    }
+
     this.rc.triggerProtocol(agentName, { instanceId, protocolName, input, roleToAgent });
+  }
+
+  private installDebugHook(sessionId: string, breakpoints: string[]): void {
+    if (this.debugHooks.has(sessionId)) return;
+
+    const hook = new DebugAdvanceHook();
+    if (breakpoints.length > 0) {
+      hook.setStateBreakpoints(breakpoints);
+    }
+    hook.setOnEvent((event) => {
+      if (event.kind === "stopped") {
+        this.sendControl("DebugStopped", {
+          sessionId,
+          level: "state",
+          agentName: event.agentName,
+          stateId: event.stateId,
+          stateKind: event.stateKind,
+          instanceId: event.instanceId,
+          protocolName: event.protocolName,
+          roleName: event.roleName,
+          ctx: event.ctx,
+          self: event.self,
+          reason: event.reason,
+        });
+      }
+    });
+
+    // If breakpoints are pre-set, run until a breakpoint is hit.
+    // Otherwise step through every state so the DAP session can
+    // provide breakpoints after initialization.
+    if (breakpoints.length > 0) {
+      hook.setStepMode("none");
+    } else {
+      hook.setStepMode("stepState");
+    }
+
+    this.debugHooks.set(sessionId, hook);
+    this.rc.setAdvanceHook(hook.asAdvanceHook());
+  }
+
+  private handleDebugCommand(payload: Record<string, unknown>): void {
+    const sessionId = payload.sessionId as string;
+    const command = payload.command as string;
+    const hook = this.debugHooks.get(sessionId);
+    if (!hook) return;
+
+    switch (command) {
+      case "continue":
+        hook.continue();
+        break;
+      case "stepState":
+      case "stepIntoScatter":
+      case "stepIntoInvoke":
+        hook.stepState();
+        break;
+      case "stepOver":
+      case "stepOverScatter":
+      case "stepOverInvoke":
+        hook.stepOver();
+        break;
+      case "stepOutScatter":
+      case "stepOutInvoke":
+        hook.continue();
+        break;
+      case "stop":
+        hook.continue();
+        this.debugHooks.delete(sessionId);
+        this.rc.setAdvanceHook(undefined);
+        break;
+      case "setBreakpoints": {
+        const bps = (payload.breakpoints as string[]) ?? [];
+        hook.setStateBreakpoints(bps);
+        break;
+      }
+    }
   }
 }

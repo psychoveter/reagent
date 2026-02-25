@@ -17,7 +17,7 @@ from .types import (
     msg_subject,
     trace_subject,
 )
-from .zone_executor import execute_zone, execute_zone_async, ReagentStub, InvokeRequest, ReturnValue, BreakRequest
+from .zone_executor import execute_zone, execute_zone_async, ReagentStub, InvokeRequest, ReturnValue, BreakRequest, AttrDict
 
 
 class ProtocolInstance:
@@ -40,7 +40,6 @@ class ProtocolInstance:
         self._config = config
 
         self._ctx: dict[str, Any] = {}
-        self._flow: dict[str, Any] = {}
         if "input" in config and config["input"]:
             self._ctx["input"] = config["input"]
 
@@ -56,7 +55,7 @@ class ProtocolInstance:
             self._transitions_from.setdefault(t["from"], []).append(t)
 
         self._status: str = "running"
-        self._message_resolvers: dict[str, asyncio.Future] = {}
+        self._message_resolvers: dict[str, list[asyncio.Future]] = {}
         self._xor_resolvers: dict[str, list[dict[str, Any]]] = {}
         self._message_inbox: list[dict[str, Any]] = []
         self._on_complete: Optional[Callable[[str], None]] = None
@@ -91,7 +90,10 @@ class ProtocolInstance:
         return self._traces
 
     def _zone_extras(self) -> Optional[dict[str, Any]]:
-        return {"agent": self._extras} if self._extras else None
+        if not self._extras:
+            return None
+        agent_obj = AttrDict(self._extras) if isinstance(self._extras, dict) else self._extras
+        return {"agent": agent_obj}
 
     def set_on_complete(self, cb: Callable[[str], None]) -> None:
         self._on_complete = cb
@@ -132,11 +134,15 @@ class ProtocolInstance:
                     r["future"].set_result(env)
                     return
 
-        # Check single-message resolvers
-        fut = self._message_resolvers.pop(msg_name, None)
-        if fut and not fut.done():
-            fut.set_result(env)
-            return
+        # Check single-message resolvers (queue of futures per message name)
+        queue = self._message_resolvers.get(msg_name)
+        if queue:
+            fut = queue.pop(0)
+            if not queue:
+                del self._message_resolvers[msg_name]
+            if not fut.done():
+                fut.set_result(env)
+                return
 
         # Buffer for later — the receive state may not have registered yet
         self._message_inbox.append(env)
@@ -167,6 +173,8 @@ class ProtocolInstance:
                     "agentName": self.agent_name,
                     "stateId": state["id"],
                     "stateKind": kind,
+                    "protocolName": self.protocol_name,
+                    "roleName": self.role_name,
                     "ctx": dict(self._ctx),
                     "self": dict(self._self_ref),
                 })
@@ -260,20 +268,21 @@ class ProtocolInstance:
         if data.get("preSendZone"):
             self._emit_trace("ActionStarted", {"stateId": state["id"], "zone": "preSend"})
             if data.get("preSendAsync"):
-                await execute_zone_async(data["preSendZone"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
+                await execute_zone_async(data["preSendZone"], self._ctx, self._self_ref, self._reagent, self._zone_extras())
             else:
-                execute_zone(data["preSendZone"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
+                execute_zone(data["preSendZone"], self._ctx, self._self_ref, self._reagent, self._zone_extras())
             self._emit_trace("ActionFinished", {"stateId": state["id"], "zone": "preSend"})
 
         payload = self._ctx.get("msg", {})
 
         to_key = f"{self.protocol_name}.{data['to']}"
-        to_agent = self.role_to_agent.get(to_key)
+        scatter_item = self._ctx.get("_scatterItem")
+        if scatter_item is not None and isinstance(scatter_item, str) and scatter_item != self.agent_name:
+            to_agent = scatter_item
+        else:
+            to_agent = self.role_to_agent.get(to_key)
         if not to_agent:
             raise RuntimeError(f"Cannot resolve agent for role {data['to']} in protocol {self.protocol_name}")
-
-        import copy
-        flow_snapshot = copy.deepcopy(self._flow) if data.get("propagateFlow") else None
 
         env = create_message_envelope(
             self.instance_id,
@@ -284,7 +293,6 @@ class ProtocolInstance:
             data["to"],
             data["messageName"],
             payload,
-            flow_snapshot,
         )
 
         self._emit_trace("MessageSent", {
@@ -310,17 +318,14 @@ class ProtocolInstance:
             "fromRole": env["from"]["role"],
         })
 
-        if data.get("propagateFlow") and env.get("flow"):
-            self._flow.update(env["flow"])
-
         self._ctx["msg"] = env["payload"]
 
         if data.get("postReceiveZone"):
             self._emit_trace("ActionStarted", {"stateId": state["id"], "zone": "postReceive"})
             if data.get("postReceiveAsync"):
-                await execute_zone_async(data["postReceiveZone"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
+                await execute_zone_async(data["postReceiveZone"], self._ctx, self._self_ref, self._reagent, self._zone_extras())
             else:
-                execute_zone(data["postReceiveZone"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
+                execute_zone(data["postReceiveZone"], self._ctx, self._self_ref, self._reagent, self._zone_extras())
             self._emit_trace("ActionFinished", {"stateId": state["id"], "zone": "postReceive"})
 
         self._ctx.pop("msg", None)
@@ -330,9 +335,9 @@ class ProtocolInstance:
         self._emit_trace("ActionStarted", {"stateId": state["id"]})
         try:
             if data.get("async"):
-                await execute_zone_async(data["body"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
+                await execute_zone_async(data["body"], self._ctx, self._self_ref, self._reagent, self._zone_extras())
             else:
-                execute_zone(data["body"], self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
+                execute_zone(data["body"], self._ctx, self._self_ref, self._reagent, self._zone_extras())
         except ReturnValue as rv:
             self._return_value = rv.value
             self._has_return_value = True
@@ -346,7 +351,7 @@ class ProtocolInstance:
             result = await self._invoke_callback(ir.proto_name, ir.input_data)
             cached_reagent = ReagentStub()
             cached_reagent.invoke = lambda proto=None, args=None: result
-            execute_zone(data["body"], self._ctx, self._self_ref, cached_reagent, self._flow, self._zone_extras())
+            execute_zone(data["body"], self._ctx, self._self_ref, cached_reagent, self._zone_extras())
             self._emit_trace("ActionFinished", {"stateId": state["id"], "invoked": ir.proto_name})
             return
         self._emit_trace("ActionFinished", {"stateId": state["id"]})
@@ -415,12 +420,10 @@ class ProtocolInstance:
 
                     recv_state = self._state_map.get(result["targetStateId"])
                     if recv_state and recv_state["data"]["kind"] == "receive":
-                        if recv_state["data"].get("propagateFlow") and result["env"].get("flow"):
-                            self._flow.update(result["env"]["flow"])
                         post_zone = recv_state["data"].get("postReceiveZone")
                         if post_zone:
                             self._emit_trace("ActionStarted", {"stateId": result["targetStateId"], "zone": "postReceive"})
-                            execute_zone(post_zone, self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
+                            execute_zone(post_zone, self._ctx, self._self_ref, self._reagent, self._zone_extras())
                             self._emit_trace("ActionFinished", {"stateId": result["targetStateId"], "zone": "postReceive"})
                     self._ctx.pop("msg", None)
                     self._current_state_id = result["targetStateId"]
@@ -453,7 +456,7 @@ class ProtocolInstance:
             else_t = next((t for t in transitions if t["label"]["kind"] == "else"), None)
 
             eval_succeeded = False
-            can_decide = _expression_vars_are_defined(data["expr"], self._ctx, self._self_ref, self._flow)
+            can_decide = _expression_vars_are_defined(data["expr"], self._ctx, self._self_ref)
 
             if can_decide:
                 try:
@@ -500,12 +503,10 @@ class ProtocolInstance:
 
                     recv_state = self._state_map.get(result["targetStateId"])
                     if recv_state and recv_state["data"]["kind"] == "receive":
-                        if recv_state["data"].get("propagateFlow") and result["env"].get("flow"):
-                            self._flow.update(result["env"]["flow"])
                         post_zone = recv_state["data"].get("postReceiveZone")
                         if post_zone:
                             self._emit_trace("ActionStarted", {"stateId": result["targetStateId"], "zone": "postReceive"})
-                            execute_zone(post_zone, self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
+                            execute_zone(post_zone, self._ctx, self._self_ref, self._reagent, self._zone_extras())
                             self._emit_trace("ActionFinished", {"stateId": result["targetStateId"], "zone": "postReceive"})
                     self._ctx.pop("msg", None)
 
@@ -555,12 +556,10 @@ class ProtocolInstance:
         self._ctx["msg"] = env["payload"]
         matched_state = self._state_map.get(result["targetStateId"])
         if matched_state and matched_state["data"]["kind"] == "receive":
-            if matched_state["data"].get("propagateFlow") and env.get("flow"):
-                self._flow.update(env["flow"])
             post_zone = matched_state["data"].get("postReceiveZone")
             if post_zone:
                 self._emit_trace("ActionStarted", {"stateId": result["targetStateId"], "zone": "postReceive"})
-                execute_zone(post_zone, self._ctx, self._self_ref, self._reagent, self._flow, self._zone_extras())
+                execute_zone(post_zone, self._ctx, self._self_ref, self._reagent, self._zone_extras())
                 self._emit_trace("ActionFinished", {"stateId": result["targetStateId"], "zone": "postReceive"})
         self._ctx.pop("msg", None)
 
@@ -576,10 +575,9 @@ class ProtocolInstance:
         input_expr = data.get("input", "{}")
         translated = re.sub(r'\$ctx\b', 'ctx', input_expr)
         translated = re.sub(r'\$self\b', 'self_state', translated)
-        translated = re.sub(r'\$flow\b', 'flow', translated)
         try:
             input_value = eval(translated, {"__builtins__": {}}, {
-                "ctx": self._ctx, "self_state": self._self_ref, "flow": self._flow,
+                "ctx": self._ctx, "self_state": self._self_ref,
             })
         except Exception:
             input_value = {}
@@ -597,10 +595,9 @@ class ProtocolInstance:
         input_expr = data.get("input", "{}")
         translated = re.sub(r'\$ctx\b', 'ctx', input_expr)
         translated = re.sub(r'\$self\b', 'self_state', translated)
-        translated = re.sub(r'\$flow\b', 'flow', translated)
         try:
             input_value = eval(translated, {"__builtins__": {}}, {
-                "ctx": self._ctx, "self_state": self._self_ref, "flow": self._flow,
+                "ctx": self._ctx, "self_state": self._self_ref,
             })
         except Exception:
             input_value = {}
@@ -613,10 +610,9 @@ class ProtocolInstance:
         coll_expr = data["collection"]
         translated = re.sub(r'\$ctx\b', 'ctx', coll_expr)
         translated = re.sub(r'\$self\b', 'self_state', translated)
-        translated = re.sub(r'\$flow\b', 'flow', translated)
         try:
             coll = eval(translated, {"__builtins__": {}}, {
-                "ctx": self._ctx, "self_state": self._self_ref, "flow": self._flow,
+                "ctx": AttrDict(self._ctx), "self_state": AttrDict(self._self_ref),
             })
         except Exception:
             coll = []
@@ -633,11 +629,11 @@ class ProtocolInstance:
         branch_start_id = data["branchStartIds"][0]
 
         async def run_branch(item: Any, idx: int) -> None:
-            saved_flow = self._flow
-            branch_flow = dict(self._flow)
-            branch_flow["_scatterItem"] = item
-            branch_flow["_scatterIdx"] = idx
-            self._flow = branch_flow
+            saved_ctx = self._ctx
+            branch_ctx = dict(self._ctx)
+            branch_ctx["_scatterItem"] = item
+            branch_ctx["_scatterIdx"] = idx
+            self._ctx = branch_ctx
             try:
                 current = branch_start_id
                 while True:
@@ -662,10 +658,10 @@ class ProtocolInstance:
                     else:
                         current = self._follow_default_from(current)
             finally:
-                self._flow = saved_flow
+                self._ctx = saved_ctx
 
-        tasks = [run_branch(item, idx) for idx, item in enumerate(coll)]
-        await asyncio.gather(*tasks)
+        for idx, item in enumerate(coll):
+            await run_branch(item, idx)
         self._emit_trace("ScatterCompleted", {"stateId": state["id"], "count": len(coll)})
         if join_id:
             self._current_state_id = join_id
@@ -674,10 +670,7 @@ class ProtocolInstance:
             self._current_state_id = self._follow_default()
 
     def _assign_target(self, target: str, value: Any) -> None:
-        if target.startswith("$flow."):
-            key = target[6:]
-            self._flow[key] = value
-        elif target.startswith("$ctx."):
+        if target.startswith("$ctx."):
             key = target[5:]
             self._ctx[key] = value
 
@@ -783,15 +776,13 @@ class ProtocolInstance:
         raise RuntimeError(f"No outgoing transition from state {state_id}")
 
     def _eval_expr(self, expr: str) -> Any:
-        """Evaluate a guard expression with $ctx, $self, $flow in scope."""
+        """Evaluate a guard expression with $ctx, $self in scope."""
         import re
         translated = re.sub(r'\$ctx\b', 'ctx', expr)
         translated = re.sub(r'\$self\b', 'self_state', translated)
-        translated = re.sub(r'\$flow\b', 'flow', translated)
         return eval(translated, {"__builtins__": {}}, {
             "ctx": self._ctx,
             "self_state": self._self_ref,
-            "flow": self._flow,
         })
 
     def _find_first_receive_in_branch(self, state_id: str) -> str | None:
@@ -832,7 +823,7 @@ class ProtocolInstance:
 
         loop = asyncio.get_event_loop()
         fut: asyncio.Future = loop.create_future()
-        self._message_resolvers[message_name] = fut
+        self._message_resolvers.setdefault(message_name, []).append(fut)
         return fut
 
     def _wait_for_any_message(
@@ -880,22 +871,17 @@ class ProtocolInstance:
 
 
 def _expression_vars_are_defined(
-    expr: str, ctx: dict[str, Any], self_state: dict[str, Any], flow: dict[str, Any] | None = None
+    expr: str, ctx: dict[str, Any], self_state: dict[str, Any],
 ) -> bool:
     import re
     ctx_refs = re.findall(r'\$ctx\.(\w+)', expr)
     self_refs = re.findall(r'\$self\.(\w+)', expr)
-    flow_refs = re.findall(r'\$flow\.(\w+)', expr)
     for prop in ctx_refs:
         if prop not in ctx:
             return False
     for prop in self_refs:
         if prop not in self_state:
             return False
-    if flow is not None:
-        for prop in flow_refs:
-            if prop not in flow:
-                return False
     return True
 
 

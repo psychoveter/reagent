@@ -1,0 +1,49 @@
+{
+  "roleName": "CommaRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "TaskExecution",
+      "roleName": "comma"
+    },
+    {
+      "protocolName": "HealthCheck",
+      "roleName": "comma"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.ready = true\n    $self.tasksCompleted = 0\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolCompleted",
+      "protocolFilter": "TaskExecution",
+      "action": {
+        "body": "\n    $self.tasksCompleted += 1\n    reagent.emit(\"AgentStats\", { completed: $self.tasksCompleted })\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "event": "protocolFailed",
+      "protocolFilter": "TaskExecution",
+      "action": {
+        "body": "\n    $self.lastError = $ctx.error\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "event": "protocolStarted",
+      "protocolFilter": "HealthCheck",
+      "action": {
+        "body": "\n    $self.lastHealthCheck = Date.now()\n  ",
+        "lang": "ts"
+      }
+    }
+  ],
+  "version": "9.0.0",
+  "fingerprints": {
+    "playsHash": "c1ebfa09d085bb379a098f050b87cf4193b64714849da7c36480462d18cdc6da",
+    "behaviorHash": "6c9a6242fca2132097085defabab7de2d62f526f498be33d020ef4d1c8ea4c4a"
+  }
+}

@@ -42,7 +42,7 @@ export interface RegistryAgentEntry {
   roleName: string;
   protocolName: string;
   nodeId: string;
-  status: "running" | "stopped" | "error";
+  status: "running" | "stopped" | "error" | "deploying";
 }
 
 // ── Builder ─────────────────────────────────────────────────────────

@@ -1,5 +1,7 @@
 ## Reagent backlog & milestone history
 
+> **Note (v0.0.11)**: `$flow` was removed from the language in v0.0.11. Historical milestone descriptions below reference `$flow` as it existed at the time. All `$flow` usage has been migrated to `$ctx` (per-role working memory) with explicit message payloads for inter-role data transfer.
+
 Goal: build a **language + reference runtimes + production engine** stack for agentic protocols.
 
 - **Reagent** is the language and compiler (`lang/`).
@@ -918,6 +920,10 @@ Full LSP design and backlog: **[lsp.md](lsp.md)**.
 - [x] Scatter branch visualization — active branches highlighted, completed branches dimmed, pending branches faint (via `DiagramController` → `updateDebug` with visited state tracking)
 - [x] Invoke/spawn step-in — "Step In" on protocol-level invoke enters the child protocol; "Step Out" returns to parent (`handleStepIn`/`handleStepOut` with `protocolStack`)
 - [x] Protocol stack display — when inside a child protocol, call stack shows parent → child chain (`handleStackTrace` with `protocolStack` frames)
+- [x] **BUG-1 fix (part 1)**: Trigger bar re-render — `onDidChangeTreeData` was calling `render()` (full HTML rebuild every 3s). Fixed: lightweight `updateTriggerBar()` sends `postMessage` to update only trigger bar DOM.
+- [x] **BUG-1 fix (part 2, root cause)**: `IRGraph.initiator` was never set by the compiler → `buildSequenceDiagram` couldn't determine the initiator → all `isInitiator` flags were `false` → trigger bar's `initiatorsOnly` filter returned empty → "no agents deployed". Fixed: `findInitiatorRole()` walks the protocol body to find the sender of the first message. Also added defensive fallback: when initiator filtering produces zero results, show all matching agents.
+- [x] **BUG-1 fix (part 3)**: ROS `handleDeployProject` never populated `ProtocolInfo.boundAgents` (always `[]`) → fallback matching in trigger bar never worked. Fixed: populate `boundAgents` from `currentView.agents` after deployment, and keep in sync on `handleAdapterDeployed`.
+- [x] **Cluster tree navigation**: click agent → opens project diagram; click protocol → opens `.rg` source + diagram view. New command `reagent.clusterOpenProtocol` searches workspace for the protocol definition.
 - [ ] `$agent` state inspection — if agent has native module, show `$agent` properties in scopes
 - [ ] IR decompiler preview — "Show IR" command opens decompiled `.rg` in read-only editor (from M8/P4)
 
@@ -952,7 +958,7 @@ Full LSP design and backlog: **[lsp.md](lsp.md)**.
 - [ ] Multi-process scale-out — `rc.fork(n=4)` splits agents across processes via `InprocTransport` (intra-process) + `IpcAgentNode` (inter-process)
 - [ ] VSCode bridge — Python RC pushes agent status, trace events via control socket → extension topology view updates. Protocol: subset of RAP over TCP
 - [ ] Topology sim nodes — `type: "sim"` styling, `InprocAgentNode` label. Agent class aggregation when N > 20 (show "Forager ×30" with class-level stats)
-- [ ] `$flow` visualization — Python RC streams `$flow` snapshots for each agent → debugger/topology shows them
+- [ ] ~~`$flow` visualization~~ — removed in v0.0.11; `$ctx` state visible in debugger
 
 ### Phase 6-R: Multi-Node Deployment (revision) ⬜ (~5 days)
 
@@ -977,7 +983,7 @@ Full LSP design and backlog: **[lsp.md](lsp.md)**.
 - [ ] Mermaid export: scatter → `par` block with dynamic participant notation
 - [ ] Mermaid export: protocol-level invoke → nested `activate`/`deactivate` block
 - [ ] Mermaid export: version stamp in diagram header
-- [ ] CLI `reagent diagram --from-trace` includes `$flow` in annotations
+- [ ] CLI `reagent diagram --from-trace` includes `$ctx` state in annotations
 - [ ] LSP advanced: rename across `reagent.json`-linked files
 - [ ] Code actions: "Add scatter participants" quick-fix, "Generate agent.json" scaffold
 - [ ] Project-level commands: `reagent init` creates scaffold with `reagent.json`, `protocols/`, `agents/`
@@ -996,7 +1002,7 @@ Full LSP design and backlog: **[lsp.md](lsp.md)**.
 | `tools/reagent-vscode/icons/reagent-{light,dark}.svg` | Benzene hexagon file icons for `.rg` files | 1.5-R | ✅ |
 | `tools/reagent-vscode/server/src/server.ts` | LSP server (symbols, go-to-def, hover, completion, diagnostics) | 2-R | ✅ |
 | `runtime/tests/m9-scatter-async.test.ts` | E2E test for async zones in scatter branches (SA1-SA4) | Pre-req | ✅ |
-| `tools/reagent-vscode/server/src/flowTracker.ts` | LSP: $flow field tracking and origin resolution | 2-R | ⬜ |
+| ~~`tools/reagent-vscode/server/src/flowTracker.ts`~~ | ~~LSP: $flow field tracking~~ (removed in v0.0.11) | 2-R | N/A |
 | `tools/reagent-vscode/server/src/projectIndex.ts` | LSP: reagent.json-based workspace indexing | 2-R | ⬜ |
 | `tools/reagent-vscode/src/registryPanel.ts` | Protocol registry dashboard | 4-R | ⬜ |
 | `runtime/py/reagent_runtime/vscode_bridge.py` | Python RC → VSCode control socket | 5-R | ⬜ |

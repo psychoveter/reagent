@@ -13,19 +13,19 @@ protocol TaskExecutionWithMultipartyChild {
   input: TaskRequest
 
   user {
-    $flow.taskText = $ctx.input.text
+    $ctx.taskText = $ctx.input.text
   }
   user --> comma: TaskRequest = { }
 
   comma {
-    $flow.intent = taskToDsiBsi($flow.taskText)
+    $ctx.intent = taskToDsiBsi($ctx.taskText)
   }
 
-  comma invokes v.ValidateIntentWithSia({ intent: $flow.intent }) {
+  comma invokes v.ValidateIntentWithSia({ intent: $ctx.intent }) {
     sia: sia
-  } -> $flow.validation
+  } -> $ctx.validation
 
-  alt ($flow.validation.ok == true) {
+  alt ($ctx.validation.ok == true) {
     comma --> user: Done = { }
   } else {
     comma --> user: Failed = { }

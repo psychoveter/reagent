@@ -77,6 +77,7 @@ export class ReagentOrchestratorServer {
   private clients = new Set<WebSocket>();
   private debugController: DebugController;
   private adapters = new Map<string, AdapterInfo>();
+  private clusterDebugSessions = new Set<string>();
 
   constructor(config: ROSConfig) {
     this.config = config;
@@ -140,6 +141,22 @@ export class ReagentOrchestratorServer {
       return;
     }
 
+    // Handle bare envelope relay (cross-node routing from adapter nodes)
+    if (!msg.rap && (msg as any).from && (msg as any).to) {
+      const envelope = msg as unknown as Record<string, unknown>;
+      const target = (envelope.to as Record<string, string>)?.agent;
+      if (target) {
+        const nodeId = this.agentToNode.get(target);
+        if (nodeId) {
+          const adapter = this.adapters.get(nodeId);
+          if (adapter && adapter.ws.readyState === WebSocket.OPEN) {
+            adapter.ws.send(raw);
+          }
+        }
+      }
+      return;
+    }
+
     console.log(`[ROS] ← ${msg.rap} id=${msg.id ?? '-'}`);
 
     switch (msg.rap) {
@@ -181,6 +198,24 @@ export class ReagentOrchestratorServer {
         break;
       case "StopAgent":
         this.handleStopAgent(ws, msg);
+        break;
+      case "DeployProject":
+        this.handleDeployProject(ws, msg).catch(e => console.error(`[ROS] DeployProject error:`, e));
+        break;
+      case "TriggerOnCluster":
+        this.handleTriggerOnCluster(ws, msg);
+        break;
+      case "RouteEnvelope":
+        this.handleRouteEnvelope(ws, msg);
+        break;
+      case "NodeInspect":
+        this.handleNodeInspect(ws, msg);
+        break;
+      case "NodeInspectResult":
+        this.handleNodeInspectResult(ws, msg);
+        break;
+      case "DebugStopped":
+        this.handleDebugStopped(ws, msg);
         break;
       default:
         break;
@@ -510,21 +545,44 @@ export class ReagentOrchestratorServer {
     const sessionId = payload.sessionId as string;
     const command = payload.command as string;
 
-    switch (command) {
-      case "continue":
-        this.debugController.continue(sessionId);
-        break;
-      case "stepMessage":
-        this.debugController.stepMessage(sessionId);
-        break;
-      case "stepState":
-        this.debugController.stepState(sessionId);
-        break;
-      case "stepOver":
-        this.debugController.stepOver(sessionId);
-        break;
-      default:
-        break;
+    if (this.clusterDebugSessions.has(sessionId)) {
+      // Forward full payload to all adapter nodes
+      for (const adapter of this.adapters.values()) {
+        if (adapter.ws.readyState === WebSocket.OPEN) {
+          adapter.ws.send(JSON.stringify({ rap: "DebugCommand", payload }));
+        }
+      }
+      if (command === "stop") {
+        this.clusterDebugSessions.delete(sessionId);
+      }
+    } else {
+      switch (command) {
+        case "continue":
+          this.debugController.continue(sessionId);
+          break;
+        case "stepMessage":
+          this.debugController.stepMessage(sessionId);
+          break;
+        case "stepState":
+        case "stepIntoScatter":
+        case "stepIntoInvoke":
+          this.debugController.stepState(sessionId);
+          break;
+        case "stepOver":
+        case "stepOverScatter":
+        case "stepOverInvoke":
+          this.debugController.stepOver(sessionId);
+          break;
+        case "stepOutScatter":
+        case "stepOutInvoke":
+          this.debugController.continue(sessionId);
+          break;
+        case "stop":
+          this.debugController.destroySession(sessionId);
+          break;
+        default:
+          break;
+      }
     }
 
     this.sendRap(ws, "DebugAck", msg.id, { sessionId, command });
@@ -564,6 +622,9 @@ export class ReagentOrchestratorServer {
 
   // ── Adapter management ───────────────────────────────────────────
 
+  /** Maps agentName → nodeId for cross-node envelope routing. */
+  private agentToNode = new Map<string, string>();
+
   private handleAdapterRegister(ws: WebSocket, msg: RAPMessage): void {
     const payload = msg.payload ?? {};
     const nodeId = payload.nodeId as string;
@@ -581,7 +642,29 @@ export class ReagentOrchestratorServer {
       deployedAgents: [],
     };
     this.adapters.set(nodeId, adapter);
+
+    // Populate RegistryView with the new node
+    const existingNode = this.currentView.nodes.find(n => n.nodeId === nodeId);
+    if (existingNode) {
+      existingNode.status = "connected";
+      existingNode.lastSeen = Date.now();
+    } else {
+      this.currentView.nodes.push({ nodeId, status: "connected", lastSeen: Date.now() });
+    }
+
+    // Clean up on disconnect: remove node and its agents entirely
+    ws.on("close", () => {
+      this.adapters.delete(nodeId);
+      this.currentView.nodes = this.currentView.nodes.filter(n => n.nodeId !== nodeId);
+      this.currentView.agents = this.currentView.agents.filter(a => a.nodeId !== nodeId);
+      for (const [agent, nid] of this.agentToNode) {
+        if (nid === nodeId) this.agentToNode.delete(agent);
+      }
+      this.broadcastClusterUpdate();
+    });
+
     this.sendRap(ws, "Accepted", msg.id, { nodeId });
+    this.broadcastClusterUpdate();
   }
 
   private handleAdapterDeployed(_ws: WebSocket, msg: RAPMessage): void {
@@ -589,17 +672,73 @@ export class ReagentOrchestratorServer {
     const nodeId = payload.nodeId as string;
     const agentName = payload.agentName as string;
     const adapter = this.adapters.get(nodeId);
-    if (adapter) {
+    if (adapter && !adapter.deployedAgents.includes(agentName)) {
       adapter.deployedAgents.push(agentName);
     }
+
+    this.agentToNode.set(agentName, nodeId);
+
+    const existing = this.currentView.agents.find(a => a.agentName === agentName && a.nodeId === nodeId);
+    if (existing) {
+      existing.status = "running";
+      if (!existing.roleName && payload.roleName) existing.roleName = payload.roleName as string;
+      if (!existing.protocolName && payload.protocolName) existing.protocolName = payload.protocolName as string;
+    } else {
+      this.currentView.agents.push({
+        agentName,
+        roleName: (payload.roleName as string) ?? "",
+        protocolName: (payload.protocolName as string) ?? "",
+        nodeId,
+        status: "running",
+      });
+    }
+
+    // Keep protocol boundAgents in sync
+    const protoName = (existing?.protocolName || payload.protocolName) as string;
+    if (protoName) {
+      const proto = this.currentView.protocols.find(p => p.name === protoName);
+      if (proto && !proto.boundAgents.includes(agentName)) {
+        proto.boundAgents.push(agentName);
+      }
+    }
+
+    this.broadcastClusterUpdate();
   }
 
   private handleAdapterTrace(_ws: WebSocket, msg: RAPMessage): void {
     const payload = msg.payload ?? {};
-    // Forward trace events to all API clients (not adapters)
+    const kind = payload.kind ?? "trace";
+    const agent = payload.agent ?? payload.agentName ?? "";
+    const data = (payload.data ?? {}) as Record<string, unknown>;
+    const messageName = data.messageName ?? "";
+    let detail = `${kind} ${agent}`;
+    if (messageName) detail += ` msg=${messageName}`;
+    if (data.to) detail += ` → ${data.to}`;
+    if (data.from) detail += ` ← ${data.from}`;
+    console.log(`[ROS] trace: ${detail}`);
+
     for (const client of this.clients) {
       if (client.readyState === WebSocket.OPEN) {
         client.send(JSON.stringify({ rap: "TraceEvent", payload }));
+      }
+    }
+  }
+
+  /** Broadcast cluster status change to all connected clients. */
+  private broadcastClusterUpdate(): void {
+    this.currentView.timestamp = Date.now();
+    const msg = JSON.stringify({
+      rap: "ClusterUpdate",
+      payload: {
+        nodes: this.currentView.nodes,
+        protocols: this.currentView.protocols,
+        agents: this.currentView.agents,
+        timestamp: this.currentView.timestamp,
+      },
+    });
+    for (const client of this.clients) {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(msg);
       }
     }
   }
@@ -639,21 +778,31 @@ export class ReagentOrchestratorServer {
   triggerOnAdapter(
     nodeId: string,
     agentName: string,
-    trigger: { instanceId: string; protocolName: string; input?: Record<string, unknown>; roleToAgent?: Record<string, string> },
+    trigger: {
+      instanceId: string;
+      protocolName: string;
+      input?: Record<string, unknown>;
+      roleToAgent?: Record<string, string>;
+      mode?: string;
+      sessionId?: string;
+      breakpoints?: string[];
+    },
   ): void {
     const adapter = this.adapters.get(nodeId);
     if (!adapter) return;
 
-    adapter.ws.send(JSON.stringify({
-      rap: "TriggerProtocol",
-      payload: {
-        agentName,
-        instanceId: trigger.instanceId,
-        protocolName: trigger.protocolName,
-        input: trigger.input,
-        roleToAgent: trigger.roleToAgent,
-      },
-    }));
+    const payload: Record<string, unknown> = {
+      agentName,
+      instanceId: trigger.instanceId,
+      protocolName: trigger.protocolName,
+      input: trigger.input,
+      roleToAgent: trigger.roleToAgent,
+    };
+    if (trigger.mode) payload.mode = trigger.mode;
+    if (trigger.sessionId) payload.sessionId = trigger.sessionId;
+    if (trigger.breakpoints?.length) payload.breakpoints = trigger.breakpoints;
+
+    adapter.ws.send(JSON.stringify({ rap: "TriggerProtocol", payload }));
   }
 
   getAdapters(): Map<string, AdapterInfo> {
@@ -823,5 +972,307 @@ export class ReagentOrchestratorServer {
         error: String(err),
       });
     }
+  }
+
+  // ── Distributed deployment ──────────────────────────────────────
+
+  /**
+   * DeployProject: client sends compiled IR (deployment.json + graphs + roleIRs),
+   * ROS distributes agents across connected adapter nodes.
+   */
+  private async handleDeployProject(ws: WebSocket, msg: RAPMessage): Promise<void> {
+    const payload = msg.payload ?? {};
+    const deployment = payload.deployment as {
+      agents: Array<{
+        agentName: string;
+        lang: string;
+        roleName: string;
+        roleIRFile?: string;
+        roles: Array<{ protocolName: string; roleName: string; irGraphFile?: string }>;
+      }>;
+      roleToAgent: Record<string, string>;
+    } | undefined;
+
+    if (!deployment) {
+      this.sendRap(ws, "DeployProjectFailed", msg.id, { error: "Missing deployment in payload" });
+      return;
+    }
+
+    const irGraphs = (payload.irGraphs ?? {}) as Record<string, any>;
+    const roleIRs = (payload.roleIRs ?? {}) as Record<string, any>;
+    const roleToAgent = deployment.roleToAgent;
+
+    const adapterList = [...this.adapters.values()].filter(a => a.ws.readyState === WebSocket.OPEN);
+    if (adapterList.length === 0) {
+      this.sendRap(ws, "DeployProjectFailed", msg.id, {
+        error: "No connected adapter nodes. Start at least one remote node first.",
+      });
+      return;
+    }
+
+    // Add protocols to RegistryView
+    const seenProtos = new Set<string>();
+    for (const agent of deployment.agents) {
+      for (const role of agent.roles) {
+        if (seenProtos.has(role.protocolName)) continue;
+        seenProtos.add(role.protocolName);
+        const existing = this.currentView.protocols.find(
+          p => p.name === role.protocolName
+        );
+        if (!existing) {
+          this.currentView.protocols.push({
+            name: role.protocolName,
+            version: "1.0.0",
+            fingerprints: { structureHash: "", schemaHash: "", implHash: "" },
+            dependencies: [],
+            nodeId: "ros",
+            boundAgents: [],
+          });
+        }
+      }
+    }
+
+    // Round-robin distribution: assign each agent to an adapter
+    let adapterIdx = 0;
+    const deployedCount = { success: 0, total: deployment.agents.length };
+
+    for (const agentDef of deployment.agents) {
+      const adapter = adapterList[adapterIdx % adapterList.length];
+      adapterIdx++;
+
+      const roleName = agentDef.roleName;
+      const roleIR = roleIRs[roleName] ?? roleIRs[`${roleName}.role`] ?? {};
+
+      const agentGraphs: Record<string, any> = {};
+      for (const binding of agentDef.roles) {
+        const key = `${binding.protocolName}.${binding.roleName}`;
+        if (irGraphs[key]) agentGraphs[key] = irGraphs[key];
+      }
+
+      try {
+        const firstRole = agentDef.roles[0];
+        adapter.ws.send(JSON.stringify({
+          rap: "Deploy",
+          payload: {
+            agentName: agentDef.agentName,
+            roleIR,
+            graphs: agentGraphs,
+            roleToAgent,
+            roleName,
+            protocolName: firstRole?.protocolName ?? "",
+          },
+        }));
+        this.agentToNode.set(agentDef.agentName, adapter.nodeId);
+
+        // Pre-populate agent in cluster view (Deployed ack may lack protocol info)
+        for (const binding of agentDef.roles) {
+          const existing = this.currentView.agents.find(
+            a => a.agentName === agentDef.agentName && a.nodeId === adapter.nodeId
+          );
+          if (!existing) {
+            this.currentView.agents.push({
+              agentName: agentDef.agentName,
+              roleName: binding.roleName,
+              protocolName: binding.protocolName,
+              nodeId: adapter.nodeId,
+              status: "deploying",
+            });
+          }
+        }
+
+        deployedCount.success++;
+      } catch (err) {
+        console.error(`[ROS] Failed to deploy ${agentDef.agentName} to ${adapter.nodeId}:`, err);
+      }
+    }
+
+    // Populate boundAgents on each protocol entry
+    for (const proto of this.currentView.protocols) {
+      const bound = this.currentView.agents
+        .filter(a => a.protocolName === proto.name)
+        .map(a => a.agentName);
+      proto.boundAgents = [...new Set(bound)];
+    }
+
+    this.broadcastClusterUpdate();
+
+    this.sendRap(ws, "DeployProjectSuccess", msg.id, {
+      deployed: deployedCount.success,
+      total: deployedCount.total,
+      adapterCount: adapterList.length,
+    });
+  }
+
+  /**
+   * TriggerOnCluster: client triggers a protocol on the distributed cluster.
+   * ROS finds which adapter node hosts the initiator and sends TriggerProtocol.
+   */
+  private handleTriggerOnCluster(ws: WebSocket, msg: RAPMessage): void {
+    const payload = msg.payload ?? {};
+    const agentName = payload.agentName as string;
+    const instanceId = (payload.instanceId as string) ?? randomUUID();
+    const protocolName = payload.protocolName as string;
+    const input = (payload.input as Record<string, unknown>) ?? {};
+    const mode = (payload.mode as string) ?? "run";
+    const sessionId = mode === "debug" ? ((payload.sessionId as string) ?? randomUUID()) : undefined;
+    const breakpoints = (payload.breakpoints as string[]) ?? [];
+
+    if (!agentName || !protocolName) {
+      this.sendRap(ws, "TriggerFailed", msg.id, {
+        error: "Missing agentName or protocolName",
+      });
+      return;
+    }
+
+    // Build global roleToAgent from all deployed agents
+    const globalRoleToAgent: Record<string, string> = {};
+    for (const adapter of this.adapters.values()) {
+      for (const aName of adapter.deployedAgents) {
+        const agentView = this.currentView.agents.find(a => a.agentName === aName);
+        if (agentView) {
+          const key = `${agentView.protocolName}.${agentView.roleName}`;
+          globalRoleToAgent[key] = aName;
+        }
+      }
+    }
+
+    const nodeId = this.agentToNode.get(agentName);
+    if (!nodeId) {
+      this.sendRap(ws, "TriggerFailed", msg.id, {
+        error: `Agent ${agentName} not deployed on any node`,
+      });
+      return;
+    }
+
+    const adapter = this.adapters.get(nodeId);
+    if (!adapter || adapter.ws.readyState !== WebSocket.OPEN) {
+      this.sendRap(ws, "TriggerFailed", msg.id, {
+        error: `Adapter node ${nodeId} is not connected`,
+      });
+      return;
+    }
+
+    // Trigger on the initiator's node
+    this.triggerOnAdapter(nodeId, agentName, {
+      instanceId,
+      protocolName,
+      input,
+      roleToAgent: globalRoleToAgent,
+      mode,
+      sessionId,
+      breakpoints,
+    });
+
+    // Also trigger on all other nodes that have agents playing roles in this protocol
+    for (const [nid, adapterInfo] of this.adapters) {
+      if (nid === nodeId) continue;
+      if (adapterInfo.ws.readyState !== WebSocket.OPEN) continue;
+      const hasRelevantAgent = adapterInfo.deployedAgents.some(aName => {
+        const av = this.currentView.agents.find(a => a.agentName === aName && a.protocolName === protocolName);
+        return !!av;
+      });
+      if (hasRelevantAgent) {
+        for (const aName of adapterInfo.deployedAgents) {
+          const av = this.currentView.agents.find(a => a.agentName === aName && a.protocolName === protocolName);
+          if (av) {
+            this.triggerOnAdapter(nid, aName, {
+              instanceId,
+              protocolName,
+              input,
+              roleToAgent: globalRoleToAgent,
+              mode,
+              sessionId,
+              breakpoints,
+            });
+          }
+        }
+      }
+    }
+
+    if (sessionId) {
+      this.clusterDebugSessions.add(sessionId);
+    }
+
+    this.sendRap(ws, "TriggerAck", msg.id, {
+      instanceId,
+      protocolName,
+      agentName,
+      sessionId,
+    });
+  }
+
+  // ── Node introspection ───────────────────────────────────────────
+
+  /** Pending NodeInspect requests: requestId → client ws */
+  private pendingInspects = new Map<string, WebSocket>();
+
+  private handleNodeInspect(ws: WebSocket, msg: RAPMessage): void {
+    const payload = msg.payload ?? {};
+    const nodeId = payload.nodeId as string;
+    if (!nodeId) {
+      this.sendRap(ws, "NodeInspectResult", msg.id, { error: "Missing nodeId" });
+      return;
+    }
+
+    const adapter = this.adapters.get(nodeId);
+    if (!adapter || adapter.ws.readyState !== WebSocket.OPEN) {
+      this.sendRap(ws, "NodeInspectResult", msg.id, { error: `Node ${nodeId} not connected` });
+      return;
+    }
+
+    const requestId = msg.id ?? randomUUID();
+    this.pendingInspects.set(requestId, ws);
+
+    adapter.ws.send(JSON.stringify({ rap: "NodeInspect", id: requestId, payload: {} }));
+  }
+
+  private handleNodeInspectResult(_ws: WebSocket, msg: RAPMessage): void {
+    const payload = msg.payload ?? {};
+    const requestId = (payload.requestId as string) ?? msg.id ?? "";
+    const client = this.pendingInspects.get(requestId);
+    this.pendingInspects.delete(requestId);
+    if (client && client.readyState === WebSocket.OPEN) {
+      this.sendRap(client, "NodeInspectResult", requestId, payload);
+    }
+  }
+
+  /**
+   * DebugStopped: forwarded from adapter nodes during cluster debug sessions.
+   * Broadcast to all non-adapter clients as a "Stopped" event.
+   */
+  private handleDebugStopped(ws: WebSocket, msg: RAPMessage): void {
+    const payload = msg.payload ?? {};
+    const stoppedMsg = JSON.stringify({ rap: "Stopped", payload });
+    for (const client of this.clients) {
+      if (client === ws) continue;
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(stoppedMsg);
+      }
+    }
+  }
+
+  /**
+   * RouteEnvelope: relay a message envelope from one node to another.
+   * The sending node couldn't resolve the target agent locally.
+   */
+  private handleRouteEnvelope(_ws: WebSocket, msg: RAPMessage): void {
+    const envelope = (msg.payload ?? {}) as Record<string, unknown>;
+    const target = (envelope.to as Record<string, string>)?.agent;
+    if (!target) return;
+
+    const nodeId = this.agentToNode.get(target);
+    if (!nodeId) {
+      console.warn(`[ROS] RouteEnvelope: no node for agent ${target}`);
+      return;
+    }
+
+    const adapter = this.adapters.get(nodeId);
+    if (!adapter || adapter.ws.readyState !== WebSocket.OPEN) {
+      console.warn(`[ROS] RouteEnvelope: adapter ${nodeId} not connected`);
+      return;
+    }
+
+    // Forward the envelope directly (not wrapped in RAP — RemoteNode handles raw envelopes)
+    adapter.ws.send(JSON.stringify(envelope));
   }
 }

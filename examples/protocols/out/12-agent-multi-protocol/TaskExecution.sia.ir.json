@@ -17,8 +17,7 @@
         "kind": "receive",
         "from": "comma",
         "arrow": "-->",
-        "messageName": "SubmitIntent",
-        "propagateFlow": true
+        "messageName": "SubmitIntent"
       }
     },
     {
@@ -50,11 +49,12 @@
   "terminalStateIds": [
     "end_13"
   ],
-  "version": "1.0.0",
+  "initiator": "user",
+  "version": "7.0.0",
   "fingerprints": {
-    "structureHash": "849553e07db67ebdf2260d62bf5881e071cf9ee9eebdb28623bf27ed08a8fbdd",
+    "structureHash": "c3a7cde66db7cce1dd9e3fef6be0308729a309c08272c84c80770c19348d018c",
     "schemaHash": "3ff741769ea2af2c94ab665342ce44cb8474c89539c481b8ab462ceb042038e8",
-    "implHash": "bdbae3ab2ce81c50d80b77ffee5859e8378f27552920b4599ac4682a91a8f484"
+    "implHash": "78fbdc420e8fdc23cd0da9d1014606c82b94c38c438bdb9ad80315c081f1c38e"
   },
   "dependencies": [
     {

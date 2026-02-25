@@ -81,11 +81,11 @@ class ReagentStub:
 
 
 def _translate_dollar_vars(body: str) -> str:
-    """Replace $ctx/$self/$flow with Python-safe names, reagent.return/break with
+    """Replace $ctx/$self with Python-safe names, reagent.return/break with
     Python methods, and basic JS literals/patterns with Python equivalents."""
     body = re.sub(r'\$ctx\b', 'ctx', body)
     body = re.sub(r'\$self\b', 'self_state', body)
-    body = re.sub(r'\$flow\b', 'flow', body)
+    body = re.sub(r'\$agent\b', 'agent', body)
     body = re.sub(r'reagent\.return\b', 'reagent.return_value', body)
     body = re.sub(r'reagent\.break\b', 'reagent.break_loop', body)
     body = re.sub(r'===', '==', body)
@@ -100,6 +100,23 @@ def _translate_dollar_vars(body: str) -> str:
     body = re.sub(r'\|\|', ' or ', body)
     body = re.sub(r'(?<!=)&&', ' and ', body)
     body = re.sub(r'\.push\(', '.append(', body)
+    body = re.sub(r'\.length\b', '.__len__()', body)
+    body = _translate_ternary(body)
+    return body
+
+
+def _translate_ternary(body: str) -> str:
+    """Translate JS ternary `cond ? then : else` to Python `then if cond else else_`."""
+    pattern = re.compile(
+        r'([^=!<>:,;\n]+?)\s*\?\s*([^:]+?)\s*:\s*([^\n;,)]+)'
+    )
+    max_passes = 10
+    for _ in range(max_passes):
+        m = pattern.search(body)
+        if not m:
+            break
+        cond, then, else_ = m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+        body = body[:m.start()] + f"({then} if {cond} else {else_})" + body[m.end():]
     return body
 
 
@@ -132,20 +149,17 @@ def execute_zone(
     ctx: dict[str, Any],
     self_state: dict[str, Any],
     reagent: ReagentStub,
-    flow: dict[str, Any] | None = None,
     extras: dict[str, Any] | None = None,
 ) -> bool:
-    """Execute a zone body string with ctx, self_state, flow, reagent in scope."""
+    """Execute a zone body string with ctx, self_state, reagent in scope."""
     translated = _dedent(_translate_dollar_vars(body))
 
     ctx_wrapper = AttrDict(ctx) if not isinstance(ctx, AttrDict) else ctx
     self_wrapper = AttrDict(self_state) if not isinstance(self_state, AttrDict) else self_state
-    flow_wrapper = AttrDict(flow if flow is not None else {}) if not isinstance(flow, AttrDict) else flow
 
     namespace: dict[str, Any] = {
         "ctx": ctx_wrapper,
         "self_state": self_wrapper,
-        "flow": flow_wrapper,
         "reagent": reagent,
     }
     if extras:
@@ -154,8 +168,6 @@ def execute_zone(
 
     ctx.update(ctx_wrapper)
     self_state.update(self_wrapper)
-    if flow is not None:
-        flow.update(flow_wrapper)
     return True
 
 
@@ -164,7 +176,6 @@ async def execute_zone_async(
     ctx: dict[str, Any],
     self_state: dict[str, Any],
     reagent: ReagentStub,
-    flow: dict[str, Any] | None = None,
     extras: dict[str, Any] | None = None,
 ) -> bool:
     """Async zone executor for zone bodies containing `await`."""
@@ -173,12 +184,10 @@ async def execute_zone_async(
 
     ctx_wrapper = AttrDict(ctx) if not isinstance(ctx, AttrDict) else ctx
     self_wrapper = AttrDict(self_state) if not isinstance(self_state, AttrDict) else self_state
-    flow_wrapper = AttrDict(flow if flow is not None else {}) if not isinstance(flow, AttrDict) else flow
 
     namespace: dict[str, Any] = {
         "ctx": ctx_wrapper,
         "self_state": self_wrapper,
-        "flow": flow_wrapper,
         "reagent": reagent,
         "__builtins__": __builtins__,
         **_JS_COMPAT_BUILTINS,
@@ -192,6 +201,4 @@ async def execute_zone_async(
 
     ctx.update(ctx_wrapper)
     self_state.update(self_wrapper)
-    if flow is not None:
-        flow.update(flow_wrapper)
     return True

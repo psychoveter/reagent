@@ -1,5 +1,5 @@
 // Example 16: par (parallel branches) demo for runtime E2E tests
-// $flow carries results back from workers to coordinator.
+// $ctx carries results back from workers to coordinator.
 // $ctx is per-role: each worker has its own $ctx.taskLabel, $ctx.resultA/B.
 
 message TaskA {}
@@ -44,7 +44,7 @@ protocol ParDemo {
         $ctx.msg.result = $ctx.resultA
       }
       onReceive {
-        $flow.resultA = $ctx.msg.result
+        $ctx.resultA = $ctx.msg.result
       }
     }
   } and {
@@ -57,24 +57,24 @@ protocol ParDemo {
         $ctx.msg.result = $ctx.resultB
       }
       onReceive {
-        $flow.resultB = $ctx.msg.result
+        $ctx.resultB = $ctx.msg.result
       }
     }
   }
 
   coordinator {
-    $flow.summary = $flow.resultA + "+" + $flow.resultB
+    $ctx.summary = $ctx.resultA + "+" + $ctx.resultB
     $self.protocolsCoordinated = ($self.protocolsCoordinated || 0) + 1
   }
 
   coordinator --> workerA: Summary = {
     onSend {
-      $ctx.msg.text = $flow.summary
+      $ctx.msg.text = $ctx.summary
     }
   }
   coordinator --> workerB: Summary = {
     onSend {
-      $ctx.msg.text = $flow.summary
+      $ctx.msg.text = $ctx.summary
     }
   }
 }

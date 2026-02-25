@@ -1,0 +1,18 @@
+[
+  {
+    "name": "TaskRequest",
+    "fields": []
+  },
+  {
+    "name": "TaskResult",
+    "fields": []
+  },
+  {
+    "name": "Ping",
+    "fields": []
+  },
+  {
+    "name": "Pong",
+    "fields": []
+  }
+]

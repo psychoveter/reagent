@@ -1,0 +1,78 @@
+{
+  "protocolName": "TaskProcessing",
+  "role": "client",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "send_2",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "worker",
+        "arrow": "-->",
+        "messageName": "TaskRequest",
+        "preSendZone": " $ctx.msg.taskId = 42 "
+      }
+    },
+    {
+      "id": "recv_3",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "worker",
+        "arrow": "-->",
+        "messageName": "TaskResult",
+        "postReceiveZone": "\n      $self.lastResult = $ctx.msg.result\n    "
+      }
+    },
+    {
+      "id": "end_4",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "send_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_2",
+      "to": "recv_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_3",
+      "to": "end_4",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_4"
+  ],
+  "initiator": "client",
+  "version": "9.0.0",
+  "fingerprints": {
+    "structureHash": "34e75a52967bea85a7eaea875a13756c2ca39b44e69781293d89238348e70de4",
+    "schemaHash": "62a3629ef9e82183f520e42d013626129661bc6d239e4699136e8d24f7548524",
+    "implHash": "4ca79f23158aa56a877d81140069e6e832a9c7552339ef14f1a2a9997bed9295"
+  }
+}

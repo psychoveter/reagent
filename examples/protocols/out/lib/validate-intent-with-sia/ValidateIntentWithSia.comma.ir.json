@@ -1,0 +1,181 @@
+{
+  "protocolName": "ValidateIntentWithSia",
+  "role": "comma",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "send_2",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "sia",
+        "arrow": "-->",
+        "messageName": "ValidateIntent",
+        "preSendZone": "\n      $ctx.msg.ref = $ctx.intent\n    "
+      }
+    },
+    {
+      "id": "xor_3",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "xor"
+      }
+    },
+    {
+      "id": "recv_5",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "sia",
+        "arrow": "-->",
+        "messageName": "ValidationOk"
+      }
+    },
+    {
+      "id": "act_6",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": " $ctx.validation = { ok: true } ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "recv_7",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "sia",
+        "arrow": "-->",
+        "messageName": "ValidationError"
+      }
+    },
+    {
+      "id": "act_8",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": " $ctx.validation = { ok: false, error: $ctx.msg } ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "merge_4",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "act_9",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    reagent.return($ctx.validation)\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "end_10",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "send_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_2",
+      "to": "xor_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_3",
+      "to": "recv_5",
+      "label": {
+        "kind": "message",
+        "messageName": "ValidationOk"
+      }
+    },
+    {
+      "from": "recv_5",
+      "to": "act_6",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_6",
+      "to": "merge_4",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_3",
+      "to": "recv_7",
+      "label": {
+        "kind": "message",
+        "messageName": "ValidationError"
+      }
+    },
+    {
+      "from": "recv_7",
+      "to": "act_8",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_8",
+      "to": "merge_4",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "merge_4",
+      "to": "act_9",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_9",
+      "to": "end_10",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_10"
+  ],
+  "initiator": "comma",
+  "version": "0.1.1",
+  "fingerprints": {
+    "structureHash": "f833edcc0519dd7e8852dad6450bc95f3840f109599df010db9b4e9db2cc4e2d",
+    "schemaHash": "5ebe31072521e3c4474d0f41799505f02356d47a777afa2172a43667271b5092",
+    "implHash": "59692a72ed62a55b362f10fbea209fc79d2899f100e69b6201072cec9b37d3a5"
+  }
+}

@@ -18,8 +18,7 @@
         "to": "worker",
         "arrow": "-->",
         "messageName": "TaskRequest",
-        "preSendZone": " $ctx.msg.taskId = 42 ",
-        "propagateFlow": true
+        "preSendZone": " $ctx.msg.taskId = 42 "
       }
     },
     {
@@ -30,8 +29,7 @@
         "from": "worker",
         "arrow": "-->",
         "messageName": "TaskResult",
-        "postReceiveZone": "\n      $self.lastResult = $ctx.msg.result\n    ",
-        "propagateFlow": true
+        "postReceiveZone": "\n      $self.lastResult = $ctx.msg.result\n    "
       }
     },
     {
@@ -70,7 +68,8 @@
   "terminalStateIds": [
     "end_4"
   ],
-  "version": "1.0.0",
+  "initiator": "client",
+  "version": "7.0.0",
   "fingerprints": {
     "structureHash": "34e75a52967bea85a7eaea875a13756c2ca39b44e69781293d89238348e70de4",
     "schemaHash": "62a3629ef9e82183f520e42d013626129661bc6d239e4699136e8d24f7548524",

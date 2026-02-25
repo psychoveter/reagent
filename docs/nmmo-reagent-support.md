@@ -41,7 +41,7 @@ The NMMO use case exercises these Reagent features simultaneously:
 | `invokes` | Strategic → behavioral protocol dispatch | Implemented (M5-LANG) |
 | `spawns` | Fire-and-forget survival override | Implemented (M5-LANG) |
 | `$self` persistence | Cross-protocol state (worldModel, currentGoal) | Implemented (M-RT) |
-| `$flow` propagation | Accumulate actions in scatter | Implemented (M5-LANG) |
+| `$ctx` per-branch isolation | Accumulate actions in scatter via `$ctx` | Updated (v0.0.11, $flow removed) |
 | Python RC + InprocAgentNode | Zero-serialization execution | Implemented (M6-PYRC) |
 
 ---
@@ -61,7 +61,7 @@ The NMMO use case exercises these Reagent features simultaneously:
 | `invokes` | Implemented (M5-LANG) | TeamStrategy → behavioral protocols |
 | `spawns` | Implemented (M5-LANG) | SurvivalOverride — fire-and-forget |
 | `$self` persistence | Implemented (M-RT) | Cross-protocol state (worldModel, currentGoal) |
-| `$flow` propagation | Implemented (M5-LANG) | TickCycle — accumulate actions |
+| `$ctx` per-branch isolation | Updated (v0.0.11) | TickCycle — accumulate via `$ctx` |
 | Python RC + InprocAgentNode | Implemented (M6-PYRC) | Runtime execution environment |
 
 ### 3.2 Gaps and risks

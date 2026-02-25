@@ -17,8 +17,7 @@
         "kind": "receive",
         "from": "monitor",
         "arrow": "-->",
-        "messageName": "Ping",
-        "propagateFlow": true
+        "messageName": "Ping"
       }
     },
     {
@@ -29,8 +28,7 @@
         "to": "monitor",
         "arrow": "-->",
         "messageName": "Pong",
-        "preSendZone": "\n      $ctx.msg.tasksCompleted = $self.tasksCompleted\n      $ctx.msg.ready = $self.ready\n    ",
-        "propagateFlow": true
+        "preSendZone": "\n      $ctx.msg.tasksCompleted = $self.tasksCompleted\n      $ctx.msg.ready = $self.ready\n    "
       }
     },
     {
@@ -69,7 +67,8 @@
   "terminalStateIds": [
     "end_8"
   ],
-  "version": "0.1.0",
+  "initiator": "monitor",
+  "version": "9.0.0",
   "fingerprints": {
     "structureHash": "d41ae77849da37d8fcf8e8f17cc35c7cb89a049c755f023cf2a722e3c8c713e1",
     "schemaHash": "4ab1b58940301b8acd55f43b1bcbbdfaccf4159a4ee2bb684afb9d11e9404018",

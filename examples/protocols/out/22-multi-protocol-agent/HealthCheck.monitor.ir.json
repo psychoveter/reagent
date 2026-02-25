@@ -18,8 +18,7 @@
         "to": "worker",
         "arrow": "-->",
         "messageName": "Ping",
-        "preSendZone": " $ctx.msg.ts = Date.now() ",
-        "propagateFlow": true
+        "preSendZone": " $ctx.msg.ts = Date.now() "
       }
     },
     {
@@ -30,8 +29,7 @@
         "from": "worker",
         "arrow": "-->",
         "messageName": "Pong",
-        "postReceiveZone": "\n      $self.lastPong = $ctx.msg\n    ",
-        "propagateFlow": true
+        "postReceiveZone": "\n      $self.lastPong = $ctx.msg\n    "
       }
     },
     {
@@ -70,7 +68,8 @@
   "terminalStateIds": [
     "end_4"
   ],
-  "version": "2.0.0",
+  "initiator": "monitor",
+  "version": "11.0.0",
   "fingerprints": {
     "structureHash": "6c863f0544ad814ed299a27a261f689f3c22ba4e62bc781019a472e9e2604439",
     "schemaHash": "4ab1b58940301b8acd55f43b1bcbbdfaccf4159a4ee2bb684afb9d11e9404018",

@@ -20,10 +20,10 @@ protocol SpawnEmitDemo {
   initiator: orchestrator
 
   orchestrator {
-    $flow.taskName = "compute"
+    $ctx.taskName = "compute"
   }
 
-  orchestrator spawns BackgroundTask({ taskName: $flow.taskName })
+  orchestrator spawns BackgroundTask({ taskName: $ctx.taskName })
 
   orchestrator {
     $self.spawned = ($self.spawned || 0) + 1
@@ -31,7 +31,7 @@ protocol SpawnEmitDemo {
 
   orchestrator --> helper: WorkRequest = {
     onSend {
-      $ctx.msg.task = $flow.taskName
+      $ctx.msg.task = $ctx.taskName
     }
     onReceive {
       $ctx.task = $ctx.msg.task

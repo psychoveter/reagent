@@ -1,0 +1,53 @@
+{
+  "agents": [
+    {
+      "agentName": "CallerAgent",
+      "lang": "ts",
+      "roleName": "CallerRole",
+      "agentIRFile": "CallerAgent.agent.json",
+      "roleIRFile": "CallerRole.role.json",
+      "roles": [
+        {
+          "protocolName": "InvokeDemo",
+          "roleName": "caller",
+          "irGraphFile": "InvokeDemo.caller.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "ResponderAgent",
+      "lang": "ts",
+      "roleName": "ResponderRole",
+      "agentIRFile": "ResponderAgent.agent.json",
+      "roleIRFile": "ResponderRole.role.json",
+      "roles": [
+        {
+          "protocolName": "InvokeDemo",
+          "roleName": "responder",
+          "irGraphFile": "InvokeDemo.responder.ir.json"
+        },
+        {
+          "protocolName": "ComputeSquare",
+          "roleName": "worker",
+          "irGraphFile": "ComputeSquare.worker.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "InvokeDemo.caller": "CallerAgent",
+    "InvokeDemo.responder": "ResponderAgent",
+    "ComputeSquare.worker": "ResponderAgent"
+  },
+  "roles": [
+    {
+      "name": "CallerRole",
+      "file": "CallerRole.role.json"
+    },
+    {
+      "name": "ResponderRole",
+      "file": "ResponderRole.role.json"
+    }
+  ],
+  "messages": "messages.json"
+}

@@ -1,0 +1,6 @@
+{
+  "agentName": "ProcessorAgent",
+  "lang": "ts",
+  "roleName": "ProcessorRole",
+  "roleFile": "ProcessorRole.role.json"
+}

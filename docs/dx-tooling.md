@@ -19,15 +19,22 @@ This milestone turns Reagent from a language with test-driven runtimes into a **
 | Embedded language support (completion, hover, go-to-def in zones) | Done — virtual document delegation to host-language LSPs |
 | Reagent LSP (language server for `.rg` itself) | Done — symbols, go-to-def, hover, completion, diagnostics. See [lsp.md](lsp.md) |
 | DAP debug adapter → ROS | Done — breakpoints (4 types), step/continue, variable inspection |
-| ROS manager | Done — TCP port probe, adopt existing, `freePort()` stale cleanup |
-| Debug panel webview (trace timeline, agent state, held messages) | Done — wired to debug adapter events |
-| Inline value decorations (`$ctx`/`$self`/`$flow` at paused line) | Done — wired via `pushStateToSinks()` |
+| ROS manager | Done — TCP port probe, adopt existing, `freePort()` stale cleanup, status bar toggle |
+| Debug panel webview (trace timeline, agent state, held messages) | Built — **not wired** to debug adapter events (Phase 0 todo) |
+| Inline value decorations (`$ctx`/`$self` at paused line) | Built — **not wired** to debug adapter Stopped events (Phase 0 todo) |
 | `inspectAgent` command | Done — GetState → Output channel with InspectError handling |
-| IR-driven protocol diagrams (sequence + state machine) | Done — live reload on `.rg` save, click-to-source, role selector, zone summaries, nested frame margins |
+| IR-driven protocol diagrams (sequence + state machine) | Done — live reload on `.rg` save, click-to-source, role selector, zone summaries, pill-shaped actions, compact spacing |
 | Project overview diagram (agents/roles/protocols) | Done — scoped to `reagent.json`, three-column layout, click-to-navigate |
-| Self-contained VSIX packaging | Done — bundled `lang/dist` compiler, no source tree dependency |
-| One-click run (no debug) | Done — `RunController`, CodeLens ▶ Run on `protocol` lines |
-| Deployment topology view | UX mockup done — multi-RC nodes, agents, links, deploy actions |
+| Self-contained VSIX packaging | Done — bundled `lang/dist` compiler + node_modules |
+| One-click run (no debug) | Done — `RunController`, in-process compile+execute with PythonAgentNode IPC |
+| CodeLens on `.rg` protocol lines | Done — "View" button opens Protocol View |
+| Cluster panel (tree view) | Done — nodes/protocols/agents tree, RAP polling, NodeInspect drill-down |
+| Deploy controller | Done — reads `out/deployment.json` + IR, sends `DeployProject` RAP to ROS |
+| Trigger bar in Protocol View | Done — agent selector, JSON input, trigger button. **Bug**: agent list may not refresh |
+| Trace panel (sidebar) | Done — color-coded trace table with icons, kind, agent, detail |
+| Project CodeLens on `reagent.json` | Done — Compile/Deploy/Trigger actions |
+| Diagram ↔ Debug controller | Done — `DiagramController` bridges DAP Stopped events → diagram highlight |
+| Deployment topology view | UX mockup done — multi-RC nodes, agents, links, deploy actions. No live data renderer |
 | Mermaid / export | Not started |
 
 The Reagent LSP is implemented and provides single-file intelligence: document symbols, go-to-definition, hover, context-aware completion, and parse + semantic diagnostics. For the full LSP design, current state, and backlog see **[lsp.md](lsp.md)**.
@@ -600,7 +607,6 @@ Now a runtime starts. The extension manages its lifecycle.
 12. **Set breakpoints** — click gutter on a `send` line, a `receive` line, an action line, or on a role's lifecycle handler. Four breakpoint types: send, receive, action, state-entry. These are sent to the local RC's ROS, which configures the `AgentRunner` to pause at those points.
 13. **Hit breakpoint** — the local RC pauses the protocol instance. Diagram switches to debug mode: current step pulses green, visited steps dim, future steps are faint. Side panel shows:
     - `$ctx` and `$self` for each agent at the current point (read from the local RC via DAP)
-    - `$flow` state
     - Message log with held messages (queued in the RC but not yet delivered)
 14. **Step forward** (F10) — the RC advances one protocol step. Diagram animates: arrow flies from sender to receiver, or action box lights up. Side panel state updates.
 15. **Hover a visited node** on the state machine — tooltip shows `$ctx`/`$self` snapshot at that point in history (from the local RC's trace buffer).
@@ -964,9 +970,9 @@ Before the implementation phases below, a **UX prototype** (interactive HTML/CSS
 
 - [ ] Wire `ReagentDebugSession` → `debugPanelProvider.addTrace()` / `updateAgentState()` / `updateHeldMessages()` — in `reagentDebugAdapter.ts`, when handling RAP `TraceEvent` and `Stopped` events (§7.1)
 - [ ] Wire `showInlineValues()` — in `reagentDebugAdapter.ts`, on `Stopped` event with state data, call `inlineValues.showValues(filePath, pausedLine, ctx, self)` (§7.2)
-- [ ] Implement `inspectAgent` command — prompt for agent name → `GetState` RAP request → format and show in Output channel (§7.3)
-- [ ] Align RAP implementation with specs — fix response message names, add missing sub-protocols (§7.4 below)
-- [ ] Add missing `language-configuration.json` — bracket pairs, comment markers, auto-closing pairs, folding markers
+- [x] Implement `inspectAgent` command — prompt for agent name → `GetState` RAP request → format and show in Output channel (§7.3)
+- [x] Align RAP implementation with specs — fix response message names, add missing sub-protocols (§7.4 below)
+- [x] Add missing `language-configuration.json` — bracket pairs, comment markers, auto-closing pairs, folding markers
 
 ### 7.4 RAP protocol alignment
 
@@ -996,14 +1002,14 @@ The RAP `.rg` specs (`tools/rap/01-09`) and the ROS implementation (`ros.ts`) ha
 
 **Depends on**: Phase 0.
 
-- [ ] `reagent.run` command — compile active `.rg` via `@reagent/lang` **in-process** (same path as diagram live-reload) → create `ReagentController` + `NativeAgentNode` in the extension host → trigger protocol → stream `TraceEvent` to Output channel (`Reagent Run`) → summary notification on completion. No separate `reagent-runtime start` process needed for single-node Run. For `[py]` participants, the `RunController` spawns a `PythonAgentNode` subprocess (JSON-line IPC). ROS is only used when Debug mode is needed (DAP requires the ROS process). (§8.1)
-- [ ] CodeLens "▶ Run" / "🔍 Debug" on `protocol` lines + editor title ▶ button (§8.2)
-- [ ] IR → diagram data model — `lang/src/diagram.ts`: shared module that transforms compiled IR into a renderer-agnostic data structure (participants, steps, control boxes, edges). Used by both VSCode and CLI.
-- [ ] IR → state machine data model — same module, transforms single-role `IRGraph` into renderable graph (nodes with kinds + positions, edges with labels)
-- [ ] Sequence diagram renderer — replace hardcoded SVGs in `diagramPanel.ts` with IR-driven SVG generation. Custom SVG (no ELK needed for sequence — columns = participants, rows = steps)
-- [ ] State machine diagram renderer — ELK.js layout + custom SVG rendering for per-role IRGraphs
-- [ ] Live reload — `.rg` file save → recompile `@reagent/lang` in-process → `postMessage` new IR to webview → re-render. Debounced (300ms)
-- [ ] Click-to-source with real source map — click element with `sourceMap` reference → `editor.revealRange()`
+- [x] `reagent.run` command — compile active `.rg` via `@reagent/lang` **in-process** → create `ReagentController` + `NativeAgentNode` → trigger protocol → stream `TraceEvent` to Output channel (`Reagent Run`). For `[py]` participants, `RunController` spawns `PythonAgentNode` subprocess (JSON-line IPC). (§8.1)
+- [x] CodeLens on `protocol` lines — "View" button opens Protocol View. Run/Debug removed from CodeLens (available via command palette). (§8.2)
+- [x] IR → diagram data model — `lang/src/diagram.ts`: shared module transforms compiled IR into participants, steps, control boxes. Used by both VSCode and CLI.
+- [x] IR → state machine data model — same module, transforms single-role `IRGraph` into renderable graph (nodes with kinds, edges with labels)
+- [x] Sequence diagram renderer — IR-driven SVG: participants, message arrows, action pills, timer pills, invoke/spawn boxes, alt/loop/scatter/par control frames, zone summaries
+- [x] State machine diagram renderer — custom SVG rendering for per-role IRGraphs (linear layout, no ELK)
+- [x] Live reload — `.rg` file save → recompile `@reagent/lang` in-process → full HTML rebuild → re-render
+- [x] Click-to-source with real source map — click element with `sourceMap` data attributes → `editor.revealRange()`
 - [ ] Replay mode — after `RunCompleted`, "Open Replay" animates trace events on the sequence diagram in order
 
 **Key files to create**:
@@ -1031,13 +1037,13 @@ The RAP `.rg` specs (`tools/rap/01-09`) and the ROS implementation (`ros.ts`) ha
 
 This phase can run **in parallel** with Phase 1 because LSP and Run/Diagrams are independent workstreams sharing no files.
 
-- [ ] LSP server scaffold — separate Node.js process using `vscode-languageserver` / `vscode-languageclient`. Reuses `@reagent/lang` parser for AST (§2.2)
-- [ ] Per-document AST index — on every edit, re-parse and index: protocols, roles, agents, messages, imports, symbol table (§2.2)
-- [ ] Document symbols — outline view: protocols, roles, agents, messages as a tree (§2.1)
-- [ ] Diagnostics (real-time) — syntax errors from parser, undefined participant, undefined message name, duplicate names, missing participants/initiator (§2.4)
-- [ ] Go to definition — message name → `message Name { }` declaration; role name → `role Name { }` definition; protocol name → `protocol Name { }` definition; import path → imported file (§2.1)
-- [ ] Completion — context-aware: top-level keywords, participant names after `-->`, message names after `: `, role names after `plays`, protocol names after `invokes`/`spawns` (§2.3)
-- [ ] Hover — message schema on message name, role definition summary on role name, protocol signature on protocol name (§2.1)
+- [x] LSP server scaffold — separate Node.js process using `vscode-languageserver` / `vscode-languageclient`. Reuses `@reagent/lang` parser for AST (§2.2)
+- [x] Per-document AST index — on every edit, re-parse and index: protocols, roles, agents, messages, imports, symbol table (§2.2)
+- [x] Document symbols — outline view: protocols, roles, agents, messages as a tree (§2.1)
+- [x] Diagnostics (real-time) — syntax errors from parser, undefined participant, undefined message name, duplicate names, missing participants/initiator (§2.4)
+- [x] Go to definition — message name → `message Name { }` declaration; role name → `role Name { }` definition; protocol name → `protocol Name { }` definition; import path → imported file (§2.1)
+- [x] Completion — context-aware: top-level keywords, participant names after `-->`, message names after `: `, role names after `plays`, protocol names after `invokes`/`spawns` (§2.3)
+- [x] Hover — message schema on message name, role definition summary on role name, protocol signature on protocol name (§2.1)
 
 **Key files to create**: all files listed in §2.5 (`tools/reagent-vscode/server/src/server.ts` + providers)
 
@@ -1051,8 +1057,8 @@ This phase can run **in parallel** with Phase 1 because LSP and Run/Diagrams are
 
 **Depends on**: Phase 0 (wired debug panel) + Phase 1 (IR-driven diagrams) + Phase 2 (LSP diagnostics help catch errors before debug).
 
-- [ ] `DiagramController` — new controller that subscribes to DAP events from `ReagentDebugSession` and forwards state to the diagram webview via `postMessage` (§3.4)
-- [ ] Debug mode: current state — bright outline + pulse animation (`.active` class). Visited states dimmed (`.visited`). Future states faint (`.future`)
+- [x] `DiagramController` — subscribes to DAP Stopped events + RAP Stopped via polling, forwards `activeStateId` + `visitedStateIds` to diagram webview (§3.4)
+- [x] Debug mode: current state — bright outline + pulse animation (`.active` class). Visited states dimmed (`.visited`). Future states faint (`.future`)
 - [ ] Hover on visited node — tooltip shows `$ctx`/`$self` snapshot at the time that state was executed (from trace history stored by the debug adapter)
 - [ ] Step forward animation — on DAP `continued`+`stopped` events: arrow flies from sender to receiver, or action box lights up. Side panel state updates in sync
 - [ ] Trace replay on sequence diagram — after run or debug completes, replay mode animates each message arrow in execution order with configurable speed
@@ -1150,16 +1156,16 @@ This phase can run **in parallel** with Phase 5 because they share only the Phas
 
 ### Use case enablement matrix
 
-| After phase | Use cases enabled | What a developer can do |
-|---|---|---|
-| **Phase 0** | (existing debug flow fixed) | Debug panel shows traces, inline values appear at paused lines, `inspectAgent` works |
-| **Phase 1** | A2, A4, A5 | Write `.rg`, click Run, see output + live IR-driven diagram, cross-language agents |
-| **Phase 2** | A1 | Full LSP intelligence while writing `.rg` — completion, hover, diagnostics, go-to-def |
-| **Phase 3** | A3 | Visual debugging — step through protocol on diagram, `$ctx`/`$self` on hover, replay |
-| **Phase 4** | (deployment planning) | Edit `deployment.json` with `nodes`, see planned topology before deploying |
-| **Phase 5** | A6a | Run Python simulations in Jupyter with live topology in VSCode, multi-core scale-out |
-| **Phase 6** | A6b-d, B1-B7 | Full multi-node deployment (SSH/browser/robot/Docker) + operations (monitor, scale, incident) |
-| **Phase 7** | A7 | Mermaid/SVG export, advanced LSP (rename, references), trace-based diagrams |
+| After phase | Use cases enabled | What a developer can do | Actual status |
+|---|---|---|---|
+| **Phase 0** | (existing debug flow fixed) | Debug panel shows traces, inline values appear at paused lines, `inspectAgent` works | **Partial** — inspectAgent done, debug panel + inline values not wired |
+| **Phase 1** | A2, A4, A5 | Write `.rg`, click Run, see output + live IR-driven diagram, cross-language agents | **~80% done** — Run, diagrams, live reload, click-to-source all work. Replay not started |
+| **Phase 2** | A1 | Full LSP intelligence while writing `.rg` — completion, hover, diagnostics, go-to-def | **~90% done** — all core LSP features implemented |
+| **Phase 3** | A3 | Visual debugging — step through protocol on diagram, `$ctx`/`$self` on hover, replay | **~40% done** — DiagramController works, debug mode CSS done. Hover/animation/replay not started |
+| **Phase 4** | (deployment planning) | Edit `deployment.json` with `nodes`, see planned topology before deploying | **Partial** — cluster panel + deploy + trigger work. Topology renderer not started |
+| **Phase 5** | A6a | Run Python simulations in Jupyter with live topology in VSCode, multi-core scale-out | **Partial** — Python RC + RemoteNode work. Jupyter/vscode-bridge not started |
+| **Phase 6** | A6b-d, B1-B7 | Full multi-node deployment (SSH/browser/robot/Docker) + operations (monitor, scale, incident) | **Basic** — single Python RemoteNode deploys+triggers. No SSH/browser/docker/robot |
+| **Phase 7** | A7 | Mermaid/SVG export, advanced LSP (rename, references), trace-based diagrams | Not started |
 
 ### Effort estimate
 
@@ -1223,19 +1229,21 @@ See [lsp.md](lsp.md) for full architecture, current state, and backlog.
 
 ### Visualization & Tooling
 
-| File | Purpose |
-|---|---|
-| `tools/reagent-vscode/src/diagramController.ts` | Manages diagram webview lifecycle, syncs with debug adapter |
-| `tools/reagent-vscode/src/diagramPanel.ts` | WebviewPanel provider for the interactive protocol diagram |
-| `tools/reagent-vscode/src/projectDiagram.ts` | Project-level scanner (regex) + SVG renderer for agents/roles/protocols |
-| `tools/reagent-vscode/src/projectDiagramPanel.ts` | Webview panel for project architecture diagram (scoped to `reagent.json`) |
-| `tools/reagent-vscode/src/renderers/sequenceDiagram.ts` | IR → sequence diagram SVG renderer |
-| `tools/reagent-vscode/src/renderers/stateMachineDiagram.ts` | IR → state machine SVG renderer (uses ELK) |
-| `tools/reagent-vscode/src/renderers/mermaidExport.ts` | IR → Mermaid text export |
-| `tools/reagent-vscode/src/rosManager.ts` | ROS lifecycle: TCP probe, adopt, freePort(), spawn, status bar |
-| `tools/reagent-vscode/src/runController.ts` | Handles `reagent.run` command and Output channel |
-| `tools/reagent-vscode/src/codeLensProvider.ts` | Run/Debug CodeLens on `protocol` lines |
-| `tools/reagent-vscode/icons/reagent-light.svg` | File icon for `.rg` files (light theme) |
-| `tools/reagent-vscode/icons/reagent-dark.svg` | File icon for `.rg` files (dark theme) |
-| `lang/src/diagram.ts` | Shared IR → diagram data model (used by both CLI and VSCode) |
-| `lang/src/mermaid.ts` | IR → Mermaid text generation (used by CLI) |
+| File | LOC | Purpose |
+|---|---|---|
+| `tools/reagent-vscode/src/diagramPanel.ts` | 536 | Protocol View webview: sequence/SM tabs, trigger bar, source click |
+| `tools/reagent-vscode/src/clusterPanel.ts` | 420 | Tree view: nodes/protocols/agents, RAP polling, NodeInspect drill-down |
+| `tools/reagent-vscode/src/projectDiagram.ts` | 353 | Project-level scanner (regex) + SVG renderer for agents/roles/protocols |
+| `tools/reagent-vscode/src/renderers/sequenceDiagram.ts` | 336 | IR → sequence diagram SVG: participants, arrows, pills, control frames |
+| `tools/reagent-vscode/src/renderers/stateMachineDiagram.ts` | 335 | IR → state machine SVG (linear layout, no ELK) |
+| `tools/reagent-vscode/src/runController.ts` | 307 | `reagent.run`: in-process compile+execute, PythonAgentNode IPC |
+| `tools/reagent-vscode/src/projectDiagramPanel.ts` | 293 | Project Overview webview panel |
+| `tools/reagent-vscode/src/rosManager.ts` | 210 | ROS lifecycle: TCP probe, adopt, freePort(), spawn, status bar toggle |
+| `tools/reagent-vscode/src/tracePanel.ts` | 178 | Sidebar trace table: color-coded icons, kind, agent, detail |
+| `tools/reagent-vscode/src/deployController.ts` | 146 | Read `out/` → DeployProject RAP → distribute agents to nodes |
+| `tools/reagent-vscode/src/rapClient.ts` | 128 | WebSocket RAP client: send, on(type), request/response, wildcard |
+| `tools/reagent-vscode/src/diagramController.ts` | 100 | DAP Stopped → diagram highlight bridge (active/visited/future) |
+| `tools/reagent-vscode/src/projectCodeLens.ts` | 55 | Compile/Deploy/Trigger CodeLens on `reagent.json` |
+| `tools/reagent-vscode/src/codeLensProvider.ts` | 32 | "View" CodeLens on `protocol` lines → opens Protocol View |
+| `tools/reagent-vscode/icons/reagent-{light,dark}.svg` | — | File icon for `.rg` files |
+| `lang/src/diagram.ts` | ~500 | Shared IR → diagram data model (participants, steps, control boxes, zone summaries) |

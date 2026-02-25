@@ -62,15 +62,15 @@ def s_action(sid, body):
     return {"id": sid, "kind": "action", "data": {"kind": "action", "body": body, "lang": "py"}}
 
 
-def s_send(sid, to_role, msg_name, pre_zone="", propagate_flow=True):
-    d = {"kind": "send", "to": to_role, "arrow": "-->", "messageName": msg_name, "propagateFlow": propagate_flow}
+def s_send(sid, to_role, msg_name, pre_zone=""):
+    d = {"kind": "send", "to": to_role, "arrow": "-->", "messageName": msg_name}
     if pre_zone:
         d["preSendZone"] = pre_zone
     return {"id": sid, "kind": "send", "data": d}
 
 
-def s_recv(sid, from_role, msg_name, post_zone="", propagate_flow=True, pattern=None):
-    d = {"kind": "receive", "from": from_role, "messageName": msg_name, "propagateFlow": propagate_flow}
+def s_recv(sid, from_role, msg_name, post_zone="", pattern=None):
+    d = {"kind": "receive", "from": from_role, "messageName": msg_name}
     if post_zone:
         d["postReceiveZone"] = post_zone
     if pattern:

@@ -1,0 +1,20 @@
+{
+  "roleName": "ResponderRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "InvokeDemo",
+      "roleName": "responder"
+    },
+    {
+      "protocolName": "ComputeSquare",
+      "roleName": "worker"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "9.0.0",
+  "fingerprints": {
+    "playsHash": "a510b51c13195b0bac9860cc7e98443422e6fa788519adf2ec959b6cc11fbd0c",
+    "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+  }
+}

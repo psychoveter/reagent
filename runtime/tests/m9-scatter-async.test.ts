@@ -3,10 +3,10 @@
  *
  * SA1: Scatter with async action zone — coordinator scatters to N workers,
  *      each worker has an async action zone (await $agent.think()),
- *      results are gathered back via $flow.
+ *      results are gathered back via $ctx.
  * SA2: Send/receive with preSendAsync and postReceiveAsync inside scatter branches
  * SA3: Message correlation — ActionResponse from N scatter branches correctly
- *      accumulated in $flow.actions
+ *      accumulated in $ctx.actions
  */
 
 import { readFileSync } from "node:fs";
@@ -29,23 +29,21 @@ function sInitial(id: string) { return { id, kind: "initial", data: { kind: "ini
 function sAction(id: string, body: string, opts: { async?: boolean } = {}) {
   return { id, kind: "action", data: { kind: "action", body, lang: "ts", ...(opts.async ? { async: true } : {}) } };
 }
-function sSend(id: string, to: string, msg: string, opts: { preSendZone?: string; preSendAsync?: boolean; propagateFlow?: boolean } = {}) {
+function sSend(id: string, to: string, msg: string, opts: { preSendZone?: string; preSendAsync?: boolean } = {}) {
   return {
     id, kind: "send", data: {
       kind: "send", to, arrow: "-->", messageName: msg,
       ...(opts.preSendZone ? { preSendZone: opts.preSendZone } : {}),
       ...(opts.preSendAsync ? { preSendAsync: true } : {}),
-      propagateFlow: opts.propagateFlow ?? true,
     },
   };
 }
-function sRecv(id: string, from: string, msg: string, opts: { postReceiveZone?: string; postReceiveAsync?: boolean; propagateFlow?: boolean } = {}) {
+function sRecv(id: string, from: string, msg: string, opts: { postReceiveZone?: string; postReceiveAsync?: boolean } = {}) {
   return {
     id, kind: "receive", data: {
       kind: "receive", from, arrow: "-->", messageName: msg,
       ...(opts.postReceiveZone ? { postReceiveZone: opts.postReceiveZone } : {}),
       ...(opts.postReceiveAsync ? { postReceiveAsync: true } : {}),
-      propagateFlow: opts.propagateFlow ?? true,
     },
   };
 }
@@ -81,10 +79,10 @@ function createInlineSetup(
 
 // ── SA1: Scatter with async action zones ────────────────────────────
 //
-// Coordinator has $flow.items = ["a","b","c"]. Scatter over them.
+// Coordinator has $ctx.items = ["a","b","c"]. Scatter over them.
 // Inside each scatter branch: async action zone does
-//   $flow.results.push(await $agent.process($flow.items[$flow._scatterIdx]))
-// After scatter completes, $flow.results should have 3 entries.
+//   $ctx.results.push(await $agent.process($ctx.items[$ctx._scatterIdx]))
+// After scatter completes, $ctx.results should have 3 entries.
 //
 // Since $agent.process is async, the action zone has async:true.
 // We use $agent via extras injection on the coordinator.
@@ -96,12 +94,12 @@ async function testSA1(): Promise<TestResult> {
     // Coordinator graph: init → action(set items) → scatter → join → action(check) → terminal
     const coordGraph = makeGraph("AsyncScatter", "coordinator", [
       sInitial("init"),
-      sAction("setup", "$flow.items = ['a','b','c']; $flow.results = []"),
-      sScatter("scatter1", "$flow.items", "worker", ["branch_entry"]),
+      sAction("setup", "$ctx.items = ['a','b','c']; $ctx.results = []"),
+      sScatter("scatter1", "$ctx.items", "worker", ["branch_entry"]),
       sGuardExpr("branch_entry"),
-      sAction("async_act", "const r = await $agent.process('item'); $flow.results.push(r)", { async: true }),
+      sAction("async_act", "const r = await $agent.process('item'); $ctx.results.push(r)", { async: true }),
       sJoin("join1", 1),
-      sAction("verify", "$self.resultCount = $flow.results.length"),
+      sAction("verify", "$self.resultCount = $ctx.results.length"),
       sTerminal("end"),
     ], [
       tr("init", "setup"),
@@ -249,24 +247,24 @@ async function testSA2(): Promise<TestResult> {
   }
 }
 
-// ── SA3: Scatter with async action accumulating $flow ───────────────
+// ── SA3: Scatter with async action accumulating $ctx ───────────────
 //
 // Pure coordinator-side scatter: 5 items, each branch runs an async
-// action zone that pushes a result into $flow.results.
-// Verifies $flow.results has exactly 5 entries and all values are correct.
+// action zone that pushes a result into $ctx.results.
+// Verifies $ctx.results has exactly 5 entries and all values are correct.
 
 async function testSA3(): Promise<TestResult> {
-  const name = "SA3: Scatter async action — 5 branches accumulate into $flow";
+  const name = "SA3: Scatter async action — 5 branches accumulate into $ctx";
 
   try {
     const coordGraph = makeGraph("BatchProcess", "coordinator", [
       sInitial("init"),
-      sAction("setup", "$flow.items = [10,20,30,40,50]; $flow.results = []"),
-      sScatter("scatter1", "$flow.items", "worker", ["br_entry"]),
+      sAction("setup", "$ctx.items = [10,20,30,40,50]; $ctx.results = []"),
+      sScatter("scatter1", "$ctx.items", "worker", ["br_entry"]),
       sGuardExpr("br_entry"),
-      sAction("async_compute", "const v = await $agent.compute(42); $flow.results.push(v)", { async: true }),
+      sAction("async_compute", "const v = await $agent.compute(42); $ctx.results.push(v)", { async: true }),
       sJoin("join1", 1),
-      sAction("check", "$self.resultCount = $flow.results.length; $self.allPositive = $flow.results.every(r => r > 0)"),
+      sAction("check", "$self.resultCount = $ctx.results.length; $self.allPositive = $ctx.results.every(r => r > 0)"),
       sTerminal("end"),
     ], [
       tr("init", "setup"),
@@ -324,25 +322,25 @@ async function testSA3(): Promise<TestResult> {
   }
 }
 
-// ── SA4: Scatter per-item access via $flow._scatterItem / _scatterIdx ──
+// ── SA4: Scatter per-item access via $ctx._scatterItem / _scatterIdx ──
 //
-// Coordinator has $flow.items = ["alpha","beta","gamma"]. Scatter over them.
-// Each branch reads $flow._scatterItem and $flow._scatterIdx and pushes
-// a formatted string into $flow.results. After scatter, verify results
+// Coordinator has $ctx.items = ["alpha","beta","gamma"]. Scatter over them.
+// Each branch reads $ctx._scatterItem and $ctx._scatterIdx and pushes
+// a formatted string into $ctx.results. After scatter, verify results
 // contain the correct per-item values.
 
 async function testSA4(): Promise<TestResult> {
-  const name = "SA4: Scatter per-item access via $flow._scatterItem/_scatterIdx";
+  const name = "SA4: Scatter per-item access via $ctx._scatterItem/_scatterIdx";
 
   try {
     const coordGraph = makeGraph("ScatterItems", "coordinator", [
       sInitial("init"),
-      sAction("setup", "$flow.items = ['alpha','beta','gamma']; $flow.results = []"),
-      sScatter("scatter1", "$flow.items", "worker", ["br_entry"]),
+      sAction("setup", "$ctx.items = ['alpha','beta','gamma']; $ctx.results = []"),
+      sScatter("scatter1", "$ctx.items", "worker", ["br_entry"]),
       sGuardExpr("br_entry"),
-      sAction("collect", "$flow.results.push($flow._scatterIdx + ':' + $flow._scatterItem)"),
+      sAction("collect", "$ctx.results.push($ctx._scatterIdx + ':' + $ctx._scatterItem)"),
       sJoin("join1", 1),
-      sAction("verify", "$self.results = $flow.results.slice().sort()"),
+      sAction("verify", "$self.results = $ctx.results.slice().sort()"),
       sTerminal("end"),
     ], [
       tr("init", "setup"),

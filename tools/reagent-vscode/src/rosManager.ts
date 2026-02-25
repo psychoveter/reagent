@@ -38,7 +38,10 @@ export class RosManager implements vscode.Disposable {
 
     // Port may be occupied by a stale/unresponsive process — kill it so the
     // new spawn doesn't crash with EADDRINUSE.
-    this.freePort();
+    const freed = this.freePort();
+    if (freed) {
+      await new Promise(r => setTimeout(r, 1000));
+    }
 
     const rosCliPath = this.findRosCli();
     if (!rosCliPath) {
@@ -86,8 +89,11 @@ export class RosManager implements vscode.Disposable {
       this.updateStatusBar();
     });
 
+    // Give the process a moment to bind the port
+    await new Promise(r => setTimeout(r, 500));
+
     // Wait for ROS to be reachable
-    const ok = await this.waitForReady(5000);
+    const ok = await this.waitForReady(8000);
     if (ok) {
       this._running = true;
       this.outputChannel.appendLine(`ROS ready at ${this.rosUrl}`);
@@ -166,18 +172,22 @@ export class RosManager implements vscode.Disposable {
     return fs.existsSync(tsxBin) ? tsxBin : null;
   }
 
-  /** Kill any process holding this.port so a fresh spawn doesn't get EADDRINUSE. */
-  private freePort(): void {
+  /** Kill any process holding this.port so a fresh spawn doesn't get EADDRINUSE. Returns true if anything was killed. */
+  private freePort(): boolean {
     try {
       const pids = execSync(`lsof -ti :${this.port}`, { timeout: 3000 })
         .toString().trim().split('\n').filter(Boolean);
+      let killed = false;
       for (const pid of pids) {
         try {
           process.kill(Number(pid), 'SIGKILL');
           this.outputChannel.appendLine(`Killed stale process ${pid} on port ${this.port}`);
+          killed = true;
         } catch { /* already gone */ }
       }
+      return killed;
     } catch { /* lsof returned nothing — port is free */ }
+    return false;
   }
 
   private updateStatusBar(): void {

@@ -3,7 +3,7 @@
 // Demonstrates scatter: send a message to each agent in a dynamic list,
 // collect responses, then proceed.
 //
-// The coordinator sends a Subtask to each worker in $flow.workers (agent IDs for role `worker`),
+// The coordinator sends a Subtask to each worker in $ctx.workers (agent IDs for role `worker`),
 // waits for all SubtaskDone responses, then merges results.
 
 message Subtask {}
@@ -15,14 +15,14 @@ protocol ScatterGather {
   input: Start
 
   coordinator {
-    $flow.workers = $ctx.input.workerIds
-    $flow.results = []
+    $ctx.workers = $ctx.input.workerIds
+    $ctx.results = []
   }
 
-  scatter ($flow.workers as worker) {
+  scatter ($ctx.workers as worker) {
     coordinator --> worker: Subtask = {
       onSend {
-        $ctx.msg.taskId = $flow.workers.indexOf(worker)
+        $ctx.msg.taskId = $ctx._scatterIdx
       }
     }
     worker {
@@ -33,13 +33,13 @@ protocol ScatterGather {
         $ctx.msg.result = $ctx.result
       }
       onReceive {
-        $flow.results.push($ctx.msg.result)
+        $ctx.results.push($ctx.msg.result)
       }
     }
   }
 
   coordinator {
-    $flow.merged = $flow.results.join(",")
+    $ctx.merged = $ctx.results.join(",")
     $self.scattersCompleted = ($self.scattersCompleted || 0) + 1
   }
 }

@@ -1,0 +1,29 @@
+{
+  "roleName": "ClientRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "TaskProcessing",
+      "roleName": "client"
+    }
+  ],
+  "initAction": {
+    "body": " $self.requestsSent = 0 ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolCompleted",
+      "protocolFilter": "TaskProcessing",
+      "action": {
+        "body": "\n    $self.requestsSent = ($self.requestsSent || 0) + 1\n  ",
+        "lang": "ts"
+      }
+    }
+  ],
+  "version": "9.0.0",
+  "fingerprints": {
+    "playsHash": "b76f597652948f594cc416cc68440db056a7ab1fcb88941d40a88baca107c85d",
+    "behaviorHash": "1d94d231fa3a852cb62d7479767f8b0ba72d50c2f14841c94594c9e1cc10ae1b"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "roleName": "CallerRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "InvokeDemo",
+      "roleName": "caller"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.lastResult = 0\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "197526ef85a6673608bf655bb08915d9759f5186c7ace58273ce27c5a694eaf1",
+    "behaviorHash": "1404265da437e516a0b3fe13a2e06bd8ef62e15aec69b33eb430a8bc32a4f527"
+  }
+}

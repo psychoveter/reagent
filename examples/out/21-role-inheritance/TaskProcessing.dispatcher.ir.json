@@ -1,0 +1,78 @@
+{
+  "protocolName": "TaskProcessing",
+  "role": "dispatcher",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "send_2",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "worker",
+        "arrow": "-->",
+        "messageName": "Task",
+        "preSendZone": "\n      $ctx.msg.payload = $ctx.input.payload\n    "
+      }
+    },
+    {
+      "id": "recv_3",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "worker",
+        "arrow": "-->",
+        "messageName": "TaskDone",
+        "postReceiveZone": "\n      $self.lastResult = $ctx.msg.result\n    "
+      }
+    },
+    {
+      "id": "end_4",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "send_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_2",
+      "to": "recv_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_3",
+      "to": "end_4",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_4"
+  ],
+  "initiator": "dispatcher",
+  "version": "8.0.0",
+  "fingerprints": {
+    "structureHash": "06a1cd9d565a8a8ed2886f4dbe5ac9d329ad7d8e7415e01e057cc7465e7226b4",
+    "schemaHash": "a478e832eb757283f3e9a4aaf7ee176db5eeced0f5acb78e69f601fddd77c3cd",
+    "implHash": "7c9b4a576248f6224fcd98fb07175a38d2e164ca62205544957131f597f0ef8c"
+  }
+}

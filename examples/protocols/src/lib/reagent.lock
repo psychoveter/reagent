@@ -1,0 +1,29 @@
+{
+  "protocols": {
+    "CallLlm": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "structureHash": "1155efd9c780db5b97327792cc9ecc18dd1f706c7d54c7b13b34901b48c0f160",
+        "schemaHash": "1a2ee90c737e97d024137eabc98c74236b5c2b2305ab123641ebbb7435a85b18",
+        "implHash": "145f8210541c02dcb1b94a251e6f38eb05cec90e8ddc524a6d2bc45dde976ca0"
+      }
+    },
+    "DeriveDsiBsi": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "structureHash": "075bd4a0778079275c6c058cacf873254a679da9b91628582022e94e29d02541",
+        "schemaHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "implHash": "5b41dd44480c7ea9ffe4d0da0a33bc53f0c393ea344504773293ed8c88cfd8a3"
+      }
+    },
+    "ValidateIntentWithSia": {
+      "version": "0.1.1",
+      "fingerprints": {
+        "structureHash": "f833edcc0519dd7e8852dad6450bc95f3840f109599df010db9b4e9db2cc4e2d",
+        "schemaHash": "5ebe31072521e3c4474d0f41799505f02356d47a777afa2172a43667271b5092",
+        "implHash": "59692a72ed62a55b362f10fbea209fc79d2899f100e69b6201072cec9b37d3a5"
+      }
+    }
+  },
+  "roles": {}
+}

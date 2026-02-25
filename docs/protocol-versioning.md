@@ -453,7 +453,7 @@ zone execution scope, but there is no mechanism to provide them.
 ### 9.2 Problem
 
 - No native code attachment. Zones execute via `new Function()` with injected
-  `$ctx`, `$self`, `$flow`, `reagent`. Host-language functions must be
+  `$ctx`, `$self`, `reagent`. Host-language functions must be
   injected via `extras` (exists in `executeZone()` but never wired through the
   runtime stack).
 - No composability. An agent runs exactly one role. Roles can `plays` multiple
@@ -485,7 +485,7 @@ Zone bodies access native methods via `$agent`:
 
 ```rg
 greeter {
-  $ctx.msg.user = await $agent.queryUser($flow.userId)
+  $ctx.msg.user = await $agent.queryUser($ctx.userId)
 }
 ```
 
@@ -594,9 +594,9 @@ if (state.async) {
 // zone-executor.ts
 const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
 
-function executeZoneAsync(body, ctx, self, flow, extras) {
-  const fn = new AsyncFunction('$ctx', '$self', '$flow', 'reagent', '$agent', body);
-  return fn(ctx, self, flow, reagent, extras?.$agent);
+function executeZoneAsync(body, ctx, self, extras) {
+  const fn = new AsyncFunction('$ctx', '$self', 'reagent', '$agent', body);
+  return fn(ctx, self, reagent, extras?.$agent);
 }
 ```
 
@@ -1004,7 +1004,7 @@ reagent deploy [--plan deploy-plan.json] [--watch]
 | Exported symbols (function names)| Message names + role names           |
 | Function signatures (param types)| Message schemas (fields, types)      |
 | Calling convention (cdecl, etc.) | Arrow kind (-->, ->, etc.)           |
-| Struct layout (field offsets)    | $flow / $ctx shape contract          |
+| Struct layout (field offsets)    | $ctx shape contract                  |
 | Function body (implementation)   | Zone bodies                          |
 | ABI version                      | structureHash + schemaHash           |
 | SO version (soname)              | Auto-semver version                  |

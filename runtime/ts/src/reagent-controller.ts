@@ -14,6 +14,7 @@ import { createMessageEnvelope } from "./types.js";
 import type { NodeRef, AgentRef, ReagentTransport, NodeLink } from "./transport.js";
 import type { AgentNode, AgentHandle } from "./agent-node.js";
 import type { InterceptorFn, InterceptorContext, MessageDirection, AddressPage } from "./interceptor.js";
+import type { AdvanceHook } from "./protocol-instance.js";
 import { ProtocolRegistry, type ProtocolEntry, type CompatibilityReport } from "./protocol-registry.js";
 
 // ── Configuration ───────────────────────────────────────────────────
@@ -162,6 +163,66 @@ export class ReagentController {
 
   canDeploy(entry: ProtocolEntry): CompatibilityReport {
     return this.registry.canDeploy(entry);
+  }
+
+  /** Set advance hook on all agent node backends (for cluster debug). */
+  setAdvanceHook(hook: AdvanceHook | undefined): void {
+    for (const node of Object.values(this.agentNodes)) {
+      if (typeof (node as any).setAdvanceHook === 'function') {
+        (node as any).setAdvanceHook(hook);
+      }
+    }
+  }
+
+  /** Return introspection snapshot for NodeInspect responses. */
+  inspect(): {
+    nodeId: string;
+    agents: Array<{ name: string; lang: string; route: string }>;
+    protocols: Array<{ name: string; version: string; agents: string[]; graphs: string[] }>;
+    routing: Record<string, string>;
+    agentNodes: string[];
+  } {
+    const agentsList: Array<{ name: string; lang: string; route: string }> = [];
+    for (const [name, _handle] of this.agents) {
+      const routeEntry = this.routingTable.get(name);
+      agentsList.push({
+        name,
+        lang: this.agentOwnerLang(name),
+        route: routeEntry?.nodeId ?? this.nodeId,
+      });
+    }
+
+    const protoList: Array<{ name: string; version: string; agents: string[]; graphs: string[] }> = [];
+    for (const entry of this.registry.list()) {
+      protoList.push({
+        name: entry.name,
+        version: entry.version,
+        agents: this.registry.agentsForProtocol(entry.name),
+        graphs: entry.irGraphs ? [...entry.irGraphs.keys()] : [],
+      });
+    }
+
+    const routing: Record<string, string> = {};
+    for (const [agent, ref] of this.routingTable) {
+      routing[agent] = ref.nodeId;
+    }
+
+    return {
+      nodeId: this.nodeId,
+      agents: agentsList,
+      protocols: protoList,
+      routing,
+      agentNodes: Object.keys(this.agentNodes),
+    };
+  }
+
+  private agentOwnerLang(agentName: string): string {
+    const owner = this.agentOwners.get(agentName);
+    if (!owner) return "unknown";
+    for (const [lang, node] of Object.entries(this.agentNodes)) {
+      if (node === owner) return lang;
+    }
+    return "unknown";
   }
 
   // ── Interceptor chain ───────────────────────────────────────────

@@ -1,0 +1,10 @@
+[
+  {
+    "name": "LlmPrompt",
+    "fields": []
+  },
+  {
+    "name": "LlmAnswer",
+    "fields": []
+  }
+]

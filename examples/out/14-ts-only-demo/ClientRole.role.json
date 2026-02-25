@@ -1,0 +1,29 @@
+{
+  "roleName": "ClientRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "TsDemo",
+      "roleName": "client"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.ready = true\n    $self.responsesReceived = 0\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolCompleted",
+      "protocolFilter": "TsDemo",
+      "action": {
+        "body": "\n    $self.responsesReceived = ($self.responsesReceived || 0) + 1\n  ",
+        "lang": "ts"
+      }
+    }
+  ],
+  "version": "8.0.0",
+  "fingerprints": {
+    "playsHash": "62fe0815ffac58f0492364f21385f5d1f5c4c22ac3ba31562eca1186b4d376f4",
+    "behaviorHash": "ba2d5f0c39c95f3dc5d75d0d68fa0fa458620ea57244b4274d28da02e160c318"
+  }
+}

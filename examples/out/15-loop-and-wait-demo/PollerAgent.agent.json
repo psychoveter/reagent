@@ -1,0 +1,6 @@
+{
+  "agentName": "PollerAgent",
+  "lang": "ts",
+  "roleName": "PollerRole",
+  "roleFile": "PollerRole.role.json"
+}

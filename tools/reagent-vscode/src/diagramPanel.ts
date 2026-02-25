@@ -10,6 +10,8 @@ import {
   STATE_MACHINE_CSS,
   type StateMachineDiagramData,
 } from './renderers/stateMachineDiagram';
+import type { ClusterPanelProvider } from './clusterPanel';
+import { ReagentDebugSession } from './reagentDebugAdapter';
 
 type ViewMode = 'sequence' | 'statemachine';
 
@@ -19,6 +21,19 @@ interface DiagramMessage {
   line?: number;
   file?: string;
   role?: string;
+  agentName?: string;
+  protocolName?: string;
+  input?: string;
+  command?: string;
+  breakpoints?: string[];
+}
+
+interface MessageFieldSchema {
+  name: string;
+  type: string; // "string" | "number" | "boolean" | "any" | "array" | "object"
+  optional: boolean;
+  element?: string; // for arrays
+  fields?: MessageFieldSchema[]; // for objects
 }
 
 interface CompiledData {
@@ -29,6 +44,8 @@ interface CompiledData {
   sourceFile: string;
   sourceMap: Map<string, number>;
   roles: string[];
+  inputMessageSchema: MessageFieldSchema[] | null;
+  inputMessageName: string | null;
 }
 
 interface DiagramCompiler {
@@ -67,28 +84,36 @@ export class ReagentDiagramPanel {
   private disposables: vscode.Disposable[] = [];
   private compiledData: CompiledData | null = null;
   private fileWatcher: vscode.FileSystemWatcher | null = null;
+  private clusterPanel: ClusterPanelProvider | null = null;
+
+  private debugSessionId: string | null = null;
+  private debugVisitedStates = new Set<string>();
+  private debugActiveState: string | null = null;
+  private stoppedListener: vscode.Disposable | null = null;
 
   public static getInstance(): ReagentDiagramPanel | undefined {
     return ReagentDiagramPanel.instance;
   }
 
-  public static createOrShow(extensionUri: vscode.Uri): ReagentDiagramPanel {
+  public static createOrShow(extensionUri: vscode.Uri, clusterPanel?: ClusterPanelProvider): ReagentDiagramPanel {
     const column = vscode.ViewColumn.Beside;
     if (ReagentDiagramPanel.instance) {
+      if (clusterPanel) ReagentDiagramPanel.instance.clusterPanel = clusterPanel;
       ReagentDiagramPanel.instance.panel.reveal(column);
       return ReagentDiagramPanel.instance;
     }
     const panel = vscode.window.createWebviewPanel(
       ReagentDiagramPanel.viewType,
-      'Reagent Protocol',
+      'Protocol View',
       column,
       { enableScripts: true, retainContextWhenHidden: true },
     );
-    ReagentDiagramPanel.instance = new ReagentDiagramPanel(panel, extensionUri);
+    ReagentDiagramPanel.instance = new ReagentDiagramPanel(panel, extensionUri, clusterPanel);
     return ReagentDiagramPanel.instance;
   }
 
-  private constructor(panel: vscode.WebviewPanel, private extensionUri: vscode.Uri) {
+  private constructor(panel: vscode.WebviewPanel, private extensionUri: vscode.Uri, clusterPanel?: ClusterPanelProvider) {
+    this.clusterPanel = clusterPanel ?? null;
     this.panel = panel;
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     this.panel.webview.onDidReceiveMessage(
@@ -111,6 +136,27 @@ export class ReagentDiagramPanel {
       vscode.workspace.onDidSaveTextDocument(doc => {
         if (doc.languageId === 'reagent') {
           this.compileAndRender(doc);
+        }
+      }),
+    );
+
+    // Update trigger bar when cluster state changes (lightweight postMessage, not full re-render)
+    if (this.clusterPanel) {
+      this.disposables.push(
+        this.clusterPanel.onDidChangeTreeData(() => this.updateTriggerBar()),
+      );
+    }
+
+    // Listen for Stopped events from the RAP connection (cluster debug)
+    this.listenForStoppedEvents();
+
+    // When a DAP debug session ends, also end cluster debug mode in the webview
+    this.disposables.push(
+      vscode.debug.onDidTerminateDebugSession(session => {
+        if (session.type === 'reagent' && this.debugSessionId) {
+          this.debugSessionId = null;
+          this.debugActiveState = null;
+          this.panel.webview.postMessage({ type: 'debugSessionEnded' });
         }
       }),
     );
@@ -183,6 +229,17 @@ export class ReagentDiagramPanel {
         stateMachines.set(sm.role, sm);
       }
 
+      // Extract input message schema from AST
+      const inputTypeName = proto.input ?? null;
+      let inputMessageSchema: MessageFieldSchema[] | null = null;
+      if (inputTypeName) {
+        const messageDefs = items.filter((i: any) => i.kind === 'MessageDef');
+        const inputDef = messageDefs.find((m: any) => m.name === inputTypeName);
+        if (inputDef) {
+          inputMessageSchema = extractFieldSchemas(inputDef.fields ?? []);
+        }
+      }
+
       this.compiledData = {
         protocolName: proto.name,
         version: seqDiagram.version,
@@ -191,6 +248,8 @@ export class ReagentDiagramPanel {
         sourceFile: document.uri.fsPath,
         sourceMap,
         roles,
+        inputMessageSchema,
+        inputMessageName: inputTypeName,
       };
 
       if (!this.selectedRole || !roles.includes(this.selectedRole)) {
@@ -228,7 +287,188 @@ export class ReagentDiagramPanel {
           this.revealSource(msg.file, msg.line);
         }
         break;
+      case 'trigger':
+        this.handleTrigger(msg);
+        break;
+      case 'debugTrigger':
+        this.handleDebugTrigger(msg);
+        break;
+      case 'debugAction':
+        this.handleDebugAction(msg);
+        break;
     }
+  }
+
+  private handleTrigger(msg: DiagramMessage): void {
+    const rap = this.clusterPanel?.getRapClient();
+    if (!rap?.connected) {
+      vscode.window.showErrorMessage('Not connected to cluster. Run "Reagent: Connect to Cluster" first.');
+      return;
+    }
+    if (!msg.agentName || !msg.protocolName) {
+      vscode.window.showWarningMessage('Select an agent to trigger');
+      return;
+    }
+
+    let input: Record<string, unknown> = {};
+    try {
+      const raw = (msg.input ?? '').trim();
+      if (raw) input = JSON.parse(raw);
+    } catch {
+      vscode.window.showErrorMessage('Invalid JSON in input field');
+      return;
+    }
+
+    rap.send({
+      rap: 'TriggerOnCluster',
+      payload: {
+        agentName: msg.agentName,
+        protocolName: msg.protocolName,
+        input,
+      },
+    });
+    vscode.window.showInformationMessage(`Triggered ${msg.protocolName} on ${msg.agentName}`);
+  }
+
+  private async handleDebugTrigger(msg: DiagramMessage): Promise<void> {
+    const rap = this.clusterPanel?.getRapClient();
+    if (!rap?.connected) {
+      vscode.window.showErrorMessage('Not connected to cluster.');
+      return;
+    }
+    if (!msg.agentName || !msg.protocolName) {
+      vscode.window.showWarningMessage('Select an agent to debug');
+      return;
+    }
+
+    let input: Record<string, unknown> = {};
+    try {
+      const raw = (msg.input ?? '').trim();
+      if (raw) input = JSON.parse(raw);
+    } catch {
+      vscode.window.showErrorMessage('Invalid JSON in input field');
+      return;
+    }
+
+    const sessionId = `dbg-${Date.now().toString(36)}`;
+    this.debugSessionId = sessionId;
+    this.debugVisitedStates.clear();
+    this.debugActiveState = null;
+
+    const breakpoints = msg.breakpoints ?? [];
+
+    rap.send({
+      rap: 'TriggerOnCluster',
+      payload: {
+        agentName: msg.agentName,
+        protocolName: msg.protocolName,
+        input,
+        mode: 'debug',
+        sessionId,
+        breakpoints,
+      },
+    });
+
+    this.panel.webview.postMessage({
+      type: 'debugSessionStarted',
+      sessionId,
+    });
+
+    // Also start a DAP debug session so VS Code debug UI (breakpoints, variables, stack) works.
+    // The DAP session attaches to the existing cluster debug via the shared RAP connection.
+    const rgFile = this.compiledData?.sourceFile || '';
+    ReagentDebugSession.pendingClusterRap = rap;
+
+    // Pass source map from the diagram's compile to the DAP session
+    if (this.compiledData?.sourceMap) {
+      const entries: Array<{ stateId: string; protocolName: string; role: string; file: string; line: number; column: number }> = [];
+      for (const [stateId, line] of this.compiledData.sourceMap) {
+        entries.push({
+          stateId,
+          protocolName: this.compiledData.protocolName,
+          role: '',
+          file: rgFile,
+          line,
+          column: 0,
+        });
+      }
+      ReagentDebugSession.pendingSourceMap = entries;
+    }
+
+    await vscode.debug.startDebugging(undefined, {
+      type: 'reagent',
+      request: 'launch',
+      name: `Cluster Debug: ${msg.protocolName}`,
+      rgFile,
+      clusterSessionId: sessionId,
+      __noDebug: false,
+    });
+  }
+
+  private handleDebugAction(msg: DiagramMessage): void {
+    const rap = this.clusterPanel?.getRapClient();
+    if (!rap?.connected || !this.debugSessionId) return;
+    const command = msg.command;
+    if (!command) return;
+
+    rap.send({
+      rap: 'DebugCommand',
+      payload: {
+        sessionId: this.debugSessionId,
+        command,
+      },
+    });
+
+    if (command === 'stop') {
+      // Terminate the VS Code debug session — this will fire onDidTerminateDebugSession
+      // which cleans up debugSessionId and sends debugSessionEnded to webview.
+      vscode.debug.stopDebugging();
+    }
+  }
+
+  private listenForStoppedEvents(): void {
+    this.ensureStoppedListener();
+    // Re-attach when cluster reconnects
+    if (this.clusterPanel) {
+      this.disposables.push(
+        this.clusterPanel.onDidChangeTreeData(() => this.ensureStoppedListener()),
+      );
+    }
+  }
+
+  private ensureStoppedListener(): void {
+    const rap = this.clusterPanel?.getRapClient();
+    if (!rap) return;
+
+    // Dispose previous listener to avoid duplicates
+    this.stoppedListener?.dispose();
+
+    this.stoppedListener = rap.on('Stopped', (msg) => {
+      if (!this.debugSessionId) return;
+      const payload = (msg.payload ?? {}) as Record<string, unknown>;
+      const sessionId = payload.sessionId as string;
+      if (sessionId && sessionId !== this.debugSessionId) return;
+
+      const stateId = payload.stateId as string | undefined;
+      const stateKind = payload.stateKind as string | undefined;
+      const agentName = payload.agentName as string | undefined;
+      const reason = payload.reason as string | undefined;
+
+      if (stateId) {
+        this.debugActiveState = stateId;
+        this.debugVisitedStates.add(stateId);
+      }
+
+      this.panel.webview.postMessage({
+        type: 'debugStopped',
+        stateId,
+        stateKind,
+        agentName,
+        reason,
+        visitedStates: [...this.debugVisitedStates],
+      });
+    });
+    this.disposables.push(this.stoppedListener);
   }
 
   private revealSource(file: string, line: number): void {
@@ -252,8 +492,69 @@ export class ReagentDiagramPanel {
 
   private render(debug?: { activeStateId?: string; visitedStateIds?: Set<string> }): void {
     const isSeq = this.viewMode === 'sequence';
-    this.panel.title = `Reagent: ${isSeq ? 'Sequence' : 'State Machine'}`;
+    const protoLabel = this.compiledData?.protocolName ?? 'Protocol';
+    this.panel.title = `${protoLabel} — ${isSeq ? 'Sequence' : 'State Machine'}`;
     this.panel.webview.html = this.getHtml(debug);
+  }
+
+  /**
+   * Lightweight trigger bar update via postMessage — avoids full webview HTML rebuild
+   * which would reset scroll position, expanded state, and input text.
+   */
+  private updateTriggerBar(): void {
+    const connected = this.isClusterConnected();
+    const agents = this.getClusterAgentsForProtocol(true);
+    const protoName = this.compiledData?.protocolName ?? '(no protocol)';
+    this.panel.webview.postMessage({
+      type: 'triggerBarUpdate',
+      connected,
+      agents,
+      protoName,
+      inputSchema: this.compiledData?.inputMessageSchema ?? null,
+      inputMessageName: this.compiledData?.inputMessageName ?? null,
+    });
+  }
+
+  private getClusterAgentsForProtocol(initiatorsOnly: boolean): Array<{ name: string; role: string; node: string }> {
+    if (!this.clusterPanel || !this.compiledData) return [];
+    const state = this.clusterPanel.getState();
+    const protoName = this.compiledData.protocolName;
+
+    // Primary: agents that have protocolName set
+    let agents = state.agents.filter(a => a.protocolName === protoName);
+
+    // Fallback: if no direct matches, cross-reference with protocols.boundAgents
+    if (agents.length === 0) {
+      const proto = state.protocols.find(p => p.name === protoName);
+      if (proto && proto.boundAgents.length > 0) {
+        const bound = new Set(proto.boundAgents);
+        agents = state.agents.filter(a => bound.has(a.agentName));
+      }
+    }
+
+    // Fallback 2: if agents have empty protocolName, match by roleName against diagram roles
+    if (agents.length === 0) {
+      const diagramRoles = new Set(this.compiledData.roles);
+      agents = state.agents.filter(a => diagramRoles.has(a.roleName));
+    }
+
+    if (initiatorsOnly) {
+      const initiatorRoles = new Set(
+        this.compiledData.sequenceDiagram.participants
+          .filter(p => p.isInitiator)
+          .map(p => p.name)
+      );
+      if (initiatorRoles.size > 0) {
+        const filtered = agents.filter(a => initiatorRoles.has(a.roleName));
+        if (filtered.length > 0) agents = filtered;
+      }
+    }
+
+    return agents.map(a => ({ name: a.agentName, role: a.roleName, node: a.nodeId }));
+  }
+
+  private isClusterConnected(): boolean {
+    return !!this.clusterPanel?.getRapClient()?.connected;
   }
 
   private getHtml(debug?: { activeStateId?: string; visitedStateIds?: Set<string> }): string {
@@ -283,6 +584,12 @@ export class ReagentDiagramPanel {
       }
     }
 
+    const clusterAgents = this.getClusterAgentsForProtocol(true);
+    const connected = this.isClusterConnected();
+    const agentsJson = JSON.stringify(clusterAgents);
+    const inputSchemaJson = JSON.stringify(data?.inputMessageSchema ?? null);
+    const inputMsgName = data?.inputMessageName ?? null;
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -310,28 +617,360 @@ ${STATE_MACHINE_CSS}
       </select>` : ''}
     </div>
   </div>
+  ${data ? this.getTriggerBarHtml(protoName, connected, clusterAgents) : ''}
   <div class="diagram-container">
     ${diagramSvg}
   </div>
   <script>
     const vscode = acquireVsCodeApi();
+    const clusterAgents = ${agentsJson};
+    const protoName = ${JSON.stringify(protoName)};
+    let currentInputSchema = ${inputSchemaJson};
+    let currentInputMsgName = ${JSON.stringify(inputMsgName)};
+
     document.getElementById('btn-seq')?.addEventListener('click', () => vscode.postMessage({ type: 'switchView' }));
     document.getElementById('btn-sm')?.addEventListener('click', () => vscode.postMessage({ type: 'switchView' }));
     document.getElementById('role-select')?.addEventListener('change', (e) => {
       vscode.postMessage({ type: 'selectRole', role: e.target.value });
     });
-    document.querySelectorAll('[data-src-line]').forEach(el => {
-      el.addEventListener('click', () => {
-        const line = parseInt(el.getAttribute('data-src-line'), 10);
-        const file = el.getAttribute('data-src-file');
+    // Breakpoint state IDs (toggled by clicking states)
+    var breakpointStates = new Set();
+
+    document.querySelectorAll('[data-state-id]').forEach(el => {
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', (e) => {
+        var stateId = el.getAttribute('data-state-id');
+        if (!stateId) return;
+
+        // If shift-click or right area, toggle breakpoint
+        if (e.shiftKey || e.altKey) {
+          if (breakpointStates.has(stateId)) {
+            breakpointStates.delete(stateId);
+            el.classList.remove('debug-breakpoint');
+          } else {
+            breakpointStates.add(stateId);
+            el.classList.add('debug-breakpoint');
+          }
+          e.stopPropagation();
+          return;
+        }
+
+        // Normal click: navigate to source
+        var line = parseInt(el.getAttribute('data-src-line'), 10);
+        var file = el.getAttribute('data-src-file');
         if (line && file) vscode.postMessage({ type: 'clickNode', line, file });
       });
     });
+
+    // Trigger bar toggle
+    document.getElementById('trigger-toggle')?.addEventListener('click', () => {
+      const body = document.getElementById('trigger-body');
+      const icon = document.getElementById('trigger-icon');
+      if (body) {
+        const hidden = body.style.display === 'none';
+        body.style.display = hidden ? 'flex' : 'none';
+        if (icon) icon.textContent = hidden ? '▾' : '▸';
+      }
+    });
+
+    // Build form fields from schema
+    function buildInputForm(schema, container) {
+      container.innerHTML = '';
+      if (!schema || schema.length === 0) {
+        var ta = document.createElement('textarea');
+        ta.id = 'trigger-input';
+        ta.className = 'trigger-textarea';
+        ta.rows = 3;
+        ta.placeholder = '{"key": "value"}';
+        ta.textContent = '{}';
+        var row = document.createElement('div');
+        row.className = 'trigger-row';
+        var lbl = document.createElement('label');
+        lbl.textContent = 'Input (JSON)';
+        row.appendChild(lbl);
+        row.appendChild(ta);
+        container.appendChild(row);
+        return;
+      }
+      schema.forEach(function(field) {
+        var row = document.createElement('div');
+        row.className = 'trigger-row';
+        var lbl = document.createElement('label');
+        lbl.setAttribute('for', 'field-' + field.name);
+        lbl.textContent = field.name;
+        if (field.optional) lbl.textContent += '?';
+        row.appendChild(lbl);
+
+        var input;
+        if (field.type === 'boolean') {
+          input = document.createElement('select');
+          input.innerHTML = '<option value="true">true</option><option value="false" selected>false</option>';
+        } else if (field.type === 'number') {
+          input = document.createElement('input');
+          input.type = 'number';
+          input.step = 'any';
+          input.placeholder = '0';
+        } else if (field.type === 'string') {
+          input = document.createElement('input');
+          input.type = 'text';
+          input.placeholder = field.name;
+        } else {
+          input = document.createElement('textarea');
+          input.rows = 2;
+          input.className = 'trigger-textarea';
+          input.placeholder = field.type === 'array' ? '[]' : '{}';
+        }
+        input.id = 'field-' + field.name;
+        input.className = input.className || 'trigger-field-input';
+        input.setAttribute('data-field-name', field.name);
+        input.setAttribute('data-field-type', field.type);
+        row.appendChild(input);
+        container.appendChild(row);
+      });
+    }
+
+    // Collect form values into JSON
+    function collectFormInput(schema) {
+      if (!schema || schema.length === 0) {
+        var ta = document.getElementById('trigger-input');
+        return ta ? ta.value : '{}';
+      }
+      var obj = {};
+      schema.forEach(function(field) {
+        var el = document.getElementById('field-' + field.name);
+        if (!el) return;
+        var val = el.value;
+        if (val === '' && field.optional) return;
+        if (field.type === 'number') {
+          obj[field.name] = val === '' ? 0 : Number(val);
+        } else if (field.type === 'boolean') {
+          obj[field.name] = val === 'true';
+        } else if (field.type === 'array' || field.type === 'object' || field.type === 'any') {
+          try { obj[field.name] = JSON.parse(val || (field.type === 'array' ? '[]' : '{}')); }
+          catch(e) { obj[field.name] = val; }
+        } else {
+          obj[field.name] = val;
+        }
+      });
+      return JSON.stringify(obj);
+    }
+
+    // Initialize form
+    var formContainer = document.getElementById('trigger-fields');
+    if (formContainer) buildInputForm(currentInputSchema, formContainer);
+
+    // Trigger action
+    document.getElementById('trigger-btn')?.addEventListener('click', () => {
+      const agentSel = document.getElementById('trigger-agent');
+      if (!agentSel) return;
+      vscode.postMessage({
+        type: 'trigger',
+        agentName: agentSel.value,
+        protocolName: protoName,
+        input: collectFormInput(currentInputSchema),
+      });
+    });
+
+    // Debug trigger action
+    document.getElementById('debug-trigger-btn')?.addEventListener('click', () => {
+      const agentSel = document.getElementById('trigger-agent');
+      if (!agentSel) return;
+      vscode.postMessage({
+        type: 'debugTrigger',
+        agentName: agentSel.value,
+        protocolName: protoName,
+        input: collectFormInput(currentInputSchema),
+        breakpoints: Array.from(breakpointStates),
+      });
+    });
+
+    // Debug toolbar buttons
+    ['step', 'step-over', 'continue', 'stop'].forEach(function(action) {
+      var btn = document.getElementById('debug-' + action);
+      if (btn) {
+        var commandMap = { 'step': 'stepState', 'step-over': 'stepOver', 'continue': 'continue', 'stop': 'stop' };
+        btn.addEventListener('click', function() {
+          vscode.postMessage({ type: 'debugAction', command: commandMap[action] });
+        });
+      }
+    });
+
+    // Debug state tracking
+    var debugActive = false;
+    var visitedStates = {};
+
+    function setDebugMode(active) {
+      debugActive = active;
+      var toolbar = document.getElementById('debug-toolbar');
+      var triggerBody = document.getElementById('trigger-body');
+      if (toolbar) toolbar.style.display = active ? 'flex' : 'none';
+      if (active && triggerBody) triggerBody.style.display = 'none';
+    }
+
+    function highlightDebugState(stateId, visited) {
+      // Clear previous highlights
+      document.querySelectorAll('.debug-active-state').forEach(function(el) {
+        el.classList.remove('debug-active-state');
+      });
+      document.querySelectorAll('.debug-visited-state').forEach(function(el) {
+        el.classList.remove('debug-visited-state');
+      });
+      // Mark visited
+      if (visited) {
+        visited.forEach(function(sid) {
+          var el = document.getElementById(sid) || document.querySelector('[data-state-id="' + sid + '"]');
+          if (el) el.classList.add('debug-visited-state');
+        });
+      }
+      // Mark active
+      if (stateId) {
+        var el = document.getElementById(stateId) || document.querySelector('[data-state-id="' + stateId + '"]');
+        if (el) {
+          el.classList.add('debug-active-state');
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        var label = document.getElementById('debug-state-label');
+        if (label) label.textContent = stateId;
+      }
+    }
+
+    // Receive messages from extension host
+    window.addEventListener('message', (event) => {
+      const msg = event.data;
+      if (msg.type === 'triggerBarUpdate') {
+        // Only rebuild form when schema actually changes (rare — happens on .rg recompile)
+        if (msg.inputSchema !== undefined) {
+          var schemaChanged = JSON.stringify(msg.inputSchema) !== JSON.stringify(currentInputSchema);
+          currentInputMsgName = msg.inputMessageName || null;
+          if (schemaChanged) {
+            currentInputSchema = msg.inputSchema;
+            var fc = document.getElementById('trigger-fields');
+            if (fc) buildInputForm(currentInputSchema, fc);
+          }
+          var msgLabel = document.getElementById('trigger-msg-label');
+          if (msgLabel) msgLabel.textContent = currentInputMsgName ? 'Input: ' + currentInputMsgName : 'Input';
+        }
+        updateTriggerBarDom(msg.connected, msg.agents || [], msg.protoName || protoName);
+      } else if (msg.type === 'debugSessionStarted') {
+        setDebugMode(true);
+      } else if (msg.type === 'debugSessionEnded') {
+        setDebugMode(false);
+      } else if (msg.type === 'debugStopped') {
+        highlightDebugState(msg.stateId, msg.visitedStates);
+      } else if (msg.type === 'highlightState') {
+        highlightDebugState(msg.stateId, null);
+      }
+    });
+
+    function updateTriggerBarDom(connected, agents, proto) {
+      const bar = document.querySelector('.trigger-bar');
+      if (!bar) return;
+      const statusEl = bar.querySelector('.trigger-status');
+      const agentSel = document.getElementById('trigger-agent');
+
+      if (!connected) {
+        if (statusEl) { statusEl.textContent = 'not connected'; statusEl.className = 'trigger-status disconnected'; }
+        return;
+      }
+
+      if (agents.length === 0) {
+        if (statusEl) { statusEl.textContent = 'no agents deployed for ' + proto; statusEl.className = 'trigger-status'; }
+        if (agentSel) agentSel.innerHTML = '';
+        return;
+      }
+
+      if (statusEl) { statusEl.textContent = agents.length + ' agent(s)'; statusEl.className = 'trigger-status connected'; }
+
+      if (agentSel) {
+        const prev = agentSel.value;
+        agentSel.innerHTML = agents.map(function(a) {
+          const label = a.name + ' (' + a.role + ' @ ' + a.node + ')';
+          return '<option value="' + a.name + '">' + label + '</option>';
+        }).join('');
+        if (agents.find(function(a) { return a.name === prev; })) agentSel.value = prev;
+      }
+    }
   </script>
 </body>
 </html>`;
   }
 
+  private getTriggerBarHtml(
+    protoName: string,
+    connected: boolean,
+    agents: Array<{ name: string; role: string; node: string }>,
+  ): string {
+    const statusClass = !connected ? 'disconnected' : agents.length > 0 ? 'connected' : '';
+    const statusText = !connected
+      ? 'not connected'
+      : agents.length > 0
+        ? `${agents.length} agent(s)`
+        : `no agents deployed for ${esc(protoName)}`;
+
+    const agentOptions = agents
+      .map(a => `<option value="${esc(a.name)}">${esc(a.name)} (${esc(a.role)} @ ${esc(a.node)})</option>`)
+      .join('');
+
+    const msgLabel = this.compiledData?.inputMessageName
+      ? `Input: ${esc(this.compiledData.inputMessageName)}`
+      : 'Input';
+
+    return `<div class="trigger-bar">
+      <div class="trigger-header" id="trigger-toggle">
+        <span id="trigger-icon">▸</span> Trigger
+        <span class="trigger-status ${statusClass}">${statusText}</span>
+      </div>
+      <div class="trigger-body" id="trigger-body" style="display:none">
+        <div class="trigger-row">
+          <label for="trigger-agent">Agent</label>
+          <select id="trigger-agent" class="trigger-select">${agentOptions}</select>
+        </div>
+        <div class="trigger-section-label" id="trigger-msg-label">${msgLabel}</div>
+        <div id="trigger-fields" class="trigger-fields"></div>
+        <div class="trigger-actions">
+          <button id="trigger-btn" class="trigger-button">▶ Trigger</button>
+          <button id="debug-trigger-btn" class="trigger-button debug-button">🔍 Debug</button>
+        </div>
+      </div>
+      <div class="debug-toolbar" id="debug-toolbar" style="display:none">
+        <span class="debug-toolbar-label">Debug:</span>
+        <span class="debug-state-label" id="debug-state-label">starting...</span>
+        <div class="debug-toolbar-buttons">
+          <button class="debug-btn" id="debug-step" title="Step State (F10)">⏭ Step</button>
+          <button class="debug-btn" id="debug-step-over" title="Step Over">⏩ Over</button>
+          <button class="debug-btn" id="debug-continue" title="Continue (F5)">▶ Continue</button>
+          <button class="debug-btn debug-btn-stop" id="debug-stop" title="Stop (Shift+F5)">⏹ Stop</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+}
+
+function typeExprToString(te: any): string {
+  if (!te) return 'any';
+  if (te.kind === 'ScalarType') return te.name;
+  if (te.kind === 'AnyType') return 'any';
+  if (te.kind === 'ArrayType') return 'array';
+  if (te.kind === 'ObjectType') return 'object';
+  return 'any';
+}
+
+function extractFieldSchemas(fields: any[]): MessageFieldSchema[] {
+  return fields.map((f: any) => {
+    const schema: MessageFieldSchema = {
+      name: f.name,
+      type: typeExprToString(f.type),
+      optional: f.optional ?? false,
+    };
+    if (f.type?.kind === 'ArrayType') {
+      schema.element = typeExprToString(f.type.element);
+    }
+    if (f.type?.kind === 'ObjectType' && f.type.fields) {
+      schema.fields = extractFieldSchemas(f.type.fields);
+    }
+    return schema;
+  });
 }
 
 function esc(s: string): string {
@@ -352,5 +991,41 @@ function getBaseStyles(): string {
     .tab.active { background: var(--vscode-button-background, #0e639c); color: var(--vscode-button-foreground, #fff); }
     .diagram-container { flex: 1; padding: 12px; overflow: auto; display: flex; align-items: flex-start; justify-content: center; }
     .diagram-container svg { width: 100%; max-width: 800px; }
+
+    .trigger-bar { border-bottom: 1px solid var(--vscode-panel-border, #333); background: var(--vscode-sideBar-background, #252526); flex-shrink: 0; }
+    .trigger-header { padding: 4px 12px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 6px; user-select: none; }
+    .trigger-header:hover { background: var(--vscode-list-hoverBackground, #2a2d2e); }
+    .trigger-status { font-size: 11px; color: var(--vscode-descriptionForeground, #888); margin-left: auto; }
+    .trigger-status.connected { color: var(--vscode-testing-iconPassed, #73c991); }
+    .trigger-status.disconnected { color: var(--vscode-testing-iconFailed, #f48771); }
+    .trigger-body { display: none; flex-direction: column; gap: 6px; padding: 6px 12px 10px; }
+    .trigger-row { display: flex; align-items: center; gap: 8px; }
+    .trigger-row label { font-size: 11px; min-width: 40px; color: var(--vscode-descriptionForeground, #888); }
+    .trigger-select { flex: 1; background: var(--vscode-dropdown-background, #3c3c3c); color: var(--vscode-dropdown-foreground, #ccc); border: 1px solid var(--vscode-dropdown-border, #555); border-radius: 3px; padding: 3px 6px; font-size: 12px; }
+    .trigger-textarea { flex: 1; background: var(--vscode-input-background, #3c3c3c); color: var(--vscode-input-foreground, #ccc); border: 1px solid var(--vscode-input-border, #555); border-radius: 3px; padding: 4px 6px; font-family: var(--vscode-editor-font-family, monospace); font-size: 12px; resize: vertical; }
+    .trigger-section-label { font-size: 11px; color: var(--vscode-descriptionForeground, #888); padding: 4px 0 2px; border-top: 1px solid var(--vscode-panel-border, #333); margin-top: 4px; }
+    .trigger-fields { display: flex; flex-direction: column; gap: 4px; }
+    .trigger-field-input { flex: 1; background: var(--vscode-input-background, #3c3c3c); color: var(--vscode-input-foreground, #ccc); border: 1px solid var(--vscode-input-border, #555); border-radius: 3px; padding: 3px 6px; font-size: 12px; font-family: var(--vscode-editor-font-family, monospace); }
+    .trigger-field-input:focus, .trigger-textarea:focus { border-color: var(--vscode-focusBorder, #007fd4); outline: none; }
+    .trigger-actions { display: flex; gap: 6px; margin-top: 4px; }
+    .trigger-button { padding: 4px 16px; background: var(--vscode-button-background, #0e639c); color: var(--vscode-button-foreground, #fff); border: none; border-radius: 3px; cursor: pointer; font-size: 12px; }
+    .trigger-button:hover { background: var(--vscode-button-hoverBackground, #1177bb); }
+    .trigger-button.debug-button { background: var(--vscode-debugIcon-startForeground, #89d185); color: #000; }
+    .trigger-button.debug-button:hover { opacity: 0.85; }
+
+    .debug-toolbar { display: none; align-items: center; gap: 8px; padding: 4px 12px; background: var(--vscode-debugToolBar-background, #333); border-bottom: 1px solid var(--vscode-panel-border, #333); flex-shrink: 0; }
+    .debug-toolbar-label { font-size: 11px; font-weight: 600; color: var(--vscode-debugIcon-startForeground, #89d185); }
+    .debug-state-label { font-size: 11px; color: var(--vscode-descriptionForeground, #888); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .debug-toolbar-buttons { display: flex; gap: 4px; }
+    .debug-btn { padding: 2px 10px; background: var(--vscode-button-secondaryBackground, #3a3d41); color: var(--vscode-button-secondaryForeground, #ccc); border: none; border-radius: 3px; cursor: pointer; font-size: 11px; }
+    .debug-btn:hover { background: var(--vscode-button-secondaryHoverBackground, #45494e); }
+    .debug-btn-stop { color: var(--vscode-testing-iconFailed, #f48771); }
+
+    .debug-active-state { outline: 2px solid var(--vscode-debugIcon-startForeground, #89d185) !important; outline-offset: 2px; }
+    .debug-visited-state { opacity: 1 !important; }
+    .debug-visited-state rect, .debug-visited-state ellipse { fill-opacity: 0.3; stroke: var(--vscode-debugIcon-startForeground, #89d185) !important; }
+    .debug-breakpoint { position: relative; }
+    .debug-breakpoint::after { content: ''; position: absolute; left: -6px; top: 50%; transform: translateY(-50%); width: 10px; height: 10px; background: var(--vscode-debugIcon-breakpointForeground, #e51400); border-radius: 50%; pointer-events: none; }
+    [data-state-id].debug-breakpoint > rect, [data-state-id].debug-breakpoint > polygon, [data-state-id].debug-breakpoint > circle { stroke: var(--vscode-debugIcon-breakpointForeground, #e51400) !important; stroke-width: 2.5; }
   `;
 }

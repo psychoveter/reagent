@@ -13,7 +13,7 @@ protocol ValidateIntentWithSia {
 
   comma --> sia: ValidateIntent = {
     onSend {
-      $ctx.msg.ref = $flow.intent
+      $ctx.msg.ref = $ctx.intent
     }
   }
 

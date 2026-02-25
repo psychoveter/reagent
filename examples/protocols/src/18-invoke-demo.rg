@@ -20,22 +20,22 @@ protocol InvokeDemo {
   initiator: caller
 
   caller {
-    $flow.value = 7
+    $ctx.value = 7
   }
   caller --> responder: ComputeRequest = {
     onSend {
-      $ctx.msg.value = $flow.value
+      $ctx.msg.value = $ctx.value
     }
     onReceive {
       $ctx.receivedValue = $ctx.msg.value
     }
   }
 
-  responder invokes ComputeSquare({ value: $ctx.receivedValue }) -> $flow.squared
+  responder invokes ComputeSquare({ value: $ctx.receivedValue }) -> $ctx.squared
 
   responder --> caller: ComputeResult = {
     onSend {
-      $ctx.msg.squared = $flow.squared
+      $ctx.msg.squared = $ctx.squared
     }
     onReceive {
       $self.lastResult = $ctx.msg.squared

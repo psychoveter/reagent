@@ -166,8 +166,6 @@ export type MessageEnvelope = {
   to: { agent: string; role: string };
   messageName: string;
   payload: Record<string, unknown>;
-  /** Flow state propagated with the message (v0.0.8+) */
-  flow?: Record<string, unknown>;
   ts: number;
   idempotencyKey: string;
 };
@@ -270,7 +268,6 @@ export function createMessageEnvelope(
   toRole: string,
   messageName: string,
   payload: Record<string, unknown>,
-  flow?: Record<string, unknown>,
   protocolVersion?: string,
 ): MessageEnvelope {
   return {
@@ -281,7 +278,6 @@ export function createMessageEnvelope(
     to: { agent: toAgent, role: toRole },
     messageName,
     payload,
-    flow,
     ts: Date.now(),
     idempotencyKey: crypto.randomUUID(),
   };

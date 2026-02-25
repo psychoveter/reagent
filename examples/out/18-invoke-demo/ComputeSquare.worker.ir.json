@@ -1,0 +1,57 @@
+{
+  "protocolName": "ComputeSquare",
+  "role": "worker",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.result = $ctx.input.value * $ctx.input.value\n    reagent.return($ctx.result)\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "end_3",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "act_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_2",
+      "to": "end_3",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_3"
+  ],
+  "version": "0.1.0",
+  "fingerprints": {
+    "structureHash": "f80c2de181c1fe0c44f9ddad622b67a344552d3676b560c48dc7679ef687fa5c",
+    "schemaHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "implHash": "0c345ec1100054ce1ac45d7131deb38322b558ad59ee407caeb00fb3a1bfe137"
+  }
+}

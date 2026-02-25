@@ -1,5 +1,5 @@
 /**
- * Reagent IR Emitter — v0.0.8
+ * Reagent IR Emitter — v0.0.11
  *
  * Transforms AST nodes into IR:
  * - ProtocolDef → set of IRGraphs (one per role)
@@ -19,11 +19,14 @@ export function emitIR(protocol) {
     for (const p of protocol.participants) {
         langMap.set(p.name, p.lang);
     }
+    const initiatorRole = findInitiatorRole(protocol.body);
     for (const p of protocol.participants) {
         const builder = new GraphBuilder(protocol.name, p.name, p.lang, langMap);
         builder.emitBody(protocol.body);
         builder.finalize();
         const graph = builder.toGraph();
+        if (initiatorRole)
+            graph.initiator = initiatorRole;
         if (p.lang === "*") {
             for (const s of graph.states) {
                 if (s.data.kind === "action") {
@@ -36,6 +39,43 @@ export function emitIR(protocol) {
         sourceMap.push(...builder.getSourceMap());
     }
     return { ok: errors.length === 0, graphs, errors, sourceMap };
+}
+/** Walk protocol body to find the sender of the first message (the initiator role). */
+function findInitiatorRole(body) {
+    for (const item of body) {
+        if (item.kind === "MessageStmt")
+            return item.from;
+        if (item.kind === "AltStmt") {
+            for (const branch of item.branches) {
+                const found = findInitiatorRole(branch.body);
+                if (found)
+                    return found;
+            }
+        }
+        if (item.kind === "LoopStmt") {
+            const found = findInitiatorRole(item.body);
+            if (found)
+                return found;
+        }
+        if (item.kind === "TryStmt") {
+            const found = findInitiatorRole(item.tryBody);
+            if (found)
+                return found;
+        }
+        if (item.kind === "ParStmt") {
+            for (const branch of item.branches) {
+                const found = findInitiatorRole(branch.body);
+                if (found)
+                    return found;
+            }
+        }
+        if (item.kind === "ScatterStmt") {
+            const found = findInitiatorRole(item.body);
+            if (found)
+                return found;
+        }
+    }
+    return undefined;
 }
 /**
  * Flatten a role's `extends` chain and produce a resolved RoleIR.
@@ -250,7 +290,6 @@ class GraphBuilder {
                 messageName: msg.messageName,
                 preSendZone,
                 ...(preSendZone && zoneContainsAwait(preSendZone) ? { preSendAsync: true } : {}),
-                propagateFlow: true,
             }, { kind: "default" }, msg.loc);
         }
         if (isReceiver) {
@@ -273,7 +312,6 @@ class GraphBuilder {
                 postReceiveZone,
                 ...(postReceiveZone && zoneContainsAwait(postReceiveZone) ? { postReceiveAsync: true } : {}),
                 pattern,
-                propagateFlow: true,
             }, { kind: "default" }, msg.loc);
         }
     }
@@ -476,6 +514,12 @@ class GraphBuilder {
     }
     // ── Scatter ────────────────────────────────────────────────────
     emitScatter(stmt) {
+        if (this.role === stmt.itemRole) {
+            // The item-role participant runs a single linear branch (no scatter wrapper).
+            // The scatter orchestration is the initiator's concern.
+            this.emitBody(stmt.body);
+            return;
+        }
         const forkId = nextId("scatter_fork");
         const branchStartIds = [];
         this.advance(forkId, { kind: "scatter", collection: stmt.collection, itemRole: stmt.itemRole, branchStartIds: [] });

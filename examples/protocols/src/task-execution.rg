@@ -10,7 +10,7 @@ protocol TaskExecutionLegacy {
   input: TaskRequest
 
   user {
-    $flow.taskText = $ctx.input.text
+    $ctx.taskText = $ctx.input.text
   }
   user --> comma: TaskRequest = { }
 
@@ -21,12 +21,12 @@ protocol TaskExecutionLegacy {
   }
 
   comma {
-    $flow.dsiBsi = taskToDsiBsi($flow.taskText)
+    $ctx.dsiBsi = taskToDsiBsi($ctx.taskText)
   }
 
   comma --> sia: SubmitIntent = {
     onSend {
-      $ctx.msg.ref = $flow.dsiBsi
+      $ctx.msg.ref = $ctx.dsiBsi
     }
     onReceive {
       $ctx.intent = $ctx.msg.ref

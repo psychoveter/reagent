@@ -22,15 +22,15 @@ protocol TaskExecutionWithChild {
   input: TaskRequest
 
   user {
-    $flow.taskText = $ctx.input.text
+    $ctx.taskText = $ctx.input.text
   }
   user --> comma: TaskRequest = { }
 
-  comma invokes DeriveDsiBsi({ taskText: $flow.taskText }) -> $flow.dsiBsi
+  comma invokes DeriveDsiBsi({ taskText: $ctx.taskText }) -> $ctx.dsiBsi
 
   comma --> sia: SubmitIntent = {
     onSend {
-      $ctx.msg.ref = $flow.dsiBsi
+      $ctx.msg.ref = $ctx.dsiBsi
     }
   }
 }

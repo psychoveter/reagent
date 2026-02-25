@@ -1,5 +1,5 @@
 // Example 20: cross-language E2E (TypeScript ↔ Python)
-// $flow carries greeting text between TS and Python roles.
+// $ctx carries greeting text between TS and Python roles.
 
 message Greeting {}
 message Reply {}
@@ -9,12 +9,12 @@ protocol CrossLangE2E {
   initiator: tsRole
 
   tsRole {
-    $flow.greeting = "hello from ts"
+    $ctx.greeting = "hello from ts"
   }
 
   tsRole --> pyRole: Greeting = {
     onSend {
-      $ctx.msg.text = $flow.greeting
+      $ctx.msg.text = $ctx.greeting
     }
     onReceive {
       $ctx.receivedGreeting = $ctx.msg.text

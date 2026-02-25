@@ -1,0 +1,82 @@
+{
+  "protocolName": "TaskExecution",
+  "role": "user",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.taskText = $ctx.input.text\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_3",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "comma",
+        "arrow": "-->",
+        "messageName": "TaskRequest"
+      }
+    },
+    {
+      "id": "end_4",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "act_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_2",
+      "to": "send_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_3",
+      "to": "end_4",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_4"
+  ],
+  "initiator": "user",
+  "version": "9.0.0",
+  "fingerprints": {
+    "structureHash": "c3a7cde66db7cce1dd9e3fef6be0308729a309c08272c84c80770c19348d018c",
+    "schemaHash": "3ff741769ea2af2c94ab665342ce44cb8474c89539c481b8ab462ceb042038e8",
+    "implHash": "78fbdc420e8fdc23cd0da9d1014606c82b94c38c438bdb9ad80315c081f1c38e"
+  },
+  "dependencies": [
+    {
+      "protocolName": "derive.DeriveDsiBsi",
+      "structureHash": "",
+      "version": ""
+    }
+  ]
+}

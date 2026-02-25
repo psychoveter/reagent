@@ -1,0 +1,6 @@
+{
+  "agentName": "CoordinatorAgent",
+  "lang": "ts",
+  "roleName": "CoordinatorRole",
+  "roleFile": "CoordinatorRole.role.json"
+}

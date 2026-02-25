@@ -1,5 +1,5 @@
 // Example 13: cross-language demo (TypeScript browser + Python server)
-// $flow carries data between roles across language boundaries.
+// $ctx carries data between roles across language boundaries.
 
 message Query {}
 message Accept {}
@@ -11,12 +11,12 @@ protocol CrossLangDemo {
   input: UserQuery
 
   browser {
-    $flow.queryText = $ctx.input.text
+    $ctx.queryText = $ctx.input.text
   }
 
   browser --> server: Query = {
     onSend {
-      $ctx.msg.text = $flow.queryText
+      $ctx.msg.text = $ctx.queryText
     }
     onReceive {
       $ctx.queryText = $ctx.msg.text

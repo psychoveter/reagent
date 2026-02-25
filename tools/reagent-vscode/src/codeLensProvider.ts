@@ -17,13 +17,8 @@ export class ReagentCodeLensProvider implements vscode.CodeLensProvider {
         const range = new vscode.Range(i, 0, i, line.text.length);
         lenses.push(
           new vscode.CodeLens(range, {
-            title: '▶ Run',
-            command: 'reagent.run',
-            arguments: [document.uri.fsPath],
-          }),
-          new vscode.CodeLens(range, {
-            title: '🔍 Debug',
-            command: 'reagent.startDebug',
+            title: '$(type-hierarchy) View',
+            command: 'reagent.openDiagram',
           }),
         );
       }

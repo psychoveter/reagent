@@ -8,7 +8,7 @@ T1: Inproc loopback — two agents, simple request/response
 T2: Inproc invoke — child protocol invocation
 T3: Inproc spawn — fire-and-forget child protocol
 T4: Inproc par — parallel branches with join
-T5: $flow propagation — write on sender, read on receiver
+T5: $ctx and message payload — data passed via messages
 T6: IPC agent — subprocess agent via ipc_agent.py
 """
 
@@ -63,15 +63,15 @@ def s_action(sid: str, body: str) -> dict:
     return {"id": sid, "kind": "action", "data": {"kind": "action", "body": body, "lang": "py"}}
 
 
-def s_send(sid: str, to_role: str, msg_name: str, pre_zone: str = "", propagate_flow: bool = True) -> dict:
-    d: dict = {"kind": "send", "to": to_role, "arrow": "-->", "messageName": msg_name, "propagateFlow": propagate_flow}
+def s_send(sid: str, to_role: str, msg_name: str, pre_zone: str = "") -> dict:
+    d: dict = {"kind": "send", "to": to_role, "arrow": "-->", "messageName": msg_name}
     if pre_zone:
         d["preSendZone"] = pre_zone
     return {"id": sid, "kind": "send", "data": d}
 
 
-def s_recv(sid: str, from_role: str, msg_name: str, post_zone: str = "", propagate_flow: bool = True) -> dict:
-    d: dict = {"kind": "receive", "from": from_role, "messageName": msg_name, "propagateFlow": propagate_flow}
+def s_recv(sid: str, from_role: str, msg_name: str, post_zone: str = "") -> dict:
+    d: dict = {"kind": "receive", "from": from_role, "messageName": msg_name}
     if post_zone:
         d["postReceiveZone"] = post_zone
     return {"id": sid, "kind": "receive", "data": d}
@@ -147,9 +147,9 @@ async def test_t1_inproc_loopback() -> None:
 
         sender_graph = make_graph("SimpleProto", "sender", [
             s_initial("init"),
-            s_action("act1", "$flow.greeting = 'hello from sender'"),
-            s_send("snd1", "receiver", "Ping", pre_zone="$ctx.msg.text = $flow.greeting"),
-            s_recv("rcv1", "receiver", "Pong", post_zone="$flow.reply = $ctx.msg.text"),
+            s_action("act1", "$ctx.greeting = 'hello from sender'"),
+            s_send("snd1", "receiver", "Ping", pre_zone="$ctx.msg.text = $ctx.greeting"),
+            s_recv("rcv1", "receiver", "Pong", post_zone="$ctx.reply = $ctx.msg.text"),
             s_terminal("end"),
         ], [t("init", "act1"), t("act1", "snd1"), t("snd1", "rcv1"), t("rcv1", "end")])
 
@@ -207,31 +207,31 @@ async def test_t2_inproc_invoke() -> None:
 
         caller_graph = make_graph("ParentProto", "caller", [
             s_initial("init"),
-            s_action("act1", "$flow.x = 5"),
-            s_send("snd1", "worker", "StartWork", pre_zone="$ctx.msg.value = $flow.x"),
-            s_recv("rcv1", "worker", "WorkDone", post_zone="$flow.result = $ctx.msg.value"),
+            s_action("act1", "$ctx.x = 5"),
+            s_send("snd1", "worker", "StartWork", pre_zone="$ctx.msg.value = $ctx.x"),
+            s_recv("rcv1", "worker", "WorkDone", post_zone="$ctx.result = $ctx.msg.value"),
             s_terminal("end"),
         ], [t("init", "act1"), t("act1", "snd1"), t("snd1", "rcv1"), t("rcv1", "end")])
 
         worker_graph = make_graph("ParentProto", "worker", [
             s_initial("init"),
             s_recv("rcv1", "caller", "StartWork", post_zone="$ctx.val = $ctx.msg.value"),
-            s_invoke("inv1", "ChildProto", "worker", input_expr="{'value': $ctx.val}", result_target="$flow.childResult"),
-            s_action("act1", "$ctx.out = $flow.childResult"),
+            s_invoke("inv1", "ChildProto", "worker", input_expr="{'value': $ctx.val}", result_target="$ctx.childResult"),
+            s_action("act1", "$ctx.out = $ctx.childResult"),
             s_send("snd1", "caller", "WorkDone", pre_zone="$ctx.msg.value = $ctx.out"),
             s_terminal("end"),
         ], [t("init", "rcv1"), t("rcv1", "inv1"), t("inv1", "act1"), t("act1", "snd1"), t("snd1", "end")])
 
         child_worker_graph = make_graph("ChildProto", "worker", [
             s_initial("init"),
-            s_action("act1", "$flow.computed = ($ctx.input.get('value', 0) if $ctx.input else 0) * 2"),
-            s_send("snd1", "caller", "ChildResult", pre_zone="$ctx.msg.value = $flow.computed"),
+            s_action("act1", "$ctx.computed = ($ctx.input.get('value', 0) if $ctx.input else 0) * 2"),
+            s_send("snd1", "caller", "ChildResult", pre_zone="$ctx.msg.value = $ctx.computed"),
             s_terminal("end"),
         ], [t("init", "act1"), t("act1", "snd1"), t("snd1", "end")])
 
         child_caller_graph = make_graph("ChildProto", "caller", [
             s_initial("init"),
-            s_recv("rcv1", "worker", "ChildResult", post_zone="$flow.retval = $ctx.msg.value"),
+            s_recv("rcv1", "worker", "ChildResult", post_zone="$ctx.retval = $ctx.msg.value"),
             s_terminal("end"),
         ], [t("init", "rcv1"), t("rcv1", "end")])
 
@@ -434,40 +434,39 @@ async def test_t4_inproc_par() -> None:
         record("T4: Inproc par", False, str(e))
 
 
-# ── T5: $flow propagation ────────────────────────────────────────────
+# ── T5: $ctx and message payload ─────────────────────────────────────
 
-async def test_t5_flow_propagation() -> None:
-    """$flow is written on sender side and arrives on receiver side."""
+async def test_t5_ctx_and_message() -> None:
+    """$ctx stores local state; data is passed via message payload."""
     try:
-        rta = {"FlowProto.a": "AgentA", "FlowProto.b": "AgentB"}
+        rta = {"MsgProto.a": "AgentA", "MsgProto.b": "AgentB"}
 
-        a_graph = make_graph("FlowProto", "a", [
+        a_graph = make_graph("MsgProto", "a", [
             s_initial("init"),
-            s_action("act1", "$flow.secret = 42"),
-            s_send("snd1", "b", "Msg1", propagate_flow=True),
+            s_action("act1", "$ctx.secret = 42"),
+            s_send("snd1", "b", "Msg1", pre_zone="$ctx.msg.secret = $ctx.secret"),
             s_recv("rcv1", "b", "Msg2"),
             s_terminal("end"),
         ], [t("init", "act1"), t("act1", "snd1"), t("snd1", "rcv1"), t("rcv1", "end")])
 
-        b_graph = make_graph("FlowProto", "b", [
+        b_graph = make_graph("MsgProto", "b", [
             s_initial("init"),
-            s_recv("rcv1", "a", "Msg1", propagate_flow=True),
-            s_action("act1", "$self.got_secret = $flow.get('secret')"),
+            s_recv("rcv1", "a", "Msg1", post_zone="$self.got_secret = $ctx.msg.secret"),
             s_send("snd1", "a", "Msg2"),
             s_terminal("end"),
-        ], [t("init", "rcv1"), t("rcv1", "act1"), t("act1", "snd1"), t("snd1", "end")])
+        ], [t("init", "rcv1"), t("rcv1", "snd1"), t("snd1", "end")])
 
         node = InprocAgentNode(role_to_agent=rta)
         rc = ReagentController(node_id="test-t5")
         rc.add_agent_node("*", node)
 
-        rc.register_agent("AgentA", make_role_ir("RoleA", [{"protocolName": "FlowProto", "roleName": "a"}]), {"FlowProto.a": a_graph})
-        rc.register_agent("AgentB", make_role_ir("RoleB", [{"protocolName": "FlowProto", "roleName": "b"}]), {"FlowProto.b": b_graph})
+        rc.register_agent("AgentA", make_role_ir("RoleA", [{"protocolName": "MsgProto", "roleName": "a"}]), {"MsgProto.a": a_graph})
+        rc.register_agent("AgentB", make_role_ir("RoleB", [{"protocolName": "MsgProto", "roleName": "b"}]), {"MsgProto.b": b_graph})
 
         await rc.start()
 
         iid = str(uuid.uuid4())
-        trigger = {"instanceId": iid, "protocolName": "FlowProto", "input": {}, "roleToAgent": rta}
+        trigger = {"instanceId": iid, "protocolName": "MsgProto", "input": {}, "roleToAgent": rta}
         rc.trigger_protocol("AgentA", trigger)
         rc.trigger_protocol("AgentB", trigger)
 
@@ -486,9 +485,9 @@ async def test_t5_flow_propagation() -> None:
         assert b_h.get_self().get("got_secret") == 42, f"Expected 42, got {b_h.get_self().get('got_secret')}"
 
         await rc.stop()
-        record("T5: $flow propagation", True)
+        record("T5: $ctx and message payload", True)
     except Exception as e:
-        record("T5: $flow propagation", False, str(e))
+        record("T5: $ctx and message payload", False, str(e))
 
 
 # ── T6: IPC agent ────────────────────────────────────────────────────
@@ -560,7 +559,7 @@ async def run_all() -> None:
     await test_t2_inproc_invoke()
     await test_t3_inproc_spawn()
     await test_t4_inproc_par()
-    await test_t5_flow_propagation()
+    await test_t5_ctx_and_message()
     await test_t6_ipc_agent()
 
     print()

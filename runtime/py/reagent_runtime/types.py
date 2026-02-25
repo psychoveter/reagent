@@ -46,9 +46,8 @@ def create_message_envelope(
     to_role: str,
     message_name: str,
     payload: dict[str, Any],
-    flow: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    env: dict[str, Any] = {
+    return {
         "instanceId": instance_id,
         "protocolName": protocol_name,
         "from": {"agent": from_agent, "role": from_role},
@@ -58,9 +57,6 @@ def create_message_envelope(
         "ts": int(time.time() * 1000),
         "idempotencyKey": str(uuid.uuid4()),
     }
-    if flow is not None:
-        env["flow"] = flow
-    return env
 
 
 # ── Trace Events ─────────────────────────────────────────────────────

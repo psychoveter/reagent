@@ -1,0 +1,6 @@
+{
+  "agentName": "SenderAgent",
+  "lang": "ts",
+  "roleName": "SenderRole",
+  "roleFile": "SenderRole.role.json"
+}

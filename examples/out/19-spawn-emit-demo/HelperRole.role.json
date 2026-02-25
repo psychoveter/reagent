@@ -1,0 +1,29 @@
+{
+  "roleName": "HelperRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "SpawnEmitDemo",
+      "roleName": "helper"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.eventsHandled = 0\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolEvent",
+      "protocolFilter": "TaskProcessed",
+      "action": {
+        "body": "\n    $self.eventsHandled = ($self.eventsHandled || 0) + 1\n  ",
+        "lang": "ts"
+      }
+    }
+  ],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "402460e82b09806953ebd79ef2991d2043e85b0d7408338eeb6e99a67dede4d6",
+    "behaviorHash": "12c20c8cd8bd2cd15c641a4709e239bec5160f5f79b6a768a820c5a3e7bb20d6"
+  }
+}

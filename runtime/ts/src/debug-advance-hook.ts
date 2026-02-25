@@ -15,6 +15,8 @@ export interface DebugAdvanceHookEvent {
   stateKind: string;
   agentName: string;
   instanceId: string;
+  protocolName: string;
+  roleName: string;
   ctx: Record<string, unknown>;
   self: Record<string, unknown>;
   reason: "breakpoint" | "step";
@@ -85,12 +87,12 @@ export class DebugAdvanceHook {
   }
 
   /**
-   * Continue — release gate, disable stepping, and disable all breakpoints
-   * until new breakpoints are configured.
+   * Continue — release gate, disable stepping.
+   * If breakpoints are set, the hook stays enabled so it pauses at breakpoints.
    */
   continue(): void {
     this.stepMode = "none";
-    this.enabled = false;
+    this.enabled = this.stateBreakpoints.size > 0 || this.stateKindBreakpoints.size > 0;
     this.releaseGate();
   }
 
@@ -121,6 +123,8 @@ export class DebugAdvanceHook {
         stateKind: hookCtx.stateKind,
         agentName: hookCtx.agentName,
         instanceId: hookCtx.instanceId,
+        protocolName: hookCtx.protocolName,
+        roleName: hookCtx.roleName,
         ctx: hookCtx.ctx,
         self: hookCtx.self,
         reason,

@@ -51,10 +51,14 @@ export class AgentRunner {
     this.extras = config.extras;
   }
 
+  setAdvanceHook(hook: AdvanceHook | undefined): void {
+    this.advanceHook = hook;
+  }
+
   async start(): Promise<void> {
     if (this.agentIR.initAction) {
       const reagent = createReagentStub();
-      executeZone(this.agentIR.initAction.body, {}, this.self, reagent, undefined, this.extras ? { $agent: this.extras } : undefined);
+      executeZone(this.agentIR.initAction.body, {}, this.self, reagent, this.extras ? { $agent: this.extras } : undefined);
     }
 
     this.transport.onMessage((env) => this.handleMessage(env));
@@ -196,7 +200,7 @@ export class AgentRunner {
     for (const handler of this.agentIR.lifecycleHandlers) {
       if (handler.event === "protocolEvent" && handler.protocolFilter === eventName) {
         const reagent = createReagentStub();
-        executeZone(handler.action.body, { eventName, data }, this.self, reagent, undefined, this.extras ? { $agent: this.extras } : undefined);
+        executeZone(handler.action.body, { eventName, data }, this.self, reagent, this.extras ? { $agent: this.extras } : undefined);
       }
     }
   }

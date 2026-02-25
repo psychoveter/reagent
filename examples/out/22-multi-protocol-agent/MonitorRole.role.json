@@ -1,0 +1,29 @@
+{
+  "roleName": "MonitorRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "HealthCheck",
+      "roleName": "monitor"
+    }
+  ],
+  "initAction": {
+    "body": " $self.pongCount = 0 ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolCompleted",
+      "protocolFilter": "HealthCheck",
+      "action": {
+        "body": "\n    $self.pongCount = ($self.pongCount || 0) + 1\n  ",
+        "lang": "ts"
+      }
+    }
+  ],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "70f3fec3e66632d4b270b94b5e00f8fbace2d0e57107f5ba4099ca383a689b81",
+    "behaviorHash": "440817a688e622a6a0112cdf2dcfe55fdf457fae10cf7a848a9a73e24c1786a0"
+  }
+}

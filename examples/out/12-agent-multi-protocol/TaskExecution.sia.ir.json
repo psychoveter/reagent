@@ -1,0 +1,66 @@
+{
+  "protocolName": "TaskExecution",
+  "role": "sia",
+  "lang": "*",
+  "states": [
+    {
+      "id": "init_11",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_12",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "comma",
+        "arrow": "-->",
+        "messageName": "SubmitIntent"
+      }
+    },
+    {
+      "id": "end_13",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_11",
+      "to": "recv_12",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_12",
+      "to": "end_13",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_11",
+  "terminalStateIds": [
+    "end_13"
+  ],
+  "initiator": "user",
+  "version": "9.0.0",
+  "fingerprints": {
+    "structureHash": "c3a7cde66db7cce1dd9e3fef6be0308729a309c08272c84c80770c19348d018c",
+    "schemaHash": "3ff741769ea2af2c94ab665342ce44cb8474c89539c481b8ab462ceb042038e8",
+    "implHash": "78fbdc420e8fdc23cd0da9d1014606c82b94c38c438bdb9ad80315c081f1c38e"
+  },
+  "dependencies": [
+    {
+      "protocolName": "derive.DeriveDsiBsi",
+      "structureHash": "",
+      "version": ""
+    }
+  ]
+}

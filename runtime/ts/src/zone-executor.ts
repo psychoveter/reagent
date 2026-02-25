@@ -70,18 +70,17 @@ export class BreakRequest {
 }
 
 /**
- * Execute a zone body string with $ctx, $self, $flow, reagent, and optional extras in scope.
+ * Execute a zone body string with $ctx, $self, reagent, and optional extras in scope.
  */
 export function executeZone(
   body: string,
   ctx: Record<string, unknown>,
   self: Record<string, unknown>,
   reagent: ReagentStub,
-  flow?: Record<string, unknown>,
   extras?: Record<string, unknown>,
 ): boolean {
-  const paramNames = ["$ctx", "$self", "reagent", "$flow"];
-  const paramValues: unknown[] = [ctx, self, reagent, flow ?? {}];
+  const paramNames = ["$ctx", "$self", "reagent"];
+  const paramValues: unknown[] = [ctx, self, reagent];
 
   if (extras) {
     for (const [k, v] of Object.entries(extras)) {
@@ -104,11 +103,10 @@ export async function executeZoneAsync(
   ctx: Record<string, unknown>,
   self: Record<string, unknown>,
   reagent: ReagentStub,
-  flow?: Record<string, unknown>,
   extras?: Record<string, unknown>,
 ): Promise<boolean> {
-  const paramNames = ["$ctx", "$self", "reagent", "$flow"];
-  const paramValues: unknown[] = [ctx, self, reagent, flow ?? {}];
+  const paramNames = ["$ctx", "$self", "reagent"];
+  const paramValues: unknown[] = [ctx, self, reagent];
 
   if (extras) {
     for (const [k, v] of Object.entries(extras)) {

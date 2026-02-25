@@ -6,7 +6,7 @@ message SubmitIntent {}
 // Intent: user requests a task; comma acknowledges, derives DSI/BSI, submits to sia.
 // Roles: user [ts], comma [ts], sia [*]
 //
-// $flow carries data between roles (propagated with messages).
+// $ctx carries data between roles (propagated with messages).
 // $ctx is per-role isolated working memory.
 
 protocol TaskExecutionBasic {
@@ -15,7 +15,7 @@ protocol TaskExecutionBasic {
   input: TaskRequest
 
   user {
-    $flow.taskText = $ctx.input.text
+    $ctx.taskText = $ctx.input.text
   }
   user --> comma: TaskRequest = { }
 
@@ -26,12 +26,12 @@ protocol TaskExecutionBasic {
   }
 
   comma {
-    $flow.dsiBsi = taskToDsiBsi($flow.taskText)
+    $ctx.dsiBsi = taskToDsiBsi($ctx.taskText)
   }
 
   comma --> sia: SubmitIntent = {
     onSend {
-      $ctx.msg.ref = $flow.dsiBsi
+      $ctx.msg.ref = $ctx.dsiBsi
     }
   }
 }

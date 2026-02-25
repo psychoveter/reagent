@@ -1038,7 +1038,7 @@ During Python RC development, several core runtime components were enhanced:
 | T2 | Inproc invoke | Parent protocol invokes child synchronously |
 | T3 | Inproc spawn | Fire-and-forget child protocol |
 | T4 | Inproc par | fork/join parallel branches |
-| T5 | $flow propagation | $flow propagated from sender to receiver |
+| T5 | $ctx and message payload | Data passed via messages (was $flow, removed v0.0.11) |
 | T6 | IPC agent | One inproc + one subprocess agent via IpcAgentNode |
 
 `runtime/tests/test_py_rc_coverage.py` (8 tests, lang-spec gap coverage):

@@ -17,8 +17,7 @@
         "kind": "receive",
         "from": "monitor",
         "arrow": "-->",
-        "messageName": "Ping",
-        "propagateFlow": true
+        "messageName": "Ping"
       }
     },
     {
@@ -29,8 +28,7 @@
         "to": "monitor",
         "arrow": "-->",
         "messageName": "Pong",
-        "preSendZone": "\n      $ctx.msg.healthy = $self.healthy\n      $ctx.msg.uptime = $self.uptime\n    ",
-        "propagateFlow": true
+        "preSendZone": "\n      $ctx.msg.healthy = $self.healthy\n      $ctx.msg.uptime = $self.uptime\n    "
       }
     },
     {
@@ -69,7 +67,8 @@
   "terminalStateIds": [
     "end_8"
   ],
-  "version": "1.0.0",
+  "initiator": "monitor",
+  "version": "10.0.0",
   "fingerprints": {
     "structureHash": "87ef2ffe47bf4c0f2e5e15320107c2eac0325a368464079bd633ce0b60ab5beb",
     "schemaHash": "4ab1b58940301b8acd55f43b1bcbbdfaccf4159a4ee2bb684afb9d11e9404018",

@@ -8,13 +8,13 @@ protocol TaskExecutionFromEvent {
   input: TaskRequested
 
   comma {
-    $flow.taskText = $ctx.input.text
+    $ctx.taskText = $ctx.input.text
   }
 
   comma --> sia: SubmitIntent = { }
 
   comma {
-    reagent.emit("TaskSubmitted", { kind: "task.submitted", ref: $flow.intent })
+    reagent.emit("TaskSubmitted", { kind: "task.submitted", ref: $ctx.intent })
   }
 }
 

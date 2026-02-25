@@ -1,59 +1,59 @@
 {
   "protocols": {
     "TaskExecution": {
-      "version": "1.0.0",
+      "version": "9.0.0",
       "fingerprints": {
-        "structureHash": "849553e07db67ebdf2260d62bf5881e071cf9ee9eebdb28623bf27ed08a8fbdd",
+        "structureHash": "c3a7cde66db7cce1dd9e3fef6be0308729a309c08272c84c80770c19348d018c",
         "schemaHash": "3ff741769ea2af2c94ab665342ce44cb8474c89539c481b8ab462ceb042038e8",
-        "implHash": "bdbae3ab2ce81c50d80b77ffee5859e8378f27552920b4599ac4682a91a8f484"
+        "implHash": "78fbdc420e8fdc23cd0da9d1014606c82b94c38c438bdb9ad80315c081f1c38e"
       }
     },
     "TaskExecutionBasic": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "fingerprints": {
         "structureHash": "01911d35016f64476a575e146f41948fa59adc9a34017698af0ca82ae289281f",
         "schemaHash": "21b81feb8eddceb596f9a7440f752f4c88125168661be87c564d13c0cdcb6031",
-        "implHash": "776d1f7acdb287b85ff11d0f88ccfa86b6e7871d875acab44305bbfcc71eb327"
+        "implHash": "63e043d7a9408408361fe1d4d1d2cfe95d83c2a9fb6ac559fbc965d86517acdc"
       }
     },
     "AwaitTimeoutAlt": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "fingerprints": {
         "structureHash": "187718fdb749868ce2f3681150042183a46dd9a521e9a49661c771c25fb2506b",
         "schemaHash": "b4b468dce867d440078b91f987672e1805f52e137ceff63f2831c6edd844739a",
-        "implHash": "9d35bf8a66530806a7056db809dfe719d5c29b9ef51b8beaaa23d68a35f402e2"
+        "implHash": "d6ddcc64e2c39c70b911b87aad1160aff7df6fe324656e5563dc2880304bf192"
       }
     },
     "LoopRetryBackoff": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "fingerprints": {
         "structureHash": "2ea8954286b26f2a65ac1d2a25694970a5e9053f5aef2b3df30f2c61309aab39",
         "schemaHash": "5ebe31072521e3c4474d0f41799505f02356d47a777afa2172a43667271b5092",
-        "implHash": "7ee46b8f54ab12f7bfe28bf9607790e17a78b4bba1f54227cf99491b8e7c2ee4"
+        "implHash": "a1b60d62ceaec48c1aa969f09ad12560d073835be87f6b42e54d0e91e32f4f08"
       }
     },
     "ParallelSubtasks": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "fingerprints": {
         "structureHash": "2af9f94636f6a2684b14de86e3f3f64df508aee6eae4b5b7429017580f1ea88e",
         "schemaHash": "8c6125df20a1350af9420d644cbbbbd5947228645c78e88869e9d0802390ca82",
-        "implHash": "1d6929e5eb2999eb0b70cae4e6faf5e8655c8abb85fd7aca4afd4d9f4463c004"
+        "implHash": "eed5c6b38cc1ce01e0ea9bcf3cf780cec489bf4165cb2f3cb104d607739c4d45"
       }
     },
     "SpawnSubagent": {
-      "version": "0.1.0",
+      "version": "1.0.0",
       "fingerprints": {
-        "structureHash": "c365e054a26e36abf7b933d44282796d54b7a5c636e08ac34590dc3b5c3a4812",
+        "structureHash": "6b14995e4a59492fd314d347ab33dfbbcfd7ae98909509d54377aa895e50f896",
         "schemaHash": "ca75649d048071f4cb9be62fd6dfcb215a27c49372760d1a8f687d15aa1f8401",
-        "implHash": "3ed404a3059dbd148353220e433052e61f08dc86370b7d41f626fae7363269e8"
+        "implHash": "3e6ba96b27946a1dd56f79350e6d5bf33253f491c53be0b50a77f2025635bf3b"
       }
     },
     "ExceptionAbortCompensate": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "fingerprints": {
         "structureHash": "2bc8e2c15f614b399259f76c5c68ad4d8fe8e25def311af4ac33798f8e827235",
         "schemaHash": "8bf1024eb317a7ace61eb76c1e56b8284dc865164354a9740bfb996078bc57a5",
-        "implHash": "a57c68f6b5849f1d598fb644cd96946d723444683f4ee4727a846e70f2e77066"
+        "implHash": "8ee5109e713211911090753ab5f5e0653570bcd8b292a266141908484adaa51e"
       }
     },
     "DeriveDsiBsi": {
@@ -65,47 +65,47 @@
       }
     },
     "TaskExecutionWithChild": {
-      "version": "0.1.0",
+      "version": "1.0.0",
       "fingerprints": {
-        "structureHash": "93bfe0b01fc0a3f5831ab9a5e4904e000943bd9f6a979e5d0820dba23cb936e8",
+        "structureHash": "48da8691f087259a9085fdd7f50c48acaaff36bea0bc9ebf67d4a247d8196f2b",
         "schemaHash": "3ff741769ea2af2c94ab665342ce44cb8474c89539c481b8ab462ceb042038e8",
-        "implHash": "74f66d7178e1c023c8b134d8f71f0b397f55d58c1ad5c347f27706eee06c0667"
+        "implHash": "309ba36bc1b2b8a476274428a18d973f4bb7a3c1ff289797a445683e31eda26b"
       }
     },
     "TaskExecutionWithImport": {
-      "version": "0.1.0",
+      "version": "1.0.0",
       "fingerprints": {
-        "structureHash": "884d148292e30f08e94c04c5bc4e51d0da079098d4f6552526fc88dbd501bfe1",
+        "structureHash": "bd99dd93a6a809acdf9222d428835b4cb9226e08ebf15ceb9f2ff022d6baa9e1",
         "schemaHash": "3ff741769ea2af2c94ab665342ce44cb8474c89539c481b8ab462ceb042038e8",
-        "implHash": "cc1e48980f0842853bd5cad1fe091081898dfff6cce67e99568eab5388c80aa1"
+        "implHash": "f6648266e12006b8a8825bbaa820a04c7130245d9478716b7bbf828851984fdf"
       }
     },
     "TaskExecutionWithMultipartyChild": {
-      "version": "0.1.0",
+      "version": "1.0.0",
       "fingerprints": {
-        "structureHash": "e112bf69cf8625fa9003dd6a675b5be40f5266031da9c139911e57bae94fb514",
+        "structureHash": "c1a7cc05799b03c19b9b5971f48bb9f5e67f146d685705abcdc2507f4d59ed97",
         "schemaHash": "aa9cda3f6da6cbebfb2ae776e859bada96fdec5699c9336bcf3c285d8d25725b",
-        "implHash": "77f1dc7ff6eab8e355391b4cdfe93bdb206eaa159b4ea51b3c786824655f01ab"
+        "implHash": "58b64a42b69ee62b0e358e9215647575a220de30ad161c1b92adac838de04bf2"
       }
     },
     "TaskExecutionFromEvent": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "fingerprints": {
         "structureHash": "69ec8a761b17e1f3d42db3164218c7522780965493d9b9e0cedff2140401fee9",
         "schemaHash": "c94ac52370720d4b20dbb262a6c149223fc9374e3c0e119c19940183369c07bf",
-        "implHash": "6ac28a3bb4276de81222e486a4fb8c0853c713c85953c232ebe2d2b3a7ace165"
+        "implHash": "9654fc2b667a1381ddc5867f5180e3bfa1b72f5713edbf44ff59ceeba28295a3"
       }
     },
     "CommaAsksLlmAndReplies": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "fingerprints": {
         "structureHash": "281a2907069d9761f9a93db238b6bc22d4776651b6c5003df265fcad0fba9077",
         "schemaHash": "7e381ea1bf16b01c0308a63e3303e82e6bc9aa580e295e95472b7e604a73b606",
-        "implHash": "46c5bf92001d45dc4f3468cea80aa9c2feedb319760f1b49562efd949bb06cd1"
+        "implHash": "8786f6ae04fe32a0f1c7d115b3f132e575cdf773474e0bb3b6460167d0119023"
       }
     },
     "HealthCheck": {
-      "version": "2.0.0",
+      "version": "14.0.0",
       "fingerprints": {
         "structureHash": "6c863f0544ad814ed299a27a261f689f3c22ba4e62bc781019a472e9e2604439",
         "schemaHash": "4ab1b58940301b8acd55f43b1bcbbdfaccf4159a4ee2bb684afb9d11e9404018",
@@ -113,19 +113,19 @@
       }
     },
     "CrossLangDemo": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "fingerprints": {
         "structureHash": "71d823292c9af46ae6c5c796708c1053f5720a139f266a51aba596460ade1e2f",
         "schemaHash": "91225ee290ec3a9e58f6c2fb33891c67fdd0b0fdcc32dd20c5a7d288faed99fc",
-        "implHash": "b89ae8d92f61b32a1f8d1af69a3d2adc6d14e4afe550977d718349459788f39b"
+        "implHash": "4c59249489bf8fa91209c43bb208eb007d95bd05326a7f0f15f50a0227ab4138"
       }
     },
     "TsDemo": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "fingerprints": {
         "structureHash": "75f0826ac56456b4caa3b7a9e52fcea5e63d8fe0757b3dfc85bdf7d3311f3463",
         "schemaHash": "91225ee290ec3a9e58f6c2fb33891c67fdd0b0fdcc32dd20c5a7d288faed99fc",
-        "implHash": "fb4a7b0ba6a8be5353190ff11d03ecddf6a465b1515a2d246dd3806b0bfd87f8"
+        "implHash": "06899aba20de5cfd265d68765b1afec1fad3abd29c40c710a573438a69b1d48f"
       }
     },
     "LoopWaitDemo": {
@@ -137,19 +137,19 @@
       }
     },
     "ParDemo": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "fingerprints": {
         "structureHash": "d2fac41295cf2a6bdce86f98b25c172f74e575ae23267e1a9054fca96f2734ea",
         "schemaHash": "c4f91c4ce4cb60ad11853016042bc74c93236aab14f530e7602457fb53bfbe4a",
-        "implHash": "a0d016a48a24d2e0d064674a7d32bc295c1d6bb7df7eee8de92f46fe72c10521"
+        "implHash": "b7140f33582a82db2841d00bea7e5bf3315745c68aa275fa5367639798527529"
       }
     },
     "TryCatchDemo": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "fingerprints": {
         "structureHash": "bcee1b17024896cdc164d157cfc12b2cf33be88a9572b5eee8723daeaf024068",
         "schemaHash": "5f820fe374633d60719ae594bc675b225a0bfaf011f72203bd1f8857a096e135",
-        "implHash": "d16b4f43e6bff985a937dcb93e77312a15f9c2d0a6f8b62cf71b8dee6756defb"
+        "implHash": "8574c7861f088802b5fb8bc5bcf3b8944d20a27c0829c0d0fa0b2a18d99419e4"
       }
     },
     "ComputeSquare": {
@@ -161,11 +161,11 @@
       }
     },
     "InvokeDemo": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "fingerprints": {
         "structureHash": "4a061b1a788075f188c4d94ace03e9ad338a65e95430c16a10dcbca7671528c1",
         "schemaHash": "38619be48e8c92713d985a46f3a64c2d864543de5ddcf289f0024992d97e89f1",
-        "implHash": "b0c700c1c1b586e340d3e8db8bb767cedc19724ceb82a8b4ffc000e4af157d19"
+        "implHash": "443c7195f8628169e0b14967a590ed2b7d1c1a18d2b6f41281a5c818dc9af0f2"
       }
     },
     "BackgroundTask": {
@@ -177,23 +177,23 @@
       }
     },
     "SpawnEmitDemo": {
-      "version": "0.1.0",
+      "version": "1.0.0",
       "fingerprints": {
-        "structureHash": "1efe4f46d27f7d4beedd8d9c65f19354ae15a01c8c182d4beb49a97a6250ad1f",
+        "structureHash": "ad5738fcf15bf4729881cd95cb007215b03b1ba5308efa8707ca5d7669da38d6",
         "schemaHash": "9697e5f70fda03c84bdca3be81d2820c296901e4625f462fe3d238731765b440",
-        "implHash": "855c6be76236287e078d6e497304538115455250b377d308ed33eb52ebe2d6f4"
+        "implHash": "8c52cc8e925e02a180cf7a0f372872be685b61281be42e080ff726119bbc8615"
       }
     },
     "CrossLangE2E": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "fingerprints": {
         "structureHash": "195cb71074986958fd07361ca1978163ba2c008a8c1e48db32394507b6bbf4af",
         "schemaHash": "a89f7e4dd65f1129a20f16db3ba04c04e36c3a75df9ccc5c85d7e583322eec10",
-        "implHash": "5c80e6c81dfca5231a5d540dcbeccee4c142ac05d7614ff2b548e44010df97e9"
+        "implHash": "0da0f3257eaec0619247da9817066c06519771fa6292612e0331de2719d8849c"
       }
     },
     "TaskProcessing": {
-      "version": "1.0.0",
+      "version": "9.0.0",
       "fingerprints": {
         "structureHash": "34e75a52967bea85a7eaea875a13756c2ca39b44e69781293d89238348e70de4",
         "schemaHash": "62a3629ef9e82183f520e42d013626129661bc6d239e4699136e8d24f7548524",
@@ -201,27 +201,27 @@
       }
     },
     "ScatterGather": {
-      "version": "0.1.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "def605e4f59e93b0afd363df04740b12f28d6789928ceae7f706a12aa9d07a9d",
+        "structureHash": "4b9e863f4df99647b8c8bac1655b21959d44f14bde2290d38d229977b3e57521",
         "schemaHash": "8c6125df20a1350af9420d644cbbbbd5947228645c78e88869e9d0802390ca82",
-        "implHash": "5b9ce7a4af9f73809b5a8e6e841ee2da0533deef00c53bbe5b859177a441280f"
+        "implHash": "6a6eeaebc1c8a1e6395cda7152f0d6b8e2960a9a01296da87902be7f37585c2f"
       }
     },
     "CallForProposal": {
-      "version": "0.1.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "a422adeeeb01b490189107c74145d735055b12b93f6df1981f20bf5740d7e22b",
+        "structureHash": "0cbef6149253f314e3ba8e18a3062278a7a8527744d2fb95faf6edcc4598abb5",
         "schemaHash": "4f9f4b174f28486e6e78bfc899421efbbca51c77b7407c7a13f4f41e7d5bd324",
-        "implHash": "503b7d0d9b8012f688a3cdfa148db9351acf50b9f5098b7c55b14f27aed6e564"
+        "implHash": "df6fdf958488e632e9684efb656438dd99b85d67a0135c3aaa6b145452fcaeb4"
       }
     },
     "TaskExecutionLegacy": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "fingerprints": {
         "structureHash": "01911d35016f64476a575e146f41948fa59adc9a34017698af0ca82ae289281f",
         "schemaHash": "21b81feb8eddceb596f9a7440f752f4c88125168661be87c564d13c0cdcb6031",
-        "implHash": "8503bb61c8c82a8557f3b01b2e69c61bef193807312e6d87ceccc908f7cc2357"
+        "implHash": "29dcfca63652a985ae678e2006127aaec844e84cf23e05c70f89275e1fb3fc44"
       }
     },
     "TickCycle": {
@@ -275,7 +275,7 @@
   },
   "roles": {
     "CommaRole": {
-      "version": "1.0.0",
+      "version": "9.0.0",
       "fingerprints": {
         "playsHash": "c1ebfa09d085bb379a098f050b87cf4193b64714849da7c36480462d18cdc6da",
         "behaviorHash": "6c9a6242fca2132097085defabab7de2d62f526f498be33d020ef4d1c8ea4c4a"
@@ -303,7 +303,7 @@
       }
     },
     "ClientRole": {
-      "version": "1.0.0",
+      "version": "9.0.0",
       "fingerprints": {
         "playsHash": "b76f597652948f594cc416cc68440db056a7ab1fcb88941d40a88baca107c85d",
         "behaviorHash": "1d94d231fa3a852cb62d7479767f8b0ba72d50c2f14841c94594c9e1cc10ae1b"
@@ -324,17 +324,17 @@
       }
     },
     "ResponderRole": {
-      "version": "1.0.0",
+      "version": "9.0.0",
       "fingerprints": {
         "playsHash": "a510b51c13195b0bac9860cc7e98443422e6fa788519adf2ec959b6cc11fbd0c",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
       }
     },
     "CoordinatorRole": {
-      "version": "2.0.0",
+      "version": "10.0.0",
       "fingerprints": {
-        "playsHash": "6785e1975863511ee4e980ad46d00f7384636f13214197376d634e8f9ce52287",
-        "behaviorHash": "e1b537472e593fd6ea913513dbc2191b7b9a9a4f8ca9e8ebe69eec17f9eabf91"
+        "playsHash": "ce296cb2d6edeb3ca7f91bdf2349d5881fd8b1485f5d1cdc77e7110e45e58ff3",
+        "behaviorHash": "995b644300b189b4641ffd1df5e563f14cd2a0ceeeb1133c867698328de1ca21"
       }
     },
     "WorkerARole": {
@@ -408,7 +408,7 @@
       }
     },
     "WorkerRole": {
-      "version": "2.0.0",
+      "version": "14.0.0",
       "fingerprints": {
         "playsHash": "4d54b72529259e93121f752edb404bafb9427978f0f71071caa4480ba50da71d",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"

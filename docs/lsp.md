@@ -49,11 +49,11 @@ Both layers are required. TextMate gives instant visual feedback on every keystr
 |---|---|---|
 | **Document symbols** | Outline view: protocols (Class), roles (Struct), agents (Object), messages (Event) with children (participants, plays, fields) | Done |
 | **Go-to-definition** | Message name → `message Name {}`, protocol → `protocol Name {}`, role → `role Name {}`, agent → `agent Name`. Single-file only. | Done |
-| **Hover** | Message schema with fields, protocol signature (participants, initiator, input), role definition (plays, extends), agent (runs), built-in `$ctx`/`$flow`/`$self`/`$agent` docs | Done |
-| **Completion** | Context-aware: top-level keywords, participants after `-->`, messages after `:`, protocols after `invokes`/`spawns`/`plays`, roles after `runs`/`extends`/`as`, `$ctx`/`$flow`/`$self`/`$agent` | Done |
+| **Hover** | Message schema with fields, protocol signature (participants, initiator, input), role definition (plays, extends), agent (runs), built-in `$ctx`/`$self`/`$agent` docs | Done |
+| **Completion** | Context-aware: top-level keywords, participants after `-->`, messages after `:`, protocols after `invokes`/`spawns`/`plays`, roles after `runs`/`extends`/`as`, `$ctx`/`$self`/`$agent` | Done |
 | **Parse diagnostics** | Real-time syntax errors from parser with source locations | Done |
 | **Semantic diagnostics** | Undefined participant in message step, initiator not in participants, agent runs undefined role, role plays/extends undefined | Done |
-| **TextMate grammar** | Keywords (`protocol`, `message`, `role`, `agent`, `scatter`, `loop`, `alt`, `par`, `invoke`, `spawn`, etc.), arrows, strings, comments, numbers, zone keywords (`$ctx`, `$flow`, `$self`, `$agent`, `await`, Python/JS keywords, operators, builtins). Single-line and multi-line `message` defs. | Done |
+| **TextMate grammar** | Keywords (`protocol`, `message`, `role`, `agent`, `scatter`, `loop`, `alt`, `par`, `invoke`, `spawn`, etc.), arrows, strings, comments, numbers, zone keywords (`$ctx`, `$self`, `$agent`, `await`, Python/JS keywords, operators, builtins). `$flow` highlighted as deprecated. | Done |
 
 ### Known issues
 
@@ -88,7 +88,7 @@ Both layers are required. TextMate gives instant visual feedback on every keystr
 | L-05 | **Find all references** | For a symbol (message, protocol, role, agent, participant) — find all usages across the workspace. | 1d |
 | L-06 | **Rename symbol** | Rename a message, protocol, role, or agent across all files that reference it. Uses workspace index. | 1.5d |
 | L-07 | **`where {}` completion** | Inside `alt ... where { }` blocks, suggest field names from the corresponding message type schema. | 0.5d |
-| L-08 | **`$flow.field` hover** | Show which role last wrote `$flow.someField` (trace origin tracking across the protocol flow). Requires walking the IR or AST to find the assignment site. | 1d |
+| ~~L-08~~ | ~~**`$flow.field` hover**~~ | Removed — `$flow` no longer exists (v0.0.11). | — |
 | L-09 | **Version/fingerprint hover** | Hover on a protocol name shows its version (from `reagent.lock`) and fingerprint hashes (if compiled IR is available). | 0.5d |
 | L-10 | **Diagnostic: scatter type** | Warn if scatter collection variable is not an array/iterable. Warn on undeclared scatter iterator variable. | 0.5d |
 | L-11 | **Diagnostic: message field usage** | Warn if `onSend` assigns a field not in the message schema, or if `onReceive` reads an undefined field. | 1d |
@@ -103,7 +103,7 @@ Both layers are required. TextMate gives instant visual feedback on every keystr
 | L-15 | **Code actions: refactor** | "Extract protocol" — select a section of protocol body, extract into a new `protocol` with `invokes`. | 1.5d |
 | L-16 | **Folding ranges** | Semantic folding for `protocol`, `role`, `message`, `loop`, `alt`, `par`, `scatter`, `try/catch` blocks. Currently relies on brace-based folding from `language-configuration.json`. | 0.5d |
 | L-17 | **Document formatting** | Auto-format `.rg` files: consistent indentation, alignment of arrows, spacing. | 2d |
-| L-18 | **Inlay hints** | Show inferred types or participant names inline: e.g., `scatter ($flow.items as entity)` could show item count from last trace run. | 1d |
+| L-18 | **Inlay hints** | Show inferred types or participant names inline: e.g., `scatter ($ctx.items as entity)` could show item count from last trace run. | 1d |
 | L-19 | **Diagnostic: version mismatch** | Compare compile-time fingerprint with `reagent.lock`; warn if protocol needs recompilation. | 0.5d |
 | L-20 | **Call hierarchy** | Incoming/outgoing calls for protocols: which protocols `invoke`/`spawn` this one, and which ones this one `invoke`s/`spawn`s. | 1d |
 | L-21 | **Zone embedded language** | Delegate zone bodies to host-language LSPs (TypeScript Server, Pylance) via virtual documents for full host-language intelligence inside zones. | 3d |
@@ -149,7 +149,7 @@ Both layers are required. TextMate gives instant visual feedback on every keystr
 
 **Goal**: deep Reagent-specific intelligence.
 
-- `$flow.field` hover with origin tracking (`L-08`)
+- ~~`$flow.field` hover~~ (removed — `$flow` no longer exists)
 - Version/fingerprint hover (`L-09`)
 - `$agent.method()` completion (`L-12`)
 - Signature help for `reagent.*` (`L-13`)
@@ -220,7 +220,7 @@ Proposed token types:
 | `struct` | Role names |
 | `type` | Message names |
 | `variable` | Agent names, participant names |
-| `parameter` | `$ctx`, `$flow`, `$self`, `$agent` |
+| `parameter` | `$ctx`, `$self`, `$agent` |
 | `function` | `reagent.invoke`, `reagent.spawn`, etc. |
 | `keyword` | `protocol`, `role`, `agent`, `message`, `scatter`, etc. |
 

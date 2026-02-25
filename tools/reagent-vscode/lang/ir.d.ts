@@ -1,5 +1,5 @@
 /**
- * Reagent IR — v0.0.8
+ * Reagent IR — v0.0.11
  *
  * Three levels of IR:
  *
@@ -60,8 +60,6 @@ export type IRSendData = {
     preSendZone?: string;
     /** If true, preSendZone contains `await` and requires async execution */
     preSendAsync?: boolean;
-    /** If true, $flow is serialized into the envelope on send */
-    propagateFlow?: boolean;
 };
 export type IRReceiveData = {
     kind: "receive";
@@ -74,8 +72,6 @@ export type IRReceiveData = {
     postReceiveAsync?: boolean;
     /** Pattern/guard for message matching in alt branches */
     pattern?: Record<string, string>;
-    /** If true, $flow is deserialized from the envelope on receive */
-    propagateFlow?: boolean;
 };
 export type IRActionData = {
     kind: "action";

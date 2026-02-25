@@ -1,0 +1,72 @@
+{
+  "agents": [
+    {
+      "agentName": "ClientAgent",
+      "lang": "ts",
+      "roleName": "ClientRole",
+      "agentIRFile": "ClientAgent.agent.json",
+      "roleIRFile": "ClientRole.role.json",
+      "roles": [
+        {
+          "protocolName": "TaskProcessing",
+          "roleName": "client",
+          "irGraphFile": "TaskProcessing.client.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "MonitorAgent",
+      "lang": "ts",
+      "roleName": "MonitorRole",
+      "agentIRFile": "MonitorAgent.agent.json",
+      "roleIRFile": "MonitorRole.role.json",
+      "roles": [
+        {
+          "protocolName": "HealthCheck",
+          "roleName": "monitor",
+          "irGraphFile": "HealthCheck.monitor.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "WorkerAgent",
+      "lang": "ts",
+      "roleName": "WorkerRole",
+      "agentIRFile": "WorkerAgent.agent.json",
+      "roleIRFile": "WorkerRole.role.json",
+      "roles": [
+        {
+          "protocolName": "TaskProcessing",
+          "roleName": "worker",
+          "irGraphFile": "TaskProcessing.worker.ir.json"
+        },
+        {
+          "protocolName": "HealthCheck",
+          "roleName": "worker",
+          "irGraphFile": "HealthCheck.worker.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "TaskProcessing.client": "ClientAgent",
+    "HealthCheck.monitor": "MonitorAgent",
+    "TaskProcessing.worker": "WorkerAgent",
+    "HealthCheck.worker": "WorkerAgent"
+  },
+  "roles": [
+    {
+      "name": "ClientRole",
+      "file": "ClientRole.role.json"
+    },
+    {
+      "name": "MonitorRole",
+      "file": "MonitorRole.role.json"
+    },
+    {
+      "name": "WorkerRole",
+      "file": "WorkerRole.role.json"
+    }
+  ],
+  "messages": "messages.json"
+}

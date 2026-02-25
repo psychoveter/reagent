@@ -1,0 +1,22 @@
+[
+  {
+    "name": "TaskA",
+    "fields": []
+  },
+  {
+    "name": "TaskB",
+    "fields": []
+  },
+  {
+    "name": "ResultA",
+    "fields": []
+  },
+  {
+    "name": "ResultB",
+    "fields": []
+  },
+  {
+    "name": "Summary",
+    "fields": []
+  }
+]

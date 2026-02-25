@@ -1,0 +1,52 @@
+{
+  "entries": [
+    {
+      "stateId": "act_2",
+      "protocolName": "CallLlm",
+      "role": "caller",
+      "file": "examples/protocols/src/lib/call-llm.rg",
+      "line": 14,
+      "column": 3
+    },
+    {
+      "stateId": "send_3",
+      "protocolName": "CallLlm",
+      "role": "caller",
+      "file": "examples/protocols/src/lib/call-llm.rg",
+      "line": 22,
+      "column": 3
+    },
+    {
+      "stateId": "recv_4",
+      "protocolName": "CallLlm",
+      "role": "caller",
+      "file": "examples/protocols/src/lib/call-llm.rg",
+      "line": 34,
+      "column": 3
+    },
+    {
+      "stateId": "act_5",
+      "protocolName": "CallLlm",
+      "role": "caller",
+      "file": "examples/protocols/src/lib/call-llm.rg",
+      "line": 40,
+      "column": 3
+    },
+    {
+      "stateId": "recv_8",
+      "protocolName": "CallLlm",
+      "role": "llmbroka",
+      "file": "examples/protocols/src/lib/call-llm.rg",
+      "line": 22,
+      "column": 3
+    },
+    {
+      "stateId": "send_9",
+      "protocolName": "CallLlm",
+      "role": "llmbroka",
+      "file": "examples/protocols/src/lib/call-llm.rg",
+      "line": 34,
+      "column": 3
+    }
+  ]
+}

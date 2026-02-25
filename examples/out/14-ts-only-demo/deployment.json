@@ -1,0 +1,47 @@
+{
+  "agents": [
+    {
+      "agentName": "ClientAgent",
+      "lang": "ts",
+      "roleName": "ClientRole",
+      "agentIRFile": "ClientAgent.agent.json",
+      "roleIRFile": "ClientRole.role.json",
+      "roles": [
+        {
+          "protocolName": "TsDemo",
+          "roleName": "client",
+          "irGraphFile": "TsDemo.client.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "HandlerAgent",
+      "lang": "ts",
+      "roleName": "HandlerRole",
+      "agentIRFile": "HandlerAgent.agent.json",
+      "roleIRFile": "HandlerRole.role.json",
+      "roles": [
+        {
+          "protocolName": "TsDemo",
+          "roleName": "handler",
+          "irGraphFile": "TsDemo.handler.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "TsDemo.client": "ClientAgent",
+    "TsDemo.handler": "HandlerAgent"
+  },
+  "roles": [
+    {
+      "name": "ClientRole",
+      "file": "ClientRole.role.json"
+    },
+    {
+      "name": "HandlerRole",
+      "file": "HandlerRole.role.json"
+    }
+  ],
+  "messages": "messages.json"
+}

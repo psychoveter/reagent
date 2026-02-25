@@ -1,0 +1,44 @@
+{
+  "entries": [
+    {
+      "stateId": "send_2",
+      "protocolName": "ValidateIntentWithSia",
+      "role": "comma",
+      "file": "examples/protocols/src/lib/validate-intent-with-sia.rg",
+      "line": 14,
+      "column": 3
+    },
+    {
+      "stateId": "act_6",
+      "protocolName": "ValidateIntentWithSia",
+      "role": "comma",
+      "file": "examples/protocols/src/lib/validate-intent-with-sia.rg",
+      "line": 21,
+      "column": 5
+    },
+    {
+      "stateId": "act_8",
+      "protocolName": "ValidateIntentWithSia",
+      "role": "comma",
+      "file": "examples/protocols/src/lib/validate-intent-with-sia.rg",
+      "line": 23,
+      "column": 5
+    },
+    {
+      "stateId": "act_9",
+      "protocolName": "ValidateIntentWithSia",
+      "role": "comma",
+      "file": "examples/protocols/src/lib/validate-intent-with-sia.rg",
+      "line": 26,
+      "column": 3
+    },
+    {
+      "stateId": "recv_12",
+      "protocolName": "ValidateIntentWithSia",
+      "role": "sia",
+      "file": "examples/protocols/src/lib/validate-intent-with-sia.rg",
+      "line": 14,
+      "column": 3
+    }
+  ]
+}

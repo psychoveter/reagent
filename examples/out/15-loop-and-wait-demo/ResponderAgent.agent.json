@@ -1,0 +1,6 @@
+{
+  "agentName": "ResponderAgent",
+  "lang": "ts",
+  "roleName": "ResponderRole",
+  "roleFile": "ResponderRole.role.json"
+}

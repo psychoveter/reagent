@@ -1,0 +1,29 @@
+{
+  "roleName": "ResponderRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "LoopWaitDemo",
+      "roleName": "responder"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.pingsReceived = 0\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolCompleted",
+      "protocolFilter": "LoopWaitDemo",
+      "action": {
+        "body": "\n    $self.lastCompletedAt = Date.now()\n  ",
+        "lang": "ts"
+      }
+    }
+  ],
+  "version": "8.0.0",
+  "fingerprints": {
+    "playsHash": "08de848d9563eb25b838f76d0006e5e7116fa94e4c999a37db08534bc5857d7f",
+    "behaviorHash": "8e44e71cc190f92d33ab7a43eb964452f7458ab76e4aee797a6d1aa619ae0532"
+  }
+}

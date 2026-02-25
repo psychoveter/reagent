@@ -1,5 +1,5 @@
 /**
- * Reagent IR Emitter — v0.0.8
+ * Reagent IR Emitter — v0.0.11
  *
  * Transforms AST nodes into IR:
  * - ProtocolDef → set of IRGraphs (one per role)

@@ -1,5 +1,5 @@
 /**
- * M5-LANG Functional E2E Tests (v0.0.8)
+ * M5-LANG Functional E2E Tests (v0.0.11)
  *
  * T28: $flow propagation (write on A, message to B, read on B)
  * T29: $ctx isolation (write on A, message to B, B cannot read A's $ctx)
@@ -74,10 +74,10 @@ function recordResult(name: string, passed: boolean, error?: string) {
   console.log(`  ${passed ? "✓" : "✗"} ${name}${error ? ": " + error : ""}`);
 }
 
-test("M5-LANG tests (v0.0.8)", async () => {
-  // ── T28: $flow propagation ───────────────────────────────────────
-  // TsDemo: client writes $flow.queryText, sends Query to handler,
-  // handler reads $flow.queryText from the propagated flow
+test("M5-LANG tests (v0.0.11)", async () => {
+  // ── T28: $ctx and message passing ──────────────────────────────────
+  // TsDemo: client writes $ctx.queryText, sends Query to handler,
+  // handler reads from message payload
   try {
     const dir = join(EXAMPLES_OUT, "14-ts-only-demo");
     const { rc, deployment } = createSingleNodeSetup(dir, [
@@ -112,9 +112,9 @@ test("M5-LANG tests (v0.0.8)", async () => {
     assert.ok(hTraces.some(t => t.kind === "MessageReceived"), "Handler should have MessageReceived trace");
 
     await rc.stop();
-    recordResult("T28: $flow propagation", true);
+    recordResult("T28: $ctx and message passing", true);
   } catch (e: any) {
-    recordResult("T28: $flow propagation", false, e.message);
+    recordResult("T28: $ctx and message passing", false, e.message);
   }
 
   // ── T29: $ctx isolation ──────────────────────────────────────────
@@ -255,7 +255,7 @@ test("M5-LANG tests (v0.0.8)", async () => {
     const buyerGraph = loadGraph(cfpDir, "CallForProposal", "buyer");
     const scatterState = buyerGraph.states.find(s => s.kind === "scatter");
     assert.ok(scatterState, "Scatter state should exist in buyer IR for CFP");
-    assert.equal((scatterState.data as any).collection, "$flow.candidates");
+    assert.equal((scatterState.data as any).collection, "$ctx.candidates");
     assert.equal((scatterState.data as any).itemRole, "seller");
 
     const sellerGraph = loadGraph(cfpDir, "CallForProposal", "seller");

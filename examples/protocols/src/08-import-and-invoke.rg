@@ -12,11 +12,11 @@ protocol TaskExecutionWithImport {
   input: TaskRequest
 
   user {
-    $flow.taskText = $ctx.input.text
+    $ctx.taskText = $ctx.input.text
   }
   user --> comma: TaskRequest = { }
 
-  comma invokes derive.DeriveDsiBsi({ taskText: $flow.taskText }) -> $flow.dsiBsi
+  comma invokes derive.DeriveDsiBsi({ taskText: $ctx.taskText }) -> $ctx.dsiBsi
 
   comma --> sia: SubmitIntent = { }
 }

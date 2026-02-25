@@ -13,7 +13,7 @@ protocol CommaAsksLlmAndReplies {
   input: TaskRequest
 
   user {
-    $flow.taskText = $ctx.input.text
+    $ctx.taskText = $ctx.input.text
   }
   user --> comma: TaskRequest = { }
 
@@ -22,7 +22,7 @@ protocol CommaAsksLlmAndReplies {
   comma {
     $ctx.llmReq = {
       system: "You are Comma. Be concise and correct.",
-      user: "Rewrite this task as a precise plan:\n\n" + $flow.taskText,
+      user: "Rewrite this task as a precise plan:\n\n" + $ctx.taskText,
       model: "gpt-5.2",
       temperature: 0.2
     }
@@ -30,11 +30,11 @@ protocol CommaAsksLlmAndReplies {
 
   comma invokes llm.CallLlm($ctx.llmReq) {
     llmbroka: llmbroka
-  } -> $flow.llmAnswer
+  } -> $ctx.llmAnswer
 
   comma --> user: LlmPlan = {
     onSend {
-      $ctx.msg.text = $flow.llmAnswer
+      $ctx.msg.text = $ctx.llmAnswer
     }
   }
 }

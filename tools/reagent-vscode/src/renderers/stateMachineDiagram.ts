@@ -114,7 +114,7 @@ export function renderStateMachineDiagram(data: StateMachineDiagramData, opts: S
     const debug = smDebugClass(n.stateId, opts);
     const srcAttr = smSourceAttr(n.stateId, opts.sourceFile ?? '', opts.sourceMap);
 
-    svg += `<g class="sm-node ${debug}" ${srcAttr}>`;
+    svg += `<g class="sm-node ${debug}" data-state-id="${esc(n.stateId)}" ${srcAttr}>`;
 
     switch (n.shape) {
       case "circle":

@@ -162,9 +162,16 @@ class ReagentController:
                     graphs[graph_key] = json.load(f)
 
             extras: Optional[dict[str, Any]] = None
+            role_name_lower = agent_entry.get("roleName", "").lower()
+            agent_name_lower = agent_name.lower()
+            agent_base_lower = agent_name_lower.rstrip("0123456789")
+            agents_dir = os.path.join(ir_dir, "..", "agents")
             manifest_candidates = [
                 os.path.join(ir_dir, f"{agent_name}.manifest.json"),
-                os.path.join(ir_dir, "..", "agents", f"{agent_name.lower()}.agent.json"),
+                os.path.join(agents_dir, agent_name_lower, "agent.json"),
+                os.path.join(agents_dir, agent_base_lower, "agent.json"),
+                os.path.join(agents_dir, role_name_lower, "agent.json"),
+                os.path.join(agents_dir, f"{agent_name_lower}.agent.json"),
             ]
             for mp in manifest_candidates:
                 if os.path.exists(mp):
@@ -220,6 +227,66 @@ class ReagentController:
             ],
         }
 
+    # ── Introspection ──────────────────────────────────────────────
+
+    def dump(self) -> dict[str, Any]:
+        """Return a structured snapshot of the controller's internal tables."""
+        agents_info = []
+        for name, handle in self._agents.items():
+            owner = self._agent_owners.get(name)
+            owner_lang = "?"
+            for lang, node in self._agent_nodes.items():
+                if node is owner:
+                    owner_lang = lang
+                    break
+            agents_info.append({
+                "name": name,
+                "lang": owner_lang,
+                "route": self._routing_table.get(name, "?"),
+            })
+
+        protocols_info = []
+        for entry in self.registry.list():
+            protocols_info.append({
+                "name": entry.name,
+                "version": entry.version,
+                "agents": self.registry.agents_for_protocol(entry.name),
+                "graphs": list(entry.ir_graphs.keys()),
+            })
+
+        routing = dict(self._routing_table)
+
+        return {
+            "nodeId": self.node_id,
+            "agents": agents_info,
+            "protocols": protocols_info,
+            "routing": routing,
+            "agentNodes": list(self._agent_nodes.keys()),
+        }
+
+    def dump_pretty(self) -> str:
+        """Return a human-readable summary of the controller's state."""
+        d = self.dump()
+        lines = [f"=== RC [{d['nodeId']}] ==="]
+
+        lines.append(f"\nAgent nodes: {', '.join(d['agentNodes']) or '(none)'}")
+
+        lines.append(f"\nAgents ({len(d['agents'])}):")
+        for a in d["agents"]:
+            lines.append(f"  {a['name']:20s}  lang={a['lang']}  route={a['route']}")
+
+        lines.append(f"\nProtocols ({len(d['protocols'])}):")
+        for p in d["protocols"]:
+            lines.append(f"  {p['name']} v{p['version']}")
+            lines.append(f"    agents: {', '.join(p['agents'])}")
+            lines.append(f"    graphs: {', '.join(p['graphs'])}")
+
+        lines.append(f"\nRouting table ({len(d['routing'])}):")
+        for agent, route in d["routing"].items():
+            lines.append(f"  {agent:20s} → {route}")
+
+        return "\n".join(lines)
+
     # ── Interceptor chain ─────────────────────────────────────────
 
     def add_interceptor(self, fn: InterceptorFn) -> None:
@@ -234,6 +301,12 @@ class ReagentController:
     async def stop(self) -> None:
         for handle in self._agents.values():
             await handle.stop()
+
+    def set_advance_hook(self, hook: Any) -> None:
+        """Propagate advance hook to all agent node backends."""
+        for node in self._agent_nodes.values():
+            if hasattr(node, "set_advance_hook"):
+                node.set_advance_hook(hook)
 
     # ── External trigger ──────────────────────────────────────────
 
@@ -263,7 +336,10 @@ class ReagentController:
 
         route = self._routing_table.get(target_agent)
         if not route:
-            log.warning("[RC %s] No route for agent %s", self.node_id, target_agent)
+            if hasattr(self, "_route_envelope_remote"):
+                self._route_envelope_remote(envelope)
+            else:
+                log.warning("[RC %s] No route for agent %s", self.node_id, target_agent)
             return
 
         direction: MessageDirection = "loopback" if route == "local" else "outbound"

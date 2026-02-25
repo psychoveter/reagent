@@ -523,8 +523,8 @@ connection.onHover((params: TextDocumentPositionParams): Hover | null => {
 
   if (word.startsWith("$")) {
     const builtins: Record<string, string> = {
-      "$ctx": "**$ctx** — per-role isolated working memory. Each role has its own `$ctx`.\n\nFixed fields: `$ctx.instanceId`, `$ctx.input`, `$ctx.msg`, `$ctx.error`",
-      "$flow": "**$flow** — message-propagated state. Written by one role, carried with messages, readable by the receiving role.\n\nInside scatter: `$flow._scatterItem`, `$flow._scatterIdx`",
+      "$ctx": "**$ctx** — per-role isolated working memory. Each role has its own `$ctx`.\n\nFixed fields: `$ctx.instanceId`, `$ctx.input`, `$ctx.msg`, `$ctx.error`\n\nInside scatter: `$ctx._scatterItem`, `$ctx._scatterIdx`",
+      "$flow": "**$flow** — REMOVED in v0.0.11. Use `$ctx` instead.",
       "$self": "**$self** — role-level persistent state. Survives across protocol instances.",
       "$agent": "**$agent** — optional native module binding. Present when `agent.json` has a `module` field.\n\nProvides access to host-language methods (e.g. `await $agent.think(prompt)`).",
     };
@@ -610,7 +610,6 @@ connection.onCompletion((params: CompletionParams): CompletionItem[] => {
   if (trimmed.startsWith("$")) {
     return [
       { label: "$ctx", kind: CompletionItemKind.Variable, detail: "per-role isolated context" },
-      { label: "$flow", kind: CompletionItemKind.Variable, detail: "message-propagated state" },
       { label: "$self", kind: CompletionItemKind.Variable, detail: "role-level persistent state" },
       { label: "$agent", kind: CompletionItemKind.Variable, detail: "native module binding" },
     ];

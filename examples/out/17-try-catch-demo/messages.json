@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Request",
+    "fields": []
+  },
+  {
+    "name": "Result",
+    "fields": []
+  },
+  {
+    "name": "Failure",
+    "fields": []
+  }
+]

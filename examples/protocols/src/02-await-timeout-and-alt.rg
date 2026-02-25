@@ -14,7 +14,7 @@ protocol AwaitTimeoutAlt {
 
   comma --> sia: SubmitIntent = {
     onSend {
-      $ctx.msg.intent = $flow.intent
+      $ctx.msg.intent = $ctx.intent
     }
   }
 

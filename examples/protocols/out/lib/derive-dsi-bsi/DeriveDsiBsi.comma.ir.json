@@ -1,0 +1,57 @@
+{
+  "protocolName": "DeriveDsiBsi",
+  "role": "comma",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.dsiBsi = taskToDsiBsi($ctx.input.taskText)\n    reagent.return($ctx.dsiBsi)\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "end_3",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "act_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_2",
+      "to": "end_3",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_3"
+  ],
+  "version": "0.1.0",
+  "fingerprints": {
+    "structureHash": "075bd4a0778079275c6c058cacf873254a679da9b91628582022e94e29d02541",
+    "schemaHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "implHash": "5b41dd44480c7ea9ffe4d0da0a33bc53f0c393ea344504773293ed8c88cfd8a3"
+  }
+}

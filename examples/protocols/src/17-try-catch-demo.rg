@@ -11,12 +11,12 @@ protocol TryCatchDemo {
   input: Request
 
   sender {
-    $flow.requestText = $ctx.input.text
+    $ctx.requestText = $ctx.input.text
   }
 
   sender --> processor: Request = {
     onSend {
-      $ctx.msg.text = $flow.requestText
+      $ctx.msg.text = $ctx.requestText
     }
     onReceive {
       $ctx.requestText = $ctx.msg.text

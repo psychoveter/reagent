@@ -1,0 +1,6 @@
+{
+  "agentName": "SellerAgent",
+  "lang": "ts",
+  "roleName": "SellerRole",
+  "roleFile": "SellerRole.role.json"
+}

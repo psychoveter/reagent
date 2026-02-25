@@ -25,6 +25,7 @@ class InprocAgentNode:
     ) -> None:
         self._role_to_agent = role_to_agent
         self._advance_hook = advance_hook
+        self._handles: list["InprocAgentHandle"] = []
 
     @property
     def runtime_name(self) -> str:
@@ -59,7 +60,14 @@ class InprocAgentNode:
             config["extras"] = extras
 
         runner = AgentRunner(config)
-        return InprocAgentHandle(name, runner)
+        handle = InprocAgentHandle(name, runner)
+        self._handles.append(handle)
+        return handle
+
+    def set_advance_hook(self, hook: Optional[Any]) -> None:
+        self._advance_hook = hook
+        for h in self._handles:
+            h.runner.set_advance_hook(hook)
 
     async def destroy_agent(self, handle: "InprocAgentHandle") -> None:
         await handle.stop()

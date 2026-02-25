@@ -263,10 +263,10 @@ protocol MainProto {
     onReceive { $ctx.value = $ctx.msg.value }
   }
 
-  b invokes SubProto({ value: $ctx.value }) -> $flow.result
+  b invokes SubProto({ value: $ctx.value }) -> $ctx.result
 
   b --> a: Result = {
-    onSend { $ctx.msg.data = $flow.result }
+    onSend { $ctx.msg.data = $ctx.result }
     onReceive { $self.result = $ctx.msg.data }
   }
 }

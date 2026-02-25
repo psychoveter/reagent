@@ -1,5 +1,5 @@
 // Example 15: loop + wait demo for runtime E2E tests
-// $ctx.iteration is per-role (poller only). Data crosses roles via $flow and $ctx.msg.
+// $ctx.iteration is per-role (poller only). Data crosses roles via $ctx and $ctx.msg.
 
 message Ping {}
 message Pong {}

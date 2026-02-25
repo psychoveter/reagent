@@ -1,0 +1,6 @@
+{
+  "agentName": "ServerAgent",
+  "lang": "py",
+  "roleName": "ServerRole",
+  "roleFile": "ServerRole.role.json"
+}

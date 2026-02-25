@@ -868,7 +868,7 @@ function pTryStmt(c: Cursor): TryStmt | null {
 }
 
 // ── Invoke statement ────────────────────────────────────────────────
-// Syntax: <role> invokes <Proto>(args) { roleMap } -> $flow.target
+// Syntax: <role> invokes <Proto>(args) { roleMap } -> $ctx.target
 
 function pInvokeStmtFromIdent(c: Cursor, callerRole: string, startPos: ReturnType<Cursor["pos"]>): InvokeStmt | null {
   // `invokes` keyword already peeked by caller; consume it
@@ -928,7 +928,7 @@ function pInvokeStmtFromIdent(c: Cursor, callerRole: string, startPos: ReturnTyp
 
   skipWSAndComments(c);
 
-  // Optional result target: `-> $flow.dsiBsi`
+  // Optional result target: `-> $ctx.dsiBsi`
   let resultTarget: string | undefined;
   if (c.startsWith("->")) {
     c.advance(2);

@@ -1,0 +1,47 @@
+{
+  "agents": [
+    {
+      "agentName": "Comma",
+      "lang": "ts",
+      "roleName": "CommaRole",
+      "agentIRFile": "Comma.agent.json",
+      "roleIRFile": "CommaRole.role.json",
+      "roles": [
+        {
+          "protocolName": "TaskExecutionFromEvent",
+          "roleName": "comma",
+          "irGraphFile": "TaskExecutionFromEvent.comma.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "Sia",
+      "lang": "*",
+      "roleName": "SiaRole",
+      "agentIRFile": "Sia.agent.json",
+      "roleIRFile": "SiaRole.role.json",
+      "roles": [
+        {
+          "protocolName": "TaskExecutionFromEvent",
+          "roleName": "sia",
+          "irGraphFile": "TaskExecutionFromEvent.sia.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "TaskExecutionFromEvent.comma": "Comma",
+    "TaskExecutionFromEvent.sia": "Sia"
+  },
+  "roles": [
+    {
+      "name": "CommaRole",
+      "file": "CommaRole.role.json"
+    },
+    {
+      "name": "SiaRole",
+      "file": "SiaRole.role.json"
+    }
+  ],
+  "messages": "messages.json"
+}

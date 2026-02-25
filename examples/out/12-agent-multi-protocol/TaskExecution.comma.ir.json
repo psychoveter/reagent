@@ -1,0 +1,117 @@
+{
+  "protocolName": "TaskExecution",
+  "role": "comma",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_5",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_6",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "user",
+        "arrow": "-->",
+        "messageName": "TaskRequest"
+      }
+    },
+    {
+      "id": "invoke_7",
+      "kind": "invoke",
+      "data": {
+        "kind": "invoke",
+        "protocolName": "derive.DeriveDsiBsi",
+        "input": "{ taskText: $ctx.taskText }",
+        "resultTarget": "$ctx.dsiBsi"
+      }
+    },
+    {
+      "id": "act_8",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $self.lastDsiBsi = $ctx.dsiBsi\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_9",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "sia",
+        "arrow": "-->",
+        "messageName": "SubmitIntent",
+        "preSendZone": "\n      $ctx.msg.ref = $ctx.dsiBsi\n    "
+      }
+    },
+    {
+      "id": "end_10",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_5",
+      "to": "recv_6",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_6",
+      "to": "invoke_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "invoke_7",
+      "to": "act_8",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_8",
+      "to": "send_9",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_9",
+      "to": "end_10",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_5",
+  "terminalStateIds": [
+    "end_10"
+  ],
+  "initiator": "user",
+  "version": "9.0.0",
+  "fingerprints": {
+    "structureHash": "c3a7cde66db7cce1dd9e3fef6be0308729a309c08272c84c80770c19348d018c",
+    "schemaHash": "3ff741769ea2af2c94ab665342ce44cb8474c89539c481b8ab462ceb042038e8",
+    "implHash": "78fbdc420e8fdc23cd0da9d1014606c82b94c38c438bdb9ad80315c081f1c38e"
+  },
+  "dependencies": [
+    {
+      "protocolName": "derive.DeriveDsiBsi",
+      "structureHash": "",
+      "version": ""
+    }
+  ]
+}

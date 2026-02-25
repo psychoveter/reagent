@@ -1,0 +1,94 @@
+{
+  "protocolName": "TaskProcessing",
+  "role": "worker",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_5",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_6",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "dispatcher",
+        "arrow": "-->",
+        "messageName": "Task",
+        "postReceiveZone": "\n      $ctx.payload = $ctx.msg.payload\n    "
+      }
+    },
+    {
+      "id": "act_7",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.result = \"processed:\" + $ctx.payload\n    $self.tasksCompleted = ($self.tasksCompleted || 0) + 1\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_8",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "dispatcher",
+        "arrow": "-->",
+        "messageName": "TaskDone",
+        "preSendZone": "\n      $ctx.msg.result = $ctx.result\n    "
+      }
+    },
+    {
+      "id": "end_9",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_5",
+      "to": "recv_6",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_6",
+      "to": "act_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_7",
+      "to": "send_8",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_8",
+      "to": "end_9",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_5",
+  "terminalStateIds": [
+    "end_9"
+  ],
+  "initiator": "dispatcher",
+  "version": "8.0.0",
+  "fingerprints": {
+    "structureHash": "06a1cd9d565a8a8ed2886f4dbe5ac9d329ad7d8e7415e01e057cc7465e7226b4",
+    "schemaHash": "a478e832eb757283f3e9a4aaf7ee176db5eeced0f5acb78e69f601fddd77c3cd",
+    "implHash": "7c9b4a576248f6224fcd98fb07175a38d2e164ca62205544957131f597f0ef8c"
+  }
+}

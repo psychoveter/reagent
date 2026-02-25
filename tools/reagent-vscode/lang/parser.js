@@ -839,7 +839,7 @@ function pTryStmt(c) {
     return { kind: "TryStmt", tryBody, catchLabel, catchBody, loc: c.locFrom(start) };
 }
 // ── Invoke statement ────────────────────────────────────────────────
-// Syntax: <role> invokes <Proto>(args) { roleMap } -> $flow.target
+// Syntax: <role> invokes <Proto>(args) { roleMap } -> $ctx.target
 function pInvokeStmtFromIdent(c, callerRole, startPos) {
     // `invokes` keyword already peeked by caller; consume it
     if (!consumeKeyword(c, "invokes"))
@@ -908,7 +908,7 @@ function pInvokeStmtFromIdent(c, callerRole, startPos) {
         }
     }
     skipWSAndComments(c);
-    // Optional result target: `-> $flow.dsiBsi`
+    // Optional result target: `-> $ctx.dsiBsi`
     let resultTarget;
     if (c.startsWith("->")) {
         c.advance(2);

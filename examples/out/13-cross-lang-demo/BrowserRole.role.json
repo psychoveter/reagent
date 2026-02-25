@@ -1,0 +1,29 @@
+{
+  "roleName": "BrowserRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "CrossLangDemo",
+      "roleName": "browser"
+    }
+  ],
+  "initAction": {
+    "body": "\n    $self.ready = true\n    $self.responsesReceived = 0\n  ",
+    "lang": "ts"
+  },
+  "lifecycleHandlers": [
+    {
+      "event": "protocolCompleted",
+      "protocolFilter": "CrossLangDemo",
+      "action": {
+        "body": "\n    $self.responsesReceived += 1\n  ",
+        "lang": "ts"
+      }
+    }
+  ],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "364697cca901b3e5495397d4392aeb599a892842445a4c896294a0af84b622c1",
+    "behaviorHash": "7351d94cc4999ec93355245432dd7df7da23c97bd99c8ca3144d5127aa8fe434"
+  }
+}
