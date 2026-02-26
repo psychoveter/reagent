@@ -30,7 +30,6 @@ export interface AgentHandle {
  * Platform abstraction for creating agents from IR.
  * Different platforms provide different implementations:
  *  - NativeAgentNode: wraps AgentRunner (TS/Python)
- *  - LososAgentNode:  wraps Losos engine (Kotlin/JVM)
  *  - LangGraphAgentNode: wraps LangGraph (Python)
  *
  * roleToAgent is NOT passed here — it's a ProtocolInstance-level concern.

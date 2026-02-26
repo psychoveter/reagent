@@ -54,8 +54,8 @@ export class DebugController {
     interceptorFn: InterceptorFn;
     advanceHook: AdvanceHook;
   } {
-    // Return existing instruments if already created
     if (this.interceptors.has(sessionId)) {
+      if (sourceMap) this.sourceMaps.set(sessionId, sourceMap);
       return {
         interceptorFn: this.interceptors.get(sessionId)!.asInterceptorFn(),
         advanceHook: this.advanceHooks.get(sessionId)!.asAdvanceHook(),
@@ -103,6 +103,17 @@ export class DebugController {
   }
 
   /**
+   * Update source map for an existing session (e.g. after recompile/redeploy).
+   * Creates the session lazily if it doesn't exist yet.
+   */
+  updateSourceMap(sessionId: string, sourceMap: SourceMap): void {
+    this.sourceMaps.set(sessionId, sourceMap);
+    if (!this.interceptors.has(sessionId)) {
+      this.createSession(sessionId, sourceMap);
+    }
+  }
+
+  /**
    * Set breakpoints for a session. Returns resolved breakpoints.
    * Lazily creates debug instruments if not yet created.
    */
@@ -140,9 +151,30 @@ export class DebugController {
         }
         case "sourceLine": {
           if (sourceMap && bp.file && bp.line !== undefined) {
-            const matchingStates = sourceMap.entries
+            // Exact match first
+            let matchingStates = sourceMap.entries
               .filter((e: SourceMapEntry) => e.file === bp.file && e.line === bp.line)
               .map((e: SourceMapEntry) => e.stateId);
+
+            // Nearest-line snapping within ±5 lines
+            if (matchingStates.length === 0) {
+              const range = 5;
+              let best: SourceMapEntry | undefined;
+              let bestDist = range + 1;
+              for (const e of sourceMap.entries) {
+                if (e.file !== bp.file) continue;
+                const dist = Math.abs(e.line - bp.line);
+                if (dist > range) continue;
+                if (dist < bestDist || (dist === bestDist && e.line > bp.line)) {
+                  best = e;
+                  bestDist = dist;
+                }
+              }
+              if (best) {
+                matchingStates = [best.stateId];
+              }
+            }
+
             if (matchingStates.length > 0) {
               stateBreakpoints.push(...matchingStates);
               resolved.push({ ...bp, resolved: true, resolvedStateIds: matchingStates });
@@ -214,8 +246,14 @@ export class DebugController {
    * Remove debug instruments for a session.
    */
   destroySession(sessionId: string): void {
+    const interceptor = this.interceptors.get(sessionId);
+    interceptor?.dispose();
     this.interceptors.delete(sessionId);
+
+    const hook = this.advanceHooks.get(sessionId);
+    hook?.continue();
     this.advanceHooks.delete(sessionId);
+
     this.sourceMaps.delete(sessionId);
   }
 }

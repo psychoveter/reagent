@@ -78,6 +78,9 @@ export class ReagentOrchestratorServer {
   private debugController: DebugController;
   private adapters = new Map<string, AdapterInfo>();
   private clusterDebugSessions = new Set<string>();
+  private _deployGeneration = 0;
+  /** Internal RC for system protocols (self-hosting). */
+  private systemRC: ReagentController | null = null;
 
   constructor(config: ROSConfig) {
     this.config = config;
@@ -94,7 +97,35 @@ export class ReagentOrchestratorServer {
     });
   }
 
+  /** Bootstrap the internal system RC for self-hosting. */
+  private initSystemRC(): void {
+    try {
+      const agentNode = new NativeAgentNode({ roleToAgent: {} });
+      this.systemRC = new ReagentController({
+        nodeId: "ros-system",
+        agentNode,
+      });
+      console.log("[ROS] System RC initialized (self-hosting bootstrap)");
+    } catch {
+      console.warn("[ROS] System RC initialization deferred — no system protocols loaded yet");
+    }
+  }
+
+  getSystemRC(): ReagentController | null {
+    return this.systemRC;
+  }
+
+  /** Returns session IDs for all active debug sessions (local + cluster). */
+  private activeDebugSessions(): string[] {
+    return [
+      ...this.sessions.getActiveSessionIds(),
+      ...this.clusterDebugSessions,
+    ];
+  }
+
   async start(): Promise<number> {
+    this.initSystemRC();
+
     return new Promise((resolve) => {
       this.wss = new WebSocketServer({ port: this.config.port }, () => {
         const addr = this.wss!.address();
@@ -115,6 +146,10 @@ export class ReagentOrchestratorServer {
   }
 
   async stop(): Promise<void> {
+    if (this.systemRC) {
+      await this.systemRC.stop();
+      this.systemRC = null;
+    }
     for (const session of this.sessions.all()) {
       await this.sessions.destroy(session.sessionId);
     }
@@ -216,6 +251,9 @@ export class ReagentOrchestratorServer {
         break;
       case "DebugStopped":
         this.handleDebugStopped(ws, msg);
+        break;
+      case "GetDeployedIR":
+        this.handleGetDeployedIR(ws, msg);
         break;
       default:
         break;
@@ -479,11 +517,15 @@ export class ReagentOrchestratorServer {
       }
     }, 50);
 
-    // Wait for completion or timeout
-    await Promise.race([
-      completionPromise,
-      new Promise<void>((resolve) => setTimeout(resolve, 30000)),
-    ]);
+    // Wait for completion; in debug mode, no timeout (user controls execution)
+    if (isDebugMode) {
+      await completionPromise;
+    } else {
+      await Promise.race([
+        completionPromise,
+        new Promise<void>((resolve) => setTimeout(resolve, 30000)),
+      ]);
+    }
 
     clearInterval(poll);
 
@@ -592,16 +634,17 @@ export class ReagentOrchestratorServer {
     const payload = msg.payload ?? {};
     const sessionId = payload.sessionId as string;
     const agentName = payload.agentName as string;
+    const requestId = payload.requestId as string | undefined;
 
     const session = this.sessions.get(sessionId);
     if (!session?.rc) {
-      this.sendRap(ws, "InspectError", msg.id, { agentName, error: "Session not found" });
+      this.sendRap(ws, "InspectError", msg.id, { agentName, error: "Session not found", requestId });
       return;
     }
 
     const handle = session.rc.getAgent(agentName);
     if (!handle) {
-      this.sendRap(ws, "InspectError", msg.id, { agentName, error: `Agent ${agentName} not found` });
+      this.sendRap(ws, "InspectError", msg.id, { agentName, error: `Agent ${agentName} not found`, requestId });
       return;
     }
 
@@ -613,7 +656,9 @@ export class ReagentOrchestratorServer {
     }));
 
     this.sendRap(ws, "StateSnapshot", msg.id, {
+      requestId,
       agentName,
+      ctx: (handle as any).getCtx?.() ?? {},
       self: handle.getSelf(),
       recentTraces: session.traces.slice(-20),
       heldMessages,
@@ -652,7 +697,7 @@ export class ReagentOrchestratorServer {
       this.currentView.nodes.push({ nodeId, status: "connected", lastSeen: Date.now() });
     }
 
-    // Clean up on disconnect: remove node and its agents entirely
+    // Clean up on disconnect: remove node, agents, and orphaned debug sessions
     ws.on("close", () => {
       this.adapters.delete(nodeId);
       this.currentView.nodes = this.currentView.nodes.filter(n => n.nodeId !== nodeId);
@@ -660,6 +705,13 @@ export class ReagentOrchestratorServer {
       for (const [agent, nid] of this.agentToNode) {
         if (nid === nodeId) this.agentToNode.delete(agent);
       }
+
+      // If no adapter nodes remain, clean up all cluster debug sessions
+      const liveAdapters = [...this.adapters.values()].filter(a => a.ws.readyState === WebSocket.OPEN);
+      if (liveAdapters.length === 0 && this.clusterDebugSessions.size > 0) {
+        this.clusterDebugSessions.clear();
+      }
+
       this.broadcastClusterUpdate();
     });
 
@@ -743,6 +795,16 @@ export class ReagentOrchestratorServer {
     }
   }
 
+  /** Broadcast an arbitrary RAP event to all connected clients. */
+  private broadcastToClients(rapType: string, payload: Record<string, unknown>): void {
+    const msg = JSON.stringify({ rap: rapType, payload });
+    for (const client of this.clients) {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(msg);
+      }
+    }
+  }
+
   /**
    * Deploy an agent to a remote adapter node.
    */
@@ -814,6 +876,8 @@ export class ReagentOrchestratorServer {
   private currentView: RegistryView = createEmptyView();
   private currentSpec: DeploySpec | null = null;
   private lastPlan: ReconciliationPlan | null = null;
+  private deployedIRGraphs: Record<string, any> = {};
+  private deployedRoleIRs: Record<string, any> = {};
 
   private handleListProtocols(ws: WebSocket, msg: RAPMessage): void {
     const session = this.sessions.getLatest();
@@ -839,6 +903,32 @@ export class ReagentOrchestratorServer {
       requestId: msg.payload?.requestId ?? msg.id,
       nodeId: "ros-local",
       protocols,
+    });
+  }
+
+  private handleGetDeployedIR(ws: WebSocket, msg: RAPMessage): void {
+    const protocolName = (msg.payload?.protocolName as string) || undefined;
+    let irGraphs = this.deployedIRGraphs;
+    let roleIRs = this.deployedRoleIRs;
+
+    if (protocolName) {
+      const filtered: Record<string, any> = {};
+      for (const [k, v] of Object.entries(irGraphs)) {
+        if (k.startsWith(protocolName + '.') || (v as any)?.protocolName === protocolName) {
+          filtered[k] = v;
+        }
+      }
+      irGraphs = filtered;
+    }
+
+    const version = this.currentView.protocols.find(
+      p => p.name === (protocolName || '')
+    )?.version ?? `1.0.${this._deployGeneration}`;
+
+    this.sendRap(ws, "DeployedIR", msg.id, {
+      irGraphs,
+      roleIRs,
+      version,
     });
   }
 
@@ -1001,6 +1091,11 @@ export class ReagentOrchestratorServer {
     const irGraphs = (payload.irGraphs ?? {}) as Record<string, any>;
     const roleIRs = (payload.roleIRs ?? {}) as Record<string, any>;
     const roleToAgent = deployment.roleToAgent;
+    const sourceMap = payload.sourceMap as { entries: Array<{ stateId: string; protocolName: string; role: string; file: string; line: number; column: number }> } | undefined;
+    const projectVersion = (payload.projectVersion as string) || undefined;
+
+    this.deployedIRGraphs = irGraphs;
+    this.deployedRoleIRs = roleIRs;
 
     const adapterList = [...this.adapters.values()].filter(a => a.ws.readyState === WebSocket.OPEN);
     if (adapterList.length === 0) {
@@ -1010,8 +1105,20 @@ export class ReagentOrchestratorServer {
       return;
     }
 
-    // Add protocols to RegistryView
+    // Update source map for all active debug sessions
+    if (sourceMap && this.debugController) {
+      for (const sessionId of this.activeDebugSessions()) {
+        this.debugController.updateSourceMap(sessionId, sourceMap);
+      }
+    }
+
+    // Track deploy generation for protocol versioning
+    if (!this._deployGeneration) this._deployGeneration = 0;
+    this._deployGeneration++;
+
+    // Add or update protocols in RegistryView
     const seenProtos = new Set<string>();
+    const resolvedVersion = projectVersion ?? `1.0.${this._deployGeneration}`;
     for (const agent of deployment.agents) {
       for (const role of agent.roles) {
         if (seenProtos.has(role.protocolName)) continue;
@@ -1019,10 +1126,12 @@ export class ReagentOrchestratorServer {
         const existing = this.currentView.protocols.find(
           p => p.name === role.protocolName
         );
-        if (!existing) {
+        if (existing) {
+          existing.version = resolvedVersion;
+        } else {
           this.currentView.protocols.push({
             name: role.protocolName,
-            version: "1.0.0",
+            version: resolvedVersion,
             fingerprints: { structureHash: "", schemaHash: "", implHash: "" },
             dependencies: [],
             nodeId: "ros",
@@ -1060,6 +1169,7 @@ export class ReagentOrchestratorServer {
             roleToAgent,
             roleName,
             protocolName: firstRole?.protocolName ?? "",
+            protocolVersion: resolvedVersion,
           },
         }));
         this.agentToNode.set(agentDef.agentName, adapter.nodeId);
@@ -1095,6 +1205,11 @@ export class ReagentOrchestratorServer {
     }
 
     this.broadcastClusterUpdate();
+
+    // Broadcast updated source map so active debug sessions can resolve new breakpoints
+    if (sourceMap) {
+      this.broadcastToClients("SourceMapUpdated", { sourceMap });
+    }
 
     this.sendRap(ws, "DeployProjectSuccess", msg.id, {
       deployed: deployedCount.success,

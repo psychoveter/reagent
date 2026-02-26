@@ -132,7 +132,6 @@ The doc doesn't list: `tracePanel.ts`, `clusterPanel.ts`, `deployController.ts`,
 | `dx-tooling.md` | 1241 | **Significantly outdated** | See §4 above — most phases partially complete but all checklist items unchecked |
 | `backlog.md` | 1150 | Unknown | Needs review against current state |
 | `protocol-versioning.md` | 1029 | Design doc | Seems current |
-| `ir-losos-mapping.md` | 360 | Outdated | Missing invoke, spawn, scatter (noted in doc itself); $flow removed in v0.0.11 |
 | `lsp.md` | 227 | Current | Describes implemented LSP |
 | `user-guide.md` | 316 | Current | Basic usage guide |
 | `nmmo-reagent-support.md` | 123 | Design doc | Future plan for NMMO integration |

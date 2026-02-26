@@ -39,6 +39,25 @@ export async function deployProject(cluster: ClusterPanelProvider, explicitRoot?
     const irGraphs: Record<string, unknown> = {};
     const roleIRs: Record<string, unknown> = {};
 
+    // Read source map for breakpoint resolution after redeploy
+    let sourceMap: unknown = null;
+    const sourceMapPath = path.join(outDir, 'source-map.json');
+    if (fs.existsSync(sourceMapPath)) {
+      try {
+        sourceMap = JSON.parse(fs.readFileSync(sourceMapPath, 'utf-8'));
+      } catch { /* non-fatal */ }
+    }
+
+    // Read project version from reagent.json
+    let projectVersion: string | undefined;
+    const reagentJsonPath = path.join(projectRoot, 'reagent.json');
+    if (fs.existsSync(reagentJsonPath)) {
+      try {
+        const manifest = JSON.parse(fs.readFileSync(reagentJsonPath, 'utf-8'));
+        projectVersion = manifest.version;
+      } catch { /* non-fatal */ }
+    }
+
     for (const agent of deployment.agents ?? []) {
       const roleName = agent.roleName as string;
       if (roleName && !roleIRs[roleName]) {
@@ -64,7 +83,7 @@ export async function deployProject(cluster: ClusterPanelProvider, explicitRoot?
 
     const resp = await rap.request(
       'DeployProject',
-      { deployment, irGraphs, roleIRs },
+      { deployment, irGraphs, roleIRs, sourceMap, projectVersion },
       'DeployProjectSuccess',
       15000,
     );

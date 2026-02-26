@@ -18,7 +18,7 @@ import {
   computeRoleVersion,
   type ReagentLock,
 } from "./versioning.js";
-import { loadManifest, resolveGlobs, scaffoldProject } from "./project.js";
+import { loadManifest, resolveGlobs, scaffoldProject, findProjectRoot } from "./project.js";
 
 function usage(): never {
   console.error("reagent-lang — Reagent compiler CLI\n");
@@ -30,6 +30,7 @@ function usage(): never {
   console.error("  reagent-lang init       [dir]                        — scaffold a new Reagent project");
   console.error("  reagent-lang build      [project-dir]                — build all protocols from reagent.json");
   console.error("  reagent-lang decompile  <dir|file.ir.json>           — reconstruct .rg from compiled IR");
+  console.error("  reagent-lang verify     <file.rg>                    — generate TLA+ spec and check properties");
   console.error("  reagent-lang deploy     [project-dir] [ros-url]      — deploy protocols to ROS");
   console.error("");
   console.error("compile output:");
@@ -202,8 +203,10 @@ function cmdCompile(file: string, outDir: string) {
   let hasErrors = false;
   const allSourceMapEntries: SourceMapEntry[] = [];
 
-  // Lock file lives next to the source file
-  const lockPath = join(dirname(resolve(file)), "reagent.lock");
+  // Lock file lives at the project root (reagent.json dir), or next to the source file
+  const fileDir = dirname(resolve(file));
+  const projectRoot = findProjectRoot(fileDir);
+  const lockPath = join(projectRoot ?? fileDir, "reagent.lock");
   const lock = readLock(lockPath);
   const newLock: ReagentLock = {
     protocols: { ...(lock?.protocols ?? {}) },
@@ -284,6 +287,11 @@ function cmdCompile(file: string, outDir: string) {
   }
 
   // Emit per-role RoleIRs (rich behavioral contracts) with fingerprints
+  const protoVersionMap = new Map<string, string>();
+  for (const [name, entry] of Object.entries(newLock.protocols)) {
+    protoVersionMap.set(name, entry.version);
+  }
+
   const emittedRoleIRs: RoleIR[] = [];
   for (const role of roles) {
     const result = emitRoleIR(role, roleMap);
@@ -293,7 +301,10 @@ function cmdCompile(file: string, outDir: string) {
       hasErrors = true;
     }
 
-    const roleFP = computeRoleFingerprint(result.roleIR);
+    for (const p of result.roleIR.plays) {
+      p.protocolVersion = protoVersionMap.get(p.protocolName);
+    }
+    const roleFP = computeRoleFingerprint(result.roleIR, protoVersionMap);
     const { version } = computeRoleVersion(role.name, roleFP, lock);
     result.roleIR.version = version;
     result.roleIR.fingerprints = roleFP;
@@ -515,6 +526,11 @@ function cmdBuild(projectDir?: string) {
     }
   }
 
+  const protoVersionMap = new Map<string, string>();
+  for (const [name, entry] of Object.entries(newLock.protocols)) {
+    protoVersionMap.set(name, entry.version);
+  }
+
   for (const role of allRoles) {
     const result = emitRoleIR(role, allRoleMap);
     if (!result.ok) {
@@ -522,7 +538,10 @@ function cmdBuild(projectDir?: string) {
       for (const e of result.errors) console.error(`    ${e}`);
       hasErrors = true;
     }
-    const roleFP = computeRoleFingerprint(result.roleIR);
+    for (const p of result.roleIR.plays) {
+      p.protocolVersion = protoVersionMap.get(p.protocolName);
+    }
+    const roleFP = computeRoleFingerprint(result.roleIR, protoVersionMap);
     const { version } = computeRoleVersion(role.name, roleFP, lock);
     result.roleIR.version = version;
     result.roleIR.fingerprints = roleFP;
@@ -600,6 +619,81 @@ function cmdBuild(projectDir?: string) {
   if (hasErrors) {
     console.error("\nBuild completed with errors.");
     process.exit(1);
+  }
+}
+
+// ── verify ──────────────────────────────────────────────────────────
+
+async function cmdVerify(file: string) {
+  const { generateTLAPlus, generateTLCConfig } = await import("./tla-generator.js");
+  const { execSync } = await import("node:child_process");
+  const { unlinkSync } = await import("node:fs");
+
+  const res = parseFile(file);
+  const protocols = getProtocols(res);
+
+  if (protocols.length === 0) {
+    console.error("No protocols found in", file);
+    process.exit(1);
+  }
+
+  for (const proto of protocols) {
+    resetIdCounter();
+    const result = emitIR(proto);
+    if (!result.ok) {
+      console.error(`IR errors in protocol ${proto.name}:`);
+      for (const e of result.errors) console.error(`  ${e}`);
+    }
+
+    const tla = generateTLAPlus(proto.name, result.graphs);
+    const roles = [...result.graphs.keys()];
+    const cfg = generateTLCConfig(proto.name, roles);
+    const sanitized = proto.name.replace(/[^a-zA-Z0-9_]/g, "_");
+
+    const tlaFile = `${sanitized}.tla`;
+    const cfgFile = `${sanitized}.cfg`;
+    writeFileSync(tlaFile, tla);
+    writeFileSync(cfgFile, cfg);
+
+    console.log(`\n=== ${proto.name} ===`);
+    console.log(`  Generated: ${tlaFile}, ${cfgFile}`);
+    console.log(`  Roles: ${roles.join(", ")}`);
+    console.log(`  States per role: ${roles.map((r) => `${r}=${result.graphs.get(r)!.states.length}`).join(", ")}`);
+
+    // Try to run TLC if available
+    let tlcAvailable = false;
+    try {
+      execSync("which tlc", { stdio: "ignore" });
+      tlcAvailable = true;
+    } catch { /* tlc not found */ }
+
+    if (tlcAvailable) {
+      console.log(`  Running TLC model checker...`);
+      try {
+        const output = execSync(`tlc ${tlaFile} -config ${cfgFile} -workers auto 2>&1`, {
+          encoding: "utf8",
+          timeout: 60000,
+        });
+        if (output.includes("No error")) {
+          console.log(`  ✓ ${proto.name}: all properties satisfied`);
+        } else {
+          console.log(`  TLC output:\n${output}`);
+        }
+      } catch (tlcErr: any) {
+        const output = tlcErr.stdout ?? tlcErr.message;
+        if (output.includes("Error:") || output.includes("Invariant") || output.includes("violated")) {
+          console.error(`  ✗ ${proto.name}: property violation detected`);
+          console.error(output);
+          process.exit(1);
+        }
+        console.log(`  TLC output:\n${output}`);
+      }
+    } else {
+      console.log(`  (TLC not found on PATH — run manually: tlc ${tlaFile} -config ${cfgFile})`);
+    }
+
+    try { unlinkSync(tlaFile); } catch { /* ignore */ }
+    try { unlinkSync(cfgFile); } catch { /* ignore */ }
   }
 }
 
@@ -759,6 +853,17 @@ function main() {
     case "build":
       cmdBuild(args[0]);
       break;
+    case "verify": {
+      if (!args[0]) {
+        console.error("verify requires: reagent-lang verify <file.rg>");
+        process.exit(2);
+      }
+      cmdVerify(args[0]).catch((err) => {
+        console.error(`Verify error: ${err.message}`);
+        process.exit(1);
+      });
+      break;
+    }
     case "decompile": {
       if (!args[0]) {
         console.error("decompile requires: reagent-lang decompile <dir|file.ir.json>");

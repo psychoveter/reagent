@@ -227,6 +227,7 @@ export type AgentIR = {
 export type AgentPlaysBinding = {
   protocolName: string;
   roleName: string;
+  protocolVersion?: string;
 };
 
 export type AgentAction = {

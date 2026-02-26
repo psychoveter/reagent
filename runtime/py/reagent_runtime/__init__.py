@@ -15,6 +15,9 @@ from .inproc_agent_node import InprocAgentNode, InprocAgentHandle
 from .ipc_agent_node import IpcAgentNode, IpcAgentHandle
 from .inproc_transport import InprocTransport
 from .remote_node import RemoteNode
+from .otel_interceptor import create_otel_interceptor, create_otel_trace_hook, end_instance_span
+from .protocol_engine import ProtocolEngine, duration_to_ms
+from .agent_interface import AgentInterface, ManagedAgentAdapter
 
 __all__ = [
     "AgentRunner",
@@ -31,4 +34,11 @@ __all__ = [
     "IpcAgentHandle",
     "InprocTransport",
     "RemoteNode",
+    "create_otel_interceptor",
+    "create_otel_trace_hook",
+    "end_instance_span",
+    "ProtocolEngine",
+    "duration_to_ms",
+    "AgentInterface",
+    "ManagedAgentAdapter",
 ]

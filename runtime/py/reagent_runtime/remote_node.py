@@ -44,7 +44,7 @@ class _DebugAdvanceHook:
         self._state_breakpoints: set[str] = set()
         self._step_mode: str = "stepState"  # "none" | "stepState" | "stepOver"
         self._enabled = True
-        self._gate: Optional[asyncio.Event] = None
+        self._gates: dict[str, asyncio.Event] = {}
 
     def set_state_breakpoints(self, state_ids: list[str]) -> None:
         self._state_breakpoints = set(state_ids)
@@ -75,9 +75,9 @@ class _DebugAdvanceHook:
         self._release()
 
     def _release(self) -> None:
-        if self._gate is not None:
-            self._gate.set()
-            self._gate = None
+        for gate in self._gates.values():
+            gate.set()
+        self._gates.clear()
 
     def _should_pause(self, ctx: dict[str, Any]) -> bool:
         state_id = ctx.get("stateId", "")
@@ -113,8 +113,13 @@ class _DebugAdvanceHook:
             "reason": reason,
         })
 
-        self._gate = asyncio.Event()
-        await self._gate.wait()
+        instance_id = ctx.get("instanceId", "")
+        agent_name = ctx.get("agentName", "")
+        gate_key = f"{instance_id}:{agent_name}:{state_id}"
+        gate = asyncio.Event()
+        self._gates[gate_key] = gate
+        await gate.wait()
+        self._gates.pop(gate_key, None)
 
 
 class RemoteNode:
@@ -220,6 +225,7 @@ class RemoteNode:
         rta = payload.get("roleToAgent", {})
         role_name = payload.get("roleName", "")
         protocol_name = payload.get("protocolName", "")
+        protocol_version = payload.get("protocolVersion")
 
         if rta:
             self._role_to_agent.update(rta)
@@ -234,7 +240,8 @@ class RemoteNode:
         if self._agents_dir:
             extras = self._resolve_agent_module(agent_name)
 
-        self.rc.register_agent(agent_name, role_ir, graphs, extras)
+        self.rc.register_agent(agent_name, role_ir, graphs, extras,
+                               protocol_version=protocol_version)
         await self.rc.get_agent(agent_name).start()
 
         await self._send_control("Deployed", {

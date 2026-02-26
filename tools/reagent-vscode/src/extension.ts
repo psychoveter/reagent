@@ -186,10 +186,18 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.debug.registerDebugAdapterDescriptorFactory('reagent', debugAdapterFactory)
   );
 
+  let previousToolBarLocation: string | undefined;
+
   context.subscriptions.push(
     vscode.debug.onDidStartDebugSession(session => {
       if (session.type === 'reagent') {
         vscode.commands.executeCommand('setContext', 'reagent.debugActive', true);
+        // Dock the native debug toolbar into the debug viewlet
+        const config = vscode.workspace.getConfiguration('debug');
+        previousToolBarLocation = config.get<string>('toolBarLocation');
+        if (previousToolBarLocation !== 'docked') {
+          config.update('toolBarLocation', 'docked', vscode.ConfigurationTarget.Global);
+        }
       }
     })
   );
@@ -200,9 +208,38 @@ export function activate(context: vscode.ExtensionContext): void {
         inlineValues.clearDecorations();
         debugPanelProvider.clear();
         vscode.commands.executeCommand('setContext', 'reagent.debugActive', false);
+        // Restore previous toolbar location
+        if (previousToolBarLocation !== undefined && previousToolBarLocation !== 'docked') {
+          const config = vscode.workspace.getConfiguration('debug');
+          config.update('toolBarLocation', previousToolBarLocation, vscode.ConfigurationTarget.Global);
+        }
+        previousToolBarLocation = undefined;
       }
     })
   );
+
+  // ── Debug commands (sidebar panel → diagram panel bridge) ────
+  context.subscriptions.push(
+    vscode.commands.registerCommand('reagent.debug.continue', () => {
+      ReagentDiagramPanel.getInstance()?.sendDebugCommand('continue');
+    }),
+    vscode.commands.registerCommand('reagent.debug.stepState', () => {
+      ReagentDiagramPanel.getInstance()?.sendDebugCommand('stepState');
+    }),
+    vscode.commands.registerCommand('reagent.debug.stepOver', () => {
+      ReagentDiagramPanel.getInstance()?.sendDebugCommand('stepOver');
+    }),
+    vscode.commands.registerCommand('reagent.debug.stepInto', () => {
+      ReagentDiagramPanel.getInstance()?.sendDebugCommand('stepInto');
+    }),
+    vscode.commands.registerCommand('reagent.debug.restart', () => {
+      ReagentDiagramPanel.getInstance()?.sendDebugCommand('restart');
+    }),
+    vscode.commands.registerCommand('reagent.debug.stop', () => {
+      ReagentDiagramPanel.getInstance()?.sendDebugCommand('stop');
+    }),
+  );
+  debugPanelProvider.setDiagramPanelAccessor(() => ReagentDiagramPanel.getInstance() ?? null);
 
   // ── Diagram ↔ Debug controller ──────────────────────────────
   const diagramController = new DiagramController();

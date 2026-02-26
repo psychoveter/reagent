@@ -306,30 +306,30 @@ function smArrowDefs(): string {
 export const STATE_MACHINE_CSS = `
   .sm-title { font-size: 12px; font-weight: 600; fill: var(--vscode-descriptionForeground, #888); }
   .sm-edge { stroke: var(--vscode-panel-border, #555); stroke-width: 1.5; }
-  .sm-back-edge { stroke: var(--vscode-charts-green, #89d185); stroke-width: 1; stroke-dasharray: 4 3; }
+  .sm-back-edge { stroke: var(--vscode-charts-green, #89d185); stroke-width: 1; stroke-dasharray: 5 3; }
   .sm-edge-label { font-size: 9px; fill: var(--vscode-descriptionForeground, #999); }
   .sm-circle { stroke-width: 2; }
   .sm-initial { fill: var(--vscode-foreground, #d4d4d4); stroke: var(--vscode-foreground, #d4d4d4); }
   .sm-terminal { fill: none; stroke: var(--vscode-foreground, #d4d4d4); stroke-width: 3; }
-  .sm-rect { stroke-width: 1.5; }
+  .sm-rect { stroke-width: 1.5; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2)); }
   .sm-rect-inner { fill: none; stroke-width: 0.5; }
-  .sm-send { fill: #1a3a5c; stroke: var(--vscode-charts-blue, #4fc1ff); }
-  .sm-receive { fill: #3d2800; stroke: var(--vscode-charts-orange, #d18616); }
-  .sm-action { fill: #2d1a4e; stroke: var(--vscode-charts-purple, #b180d7); }
-  .sm-timer { fill: #3d3000; stroke: var(--vscode-charts-yellow, #cca700); }
-  .sm-invoke { fill: #1a2a3a; stroke: var(--vscode-charts-blue, #4fc1ff); }
-  .sm-scatter { fill: #3d1a1a; stroke: var(--vscode-charts-red, #f14c4c); }
+  .sm-send { fill: #152d47; stroke: var(--vscode-charts-blue, #4fc1ff); }
+  .sm-receive { fill: #332200; stroke: var(--vscode-charts-orange, #d18616); }
+  .sm-action { fill: #261542; stroke: var(--vscode-charts-purple, #b180d7); }
+  .sm-timer { fill: #332800; stroke: var(--vscode-charts-yellow, #cca700); }
+  .sm-invoke { fill: #152230; stroke: var(--vscode-charts-blue, #4fc1ff); }
+  .sm-scatter { fill: #332218; stroke: var(--vscode-charts-orange, #d18616); }
   .sm-hexagon { stroke-width: 1.5; }
-  .sm-diamond { fill: #1a3d1a; stroke: var(--vscode-charts-green, #89d185); stroke-width: 1.5; }
+  .sm-diamond { fill: #153315; stroke: var(--vscode-charts-green, #89d185); stroke-width: 1.5; }
   .sm-default { fill: var(--vscode-editor-inactiveSelectionBackground, #3a3d41); stroke: var(--vscode-panel-border, #555); }
   .sm-label-center { text-anchor: middle; font-size: 11px; fill: var(--vscode-foreground, #d4d4d4); }
-  .sm-node { cursor: pointer; }
-  .sm-node:hover .sm-rect, .sm-node:hover .sm-diamond, .sm-node:hover .sm-circle, .sm-node:hover .sm-hexagon { filter: brightness(1.3); }
+  .sm-node { cursor: pointer; transition: filter 0.1s ease; }
+  .sm-node:hover .sm-rect, .sm-node:hover .sm-diamond, .sm-node:hover .sm-circle, .sm-node:hover .sm-hexagon { filter: brightness(1.25); }
 
-  .sm-node.visited .sm-rect, .sm-node.visited .sm-diamond, .sm-node.visited .sm-circle, .sm-node.visited .sm-label-center, .sm-node.visited .sm-hexagon { opacity: 0.4; }
+  .sm-node.visited .sm-rect, .sm-node.visited .sm-diamond, .sm-node.visited .sm-circle, .sm-node.visited .sm-label-center, .sm-node.visited .sm-hexagon { opacity: 0.35; }
   .sm-node.active .sm-rect, .sm-node.active .sm-diamond, .sm-node.active .sm-hexagon { stroke: var(--vscode-debugIcon-startForeground, #89d185); stroke-width: 3; animation: pulse-box 1.5s ease-in-out infinite; }
   .sm-node.active .sm-circle { stroke: var(--vscode-debugIcon-startForeground, #89d185); animation: pulse-box 1.5s ease-in-out infinite; }
-  .sm-node.future .sm-rect, .sm-node.future .sm-diamond, .sm-node.future .sm-circle, .sm-node.future .sm-label-center, .sm-node.future .sm-hexagon { opacity: 0.25; }
+  .sm-node.future .sm-rect, .sm-node.future .sm-diamond, .sm-node.future .sm-circle, .sm-node.future .sm-label-center, .sm-node.future .sm-hexagon { opacity: 0.2; }
 
   .arrowhead-fill { fill: var(--vscode-panel-border, #555); }
 `;

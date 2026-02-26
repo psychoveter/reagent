@@ -85,12 +85,20 @@ protocol Auction {
   }
 
   seller {
-    $self.auctionLog = {
-      "item": $ctx.itemName,
-      "winner": $ctx.winnerIdx,
-      "price": $ctx.finalPrice,
-      "totalBids": len($ctx.bids)
-    }
+    def create_auction_log():
+      return {
+        "item": $ctx.itemName,
+        "winner": $ctx.winnerIdx,
+        "price": $ctx.finalPrice,
+        "totalBids": len($ctx.bids)
+        "something": "something"
+      }
+
+    $self.auctionLog = create_auction_log()
+  }
+
+  seller {
+    print("This is spartaaaaaaa $self.auctionLog")
   }
 }
 

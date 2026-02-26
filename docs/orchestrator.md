@@ -16,7 +16,7 @@ The Reagent Orchestrator Service (ROS) is a long-lived Node.js process. It provi
 - **Debug**: breakpoints, stepping, state inspection
 - **Reconcile** (M8): desired-state management — compare DeploySpec against RC registries, drive convergence. See [protocol-versioning.md §13](protocol-versioning.md).
 
-External tools (VSCode extension, CLI, web UI) connect to the ROS via **WebSocket** using the **RAP protocol** (sub-protocols specced as `.rg` files with role definitions in `tools/rap/`).
+External tools (VSCode extension, CLI, web UI) connect to the ROS via **WebSocket** using the **RAP protocol** (sub-protocols specced as `.rg` files with role definitions in `packages/reagent-system/protocols/rap/`).
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -338,7 +338,7 @@ Response:
 
 ### 3.2 Sub-protocol mapping
 
-The 9 RAP `.rg` specs (`tools/rap/01-09`) map directly to WS message types:
+The 14 RAP `.rg` specs (`packages/reagent-system/protocols/rap/01-14`) map directly to WS message types:
 
 | RAP Protocol | Request | Response(s) | Direction |
 |---|---|---|---|
@@ -351,6 +351,11 @@ The 9 RAP `.rg` specs (`tools/rap/01-09`) map directly to WS message types:
 | `SetBreakpoints` | `SetBreakpointsRequest` | `BreakpointsResolved` | client → ROS |
 | `TraceStream` | — | `TraceEvent`, `SessionStatus` (streaming push) | adapter → ROS → client |
 | `TriggerProtocol` | `TriggerProtocol` | `TriggerAck` / `TriggerFailed` | ROS → adapter |
+| `ListProtocols` | `ListProtocols` | `ListProtocolsResponse` | client → ROS |
+| `DeployProtocol` | `DeployProtocol` | `DeployProtocolSuccess` / `DeployProtocolFailed` | client → ROS |
+| `ClusterStatus` | `ClusterStatus` | `ClusterStatusResponse` | client → ROS |
+| `SubmitDeploySpec` | `SubmitDeploySpec` | `SubmitDeploySpecAccepted` / `SubmitDeploySpecRejected` | client → ROS |
+| `StopAgent` | `StopAgent` | `StopAgentSuccess` / `StopAgentFailed` | client → ROS |
 
 ### 3.3 Streaming events (TraceStream sub-protocol)
 
@@ -584,7 +589,61 @@ The ROS uses `ReagentController` + `NativeAgentNode`/`PythonAgentNode` + `InMemo
 
 ---
 
-## 8. DoD
+## 8. Self-hosting bootstrap
+
+Starting with Wave 3, the ROS practices "self-hosting": it uses its own `ReagentController` internally to manage system-level protocols and agents.
+
+### 8.1 Bootstrap flow
+
+```
+ROS.start()
+  │
+  ├─ 1. initSystemRC()
+  │     ├─ Create NativeAgentNode (empty roleToAgent — system roles loaded later)
+  │     ├─ Create ReagentController({ nodeId: "ros-system", agentNode })
+  │     └─ Log "[ROS] System RC initialized (self-hosting bootstrap)"
+  │
+  ├─ 2. Start WebSocket server on configured port
+  │
+  └─ 3. Accept RAP client connections (unchanged)
+
+ROS.stop()
+  │
+  ├─ 1. systemRC.stop()  ← graceful shutdown of system protocols
+  ├─ 2. Destroy all user sessions
+  └─ 3. Close WebSocket server
+```
+
+### 8.2 System agents and protocols
+
+The `@reagent/system` package (`packages/reagent-system/`) declares:
+
+| Agent | Role | Protocols |
+|---|---|---|
+| `ROS` | `OrchestratorRole` | AdapterHandshake, CompileRequest, DeployProtocol, RunProtocol, DebugSession, InspectState, ShutdownNode, TraceStream, TriggerProtocol |
+| `DebugAgent` | `DebugRole` | DebugSession, InspectState |
+| `ReconcilerAgent` | `ReconcilerRole` | DeployProtocol |
+| `DiscoveryAgent` | `DiscoveryRole` | *(gossip-based discovery, Wave 3.2)* |
+
+Over time, RAP message handlers in `ros.ts` will be refactored into zone code of system agents or custom `AgentInterface` implementations, making infrastructure operations observable, debuggable, and traceable via the same tools used for user protocols.
+
+### 8.3 External client interaction
+
+External clients (VSCode extension, CLI, web UI) will interact with the ROS system RC via Message Gate transports:
+
+- **WebSocket Gate**: primary transport for IDE and web clients
+- **Stdio Gate**: for CLI tools spawned by the ROS
+- **HTTP Gate**: for stateless webhook-style integrations
+
+System protocols are visible in debug panels, traces, and architecture diagrams — the orchestrator infrastructure is fully self-describing.
+
+### 8.4 Accessor
+
+`ros.getSystemRC()` returns the internal `ReagentController` instance (or `null` before `start()` / after `stop()`), enabling tests and extensions to inspect or interact with system-level state.
+
+---
+
+## 9. DoD
 
 - ROS boots, accepts WS connections, compiles `.rg`, deploys agents in-process, runs protocols, streams traces.
 - `WsNodeLink` works for remote node connectivity.

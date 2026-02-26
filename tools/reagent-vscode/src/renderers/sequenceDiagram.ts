@@ -1,8 +1,9 @@
 /**
- * sequenceDiagram.ts — SVG renderer for Reagent sequence diagrams.
+ * sequenceDiagram.ts — HTML+SVG renderer for Reagent sequence diagrams.
  *
- * Takes a SequenceDiagram data model (from lang/src/diagram.ts) and
- * produces an SVG string. Replaces the hardcoded mockup SVGs.
+ * HTML handles layout (flex column, nested frames, padding/margin).
+ * A thin SVG overlay draws lifelines and message arrows, positioned via
+ * getBoundingClientRect() in the webview script.
  */
 
 // Types mirrored from lang/src/diagram.ts (avoids ESM/CJS import issues)
@@ -49,203 +50,187 @@ export interface RenderOptions {
 }
 
 const COLUMN_WIDTH = 200;
-const ROW_HEIGHT = 34;
-const HEADER_HEIGHT = 52;
-const PADDING_X = 80;
-const PADDING_Y = 16;
-const FRAME_MARGIN = 12;
-const FRAME_OPEN_PAD = 22;
-const FRAME_CLOSE_PAD = 8;
 
 export function renderSequenceDiagram(data: SequenceDiagramData, opts: RenderOptions = {}): string {
-  const { participants, elements, protocolName, version } = data;
-  if (participants.length === 0) return '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><text x="20" y="40" fill="#888">No participants</text></svg>';
-
-  const partIdx = new Map<string, number>();
-  participants.forEach((p, i) => partIdx.set(p.name, i));
-
-  const px = participants.map((_, i) => PADDING_X + i * COLUMN_WIDTH);
-  const totalWidth = PADDING_X * 2 + (participants.length - 1) * COLUMN_WIDTH;
-
-  // Compute rows needed for elements
-  let y = HEADER_HEIGHT + PADDING_Y;
-  const rowY: number[] = [];
-  const elDepths: number[] = [];
-  const controlStack: Array<{ kind: string; startY: number; label: string; condition?: string; collection?: string; itemRole?: string; depth: number }> = [];
-  const controlBoxes: Array<{ startY: number; endY: number; label: string; kind: string; condition?: string; collection?: string; itemRole?: string; depth: number }> = [];
-  let nestDepth = 0;
-
-  for (const el of elements) {
-    switch (el.kind) {
-      case "loop_start":
-      case "alt_start":
-      case "scatter_start":
-      case "par_start":
-        controlStack.push({ kind: el.kind, startY: y - 8, label: el.label, condition: el.condition, collection: el.collection, itemRole: el.itemRole, depth: nestDepth });
-        nestDepth++;
-        y += FRAME_OPEN_PAD;
-        rowY.push(y); elDepths.push(nestDepth);
-        break;
-      case "loop_end":
-      case "alt_end":
-      case "scatter_end":
-      case "par_end": {
-        nestDepth = Math.max(0, nestDepth - 1);
-        y += FRAME_CLOSE_PAD;
-        const box = controlStack.pop();
-        if (box) controlBoxes.push({ ...box, endY: y });
-        y += 4;
-        rowY.push(y); elDepths.push(nestDepth);
-        break;
-      }
-      case "alt_branch":
-        y += 4;
-        rowY.push(y); elDepths.push(nestDepth);
-        y += 12;
-        break;
-      default:
-        rowY.push(y); elDepths.push(nestDepth);
-        y += ROW_HEIGHT;
-        break;
-    }
+  const { participants, elements, version } = data;
+  if (participants.length === 0) {
+    return '<div class="seq-diagram"><div style="color:#888;padding:40px">No participants</div></div>';
   }
 
-  const totalHeight = y + PADDING_Y;
+  const partNames = participants.map(p => p.name);
+  const totalWidth = 160 + (participants.length - 1) * COLUMN_WIDTH;
   const sourceFile = opts.sourceFile ?? '';
 
-  let svg = `<svg viewBox="0 0 ${totalWidth} ${totalHeight}" xmlns="http://www.w3.org/2000/svg">\n`;
+  let html = `<div class="seq-diagram" style="width:${totalWidth}px" data-participants="${esc(JSON.stringify(partNames))}">\n`;
 
   // Version badge
   if (version) {
-    svg += `<text x="${totalWidth - 10}" y="16" text-anchor="end" class="version-badge">v${esc(version)}</text>\n`;
+    html += `<div class="seq-version-badge">v${esc(version)}</div>\n`;
   }
 
-  // Participant headers
-  for (let i = 0; i < participants.length; i++) {
-    const p = participants[i];
-    const x = px[i];
-    const langExtra = p.lang ? (p.lang.length + 3) * 6.5 : 0;
-    const headerW = Math.max(100, p.name.length * 9.5 + langExtra + 32);
-    const headerH = 34;
-    svg += `<rect x="${x - headerW / 2}" y="10" width="${headerW}" height="${headerH}" rx="4" class="participant-box"/>`;
-    svg += `<text x="${x}" y="31" class="participant-label">${esc(p.name)}`;
-    if (p.lang) svg += ` <tspan class="lang-tag">[${esc(p.lang)}]</tspan>`;
-    svg += `</text>`;
-    svg += `<line x1="${x}" y1="${10 + headerH}" x2="${x}" y2="${totalHeight - 8}" class="lifeline"/>`;
+  // Participant header row
+  html += `<div class="seq-header">\n`;
+  for (const p of participants) {
+    html += `  <div class="seq-participant" data-participant="${esc(p.name)}">`;
+    html += `<span class="participant-name">${esc(p.name)}</span>`;
+    if (p.lang) html += ` <span class="participant-lang">[${esc(p.lang)}]</span>`;
+    html += `</div>\n`;
   }
+  html += `</div>\n`;
 
-  // Control boxes (loop, alt, scatter, par) — nested with increasing margins
-  for (const box of controlBoxes) {
-    const margin = box.depth * FRAME_MARGIN;
-    const leftX = px[0] - 70 + margin;
-    const rightX = px[px.length - 1] + 70 - margin;
-    const cls = boxClass(box.kind);
-    svg += `<rect x="${leftX}" y="${box.startY}" width="${rightX - leftX}" height="${box.endY - box.startY}" rx="5" class="control-box ${cls}"/>`;
-    let label = box.label;
-    if (box.condition) label += `  [${box.condition}]`;
-    if (box.collection) label += `  over ${box.collection}`;
-    if (box.itemRole) label += ` as ${box.itemRole}`;
-    const tagW = Math.min(label.length * 7 + 20, rightX - leftX);
-    svg += `<rect x="${leftX}" y="${box.startY}" width="${tagW}" height="20" rx="5 5 0 0" class="control-tag ${cls}"/>`;
-    svg += `<text x="${leftX + 10}" y="${box.startY + 14}" class="control-label ${cls}">${esc(label)}</text>`;
-  }
+  // Body: SVG overlay will be injected by script; content rows follow
+  html += `<div class="seq-body">\n`;
+  html += `  <svg class="seq-overlay" xmlns="http://www.w3.org/2000/svg">${arrowDefs()}</svg>\n`;
 
-  // Elements
-  let rowIdx = 0;
-  for (const el of elements) {
-    const cy = rowY[rowIdx];
-    rowIdx++;
+  // Render elements recursively (frames create nesting)
+  html += renderElements(elements, partNames, sourceFile, opts, 0).html;
+
+  html += `</div>\n`; // .seq-body
+  html += `</div>\n`; // .seq-diagram
+  return html;
+}
+
+type RenderResult = { html: string; nextIdx: number };
+
+function renderElements(
+  elements: SeqElement[],
+  partNames: string[],
+  sourceFile: string,
+  opts: RenderOptions,
+  startIdx: number,
+  stopKinds?: Set<SeqElementKind>,
+): RenderResult {
+  let html = '';
+  let i = startIdx;
+
+  while (i < elements.length) {
+    const el = elements[i];
+    if (stopKinds && stopKinds.has(el.kind)) break;
 
     const debug = debugClass(el.stateId, opts);
     const srcAttr = sourceAttr(el.stateId, sourceFile, opts.sourceMap, el.kind, el.label);
 
     switch (el.kind) {
       case "message": {
-        const fromI = partIdx.get(el.from ?? '') ?? 0;
-        const toI = partIdx.get(el.to ?? '') ?? 0;
-        const x1 = px[fromI];
-        const x2 = px[toI];
-        svg += `<g class="step ${debug}" ${srcAttr}>`;
-        svg += `<line x1="${x1}" y1="${cy}" x2="${x2}" y2="${cy}" class="msg-arrow" marker-end="url(#arrowhead)"/>`;
-        svg += `<text x="${(x1 + x2) / 2}" y="${cy - 8}" class="msg-label">${esc(el.label)}</text>`;
-        if (el.async) svg += `<text x="${(x1 + x2) / 2 + 4}" y="${cy - 8}" class="async-badge">⚡</text>`;
-        svg += `</g>`;
+        const asyncBadge = el.async ? ' <span class="async-badge">&#x26A1;</span>' : '';
+        html += `<div class="seq-row seq-message step ${debug}" ${srcAttr} data-msg-from="${esc(el.from ?? '')}" data-msg-to="${esc(el.to ?? '')}">`;
+        html += `<span class="msg-label">${esc(el.label)}${asyncBadge}</span>`;
+        html += `</div>\n`;
+        i++;
         break;
       }
       case "action": {
-        const ri = partIdx.get(el.role) ?? 0;
-        const cx = px[ri];
-        const actionText = el.label || "action";
-        const boxW = Math.max(70, Math.min(160, actionText.length * 6 + 18));
-        const boxH = 22;
-        svg += `<g class="step ${debug}" ${srcAttr}>`;
-        svg += `<rect x="${cx - boxW / 2}" y="${cy - boxH / 2}" width="${boxW}" height="${boxH}" rx="${boxH / 2}" class="action-box"/>`;
-        svg += `<text x="${cx}" y="${cy + 3.5}" class="action-label">${esc(actionText)}</text>`;
-        if (el.async) svg += `<text x="${cx + boxW / 2 + 3}" y="${cy + 3}" class="async-badge">⚡</text>`;
-        svg += `</g>`;
+        const ri = partNames.indexOf(el.role);
+        const asyncBadge = el.async ? ' <span class="async-badge">&#x26A1;</span>' : '';
+        html += `<div class="seq-row seq-action step ${debug}" ${srcAttr} data-col="${ri}">`;
+        html += `<span class="action-pill">${esc(el.label || "action")}${asyncBadge}</span>`;
+        html += `</div>\n`;
+        i++;
         break;
       }
       case "timer": {
-        const ri = partIdx.get(el.role) ?? 0;
-        const cx = px[ri];
-        const timerW = Math.max(70, Math.min(120, el.label.length * 6.5 + 30));
-        svg += `<g class="step ${debug}" ${srcAttr}>`;
-        svg += `<rect x="${cx - timerW / 2}" y="${cy - 9}" width="${timerW}" height="18" rx="9" class="timer-box"/>`;
-        svg += `<text x="${cx}" y="${cy + 3.5}" class="timer-label">⏱ ${esc(el.label)}</text>`;
-        svg += `</g>`;
+        const ri = partNames.indexOf(el.role);
+        html += `<div class="seq-row seq-timer step ${debug}" ${srcAttr} data-col="${ri}">`;
+        html += `<span class="timer-pill">&#x23F1; ${esc(el.label)}</span>`;
+        html += `</div>\n`;
+        i++;
         break;
       }
       case "invoke": {
-        const ri = partIdx.get(el.role) ?? 0;
-        const cx = px[ri];
-        const invokeW = Math.max(100, Math.min(150, el.label.length * 6 + 24));
-        svg += `<g class="step ${debug}" ${srcAttr}>`;
-        svg += `<rect x="${cx - invokeW / 2}" y="${cy - 11}" width="${invokeW}" height="22" rx="3" class="invoke-box"/>`;
-        svg += `<rect x="${cx - invokeW / 2 + 3}" y="${cy - 8}" width="${invokeW - 6}" height="16" rx="2" class="invoke-box-inner"/>`;
-        svg += `<text x="${cx}" y="${cy + 3.5}" class="invoke-label">${esc(el.label)}</text>`;
-        svg += `</g>`;
+        const ri = partNames.indexOf(el.role);
+        html += `<div class="seq-row seq-invoke step ${debug}" ${srcAttr} data-col="${ri}">`;
+        html += `<span class="invoke-pill">${esc(el.label)}</span>`;
+        html += `</div>\n`;
+        i++;
         break;
       }
       case "spawn": {
-        const ri = partIdx.get(el.role) ?? 0;
-        const cx = px[ri];
-        const spawnW = Math.max(100, Math.min(150, el.label.length * 6 + 24));
-        svg += `<g class="step ${debug}" ${srcAttr}>`;
-        svg += `<rect x="${cx - spawnW / 2}" y="${cy - 11}" width="${spawnW}" height="22" rx="3" class="spawn-box" stroke-dasharray="5 3"/>`;
-        svg += `<text x="${cx}" y="${cy + 3.5}" class="spawn-label">${esc(el.label)}</text>`;
-        svg += `</g>`;
+        const ri = partNames.indexOf(el.role);
+        html += `<div class="seq-row seq-spawn step ${debug}" ${srcAttr} data-col="${ri}">`;
+        html += `<span class="spawn-pill">${esc(el.label)}</span>`;
+        html += `</div>\n`;
+        i++;
         break;
       }
-      case "alt_branch": {
-        const altMargin = elDepths[rowIdx - 1] * FRAME_MARGIN;
-        const altLeftX = px[0] - 60 + altMargin;
-        const altRightX = px[px.length - 1] + 60 - altMargin;
-        svg += `<line x1="${altLeftX}" y1="${cy}" x2="${altRightX}" y2="${cy}" class="alt-divider"/>`;
-        if (el.condition) {
-          svg += `<text x="${altLeftX + 10}" y="${cy + 14}" class="control-label">[${esc(el.condition)}]</text>`;
+
+      // ── Control frames (scatter, loop, par) ──
+      case "scatter_start":
+      case "loop_start":
+      case "par_start": {
+        const frameClass = frameKindClass(el.kind);
+        let tagText = el.label;
+        if (el.condition) tagText += `  [${el.condition}]`;
+        if (el.collection) tagText += `  over ${el.collection}`;
+        if (el.itemRole) tagText += ` as ${el.itemRole}`;
+        const endKind = el.kind.replace('_start', '_end') as SeqElementKind;
+
+        html += `<div class="seq-frame ${frameClass}">\n`;
+        html += `  <div class="frame-tag ${frameClass}">${esc(tagText)}</div>\n`;
+        const inner = renderElements(elements, partNames, sourceFile, opts, i + 1, new Set([endKind]));
+        html += inner.html;
+        html += `</div>\n`;
+        i = inner.nextIdx + 1; // skip past the end token
+        break;
+      }
+
+      // ── Alt frame (special: has branches) ──
+      case "alt_start": {
+        let tagText = el.label;
+        if (el.condition) tagText += `  [${el.condition}]`;
+
+        html += `<div class="seq-frame alt-frame">\n`;
+        html += `  <div class="frame-tag alt-frame">${esc(tagText)}</div>\n`;
+
+        const altStops = new Set<SeqElementKind>(["alt_branch" as SeqElementKind, "alt_end" as SeqElementKind]);
+        let pos = i + 1;
+        while (pos < elements.length) {
+          const seg = renderElements(elements, partNames, sourceFile, opts, pos, altStops);
+          html += seg.html;
+          pos = seg.nextIdx;
+          if (pos >= elements.length) break;
+          if (elements[pos].kind === "alt_branch") {
+            html += `  <div class="alt-divider"></div>\n`;
+            if (elements[pos].condition) {
+              html += `  <div class="alt-branch-label">[${esc(elements[pos].condition!)}]</div>\n`;
+            }
+            pos++;
+          } else {
+            // alt_end
+            pos++;
+            break;
+          }
         }
+        i = pos;
+        html += `</div>\n`;
         break;
       }
-      // loop_start/end, alt_start/end, scatter_start/end, par_start/end: handled by controlBoxes
+
+      // end/branch tokens consumed by parent — should not reach here normally
+      case "loop_end":
+      case "scatter_end":
+      case "par_end":
+      case "alt_end":
+      case "alt_branch":
+        i++;
+        break;
+
       default:
+        i++;
         break;
     }
   }
 
-  svg += arrowDefs();
-  svg += `</svg>`;
-  return svg;
+  return { html, nextIdx: i };
 }
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function boxClass(kind: string): string {
-  if (kind === "loop_start") return "loop-box";
-  if (kind === "alt_start") return "alt-box";
-  if (kind === "scatter_start") return "scatter-box";
-  if (kind === "par_start") return "par-box";
+function frameKindClass(kind: string): string {
+  if (kind === "loop_start") return "loop-frame";
+  if (kind === "scatter_start") return "scatter-frame";
+  if (kind === "par_start") return "par-frame";
   return "";
 }
 
@@ -274,70 +259,342 @@ function arrowDefs(): string {
   <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
     <polygon points="0 0, 10 3.5, 0 7" class="arrowhead-fill"/>
   </marker>
-  <marker id="arrowhead-dashed" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-    <polygon points="0 0, 10 3.5, 0 7" class="arrowhead-fill-dashed"/>
-  </marker>
 </defs>`;
 }
 
-/** CSS for sequence diagrams — injected into the webview */
+// ── CSS ──────────────────────────────────────────────────────────────
+
 export const SEQUENCE_DIAGRAM_CSS = `
-  svg { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .seq-diagram {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    position: relative;
+    margin: 0 auto;
+  }
+  .seq-version-badge {
+    position: absolute; top: 4px; right: 8px;
+    font-size: 9px; color: var(--vscode-descriptionForeground, #888);
+  }
 
-  .participant-box { fill: var(--vscode-sideBar-background, #252526); stroke: var(--vscode-panel-border, #555); stroke-width: 1.2; }
-  .participant-label { text-anchor: middle; font-size: 13px; font-weight: 600; fill: var(--vscode-foreground, #d4d4d4); }
-  .lang-tag { font-size: 9px; fill: var(--vscode-descriptionForeground, #888); font-weight: 400; }
-  .lifeline { stroke: var(--vscode-panel-border, #3a3a3a); stroke-width: 0.8; stroke-dasharray: 4 3; }
+  /* ── Header ── */
+  .seq-header {
+    display: flex;
+    justify-content: space-around;
+    padding: 10px 0 6px;
+  }
+  .seq-participant {
+    width: ${COLUMN_WIDTH}px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .seq-participant .participant-name {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 4px;
+    font-size: 13px; font-weight: 600;
+    color: var(--vscode-foreground, #d4d4d4);
+    background: var(--vscode-sideBar-background, #252526);
+    border: 1.5px solid var(--vscode-panel-border, #555);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+  }
+  .seq-participant .participant-lang {
+    font-size: 9px; color: var(--vscode-descriptionForeground, #888); font-weight: 400;
+  }
 
-  .msg-arrow { stroke: var(--vscode-charts-blue, #4fc1ff); stroke-width: 1.2; }
-  .msg-label { text-anchor: middle; font-size: 10px; font-weight: 500; fill: var(--vscode-charts-blue, #4fc1ff); }
-
-  .action-box { fill: rgba(177, 128, 215, 0.10); stroke: var(--vscode-charts-purple, #b180d7); stroke-width: 0.8; }
-  .action-label { text-anchor: middle; font-size: 9.5px; font-weight: 500; fill: #cda0e7; letter-spacing: 0.2px; }
-
-  .timer-box { fill: rgba(204, 167, 0, 0.08); stroke: var(--vscode-charts-yellow, #cca700); stroke-width: 0.8; }
-  .timer-label { text-anchor: middle; font-size: 9px; fill: var(--vscode-charts-yellow, #cca700); }
-
-  .invoke-box { fill: rgba(79, 193, 255, 0.06); stroke: var(--vscode-charts-blue, #4fc1ff); stroke-width: 1.2; }
-  .invoke-box-inner { fill: none; stroke: var(--vscode-charts-blue, #4fc1ff); stroke-width: 0.4; }
-  .invoke-label { text-anchor: middle; font-size: 9.5px; fill: var(--vscode-charts-blue, #4fc1ff); }
-  .spawn-box { fill: rgba(137, 209, 133, 0.06); stroke: var(--vscode-charts-green, #89d185); stroke-width: 0.8; }
-  .spawn-label { text-anchor: middle; font-size: 9.5px; fill: var(--vscode-charts-green, #89d185); }
-  .async-badge { font-size: 8px; fill: var(--vscode-charts-yellow, #cca700); }
-  .version-badge { font-size: 9px; fill: var(--vscode-descriptionForeground, #888); }
-
-  .control-box { fill: none; stroke-width: 0.8; }
-  .loop-box { stroke: rgba(137, 209, 133, 0.45); }
-  .alt-box { stroke: rgba(209, 134, 22, 0.45); }
-  .scatter-box { stroke: rgba(241, 76, 76, 0.45); }
-  .par-box { stroke: rgba(177, 128, 215, 0.45); }
-
-  .control-tag { stroke: none; }
-  .control-tag.loop-box { fill: rgba(137, 209, 133, 0.12); }
-  .control-tag.alt-box { fill: rgba(209, 134, 22, 0.12); }
-  .control-tag.scatter-box { fill: rgba(241, 76, 76, 0.12); }
-  .control-tag.par-box { fill: rgba(177, 128, 215, 0.12); }
-
-  .control-label { font-size: 9px; font-weight: 600; letter-spacing: 0.3px; }
-  .control-label.loop-box { fill: var(--vscode-charts-green, #89d185); }
-  .control-label.alt-box { fill: var(--vscode-charts-orange, #d18616); }
-  .control-label.scatter-box { fill: var(--vscode-charts-red, #f14c4c); }
-  .control-label.par-box { fill: var(--vscode-charts-purple, #b180d7); }
-
-  .alt-divider { stroke: var(--vscode-panel-border, #555); stroke-width: 0.5; stroke-dasharray: 4 3; }
+  /* ── Body ── */
+  .seq-body {
+    position: relative;
+    padding: 4px 0 16px;
+  }
+  .seq-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; overflow: visible;
+  }
   .arrowhead-fill { fill: var(--vscode-charts-blue, #4fc1ff); }
-  .arrowhead-fill-dashed { fill: var(--vscode-charts-green, #89d185); }
 
+  /* ── Lifelines (SVG) ── */
+  .seq-lifeline { stroke: var(--vscode-panel-border, #444); stroke-width: 1; stroke-dasharray: 5 4; }
+
+  /* ── Rows ── */
+  .seq-row {
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    position: relative;
+  }
+
+  /* ── Messages ── */
+  .seq-message {
+    justify-content: center;
+  }
+  .seq-message .msg-label {
+    font-size: 10.5px; font-weight: 600;
+    color: var(--vscode-charts-blue, #4fc1ff);
+    position: relative; z-index: 1;
+    pointer-events: auto;
+  }
+  .msg-arrow-line { stroke: var(--vscode-charts-blue, #4fc1ff); stroke-width: 1.5; }
+
+  /* ── Actions ── */
+  .seq-action { justify-content: center; }
+  .action-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 11px;
+    font-size: 10px; font-weight: 500;
+    color: #cda0e7; letter-spacing: 0.2px;
+    background: rgba(177, 128, 215, 0.12);
+    border: 1px solid var(--vscode-charts-purple, #b180d7);
+    white-space: nowrap;
+  }
+
+  /* ── Timers ── */
+  .seq-timer { justify-content: center; }
+  .timer-pill {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 9px;
+    font-size: 9.5px;
+    color: var(--vscode-charts-yellow, #cca700);
+    background: rgba(204, 167, 0, 0.08);
+    border: 1px solid var(--vscode-charts-yellow, #cca700);
+    white-space: nowrap;
+  }
+
+  /* ── Invoke ── */
+  .seq-invoke { justify-content: center; }
+  .invoke-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 3px;
+    font-size: 10px;
+    color: var(--vscode-charts-blue, #4fc1ff);
+    background: rgba(79, 193, 255, 0.08);
+    border: 1.2px solid var(--vscode-charts-blue, #4fc1ff);
+    box-shadow: inset 0 0 0 2px rgba(79, 193, 255, 0.04);
+    white-space: nowrap;
+  }
+
+  /* ── Spawn ── */
+  .seq-spawn { justify-content: center; }
+  .spawn-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 3px;
+    font-size: 10px;
+    color: var(--vscode-charts-green, #89d185);
+    background: rgba(137, 209, 133, 0.08);
+    border: 1px dashed var(--vscode-charts-green, #89d185);
+    white-space: nowrap;
+  }
+
+  .async-badge { font-size: 7px; color: var(--vscode-charts-yellow, #cca700); opacity: 0.7; }
+
+  /* ── Control frames ── */
+  .seq-frame {
+    border: 1px solid transparent;
+    border-radius: 6px;
+    margin: 6px 10px;
+    padding: 0 0 6px;
+    position: relative;
+  }
+  .scatter-frame { border-color: rgba(209, 134, 22, 0.30); }
+  .loop-frame    { border-color: rgba(137, 209, 133, 0.35); }
+  .par-frame     { border-color: rgba(177, 128, 215, 0.35); }
+  .alt-frame     { border-color: rgba(209, 134, 22, 0.35); }
+
+  .frame-tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 6px 0 6px 0;
+    font-size: 9px; font-weight: 600; letter-spacing: 0.3px;
+  }
+  .frame-tag.scatter-frame { background: rgba(209, 134, 22, 0.06); color: var(--vscode-charts-orange, #d18616); }
+  .frame-tag.loop-frame    { background: rgba(137, 209, 133, 0.08); color: var(--vscode-charts-green, #89d185); }
+  .frame-tag.par-frame     { background: rgba(177, 128, 215, 0.08); color: var(--vscode-charts-purple, #b180d7); }
+  .frame-tag.alt-frame     { background: rgba(209, 134, 22, 0.08); color: var(--vscode-charts-orange, #d18616); }
+
+  /* ── Alt branches ── */
+  .alt-divider {
+    border-top: 0.5px dashed var(--vscode-panel-border, #555);
+    margin: 4px 0;
+  }
+  .alt-branch-label {
+    font-size: 9px; font-weight: 600; letter-spacing: 0.3px;
+    color: var(--vscode-charts-orange, #d18616);
+    padding: 0 10px 4px;
+  }
+
+  /* ── Step interactivity ── */
   .step { cursor: pointer; transition: opacity 0.15s ease; }
-  .step:hover .msg-arrow { stroke-width: 2.5; }
-  .step:hover .action-box { stroke-width: 1.5; filter: brightness(1.15); }
-  .step.visited .msg-arrow, .step.visited .msg-label { opacity: 0.4; }
-  .step.visited .action-box, .step.visited .action-label { opacity: 0.4; }
-  .step.active .msg-arrow { stroke: var(--vscode-debugIcon-startForeground, #89d185); stroke-width: 2.5; animation: pulse-line 1.5s ease-in-out infinite; }
-  .step.active .msg-label { fill: var(--vscode-debugIcon-startForeground, #89d185); }
-  .step.active .action-box { stroke: var(--vscode-debugIcon-startForeground, #89d185); stroke-width: 2; animation: pulse-box 1.5s ease-in-out infinite; }
-  .step.future .msg-arrow, .step.future .msg-label, .step.future .action-box, .step.future .action-label { opacity: 0.25; }
+  .step:hover .action-pill { filter: brightness(1.15); border-width: 1.8px; }
 
-  @keyframes pulse-line { 0%,100%{stroke-opacity:1} 50%{stroke-opacity:0.5} }
-  @keyframes pulse-box { 0%,100%{stroke-opacity:1} 50%{stroke-opacity:0.4} }
+  /* Visited: dim */
+  .step.visited .msg-label, .step.visited .action-pill,
+  .step.visited .timer-pill, .step.visited .invoke-pill, .step.visited .spawn-pill { opacity: 0.35; }
+
+  /* Active: strong green highlight with glow */
+  .step.active {
+    background: rgba(137, 209, 133, 0.12);
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 1.5px rgba(137, 209, 133, 0.35), 0 0 12px rgba(137, 209, 133, 0.15);
+    position: relative;
+    z-index: 2;
+  }
+  .step.active .msg-label {
+    color: var(--vscode-debugIcon-startForeground, #89d185);
+    font-weight: 700;
+    text-shadow: 0 0 8px rgba(137, 209, 133, 0.4);
+  }
+  .step.active .action-pill, .step.active .timer-pill,
+  .step.active .invoke-pill, .step.active .spawn-pill {
+    border-color: var(--vscode-debugIcon-startForeground, #89d185);
+    background: rgba(137, 209, 133, 0.18);
+    color: var(--vscode-debugIcon-startForeground, #89d185);
+    box-shadow: 0 0 10px rgba(137, 209, 133, 0.35);
+    animation: pulse-glow 1.5s ease-in-out infinite;
+  }
+
+  /* Future: very dim */
+  .step.future .msg-label, .step.future .action-pill,
+  .step.future .timer-pill, .step.future .invoke-pill, .step.future .spawn-pill { opacity: 0.2; }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 8px rgba(137, 209, 133, 0.3); }
+    50% { box-shadow: 0 0 16px rgba(137, 209, 133, 0.5); }
+  }
+`;
+
+// ── Webview script: draws lifelines + arrows into SVG overlay ────────
+
+export const SEQUENCE_DIAGRAM_SCRIPT = `
+(function() {
+  var COLUMN_WIDTH = ${COLUMN_WIDTH};
+
+  function drawOverlay() {
+    var diagram = document.querySelector('.seq-diagram');
+    if (!diagram) return;
+
+    var svg = diagram.querySelector('.seq-overlay');
+    if (!svg) return;
+
+    var body = diagram.querySelector('.seq-body');
+    if (!body) return;
+
+    var partNames = JSON.parse(diagram.getAttribute('data-participants') || '[]');
+    var headers = diagram.querySelectorAll('.seq-participant');
+    if (headers.length === 0) return;
+
+    // Get participant X centers relative to .seq-body
+    var bodyRect = body.getBoundingClientRect();
+    var partCenters = [];
+    for (var h = 0; h < headers.length; h++) {
+      var nameEl = headers[h].querySelector('.participant-name');
+      if (!nameEl) continue;
+      var r = nameEl.getBoundingClientRect();
+      partCenters.push(r.left + r.width / 2 - bodyRect.left);
+    }
+
+    // Set SVG viewBox to match body size
+    svg.setAttribute('width', bodyRect.width);
+    svg.setAttribute('height', bodyRect.height);
+    svg.setAttribute('viewBox', '0 0 ' + bodyRect.width + ' ' + bodyRect.height);
+
+    // Clear previous lines (keep <defs>)
+    var defs = svg.querySelector('defs');
+    svg.innerHTML = '';
+    if (defs) svg.appendChild(defs);
+
+    // Draw lifelines
+    for (var li = 0; li < partCenters.length; li++) {
+      var x = partCenters[li];
+      var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', x);
+      line.setAttribute('y1', '0');
+      line.setAttribute('x2', x);
+      line.setAttribute('y2', bodyRect.height);
+      line.setAttribute('class', 'seq-lifeline');
+      svg.appendChild(line);
+    }
+
+    // Draw message arrows
+    var messages = diagram.querySelectorAll('.seq-message');
+    for (var m = 0; m < messages.length; m++) {
+      var el = messages[m];
+      var fromName = el.getAttribute('data-msg-from');
+      var toName = el.getAttribute('data-msg-to');
+      var fromIdx = partNames.indexOf(fromName);
+      var toIdx = partNames.indexOf(toName);
+      if (fromIdx < 0 || toIdx < 0) continue;
+
+      var elRect = el.getBoundingClientRect();
+      var cy = elRect.top + elRect.height / 2 - bodyRect.top;
+      var x1 = partCenters[fromIdx];
+      var x2 = partCenters[toIdx];
+
+      var arrow = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      arrow.setAttribute('x1', x1);
+      arrow.setAttribute('y1', cy);
+      arrow.setAttribute('x2', x2);
+      arrow.setAttribute('y2', cy);
+      arrow.setAttribute('class', 'msg-arrow-line');
+      arrow.setAttribute('marker-end', 'url(#arrowhead)');
+
+      // Transfer debug class for active/visited styling (check both render-time and postMessage classes)
+      if (el.classList.contains('active') || el.classList.contains('debug-active-state')) arrow.setAttribute('class', 'msg-arrow-line msg-arrow-active');
+      else if (el.classList.contains('visited') || el.classList.contains('debug-visited-state')) arrow.setAttribute('class', 'msg-arrow-line msg-arrow-visited');
+      else if (el.classList.contains('future')) arrow.setAttribute('class', 'msg-arrow-line msg-arrow-future');
+
+      svg.appendChild(arrow);
+    }
+
+    // Position action/timer/invoke/spawn pills at their participant column
+    var colRows = diagram.querySelectorAll('[data-col]');
+    for (var c = 0; c < colRows.length; c++) {
+      var row = colRows[c];
+      var col = parseInt(row.getAttribute('data-col'), 10);
+      if (isNaN(col) || col < 0 || col >= partCenters.length) continue;
+      var centerX = partCenters[col];
+      var rowRect = row.getBoundingClientRect();
+      var rowCenterX = rowRect.left + rowRect.width / 2 - bodyRect.left;
+      var offset = centerX - rowCenterX;
+      var pill = row.querySelector('.action-pill, .timer-pill, .invoke-pill, .spawn-pill');
+      if (pill) {
+        pill.style.position = 'relative';
+        pill.style.left = offset + 'px';
+      }
+    }
+  }
+
+  function scrollToActive() {
+    var active = document.querySelector('.step.active') || document.querySelector('.debug-active-state');
+    if (active) active.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  // Draw on load
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      drawOverlay();
+      scrollToActive();
+    });
+  });
+
+  // Redraw on resize
+  var ro = new ResizeObserver(function() { requestAnimationFrame(drawOverlay); });
+  var diag = document.querySelector('.seq-diagram');
+  if (diag) ro.observe(diag);
+
+  // Expose for external re-draw (e.g. after debug state update)
+  window.__seqOverlayRedraw = drawOverlay;
+})();
+
+  /* SVG arrow styling */
+  var style = document.createElement('style');
+  style.textContent = [
+    '.msg-arrow-line { stroke: var(--vscode-charts-blue, #4fc1ff); stroke-width: 1.5; }',
+    '.msg-arrow-active { stroke: var(--vscode-debugIcon-startForeground, #89d185); stroke-width: 2.5; animation: pulse-line 1.5s ease-in-out infinite; }',
+    '.msg-arrow-visited { opacity: 0.35; }',
+    '.msg-arrow-future { opacity: 0.2; }',
+    '@keyframes pulse-line { 0%,100%{stroke-opacity:1} 50%{stroke-opacity:0.5} }'
+  ].join('\\n');
+  document.head.appendChild(style);
 `;

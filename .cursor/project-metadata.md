@@ -43,15 +43,28 @@ Approach:
 │                                                       ▼                 │
 │  ┌────────────────────────────────────────────────────────────────────┐│
 │  │  ReagentController (TS RC) — routing, interceptors, multi-AgentNode│
-│  │  agentNodes: { ts: NativeAgentNode, py: PythonAgentNode }         ││
-│  └────────┬───────────────────────────┬──────────────────────────────┘│
-│           │                           │                               │
-│  ┌────────▼─────────┐    ┌───────────▼─────────┐                    │
-│  │  NativeAgentNode  │    │  PythonAgentNode     │                    │
-│  │  TS AgentRunner   │    │  child process IPC   │                    │
-│  │  runtime/ts/      │    │  JSON-line stdio     │                    │
-│  │  zones in JS/TS   │    │  runtime/py/         │                    │
-│  └──────────────────┘    └─────────────────────┘                    │
+│  │  agentNodes: { ts: NativeAgentNode, py: PythonAgentNode,          ││
+│  │               custom: CustomAgentNode, gate: MessageGateNode }    ││
+│  └────────┬──────────┬──────────────┬──────────────┬─────────────────┘│
+│           │          │              │              │                   │
+│  ┌────────▼────────┐ │  ┌───────────▼──────┐  ┌───▼────────────────┐ │
+│  │ NativeAgentNode  │ │  │ CustomAgentNode   │  │ MessageGateNode    │ │
+│  │ TS AgentRunner   │ │  │ User AgentIface   │  │ GateSession +      │ │
+│  │ ManagedAdapter   │ │  │ handle(event)     │  │ GateTransport      │ │
+│  │ zones in JS/TS   │ │  │ No zones needed   │  │ WS/stdio/HTTP      │ │
+│  └─────────────────┘ │  └──────────────────┘  └────────────────────┘ │
+│           ┌───────────▼─────────┐                                     │
+│           │  PythonAgentNode     │                                     │
+│           │  child process IPC   │                                     │
+│           │  JSON-line stdio     │                                     │
+│           │  runtime/py/         │                                     │
+│           └─────────────────────┘                                     │
+│                                                                       │
+│  ┌────────────────────────────────────────────────────────────────────┐│
+│  │  ProtocolEngine — pure FSM walker (extracted from ProtocolInstance) │
+│  │  AgentInterface — handle(event) → response (pluggable)             │
+│  │  ManagedAgentAdapter │ CustomAgent │ GateTransport                 ││
+│  └────────────────────────────────────────────────────────────────────┘│
 │                                                                       │
 │  ┌────────────────────────────────────────────────────────────────────┐│
 │  │  ReagentController (Python RC) — pure-Python orchestrator          ││
@@ -72,10 +85,10 @@ Approach:
 │  │  DebugController │ DebugInterceptor │ DebugAdvanceHook           │  │
 │  └──────┬────────────────┬────────────────┬─────────────────────────┘  │
 │         │ RAP/WS         │ RAP/WS         │ RAP/WS                     │
-│  ┌──────▼──────┐  ┌──────▼──────┐  ┌──────▼──────┐                    │
-│  │ TS Adapter   │  │ Py Adapter   │  │ Losos       │ (future)          │
-│  │ ref runtime  │  │ ref runtime  │  │ Bridge      │                    │
-│  └─────────────┘  └─────────────┘  └─────────────┘                    │
+│  ┌──────▼──────┐  ┌──────▼──────┐                                     │
+│  │ TS Adapter   │  │ Py Adapter   │                                    │
+│  │ ref runtime  │  │ ref runtime  │                                    │
+│  └─────────────┘  └─────────────┘                                     │
 │         │                                                               │
 │  ┌──────▼────────────────────────────────────────────────────────────┐ │
 │  │  VSCode Extension (RAP client)                                    │ │
@@ -85,11 +98,6 @@ Approach:
 │                    FUTURE: Production engines                           │
 │                                                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │  Losos Engine (Kotlin / etcd)                                    │   │
-│  │  Guard-Action network │ Multi-slot guards │ Production-grade     │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │  LangGraph Bridge (Python / LangGraph)                           │   │
 │  │  Map IR to LangGraph state machines                              │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
@@ -97,10 +105,10 @@ Approach:
 
 Data plane: ReagentController loopback + NodeLink (NATS demoted to optional NodeLink impl); Python RC uses InprocTransport for zero-overhead in-process routing
 Control plane: RAP over WebSocket (ROS ↔ adapters ↔ VSCode)
-RAP sub-protocols: 7 .rg specs in tools/rap/ (with role definitions)
+RAP sub-protocols: 14 .rg specs in packages/reagent-system/protocols/rap/ (with role definitions)
 ```
 
-## Current state (2026-02-21)
+## Current state (2026-02-26)
 
 ### Language: v0.0.8
 
@@ -161,7 +169,7 @@ All 26 examples + 3 libs compile and validate successfully.
 
 ### RAP sub-protocol specs
 
-`tools/rap/` (source) and `tools/rap/out/` (compiled IR):
+`packages/reagent-system/protocols/rap/` (source, moved from `tools/rap/`):
 
 | # | File | Participants | Roles | Key constructs |
 |---|---|---|---|---|
@@ -172,16 +180,28 @@ All 26 examples + 3 libs compile and validate successfully.
 | 05 | `debug-session.rg` | client, orchestrator, adapter | `RAPDebugClient`, `RAPDebugRelay`, `RAPDebugTarget` | Debug command relay |
 | 06 | `inspect-state.rg` | client, orchestrator, adapter | `RAPInspectClient`, `RAPInspectRelay`, `RAPInspectTarget` | State snapshot relay |
 | 07 | `set-breakpoints.rg` | client, orchestrator | `RAPBreakpointClient`, `RAPBreakpointResolver` | Breakpoint resolution |
+| 08 | `trace-stream.rg` | orchestrator, client | `RAPTraceSource`, `RAPTraceConsumer` | TraceEvent/SessionStatus streaming |
+| 09 | `trigger-protocol.rg` | orchestrator, adapter | `RAPTriggerSource`, `RAPTriggerTarget` | Remote protocol triggering |
+| 10 | `list-protocols.rg` | client, orchestrator | `RAPListClient`, `RAPListServer` | Protocol registry query |
+| 11 | `deploy-protocol.rg` | client, orchestrator | `RAPDeployClient`, `RAPDeployServer` | Protocol deployment with compatibility check |
+| 12 | `cluster-status.rg` | client, orchestrator | `RAPStatusClient`, `RAPStatusServer` | Cluster status query |
+| 13 | `submit-deploy-spec.rg` | client, orchestrator | `RAPSpecClient`, `RAPSpecServer` | Desired-state deployment spec submission |
+| 14 | `stop-agent.rg` | client, orchestrator | `RAPStopClient`, `RAPStopServer` | Graceful agent shutdown |
 
-All 7 RAP specs compile with role definitions and message schemas.
+All 14 RAP specs compile with role definitions and message schemas.
 
 ### Compiler CLI (`@reagent/lang`)
 
 ```
-reagent-lang parse    <file.rg>               — AST as JSON
-reagent-lang ir       <file.rg> [role]         — IR to stdout
-reagent-lang validate <file.rg> [role]         — IR + validation diagnostics
-reagent-lang compile  <file.rg> <out-dir>      — .ir.json + .agent.json + .role.json + messages.json + deployment.json
+reagent-lang parse      <file.rg>               — AST as JSON
+reagent-lang ir         <file.rg> [role]         — IR to stdout
+reagent-lang validate   <file.rg> [role]         — IR + validation diagnostics
+reagent-lang compile    <file.rg> <out-dir>      — .ir.json + .agent.json + .role.json + messages.json + deployment.json
+reagent-lang build      [project-dir]            — Build all protocols from reagent.json
+reagent-lang init       [dir]                    — Scaffold a new Reagent project
+reagent-lang decompile  <dir|file.ir.json>       — Reconstruct .rg from compiled IR
+reagent-lang verify     <file.rg>                — Generate TLA+ spec, run TLC model checker
+reagent-lang deploy     [project-dir] [ros-url]  — Build and deploy to ROS
 ```
 
 ### Reference runtimes (TS + Python)
@@ -192,6 +212,16 @@ Lightweight **reference runners** that interpret IR JSON. Transport-agnostic via
 |---|---|---|---|
 | AgentRunner + ProtocolInstance | TypeScript | `runtime/ts/` | Full IR support |
 | AgentRunner + ProtocolInstance | Python | `runtime/py/` | Full IR support (mirrors TS) |
+| ProtocolEngine | TypeScript | `runtime/ts/src/protocol-engine.ts` | Pure FSM walker, emits ProtocolEvent/AgentResponse |
+| AgentInterface + ManagedAgentAdapter | TypeScript | `runtime/ts/src/agent-interface.ts` | Pluggable agent abstraction, managed zone execution adapter |
+| CustomAgentNode | TypeScript | `runtime/ts/src/custom-agent-node.ts` | User-provided AgentInterface.handle() |
+| MessageGateNode | TypeScript | `runtime/ts/src/message-gate-node.ts` | External agent via GateTransport (WS/stdio/HTTP) |
+| GateSession | TypeScript | `runtime/ts/src/gate-session.ts` | Per-instance session with FSM validation + timeout |
+| GateTransport | TypeScript | `runtime/ts/src/gate-transport.ts` | WsGateTransport, StdioGateTransport, HttpGateTransport |
+| OTelInterceptor | TypeScript | `runtime/ts/src/otel-interceptor.ts` | Message-level OTel span creation |
+| OTelTraceHook | TypeScript | `runtime/ts/src/otel-trace-hook.ts` | Agent-level OTel span creation |
+| DiscoveryAgent | TypeScript | `runtime/ts/src/discovery-agent.ts` | SWIM-like gossip discovery, membership, failure detection |
+| ScatterCoordinator | TypeScript | `runtime/ts/src/scatter-coordinator.ts` | Streaming and partitioned scatter execution |
 | ReagentController | TypeScript | `runtime/ts/src/reagent-controller.ts` | Multi-AgentNode routing + interceptors |
 | ReagentController | Python | `runtime/py/reagent_runtime/controller.py` | Multi-AgentNode routing + interceptors (mirrors TS) |
 | NativeAgentNode | TypeScript | `runtime/ts/src/native-agent-node.ts` | TS agent platform adapter |
@@ -226,16 +256,28 @@ All IR constructs supported at runtime: `initial`, `send`, `receive`, `action`, 
 
 | Module | Version | Path | Description |
 |---|---|---|---|
-| `@reagent/lang` | 0.0.8 | `lang/` | Compiler: AST, parser, IR emitter, IR validator, CLI |
+| `@reagent/lang` | 0.0.8 | `lang/` | Compiler: AST, parser, IR emitter, IR validator, TLA+ generator, CLI |
 | `reagent-vscode` | 0.0.8 | `tools/reagent-vscode/` | TextMate grammar + embedded language support + DAP debug adapter + Run/Debug CodeLens |
+| `@reagent/system` | — | `packages/reagent-system/` | System protocols (14 RAP specs), system roles (Orchestrator, Debug, Reconciler, Discovery) |
+
+### Conformance suite
+
+| Path | Description |
+|---|---|
+| `spec/conformance/` | IR fixture tests for cross-implementation parity |
+| `spec/conformance/fixtures/` | Pre-compiled IR graphs (deployment, agents, roles, messages) |
+| `spec/conformance/expected/` | Expected trace kind sequences |
+| `spec/conformance/runner.ts` | Conformance test runner |
 
 ### Specs / docs
 
 | Document | Path | Content |
 |---|---|---|
+| `user-guide.md` | `docs/user-guide.md` | End-to-end user guide: project structure, CLI, 3 integration modes, verify, OTel, debugging |
 | `lang-spec.md` | `docs/lang-spec.md` | Language spec v0.0.8: syntax + EBNF + $ctx/$flow split + invokes/spawns/scatter + alt where |
+| `rc-spec.md` | `docs/rc-spec.md` | RC specification: core model, 3 integration modes, envelope format, wire protocol, conformance |
+| `scatter-gather-semantics.md` | `docs/scatter-gather-semantics.md` | Scatter-gather RFC: immutable branch ctx, gather pattern, partitioned scatter |
 | `reagent-spec.md` | `docs_v0.0.1/reagent-spec.md` | Core spec v0.0.1: layers, TraceEvent algebra, legality, runtime |
-| `ir-losos-mapping.md` | `docs/ir-losos-mapping.md` | IR → Losos engine mapping |
 | `backlog.md` | `docs/backlog.md` | Backlog & milestone history |
 | `connectivity.md` | `docs/connectivity.md` | Connectivity layer (routing, AgentNode, interceptors) |
 | `orchestrator.md` | `docs/orchestrator.md` | Orchestrator service (ROS, debug, VSCode) |
@@ -249,14 +291,18 @@ All IR constructs supported at runtime: `initial`, `send`, `receive`, `action`, 
 4. **Agent level** — per-agent IR (AgentIR: thin deployment binding referencing a role) + resolved behavioral data from RoleIR.
 5. **Message level** — typed message schemas (IRMessageSchema) compiled alongside IR.
 6. **Connectivity level** (M5-CTRL ✅) — `ReagentController` + `AgentNode` + `NodeLink`: `AgentRef`/`NodeRef` addressing (ActorRef pattern), multi-agent nodes, loopback routing, message-level interceptors + agent-level `TraceHook`, static discovery via `AddressPage`. Multi-`AgentNode` RC dispatches by language (`ts` → `NativeAgentNode`, `py` → `PythonAgentNode`). No separate messaging layer — Reagent is the messaging system. See [connectivity.md](../docs/connectivity.md).
-7. **Execution level** — runtime engines that interpret agent IR via `AgentNode` platform abstraction. `NativeAgentNode` wraps TS `AgentRunner`. `PythonAgentNode` spawns Python child processes with JSON-line IPC. Python `InprocAgentNode` wraps Python `AgentRunner` in-process (zero-serialization). Python `IpcAgentNode` spawns Python subprocesses from the Python RC. Future: `LososAgentNode` (Kotlin/etcd), `LangGraphAgentNode`.
+7. **Execution level** — runtime engines that interpret agent IR via `AgentNode` platform abstraction. Three integration modes:
+   - **Managed**: `NativeAgentNode` → `AgentRunner` → `ProtocolInstance` (with `ManagedAgentAdapter`). Zone code executed in-process.
+   - **Custom Agent**: `CustomAgentNode` → user's `AgentInterface.handle()`. No zones — user implements all logic.
+   - **Message Gate**: `MessageGateNode` → `GateSession` → `GateTransport` (WS/stdio/HTTP). Agent runs externally.
+   Core abstractions: `ProtocolEngine` (pure FSM walker, emits `ProtocolEvent`, consumes `AgentResponse`) + `AgentInterface` (pluggable `handle(event) → response`).
+   Additionally: `PythonAgentNode` spawns Python child processes with JSON-line IPC. Python `InprocAgentNode` wraps Python `AgentRunner` in-process (zero-serialization). Python `IpcAgentNode` spawns Python subprocesses from the Python RC.
 8. **Control level** (M6-RT ✅) — Reagent Orchestrator Server (ROS): WebSocket service for compile/deploy/run/debug. `WsNodeLink` for network transport. Two-level debug: `DebugInterceptor` (message-level) + `DebugAdvanceHook` (state-level, zone-aware). `DebugController` coordinates both levels with source-map-based breakpoint resolution. `RemoteNode` connects via WsNodeLink for distributed agent nodes. VSCode extension with DAP debug adapter, debug panel, and inline value decorations. See [orchestrator.md](../docs/orchestrator.md).
 
 ## Milestone status
 
 | Milestone | Status | Description |
 |---|---|---|
-| M0 | ✅ DONE | Losos test harness on etcd 3.6 |
 | M1 | ✅ DONE | Language spec hardening (v0.0.4) |
 | M2 | ✅ DONE | AST + Parser + IR + Agent IR (v0.0.5) |
 | M-RT | ✅ DONE | Reference runtimes: TS + Python AgentRunners over NATS (T1–T5) |
@@ -283,8 +329,10 @@ Development is **E2E test-driven**:
 |---|---|---|
 | Language (lang-spec.md) | **v0.0.8** | Source of truth for language surface |
 | `@reagent/lang` package | 0.0.8 | Tracks language version directly |
-| `reagent-vscode` extension | 0.0.8 | Tracks language version directly. |
+| `reagent-vscode` extension | 0.0.8 | Tracks language version directly |
 | `reagent-spec.md` (core spec) | v0.0.1 | Bump when TraceEvent algebra / runtime contract changes |
+| `rc-spec.md` | Draft v1 | Bump when RC core model / wire protocol changes |
+| `@reagent/system` | — | Tracks RAP sub-protocol specs (14 protocols) |
 
 ## Intended use in CognOS
 

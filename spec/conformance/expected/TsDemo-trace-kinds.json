@@ -1,0 +1,16 @@
+{
+  "description": "Expected trace event kinds for TsDemo protocol (both agents combined)",
+  "requiredKinds": [
+    "ProtocolStarted",
+    "ActionStarted",
+    "ActionFinished",
+    "MessageSent",
+    "MessageReceived",
+    "ProtocolCompleted"
+  ],
+  "forbiddenKinds": [
+    "ProtocolFailed"
+  ],
+  "minEventCount": 4,
+  "notes": "Both ClientAgent and HandlerAgent must complete. At minimum: ProtocolStarted + message exchange + ProtocolCompleted for each agent."
+}

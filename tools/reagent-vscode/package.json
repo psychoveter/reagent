@@ -198,6 +198,36 @@
         "command": "reagent.stopDevCycle",
         "title": "Reagent: Stop Dev Cycle",
         "icon": "$(debug-stop)"
+      },
+      {
+        "command": "reagent.debug.continue",
+        "title": "Reagent Debug: Continue",
+        "icon": "$(debug-continue)"
+      },
+      {
+        "command": "reagent.debug.stepState",
+        "title": "Reagent Debug: Step State",
+        "icon": "$(debug-step-over)"
+      },
+      {
+        "command": "reagent.debug.stepOver",
+        "title": "Reagent Debug: Step Over",
+        "icon": "$(debug-step-out)"
+      },
+      {
+        "command": "reagent.debug.stepInto",
+        "title": "Reagent Debug: Step Into",
+        "icon": "$(debug-step-into)"
+      },
+      {
+        "command": "reagent.debug.restart",
+        "title": "Reagent Debug: Restart",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "reagent.debug.stop",
+        "title": "Reagent Debug: Stop",
+        "icon": "$(debug-stop)"
       }
     ],
     "menus": {

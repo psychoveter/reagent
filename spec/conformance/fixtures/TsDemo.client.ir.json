@@ -1,0 +1,181 @@
+{
+  "protocolName": "TsDemo",
+  "role": "client",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.queryText = $ctx.input.text\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_3",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "handler",
+        "arrow": "-->",
+        "messageName": "Query",
+        "preSendZone": "\n      $ctx.msg.text = $ctx.queryText\n    "
+      }
+    },
+    {
+      "id": "xor_4",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "xor"
+      }
+    },
+    {
+      "id": "guard_6",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression",
+        "expr": "$ctx.result.status == \"ok\""
+      }
+    },
+    {
+      "id": "recv_7",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "handler",
+        "arrow": "-->",
+        "messageName": "Accept",
+        "postReceiveZone": "\n        $ctx.responseData = $ctx.msg.data\n      "
+      }
+    },
+    {
+      "id": "else_8",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "recv_9",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "handler",
+        "arrow": "-->",
+        "messageName": "Reject",
+        "postReceiveZone": "\n        $ctx.rejectReason = $ctx.msg.reason\n      "
+      }
+    },
+    {
+      "id": "merge_5",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "end_10",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "act_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_2",
+      "to": "send_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_3",
+      "to": "xor_4",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_4",
+      "to": "guard_6",
+      "label": {
+        "kind": "expression",
+        "expr": "$ctx.result.status == \"ok\""
+      }
+    },
+    {
+      "from": "guard_6",
+      "to": "recv_7",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_7",
+      "to": "merge_5",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_4",
+      "to": "else_8",
+      "label": {
+        "kind": "else"
+      }
+    },
+    {
+      "from": "else_8",
+      "to": "recv_9",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_9",
+      "to": "merge_5",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "merge_5",
+      "to": "end_10",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_10"
+  ],
+  "initiator": "client",
+  "version": "0.1.1",
+  "fingerprints": {
+    "structureHash": "75f0826ac56456b4caa3b7a9e52fcea5e63d8fe0757b3dfc85bdf7d3311f3463",
+    "schemaHash": "91225ee290ec3a9e58f6c2fb33891c67fdd0b0fdcc32dd20c5a7d288faed99fc",
+    "implHash": "06899aba20de5cfd265d68765b1afec1fad3abd29c40c710a573438a69b1d48f"
+  }
+}

@@ -292,11 +292,19 @@ export function computeProtocolFingerprint(
 
 /**
  * Computes the role fingerprint (two hashes).
+ * `protocolVersions` maps protocol names to their resolved versions —
+ * ensures role version bumps when a referenced protocol changes.
  */
-export function computeRoleFingerprint(roleIR: RoleIR): RoleFingerprint {
+export function computeRoleFingerprint(
+  roleIR: RoleIR,
+  protocolVersions?: Map<string, string>,
+): RoleFingerprint {
   const playsEntries = [...roleIR.plays]
     .sort((a, b) => a.protocolName.localeCompare(b.protocolName) || a.roleName.localeCompare(b.roleName))
-    .map(p => `${p.protocolName}:${p.roleName}`)
+    .map(p => {
+      const ver = protocolVersions?.get(p.protocolName) ?? p.protocolVersion ?? "";
+      return `${p.protocolName}@${ver}:${p.roleName}`;
+    })
     .join("\n");
 
   const behaviorParts: string[] = [];

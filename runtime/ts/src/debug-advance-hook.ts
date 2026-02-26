@@ -22,9 +22,6 @@ export interface DebugAdvanceHookEvent {
   reason: "breakpoint" | "step";
 }
 
-/**
- * Simple promise-based gate: await gate.promise, then call gate.open() to release.
- */
 interface PromiseGate {
   promise: Promise<void>;
   open: () => void;
@@ -42,7 +39,8 @@ export class DebugAdvanceHook {
   private stepMode: StepMode = "none";
   private enabled = true;
   private onEvent: ((event: DebugAdvanceHookEvent) => void) | null = null;
-  private currentGate: PromiseGate | null = null;
+  /** Per-instance gates keyed by instanceId:agentName:stateId to avoid deadlock. */
+  private gates = new Map<string, PromiseGate>();
 
   setOnEvent(cb: (event: DebugAdvanceHookEvent) => void): void {
     this.onEvent = cb;
@@ -68,44 +66,31 @@ export class DebugAdvanceHook {
     this.enabled = enabled;
   }
 
-  /**
-   * Step to next state (stepState).
-   */
   stepState(): void {
     this.stepMode = "stepState";
     this.enabled = true;
-    this.releaseGate();
+    this.releaseAllGates();
   }
 
-  /**
-   * Step over — pause at next send/receive/terminal only.
-   */
   stepOver(): void {
     this.stepMode = "stepOver";
     this.enabled = true;
-    this.releaseGate();
+    this.releaseAllGates();
   }
 
-  /**
-   * Continue — release gate, disable stepping.
-   * If breakpoints are set, the hook stays enabled so it pauses at breakpoints.
-   */
   continue(): void {
     this.stepMode = "none";
     this.enabled = this.stateBreakpoints.size > 0 || this.stateKindBreakpoints.size > 0;
-    this.releaseGate();
+    this.releaseAllGates();
   }
 
-  private releaseGate(): void {
-    if (this.currentGate) {
-      this.currentGate.open();
-      this.currentGate = null;
+  private releaseAllGates(): void {
+    for (const gate of this.gates.values()) {
+      gate.open();
     }
+    this.gates.clear();
   }
 
-  /**
-   * Returns an AdvanceHook function for use in InstanceConfig.
-   */
   asAdvanceHook(): AdvanceHook {
     return async (hookCtx: AdvanceHookContext): Promise<void> => {
       if (!this.enabled) return;
@@ -130,9 +115,11 @@ export class DebugAdvanceHook {
         reason,
       });
 
-      // Create a gate and wait for it to be opened
-      this.currentGate = createGate();
-      await this.currentGate.promise;
+      const gateKey = `${hookCtx.instanceId}:${hookCtx.agentName}:${hookCtx.stateId}`;
+      const gate = createGate();
+      this.gates.set(gateKey, gate);
+      await gate.promise;
+      this.gates.delete(gateKey);
     };
   }
 

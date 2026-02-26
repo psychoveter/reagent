@@ -104,4 +104,8 @@ export class SessionManager {
     const sessions = [...this.sessions.values()];
     return sessions[sessions.length - 1];
   }
+
+  getActiveSessionIds(): string[] {
+    return [...this.sessions.keys()];
+  }
 }

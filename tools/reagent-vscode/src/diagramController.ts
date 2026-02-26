@@ -4,8 +4,16 @@ import { ReagentDebugSession } from './reagentDebugAdapter';
 import type { RapClient } from './rapClient';
 
 /**
- * Bridges DAP Stopped events to the diagram webview:
- * highlights the active IR state and accumulates visited states.
+ * Bridges DAP Stopped events to the diagram webview.
+ *
+ * With the new mode-based panel, the controller's role is simpler:
+ * - On session start: clear visited states, attach to RAP
+ * - On Stopped: forward state ID to panel.updateDebug() (single path)
+ * - On session end: signal panel (panel handles its own transition to replay)
+ *
+ * The panel's own RAP listener (ensureStoppedListener) handles cluster-debug
+ * Stopped events. This controller handles local-debug DAP events and acts as
+ * a secondary path for cluster-debug via custom debug events.
  */
 export class DiagramController implements vscode.Disposable {
   private disposables: vscode.Disposable[] = [];
@@ -29,7 +37,6 @@ export class DiagramController implements vscode.Disposable {
       }),
     );
 
-    // Also hook into custom debug events if available
     this.disposables.push(
       vscode.debug.onDidReceiveDebugSessionCustomEvent(e => {
         if (e.session.type === 'reagent' && e.event === 'stopped') {
@@ -60,7 +67,6 @@ export class DiagramController implements vscode.Disposable {
       }
     }, 200);
 
-    // Stop polling after 10s
     setTimeout(() => clearInterval(poll), 10_000);
   }
 
@@ -79,6 +85,7 @@ export class DiagramController implements vscode.Disposable {
 
     const panel = ReagentDiagramPanel.getInstance();
     if (panel) {
+      // Single update path — panel dispatches internally
       panel.updateDebug(stateId, this.visitedStates);
     }
   }
@@ -86,11 +93,7 @@ export class DiagramController implements vscode.Disposable {
   private onSessionEnd(): void {
     this.rapDisposable?.dispose();
     this.rapDisposable = null;
-
-    const panel = ReagentDiagramPanel.getInstance();
-    if (panel) {
-      panel.updateDebug(undefined, undefined);
-    }
+    // Panel handles session-end transition via its own onDidTerminateDebugSession listener
   }
 
   dispose(): void {

@@ -20,6 +20,22 @@ export interface ReagentManifest {
   main?: string;
 }
 
+// ── Project root discovery ───────────────────────────────────────────
+
+/**
+ * Walk up from `startDir` looking for a directory containing `reagent.json`.
+ * Returns the absolute path of the project root, or null if not found.
+ */
+export function findProjectRoot(startDir: string): string | null {
+  let dir = resolve(startDir);
+  while (true) {
+    if (existsSync(join(dir, "reagent.json"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
 // ── Load / validate ─────────────────────────────────────────────────
 
 export function loadManifest(projectDir: string): ReagentManifest {

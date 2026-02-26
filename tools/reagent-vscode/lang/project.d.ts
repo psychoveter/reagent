@@ -13,6 +13,11 @@ export interface ReagentManifest {
     dependencies?: Record<string, string>;
     main?: string;
 }
+/**
+ * Walk up from `startDir` looking for a directory containing `reagent.json`.
+ * Returns the absolute path of the project root, or null if not found.
+ */
+export declare function findProjectRoot(startDir: string): string | null;
 export declare function loadManifest(projectDir: string): ReagentManifest;
 /**
  * Resolve an array of simple glob patterns relative to `baseDir`.

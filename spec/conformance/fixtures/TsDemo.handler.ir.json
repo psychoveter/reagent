@@ -1,0 +1,181 @@
+{
+  "protocolName": "TsDemo",
+  "role": "handler",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_11",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_12",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "client",
+        "arrow": "-->",
+        "messageName": "Query",
+        "postReceiveZone": "\n      $ctx.queryText = $ctx.msg.text\n    "
+      }
+    },
+    {
+      "id": "act_13",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.result = { status: $ctx.queryText === \"fail\" ? \"error\" : \"ok\", data: \"processed:\" + $ctx.queryText }\n    $self.queriesHandled = ($self.queriesHandled || 0) + 1\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "xor_14",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "xor"
+      }
+    },
+    {
+      "id": "guard_16",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression",
+        "expr": "$ctx.result.status == \"ok\""
+      }
+    },
+    {
+      "id": "send_17",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "client",
+        "arrow": "-->",
+        "messageName": "Accept",
+        "preSendZone": "\n        $ctx.msg.data = $ctx.result.data\n      "
+      }
+    },
+    {
+      "id": "else_18",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "send_19",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "client",
+        "arrow": "-->",
+        "messageName": "Reject",
+        "preSendZone": "\n        $ctx.msg.reason = \"query_failed\"\n      "
+      }
+    },
+    {
+      "id": "merge_15",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "end_20",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_11",
+      "to": "recv_12",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_12",
+      "to": "act_13",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_13",
+      "to": "xor_14",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_14",
+      "to": "guard_16",
+      "label": {
+        "kind": "expression",
+        "expr": "$ctx.result.status == \"ok\""
+      }
+    },
+    {
+      "from": "guard_16",
+      "to": "send_17",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_17",
+      "to": "merge_15",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_14",
+      "to": "else_18",
+      "label": {
+        "kind": "else"
+      }
+    },
+    {
+      "from": "else_18",
+      "to": "send_19",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_19",
+      "to": "merge_15",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "merge_15",
+      "to": "end_20",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_11",
+  "terminalStateIds": [
+    "end_20"
+  ],
+  "initiator": "client",
+  "version": "0.1.1",
+  "fingerprints": {
+    "structureHash": "75f0826ac56456b4caa3b7a9e52fcea5e63d8fe0757b3dfc85bdf7d3311f3463",
+    "schemaHash": "91225ee290ec3a9e58f6c2fb33891c67fdd0b0fdcc32dd20c5a7d288faed99fc",
+    "implHash": "06899aba20de5cfd265d68765b1afec1fad3abd29c40c710a573438a69b1d48f"
+  }
+}

@@ -35,5 +35,7 @@ export declare function extractDependencies(graphs: Map<string, IRGraph>): Proto
 export declare function computeProtocolFingerprint(graphs: Map<string, IRGraph>, schemas: IRMessageSchema[], usedMessageNames: Set<string>): ProtocolFingerprint;
 /**
  * Computes the role fingerprint (two hashes).
+ * `protocolVersions` maps protocol names to their resolved versions —
+ * ensures role version bumps when a referenced protocol changes.
  */
-export declare function computeRoleFingerprint(roleIR: RoleIR): RoleFingerprint;
+export declare function computeRoleFingerprint(roleIR: RoleIR, protocolVersions?: Map<string, string>): RoleFingerprint;

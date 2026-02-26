@@ -1216,6 +1216,95 @@ This phase can run **in parallel** with Phase 5 because they share only the Phas
 
 ---
 
+## 13. Message Gate UI in Cluster Panel
+
+The Cluster Panel tree view (§3.1 side panel) now includes sections for **Message Gate** connections and **Custom Agent** nodes. These reflect the three integration modes from the RC Spec:
+
+### 13.1 Gate sessions
+
+When external agents connect via Message Gate (WS, stdio, or HTTP transports), each active `GateSession` appears as a tree item under the connected node:
+
+```
+📦 Nodes
+  ├── ros-local (online)
+  │   ├── BuyerAgent (managed, ts)
+  │   └── SellerAgent (managed, ts)
+  └── remote-1 (online)
+      ├── ExternalBidder (gate, ws://...)
+      │   └── session: abc-123 (active, 3 events)
+      └── AnalyticsAgent (custom)
+```
+
+Gate sessions show:
+- **Transport type** badge (WS / stdio / HTTP)
+- **Session status** (active / completed / error)
+- **Event count** (ProtocolEvents processed)
+- **Click to inspect**: shows full GateSession state, pending events, and transport metadata
+
+### 13.2 Custom agents
+
+Custom Agent nodes (`AgentInterface` implementations) are shown with a "custom" badge, distinguishing them from managed agents. Clicking a custom agent shows the same state inspection as managed agents, but with an additional "Interface" section showing the implementation class.
+
+## 14. OpenTelemetry Dashboard Integration
+
+The OTel interceptor and trace hook (Wave 1.2) emit spans with standardized attributes. These integrate with any OTel-compatible backend (Jaeger, Tempo, Datadog).
+
+### 14.1 Connecting to a trace backend
+
+Add the OTel SDK and configure an exporter before starting the RC:
+
+```typescript
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { createOTelInterceptor, createOTelTraceHook } from "@reagent/runtime";
+
+const provider = new NodeTracerProvider();
+provider.addSpanProcessor(new BatchSpanProcessor(
+  new OTLPTraceExporter({ url: "http://localhost:4318/v1/traces" })
+));
+provider.register();
+
+const rc = new ReagentController({
+  nodeId: "my-node",
+  agentNode: new NativeAgentNode({
+    roleToAgent: { ... },
+    traceHook: createOTelTraceHook(),
+  }),
+  interceptors: [createOTelInterceptor()],
+});
+```
+
+### 14.2 Span attributes
+
+| Attribute | Source | Example |
+|---|---|---|
+| `reagent.instance_id` | Message envelope | `"abc-123"` |
+| `reagent.protocol` | Message envelope | `"Auction"` |
+| `reagent.message` | Message name | `"Bid"` |
+| `reagent.direction` | Interceptor context | `"outbound"` / `"inbound"` |
+| `reagent.from.agent` | Envelope sender | `"BuyerAgent"` |
+| `reagent.to.agent` | Envelope recipient | `"AuctioneerAgent"` |
+| `reagent.node_id` | RC config | `"ros-local"` |
+| `reagent.trace.kind` | TraceEvent | `"ProtocolStarted"` / `"MessageSent"` / `"ActionFinished"` |
+
+### 14.3 Dashboard link in DX tools
+
+The Cluster Panel includes an "Open OTel Dashboard" action button when an OTel backend URL is configured in `reagent.json`:
+
+```json
+{
+  "name": "my-project",
+  "otel": {
+    "dashboardUrl": "http://localhost:16686",
+    "serviceName": "reagent"
+  }
+}
+```
+
+Clicking the button opens the configured dashboard URL in the default browser, filtered to the `reagent` service. Trace IDs from the Trace Panel can be copied and pasted into the dashboard search for cross-referencing.
+
+---
+
 ## Appendix: File inventory (new)
 
 ### Language Server

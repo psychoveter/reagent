@@ -1,0 +1,6 @@
+{
+  "agentName": "ClientAgent",
+  "lang": "ts",
+  "roleName": "ClientRole",
+  "roleFile": "ClientRole.role.json"
+}

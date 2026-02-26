@@ -80,10 +80,20 @@ export function mergeNodeProtocols(
   }
 
   for (const proto of protocols) {
-    view.protocols.push({
-      ...proto,
-      nodeId,
-    });
+    const existing = view.protocols.find(
+      p => p.name === proto.name && p.nodeId === nodeId
+    );
+    if (existing) {
+      existing.version = proto.version;
+      existing.fingerprints = proto.fingerprints;
+      existing.dependencies = proto.dependencies;
+      existing.boundAgents = proto.boundAgents;
+    } else {
+      view.protocols.push({
+        ...proto,
+        nodeId,
+      });
+    }
   }
 }
 

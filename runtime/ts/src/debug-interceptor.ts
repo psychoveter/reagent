@@ -23,9 +23,10 @@ export type DebugInterceptorEvent =
 export class DebugInterceptor {
   private messageBreakpoints = new Set<string>();
   private pauseAll = false;
-  private held: Array<{ held: HeldMessage; next: () => void }> = [];
+  private held: Array<{ held: HeldMessage; resolve: () => void }> = [];
   private onEvent: ((event: DebugInterceptorEvent) => void) | null = null;
   private enabled = true;
+  private disposed = false;
 
   setOnEvent(cb: (event: DebugInterceptorEvent) => void): void {
     this.onEvent = cb;
@@ -51,20 +52,15 @@ export class DebugInterceptor {
     return this.held.map(h => h.held);
   }
 
-  /**
-   * Release the first held message and hold the next one (single step).
-   */
   stepMessage(): HeldMessage | null {
     if (this.held.length === 0) return null;
     const first = this.held.shift()!;
     first.held.release();
+    first.resolve();
     this.onEvent?.({ kind: "released", messageName: first.held.envelope.messageName });
     return first.held;
   }
 
-  /**
-   * Release all held messages and disable interception until new breakpoints are set.
-   */
   continue(): void {
     this.pauseAll = false;
     this.enabled = false;
@@ -72,16 +68,19 @@ export class DebugInterceptor {
     this.held = [];
     for (const entry of toRelease) {
       entry.held.release();
+      entry.resolve();
       this.onEvent?.({ kind: "released", messageName: entry.held.envelope.messageName });
     }
   }
 
-  /**
-   * Returns an InterceptorFn suitable for use in ReagentController.
-   */
+  dispose(): void {
+    this.disposed = true;
+    this.continue();
+  }
+
   asInterceptorFn(): InterceptorFn {
     return (ctx: InterceptorContext, next: () => void): void => {
-      if (!this.enabled) {
+      if (!this.enabled || this.disposed) {
         next();
         return;
       }
@@ -90,34 +89,28 @@ export class DebugInterceptor {
 
       if (shouldPause) {
         let released = false;
-        let dropped = false;
 
         const heldMsg: HeldMessage = {
           envelope: ctx.envelope,
           direction: ctx.direction,
           release: () => { released = true; },
-          drop: () => { dropped = true; },
+          drop: () => { released = true; },
         };
 
-        const entry = {
-          held: heldMsg,
-          next,
-        };
+        let resolveWait!: () => void;
+        const waitPromise = new Promise<void>((r) => { resolveWait = r; });
 
-        this.held.push(entry);
+        this.held.push({ held: heldMsg, resolve: resolveWait });
         this.onEvent?.({ kind: "stopped", held: heldMsg });
 
-        // Schedule a microtask loop that checks if released/dropped
-        const checkRelease = (): void => {
-          if (released) {
-            next();
-          } else if (dropped) {
+        // Use promise-based waiting instead of polling setTimeout
+        void waitPromise.then(() => {
+          if (!released) {
             this.onEvent?.({ kind: "dropped", messageName: ctx.envelope.messageName });
           } else {
-            setTimeout(checkRelease, 10);
+            next();
           }
-        };
-        checkRelease();
+        });
       } else {
         next();
       }

@@ -202,7 +202,7 @@ The **AgentNode** is the platform-specific component that knows how to create an
 
 The RC receives an `AgentNode` as a dependency. When the RC needs to register or spawn an agent, it delegates to the `AgentNode`, which:
 1. Loads or receives `RoleIR` + `IRGraph` artifacts.
-2. Creates the agent using its internal runtime (e.g., `AgentRunner` for the native TS runtime, Losos engine for Kotlin, LangGraph for Python).
+2. Creates the agent using its internal runtime (e.g., `AgentRunner` for the native TS runtime, LangGraph for Python).
 3. Returns an `AgentHandle` — an opaque interface the RC uses for message dispatch and lifecycle.
 
 The `AgentNode` is a **plugin**. Different platforms provide different implementations:
@@ -210,7 +210,6 @@ The `AgentNode` is a **plugin**. Different platforms provide different implement
 | AgentNode implementation | Runtime | Language |
 |---|---|---|
 | `NativeAgentNode` | Current `AgentRunner`-based runtime | TS, Python |
-| `LososAgentNode` | Losos engine (Kotlin/etcd) | Kotlin/JVM |
 | `LangGraphAgentNode` | LangGraph | Python |
 
 ```typescript
@@ -409,7 +408,7 @@ The RC dispatches to the agent level. The agent (via its runtime) routes to the 
 |  NodeRef      → NodeRef → NodeLink                                |
 |                                                                   |
 |  +------------------+                                             |
-|  | AgentNode        |  (NativeAgentNode / LososAgentNode / ...)   |
+|  | AgentNode        |  (NativeAgentNode / ...)                    |
 |  |  createAgent()   |                                             |
 |  |  destroyAgent()  |                                             |
 |  +--------+---------+                                             |
@@ -1109,3 +1108,322 @@ During Python RC development, several core runtime components were enhanced:
 | `runtime/tests/test_py_rc.py` | Python RC E2E tests (6 tests) |
 | `runtime/tests/test_py_rc_coverage.py` | Python RC coverage tests (8 tests) |
 | `runtime/tests/m5-coverage.test.ts` | TS coverage E2E tests (10 tests, C13–C22) |
+
+---
+
+## Appendix C: Message Gate
+
+The **Message Gate** is an `AgentNode` integration mode for agents that run as separate processes or on remote machines. Instead of executing zone code in-process, the RC communicates with the external agent over a wire protocol — the agent receives `ProtocolEvent` objects and returns `AgentResponse` objects as JSON.
+
+### Architecture
+
+```
+RC (ReagentController)
+  └── MessageGateNode (implements AgentNode)
+        └── MessageGateHandle (implements AgentHandle)
+              └── GateSession (FSM validation + event/response framing)
+                    └── GateTransport (wire adapter)
+                          ├── WsGateTransport   (WebSocket)
+                          ├── StdioGateTransport (stdin/stdout JSON lines)
+                          └── HttpGateTransport  (POST per event)
+```
+
+### Components
+
+**GateTransport** (`gate-transport.ts`) — bidirectional adapter that sends `ProtocolEvent` to the external agent and receives `AgentResponse`. Three implementations:
+
+| Transport | Backing | Framing |
+|---|---|---|
+| `WsGateTransport` | WebSocket connection | JSON per WS message |
+| `StdioGateTransport` | Child process stdin/stdout | Newline-delimited JSON |
+| `HttpGateTransport` | HTTP endpoint | JSON POST, response body is `AgentResponse` |
+
+```typescript
+interface GateTransport {
+  send(event: ProtocolEvent): void;
+  onResponse(handler: (response: AgentResponse) => void): void;
+  close(): void;
+}
+```
+
+**GateSession** (`gate-session.ts`) — wraps a `GateTransport` with per-protocol-instance state:
+
+- **FSM validation**: ensures the external agent follows the expected event sequence (e.g., no events after `protocol_completed`). Invalid transitions raise `GateValidationError`.
+- **Request-response correlation**: `sendAndWait(event)` sends a `ProtocolEvent` and returns a `Promise<AgentResponse>` with configurable timeout.
+- **Event log**: records all emitted events for debugging.
+- **Status tracking**: `idle → active → completed | error`.
+
+```typescript
+interface GateSessionConfig {
+  sessionId: string;
+  agentName: string;
+  protocolName: string;
+  transport: GateTransport;
+  validateFSM?: boolean;  // default: true
+}
+```
+
+**MessageGateNode** (`message-gate-node.ts`) — implements the `AgentNode` interface (`runtimeName: "gate"`). On `createAgent()`, it obtains a `GateTransport` from the configured `transportFactory` and returns a `MessageGateHandle`.
+
+**MessageGateHandle** — implements `AgentHandle`. On `triggerProtocol()`, creates a `GateSession` for the new instance and sends a `protocol_started` notification. On `dispatchMessage()`, forwards the message as a `receive_required` event to the active session.
+
+### Wire protocol
+
+The wire protocol is symmetric JSON serialization of the existing `ProtocolEvent` / `AgentResponse` types. The external agent reads JSON from its input (WebSocket message, stdin line, or HTTP POST body), parses it as a `ProtocolEvent`, computes a response, and writes it back as a JSON-encoded `AgentResponse`.
+
+Event examples:
+```json
+{ "type": "action", "stateId": "s3", "body": "...", "lang": "py", "isAsync": false, "ctx": {}, "self": {} }
+{ "type": "receive_required", "stateId": "s5", "from": "ClientAgent", "messageName": "TaskResult" }
+{ "type": "protocol_completed", "ctx": { "result": 42 } }
+```
+
+Response examples:
+```json
+{ "type": "ctx_update", "ctx": { "counter": 1 } }
+{ "type": "noop" }
+{ "type": "error_thrown", "error": "something went wrong" }
+```
+
+### Use case
+
+Message Gate is the primary mode for:
+- Agents implemented in languages other than TS/Python (any language that can read/write JSON).
+- Agents running as long-lived microservices (connected via WebSocket or HTTP).
+- Agents running as child processes (connected via stdio).
+- Testing and mocking — a stub process that responds to events with canned responses.
+
+### Configuration
+
+```typescript
+const gateNode = new MessageGateNode({
+  roleToAgent: { "Proto.worker": "WorkerAgent" },
+  transportFactory: (agentName) => new WsGateTransport(wsConnection),
+});
+```
+
+The `transportFactory` is called once per agent, allowing different agents to use different transports.
+
+---
+
+## Appendix D: Custom Agent Interface
+
+The **Custom Agent** mode allows users to implement agent logic directly in code — via the `AgentInterface.handle()` method — instead of writing `.rg` zone code. The `ProtocolEngine` drives the FSM and emits `ProtocolEvent` objects; the user's `handle()` implementation consumes them and returns `AgentResponse` objects.
+
+### Architecture
+
+```
+RC (ReagentController)
+  └── CustomAgentNode (implements AgentNode, runtimeName: "custom")
+        └── CustomAgentHandle (implements AgentHandle)
+              ├── ProtocolEngine (FSM walker, emits ProtocolEvent)
+              └── AgentInterface.handle() (user-provided logic)
+```
+
+### Components
+
+**AgentInterface** (`agent-interface.ts`) — the contract between the engine and agent logic:
+
+```typescript
+interface AgentInterface {
+  handle(event: ProtocolEvent): Promise<AgentResponse>;
+}
+```
+
+The user implements `handle()` to respond to protocol events. The method receives the full event context (`$ctx`, `$self`, zone body, state ID) and returns an `AgentResponse` indicating how to proceed (update context, throw error, break from loop, return a value, etc.).
+
+**ManagedAgentAdapter** (`agent-interface.ts`) — the default `AgentInterface` implementation. It executes zone code from `.rg` files using the existing `ZoneExecutor`, providing the same behavior as the `NativeAgentNode`/`AgentRunner` path. Supports `reagent.invoke()`, `reagent.spawn()`, `reagent.break()`, `reagent.return()`, and `reagent.emit()` via configurable callbacks.
+
+```typescript
+class ManagedAgentAdapter implements AgentInterface {
+  async handle(event: ProtocolEvent): Promise<AgentResponse> {
+    // Executes zone body via executeZone()/executeZoneAsync()
+    // Returns ctx_update, return_value, break_requested, or error_thrown
+  }
+}
+```
+
+**ProtocolEngine** (`protocol-engine.ts`) — a pure FSM walker that owns the IR graph and state machine state. It does **not** execute zones, talk to transport, or manage traces. It exposes:
+- `followDefault()` — advance along the default transition.
+- `evalExpr(expr)` — evaluate a guard expression against `$ctx`/`$self`.
+- `findLoopExit()`, `findJoinForFork()`, `getCatchTarget()` — structural graph queries.
+- `ctx` / `selfRef` — mutable state accessible by the agent.
+
+The engine is instantiated per protocol instance. The orchestrating layer (`CustomAgentHandle`) steps through the graph, calls `agent.handle(event)` for action/send/receive states, applies the response, and advances.
+
+**CustomAgentNode** (`custom-agent-node.ts`) — implements the `AgentNode` interface. On `createAgent()`, it calls the user-provided `agentFactory(agentName, roleIR)` to obtain an `AgentInterface`, then wraps it in a `CustomAgentHandle` together with a `ProtocolEngine`.
+
+**CustomAgentHandle** — implements `AgentHandle`. It runs the engine loop:
+
+1. `triggerProtocol()` creates a `ProtocolEngine` for the protocol instance and starts the `runEngine()` loop.
+2. The loop reads the current state from the engine and dispatches by state kind:
+   - `action` → calls `agent.handle({ type: "action", ... })`, applies the response.
+   - `send` → optionally calls `handle()` for the pre-send zone, constructs and sends the envelope via `ReagentTransport`.
+   - `receive` → waits for an inbound `MessageEnvelope` (buffered by `dispatchMessage()`), optionally calls `handle()` for the post-receive zone.
+   - `timer` → sleeps for the specified duration.
+   - `guard`, `join`, `error` → the engine follows transitions directly.
+   - `terminal` → marks the instance completed or failed.
+3. `dispatchMessage()` buffers inbound messages and resolves pending waiters.
+
+### ProtocolEvent / AgentResponse lifecycle
+
+```
+ProtocolEngine walks IRGraph
+    ↓ emits ProtocolEvent
+AgentInterface.handle(event)
+    ↓ returns AgentResponse
+CustomAgentHandle applies response (ctx_update, break, return, error)
+    ↓
+ProtocolEngine advances to next state
+```
+
+### Use case
+
+Custom Agent mode is for:
+- Programmatic agents where behavior is easier to express in code than in `.rg` zones (e.g., RL policies, LLM-backed decision loops).
+- Testing — mock agents that return deterministic responses.
+- Embedding Reagent protocols in existing applications where the agent logic already exists.
+
+### Configuration
+
+```typescript
+const customNode = new CustomAgentNode({
+  roleToAgent: { "Proto.worker": "WorkerAgent" },
+  agentFactory: (agentName, roleIR) => ({
+    async handle(event) {
+      if (event.type === "action") {
+        // Custom logic instead of zone execution
+        return { type: "ctx_update", ctx: { ...event.ctx, processed: true } };
+      }
+      return { type: "noop" };
+    },
+  }),
+  traceHook: (event) => console.log(event),
+});
+```
+
+### Relationship to other integration modes
+
+| Mode | AgentNode | Zone execution | Agent logic |
+|---|---|---|---|
+| **Native** (default) | `NativeAgentNode` | `AgentRunner` + `ProtocolInstance` | `.rg` zones (JS/TS/Python) |
+| **Custom Agent** | `CustomAgentNode` | `ProtocolEngine` + user `handle()` | User code via `AgentInterface` |
+| **Message Gate** | `MessageGateNode` | External process | Remote process via `GateTransport` |
+
+All three modes implement the same `AgentNode`/`AgentHandle` contract. The RC does not know which mode is in use — it only interacts through `AgentHandle.dispatchMessage()`, `triggerProtocol()`, and `getSelf()`.
+
+---
+
+## Gossip-based Node Discovery
+
+### Overview
+
+Starting with Wave 3.2, Reagent supports SWIM-like gossip discovery as an alternative to static `AddressPage` configuration. The `DiscoveryAgent` maintains a membership list of known nodes and their agent inventories through periodic probing and membership delta piggybacking.
+
+### Gossip protocols
+
+Defined in `packages/reagent-system/protocols/discovery/gossip.rg`:
+
+| Protocol | Roles | Purpose |
+|---|---|---|
+| `Ping` | Prober → Target | Direct health check with membership digest |
+| `IndirectPing` | Requester → Relay → Suspect | Indirect probe via k relays when direct ping fails |
+| `MembershipUpdate` | Source → Peer | Explicit membership change notification |
+
+### Node lifecycle
+
+```
+1. Node starts DiscoveryAgent with seed peers
+2. Periodic probe round: ping random alive peer
+3. Ack received → mark alive, reset miss counter
+4. Timeout → increment miss counter
+5. miss >= suspectRounds → mark suspect, issue indirect pings
+6. miss >= deadRounds → mark dead
+7. Membership deltas piggybacked on all gossip messages
+```
+
+### Configuration
+
+```typescript
+import { DiscoveryAgent } from "@reagent/runtime";
+
+const discovery = new DiscoveryAgent({
+  nodeId: "my-node",
+  seeds: ["node-1", "node-2"],
+  probeIntervalMs: 1000,
+  probeTimeoutMs: 500,
+  indirectRelays: 3,
+  suspectRounds: 3,
+  deadRounds: 5,
+  send: (targetNodeId, message) => {
+    // Route via NodeLink, WebSocket, or other transport
+  },
+});
+
+discovery.setLocalAgents(["BuyerAgent", "SellerAgent"]);
+discovery.start();
+
+// Query routing table for agent-to-node mapping
+const routingTable = discovery.getRoutingTable();
+// Map<string, string>: "BuyerAgent" → "node-1", etc.
+```
+
+### Membership dissemination
+
+All gossip messages carry piggybacked membership deltas for protocol-free dissemination. When no pending deltas exist, full membership is piggybacked to ensure transitive discovery (node A learns about node C through node B even if A never directly contacts C).
+
+### Integration with RC routing
+
+The `DiscoveryAgent`'s routing table replaces static `AddressPage` configuration:
+
+```typescript
+const discovery = new DiscoveryAgent({ nodeId: "my-node", seeds: [...] });
+discovery.start();
+
+// Use gossip-populated routing instead of static AddressPage
+const rc = new ReagentController({
+  nodeId: "my-node",
+  agentNode: new NativeAgentNode({ roleToAgent: {} }),
+});
+
+// Periodically update RC routing from discovery
+setInterval(() => {
+  const table = discovery.getRoutingTable();
+  // Update RC's address resolution with gossip-discovered agents
+}, 5000);
+```
+
+### Scatter Scaling
+
+Wave 3.3 introduced streaming and partitioned scatter for scaling beyond single-process limits.
+
+#### Streaming scatter
+
+Results are emitted incrementally as each branch completes, rather than waiting for all branches (await-all join):
+
+```typescript
+import { streamingScatter } from "@reagent/runtime";
+
+const results = await streamingScatter(
+  items,
+  async (branch) => processBranch(branch.item),
+  (result) => console.log(`Branch ${result.index} done in ${result.durationMs}ms`),
+  { concurrencyLimit: 10 },
+);
+```
+
+#### Partitioned scatter
+
+When branch count exceeds a threshold, items are automatically partitioned for distribution:
+
+```typescript
+import { partitionedScatter } from "@reagent/runtime";
+
+const results = await partitionedScatter(
+  largeItemList, // e.g., 500 items
+  async (branch) => processBranch(branch.item),
+  (result) => onResult(result),
+  { partitionThreshold: 50, partitionSize: 25 },
+);
+// Automatically creates 20 partitions, executes in parallel
+```

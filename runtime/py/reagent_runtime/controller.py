@@ -89,6 +89,7 @@ class ReagentController:
         role_ir: dict[str, Any],
         graphs: dict[str, dict[str, Any]],
         extras: Optional[dict[str, Any]] = None,
+        protocol_version: Optional[str] = None,
     ) -> None:
         lang = role_ir.get("lang") or "py"
         node = self._agent_nodes.get(lang) or self._agent_nodes.get("*")
@@ -104,7 +105,6 @@ class ReagentController:
         self._agent_owners[agent_name] = node
         self._routing_table[agent_name] = "local"
 
-        # Populate protocol registry from agent's graphs
         registered_protos: set[str] = set()
         for graph in graphs.values():
             proto_name = graph.get("protocolName", "")
@@ -112,16 +112,16 @@ class ReagentController:
                 continue
             registered_protos.add(proto_name)
 
-            if not self.registry.get(proto_name):
-                proto_graphs = {k: g for k, g in graphs.items() if g.get("protocolName") == proto_name}
-                fp = read_protocol_fingerprint(graph)
-                self.registry.register(ProtocolEntry(
-                    name=proto_name,
-                    version=read_protocol_version(graph) or "0.0.0",
-                    fingerprints=fp or {"structureHash": "", "schemaHash": "", "implHash": ""},
-                    dependencies=read_protocol_dependencies(graph),
-                    ir_graphs=proto_graphs,
-                ))
+            proto_graphs = {k: g for k, g in graphs.items() if g.get("protocolName") == proto_name}
+            fp = read_protocol_fingerprint(graph)
+            version = protocol_version or read_protocol_version(graph) or "0.0.0"
+            self.registry.register(ProtocolEntry(
+                name=proto_name,
+                version=version,
+                fingerprints=fp or {"structureHash": "", "schemaHash": "", "implHash": ""},
+                dependencies=read_protocol_dependencies(graph),
+                ir_graphs=proto_graphs,
+            ))
             self.registry.bind_agent(proto_name, agent_name)
 
     def load(self, ir_dir: str) -> dict[str, str]:

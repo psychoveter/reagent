@@ -1,0 +1,7 @@
+{
+  "name": "@reagent/system",
+  "version": "0.1.0",
+  "description": "Reagent system protocols and roles for self-hosting infrastructure",
+  "protocols": ["protocols/**/*.rg"],
+  "outDir": "out"
+}

@@ -51,6 +51,8 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
   static pendingClusterRap: RapClient | null = null;
   /** Pending source map for cluster-attach, set before startDebugging(). */
   static pendingSourceMap: SourceMapEntry[] | null = null;
+  /** Cached Stopped payload from diagram panel (set when Stopped arrives before DAP is ready). */
+  static pendingStoppedPayload: Record<string, unknown> | null = null;
 
   /** Stack of protocol frames when stepping into invoke/spawn children. */
   private protocolStack: Array<{
@@ -70,10 +72,14 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
   getRapClient(): RapClient | null { return this.rap; }
   getSessionId(): string | null { return this.sessionId; }
 
+  private _requestQueue: Promise<void> = Promise.resolve();
+
   handleMessage(message: vscode.DebugProtocolMessage): void {
     const msg = message as { type: string; command?: string; seq: number; arguments?: Record<string, unknown> };
     if (msg.type === 'request') {
-      this.handleRequest(msg.command!, msg.seq, msg.arguments || {});
+      this._requestQueue = this._requestQueue
+        .then(() => this.handleRequest(msg.command!, msg.seq, msg.arguments || {}))
+        .catch(() => { /* prevent chain breakage */ });
     }
   }
 
@@ -148,6 +154,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
           break;
 
         case 'pause':
+          this.sendDebugCommand('stepState');
           this.sendResponse(reqSeq, command);
           break;
 
@@ -195,23 +202,26 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
 
     // Listen for Stopped events from ROS → DAP + debug panel + inline values
     this.disposables.push(this.rap.on('Stopped', (msg) => {
-      this.paused = true;
-      this.stoppedReason = String(msg.payload?.reason || 'breakpoint');
-      this.stoppedDetail = (msg.payload || {}) as Record<string, unknown>;
+      const payload = (msg.payload || {}) as Record<string, unknown>;
+      const sid = payload.sessionId as string | undefined;
+      if (sid && this.sessionId && sid !== this.sessionId) return;
 
-      // Update scatter branch tracking from ROS payload
+      this.paused = true;
+      this.stoppedReason = String(payload.reason || 'step');
+      this.stoppedDetail = payload;
+
       const branchIdx = this.stoppedDetail.scatterBranchIndex;
       if (typeof branchIdx === 'number') {
         this.scatterBranchIndex = branchIdx;
       }
 
-      // Auto-pop protocol stack when ROS signals we've returned to a parent protocol
       if (this.stoppedDetail.returnedFromChild && this.protocolStack.length > 0) {
         this.protocolStack.pop();
       }
 
+      const dapReason = this.stoppedReason === 'breakpoint' ? 'breakpoint' : 'step';
       this.sendEvent('stopped', {
-        reason: 'breakpoint',
+        reason: dapReason,
         threadId: THREAD_ID,
         description: this.stoppedReason,
         allThreadsStopped: true,
@@ -304,6 +314,15 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
       this.sourceMap = pendingMap;
     }
 
+    // Listen for source map updates after recompile/redeploy
+    this.disposables.push(this.rap.on('SourceMapUpdated', (msg) => {
+      const payload = (msg.payload || {}) as Record<string, unknown>;
+      const sm = payload.sourceMap as { entries?: SourceMapEntry[] } | undefined;
+      if (sm?.entries && sm.entries.length > 0) {
+        this.sourceMap = sm.entries;
+      }
+    }));
+
     // Listen for Stopped events from cluster
     this.disposables.push(this.rap.on('Stopped', (msg) => {
       const payload = (msg.payload || {}) as Record<string, unknown>;
@@ -311,7 +330,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
       if (sid && sid !== this.sessionId) return;
 
       this.paused = true;
-      this.stoppedReason = String(payload.reason || 'breakpoint');
+      this.stoppedReason = String(payload.reason || 'step');
       this.stoppedDetail = payload;
 
       const branchIdx = payload.scatterBranchIndex;
@@ -322,8 +341,9 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
         this.protocolStack.pop();
       }
 
+      const dapReason = this.stoppedReason === 'breakpoint' ? 'breakpoint' : 'step';
       this.sendEvent('stopped', {
-        reason: 'breakpoint',
+        reason: dapReason,
         threadId: THREAD_ID,
         description: this.stoppedReason,
         allThreadsStopped: true,
@@ -356,6 +376,29 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
 
     ReagentDebugSession.activeSession = this;
     this.sendResponse(reqSeq, 'launch');
+
+    // Replay any Stopped payload that arrived before the DAP adapter was ready.
+    // Defer slightly so VSCode processes the launch response first.
+    const pending = ReagentDebugSession.pendingStoppedPayload;
+    ReagentDebugSession.pendingStoppedPayload = null;
+    if (pending) {
+      setTimeout(() => {
+        if (this.paused) return;
+        const sid = pending.sessionId as string | undefined;
+        if (!sid || sid === this.sessionId) {
+          this.paused = true;
+          this.stoppedReason = String(pending.reason || 'step');
+          this.stoppedDetail = pending;
+          const dapReason = this.stoppedReason === 'breakpoint' ? 'breakpoint' : 'step';
+          this.sendEvent('stopped', {
+            reason: dapReason,
+            threadId: THREAD_ID,
+            allThreadsStopped: true,
+          });
+          this.pushStateToSinks();
+        }
+      }, 100);
+    }
   }
 
   private async handleSetBreakpoints(reqSeq: number, args: Record<string, unknown>): Promise<void> {
@@ -363,21 +406,27 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     const bpArgs = args.breakpoints as Array<{ line: number }> | undefined;
     const breakpoints: Array<{ verified: boolean; line: number; message?: string }> = [];
 
+    // Fallback: if source map is empty, try reading from compiled output
+    if (this.sourceMap.length === 0 && this.rgFilePath) {
+      this.sourceMap = tryReadSourceMapFromDisk(this.rgFilePath);
+    }
+
     if (this.rap?.connected && bpArgs && bpArgs.length > 0) {
       if (this.isClusterAttach) {
-        // Resolve source lines to state IDs locally and send to cluster
         const stateIds: string[] = [];
+        const bpFile = source?.path || this.rgFilePath;
         for (const bp of bpArgs) {
-          const mapped = this.sourceMap.find(e => e.line === bp.line);
+          const mapped = findNearestSourceMapEntry(this.sourceMap, bp.line, bpFile);
           if (mapped) {
             stateIds.push(mapped.stateId);
+            const adjusted = mapped.line !== bp.line ? ` (snapped from line ${bp.line})` : '';
             breakpoints.push({
               verified: true,
-              line: bp.line,
-              message: `→ ${mapped.stateId} (${mapped.protocolName}.${mapped.role})`,
+              line: mapped.line,
+              message: `→ ${mapped.stateId}${adjusted}`,
             });
           } else {
-            breakpoints.push({ verified: false, line: bp.line, message: 'No IR state at this line' });
+            breakpoints.push({ verified: false, line: bp.line, message: 'No IR state near this line' });
           }
         }
         if (stateIds.length > 0) {
@@ -391,29 +440,32 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
           });
         }
       } else {
-        const locations = bpArgs.map(bp => ({
-          type: 'sourceLine' as const,
-          file: source?.path || this.rgFilePath,
-          line: bp.line,
-        }));
+        const bpFile = source?.path || this.rgFilePath;
+        const resolvedLocations: Array<{ type: 'sourceLine'; file: string; line: number }> = [];
+        for (const bp of bpArgs) {
+          const mapped = findNearestSourceMapEntry(this.sourceMap, bp.line, bpFile);
+          if (mapped) {
+            resolvedLocations.push({ type: 'sourceLine', file: bpFile, line: mapped.line });
+            const adjusted = mapped.line !== bp.line ? ` (snapped from line ${bp.line})` : '';
+            breakpoints.push({
+              verified: true,
+              line: mapped.line,
+              message: `→ ${mapped.stateId}${adjusted}`,
+            });
+          } else {
+            resolvedLocations.push({ type: 'sourceLine', file: bpFile, line: bp.line });
+            breakpoints.push({ verified: false, line: bp.line, message: 'No IR state near this line' });
+          }
+        }
 
         this.rap.send({
           rap: 'SetBreakpointsRequest',
           sessionId: this.sessionId || 'default',
           payload: {
             sessionId: this.sessionId || 'default',
-            breakpoints: locations,
+            breakpoints: resolvedLocations,
           },
         });
-
-        for (const bp of bpArgs) {
-          const mapped = this.sourceMap.find(e => e.line === bp.line);
-          breakpoints.push({
-            verified: !!mapped,
-            line: bp.line,
-            message: mapped ? `→ ${mapped.stateId} (${mapped.protocolName}.${mapped.role})` : 'No IR state at this line',
-          });
-        }
       }
     } else if (bpArgs) {
       for (const bp of bpArgs) {
@@ -505,18 +557,22 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
       } else if (this.rap?.connected) {
         try {
           const agentName = (this.stoppedDetail.agentName || '') as string;
+          const requestId = `var-${++this._stateReqSeq}`;
           this.rap.send({
             rap: 'GetState',
+            id: requestId,
             sessionId: this.sessionId || 'default',
-            payload: { sessionId: this.sessionId || 'default', agentName },
+            payload: { sessionId: this.sessionId || 'default', agentName, requestId },
           });
 
           const snapshot = await new Promise<Record<string, unknown>>((resolve, reject) => {
             const timer = setTimeout(() => reject(new Error('Timeout')), 3000);
             const disposable = this.rap!.on('StateSnapshot', (msg) => {
+              const p = (msg.payload || {}) as Record<string, unknown>;
+              if (p.requestId && p.requestId !== requestId) return;
               clearTimeout(timer);
               disposable.dispose();
-              resolve((msg.payload || {}) as Record<string, unknown>);
+              resolve(p);
             });
           });
 
@@ -708,6 +764,8 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     this.sendResponse(reqSeq, 'disconnect');
   }
 
+  private _stateReqSeq = 0;
+
   private pushStateToSinks(): void {
     if (!this.sinks || !this.rap?.connected) return;
 
@@ -715,15 +773,20 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     const mapped = stateId ? this.sourceMap.find(e => e.stateId === stateId) : undefined;
     const agentName = (this.stoppedDetail.agentName || 'agent') as string;
 
+    this.sinks.debugPanel.updateDebugState(true, stateId ?? null);
+
+    const requestId = `sink-${++this._stateReqSeq}`;
     this.rap.send({
       rap: 'GetState',
+      id: requestId,
       sessionId: this.sessionId || 'default',
-      payload: { sessionId: this.sessionId || 'default', agentName },
+      payload: { sessionId: this.sessionId || 'default', agentName, requestId },
     });
 
     const disposable = this.rap.on('StateSnapshot', (snapMsg) => {
-      disposable.dispose();
       const snap = (snapMsg.payload || {}) as Record<string, unknown>;
+      if (snap.requestId && snap.requestId !== requestId) return;
+      disposable.dispose();
       const ctx = (snap.ctx || {}) as Record<string, unknown>;
       const self = (snap.self || {}) as Record<string, unknown>;
       const held = (snap.heldMessages || []) as Array<{ messageName: string; from: string; to: string }>;
@@ -795,4 +858,59 @@ export class ReagentDebugAdapterFactory implements vscode.DebugAdapterDescriptor
   ): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
     return new vscode.DebugAdapterInlineImplementation(new ReagentDebugSession(this.sinks, this.rosManager));
   }
+}
+
+const NEAREST_LINE_RANGE = 5;
+
+/**
+ * Find an exact or nearest source map entry for a given line.
+ * Searches within ±NEAREST_LINE_RANGE lines, preferring exact match,
+ * then closest line after, then closest line before.
+ */
+function findNearestSourceMapEntry(
+  sourceMap: SourceMapEntry[],
+  line: number,
+  file?: string,
+): SourceMapEntry | undefined {
+  const candidates = file
+    ? sourceMap.filter(e => e.file === file || e.file === '' || !e.file)
+    : sourceMap;
+
+  const exact = candidates.find(e => e.line === line);
+  if (exact) return exact;
+
+  let best: SourceMapEntry | undefined;
+  let bestDist = NEAREST_LINE_RANGE + 1;
+
+  for (const e of candidates) {
+    const dist = Math.abs(e.line - line);
+    if (dist > NEAREST_LINE_RANGE) continue;
+    if (dist < bestDist || (dist === bestDist && e.line > line)) {
+      best = e;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
+
+/**
+ * Fallback: walk up from the .rg file to find out/source-map.json in the project.
+ */
+function tryReadSourceMapFromDisk(rgFilePath: string): SourceMapEntry[] {
+  try {
+    let dir = path.dirname(rgFilePath);
+    for (let i = 0; i < 5; i++) {
+      const smPath = path.join(dir, 'out', 'source-map.json');
+      if (fs.existsSync(smPath)) {
+        const raw = JSON.parse(fs.readFileSync(smPath, 'utf-8'));
+        return (raw.entries ?? []) as SourceMapEntry[];
+      }
+      const reagentJson = path.join(dir, 'reagent.json');
+      if (fs.existsSync(reagentJson)) {
+        break;
+      }
+      dir = path.dirname(dir);
+    }
+  } catch { /* non-fatal */ }
+  return [];
 }

@@ -945,4 +945,3 @@ rc.trigger_protocol("Agent0", trigger)
 
 See `runtime/py/` for implementations and `runtime/tests/test_py_rc.py` for E2E tests.
 
-For the mapping from IR to Losos runtime primitives, see `docs/ir-losos-mapping.md`.

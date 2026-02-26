@@ -197,38 +197,38 @@ Two AgentInterface implementations on top of 2.1.
 
 ### 3.1 Self-hosting bootstrap
 
-- [ ] Refactor ROS to use its own RC for system protocols
-- [ ] On startup: ROS creates RC, registers system agents (Orchestrator, Debugger, Reconciler)
+- [x] Refactor ROS to use its own RC for system protocols
+- [x] On startup: ROS creates RC, registers system agents (Orchestrator, Debugger, Reconciler)
 - [ ] RAP handlers → become zone code of system agents (or custom agent implementations)
 - [ ] External clients (VSCode, CLI) interact with ROS via Message Gate
 - [ ] System protocols visible in debug, diagrams, traces — like any user protocol
-- [ ] Update `docs/orchestrator.md` — document bootstrap flow
+- [x] Update `docs/orchestrator.md` — document bootstrap flow
 
 ### 3.2 Gossip node discovery
 
-- [ ] Write `packages/reagent-system/protocols/discovery/gossip.rg` — SWIM-like protocol
-- [ ] `DiscoveryRole` agent: periodic heartbeat, agent list exchange, failure detection
-- [ ] Replace static `AddressPage` with gossip-populated routing table
+- [x] Write `packages/reagent-system/protocols/discovery/gossip.rg` — SWIM-like protocol
+- [x] `DiscoveryRole` agent: periodic heartbeat, agent list exchange, failure detection
+- [x] Replace static `AddressPage` with gossip-populated routing table
 - [ ] RC auto-joins gossip on startup if configured: `rc = ReagentController(gossip=True)`
 
 ### 3.3 Scatter scaling
 
 **Layer 1: Streaming scatter**
-- [ ] ProtocolEngine: scatter emits per-branch results immediately (no await-all join)
-- [ ] Coordinator's onReceive fires per result, $ctx accumulates incrementally
-- [ ] Backwards compatible: existing scatter semantics preserved when branch count < threshold
+- [x] ProtocolEngine: scatter emits per-branch results immediately (no await-all join)
+- [x] Coordinator's onReceive fires per result, $ctx accumulates incrementally
+- [x] Backwards compatible: existing scatter semantics preserved when branch count < threshold
 
 **Layer 2: Partitioned scatter**
-- [ ] RC auto-partitions scatter when N > configurable threshold
-- [ ] Each partition → separate AgentNode (process via IpcAgentNode)
-- [ ] RC coordinates partitions via routing table
-- [ ] Test: scatter with 100+ agents across 4 partitions
+- [x] RC auto-partitions scatter when N > configurable threshold
+- [x] Each partition → separate AgentNode (process via IpcAgentNode)
+- [x] RC coordinates partitions via routing table
+- [x] Test: scatter with 100+ agents across 4 partitions
 
 ### 3.4 Documentation
 
-- [ ] Update `docs/dx-tooling.md` — Gate UI in cluster panel, OTel dashboard link
-- [ ] Update `docs/orchestrator.md` — self-hosting architecture
-- [ ] Update `docs/connectivity.md` — gossip discovery section
+- [x] Update `docs/dx-tooling.md` — Gate UI in cluster panel, OTel dashboard link
+- [x] Update `docs/orchestrator.md` — self-hosting architecture
+- [x] Update `docs/connectivity.md` — gossip discovery section
 
 ---
 

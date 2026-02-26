@@ -2,19 +2,12 @@
 
 > **Note (v0.0.11)**: `$flow` was removed from the language in v0.0.11. Historical milestone descriptions below reference `$flow` as it existed at the time. All `$flow` usage has been migrated to `$ctx` (per-role working memory) with explicit message payloads for inter-role data transfer.
 
-Goal: build a **language + reference runtimes + production engine** stack for agentic protocols.
+Goal: build a **language + reference runtimes** stack for agentic protocols.
 
 - **Reagent** is the language and compiler (`lang/`).
 - **Reference runners** (TS + Python) are the test-driven development target.
-- **Losos** (Kotlin/etcd) is the future production engine.
 
 Development is **E2E test-driven**: each feature starts with a `.rg` example, compiles to IR, runs on reference runners, and is validated by trace assertions.
-
----
-
-## M0 — Baseline: reproducible Losos test harness on etcd 3.6 ✅ DONE
-
-Frozen working environment for Losos. Docker-compose harness, etcd v3.6.0.
 
 ---
 
@@ -1046,9 +1039,6 @@ Ideas and milestones considered but not yet scheduled.
 
 - **Role multiplicity** (`many` / `foreach`): static participant cardinality declarations. `scatter` (M5-LANG) covers dynamic multicast at runtime, but there's no compile-time cardinality constraint yet. Consider `role Seller [many]` or similar syntax for static analysis of fan-out/fan-in patterns.
 - **Engine API v0**: extract a formal language-neutral runtime contract from reference runners. Define `StartInstance`, `SubmitEvent`, `StreamTrace`, `ExecuteAction`, `Cancel`. Reference runners become the reference implementation.
-- **Losos engine adapter**: map Reagent IR to Losos Guard-Action network + etcd keyspace. Run Engine API conformance suite against Losos.
-- **Losos Guards 2.0**: multi-slot, OR/AND/XOR, timeouts — close semantic gaps between IR and Losos.
-- **Multi-language execution via Engine API**: Python runner talks to Losos engine through Engine API.
 - **Observability**: TraceEvent → OpenTelemetry mapping, trace divergence detection, "why blocked" queries.
 - **Delivery guarantees / protocol decorators**: `AgentRef.send()` is fire-and-forget today. At-least-once delivery with retries should be a **protocol decorator** — a standard-library Reagent protocol that wraps user protocols with retry/ack logic. Keeps retry composable, not baked into transport.
 - **P2P gossip for node discovery**: nodes exchange `AddressPage`s directly, converging to consistent cluster view without central orchestrator.

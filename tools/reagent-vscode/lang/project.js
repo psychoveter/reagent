@@ -6,6 +6,22 @@
  */
 import { readFileSync, readdirSync, statSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve, dirname, basename } from "node:path";
+// ── Project root discovery ───────────────────────────────────────────
+/**
+ * Walk up from `startDir` looking for a directory containing `reagent.json`.
+ * Returns the absolute path of the project root, or null if not found.
+ */
+export function findProjectRoot(startDir) {
+    let dir = resolve(startDir);
+    while (true) {
+        if (existsSync(join(dir, "reagent.json")))
+            return dir;
+        const parent = dirname(dir);
+        if (parent === dir)
+            return null;
+        dir = parent;
+    }
+}
 // ── Load / validate ─────────────────────────────────────────────────
 export function loadManifest(projectDir) {
     const manifestPath = join(projectDir, "reagent.json");
