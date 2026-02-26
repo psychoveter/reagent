@@ -621,6 +621,7 @@ ${STATE_MACHINE_CSS}
   <div class="diagram-container">
     ${diagramSvg}
   </div>
+  <div class="diagram-tooltip" id="diagram-tooltip"></div>
   <script>
     const vscode = acquireVsCodeApi();
     const clusterAgents = ${agentsJson};
@@ -659,6 +660,29 @@ ${STATE_MACHINE_CSS}
         var line = parseInt(el.getAttribute('data-src-line'), 10);
         var file = el.getAttribute('data-src-file');
         if (line && file) vscode.postMessage({ type: 'clickNode', line, file });
+      });
+    });
+
+    // Tooltip on diagram node hover
+    var tooltip = document.getElementById('diagram-tooltip');
+    document.querySelectorAll('[data-state-id]').forEach(function(el) {
+      el.addEventListener('mouseenter', function(e) {
+        var stateId = el.getAttribute('data-state-id');
+        var kind = el.getAttribute('data-state-kind') || '';
+        var label = el.getAttribute('data-state-label') || '';
+        if (!stateId || !tooltip) return;
+        var html = '<span class="tt-state-id">' + stateId + '</span>';
+        if (kind) html += '<span class="tt-kind">' + kind + '</span>';
+        if (label) html += '<span class="tt-label">' + label + '</span>';
+        tooltip.innerHTML = html;
+        tooltip.style.display = 'block';
+        var rect = el.getBoundingClientRect();
+        tooltip.style.left = (rect.left + rect.width / 2) + 'px';
+        tooltip.style.top = (rect.top - 8) + 'px';
+        tooltip.style.transform = 'translate(-50%, -100%)';
+      });
+      el.addEventListener('mouseleave', function() {
+        if (tooltip) tooltip.style.display = 'none';
       });
     });
 
@@ -785,10 +809,10 @@ ${STATE_MACHINE_CSS}
     });
 
     // Debug toolbar buttons
-    ['step', 'step-over', 'continue', 'stop'].forEach(function(action) {
+    ['step', 'step-over', 'step-into', 'continue', 'stop', 'restart'].forEach(function(action) {
       var btn = document.getElementById('debug-' + action);
       if (btn) {
-        var commandMap = { 'step': 'stepState', 'step-over': 'stepOver', 'continue': 'continue', 'stop': 'stop' };
+        var commandMap = { 'step': 'stepState', 'step-over': 'stepOver', 'step-into': 'stepIn', 'continue': 'continue', 'stop': 'stop', 'restart': 'restart' };
         btn.addEventListener('click', function() {
           vscode.postMessage({ type: 'debugAction', command: commandMap[action] });
         });
@@ -830,7 +854,10 @@ ${STATE_MACHINE_CSS}
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
         var label = document.getElementById('debug-state-label');
-        if (label) label.textContent = stateId;
+        if (label) {
+          var visitedCount = visited ? visited.length : 0;
+          label.innerHTML = 'Paused at <span class="state-name">' + stateId + '</span> <span class="step-count">step ' + (visitedCount + 1) + '</span>';
+        }
       }
     }
 
@@ -932,15 +959,16 @@ ${STATE_MACHINE_CSS}
           <button id="debug-trigger-btn" class="trigger-button debug-button">🔍 Debug</button>
         </div>
       </div>
-      <div class="debug-toolbar" id="debug-toolbar" style="display:none">
-        <span class="debug-toolbar-label">Debug:</span>
-        <span class="debug-state-label" id="debug-state-label">starting...</span>
-        <div class="debug-toolbar-buttons">
-          <button class="debug-btn" id="debug-step" title="Step State (F10)">⏭ Step</button>
-          <button class="debug-btn" id="debug-step-over" title="Step Over">⏩ Over</button>
-          <button class="debug-btn" id="debug-continue" title="Continue (F5)">▶ Continue</button>
-          <button class="debug-btn debug-btn-stop" id="debug-stop" title="Stop (Shift+F5)">⏹ Stop</button>
-        </div>
+      <div class="debug-controls" id="debug-toolbar" style="display:none">
+        <button class="ctrl-btn continue-btn" id="debug-continue" title="Continue (F5)">▶</button>
+        <button class="ctrl-btn step-btn" id="debug-step" title="Step State (F10)">⤵</button>
+        <button class="ctrl-btn step-btn" id="debug-step-over" title="Step Over">⏩</button>
+        <button class="ctrl-btn step-btn" id="debug-step-into" title="Step Into (F11)">↓</button>
+        <div class="ctrl-sep"></div>
+        <button class="ctrl-btn restart-btn" id="debug-restart" title="Restart">↻</button>
+        <button class="ctrl-btn stop-btn" id="debug-stop" title="Stop (Shift+F5)">■</button>
+        <div class="ctrl-sep"></div>
+        <span class="ctrl-status" id="debug-state-label">Paused at <span class="state-name">...</span></span>
       </div>
     </div>`;
   }
@@ -1013,13 +1041,17 @@ function getBaseStyles(): string {
     .trigger-button.debug-button { background: var(--vscode-debugIcon-startForeground, #89d185); color: #000; }
     .trigger-button.debug-button:hover { opacity: 0.85; }
 
-    .debug-toolbar { display: none; align-items: center; gap: 8px; padding: 4px 12px; background: var(--vscode-debugToolBar-background, #333); border-bottom: 1px solid var(--vscode-panel-border, #333); flex-shrink: 0; }
-    .debug-toolbar-label { font-size: 11px; font-weight: 600; color: var(--vscode-debugIcon-startForeground, #89d185); }
-    .debug-state-label { font-size: 11px; color: var(--vscode-descriptionForeground, #888); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .debug-toolbar-buttons { display: flex; gap: 4px; }
-    .debug-btn { padding: 2px 10px; background: var(--vscode-button-secondaryBackground, #3a3d41); color: var(--vscode-button-secondaryForeground, #ccc); border: none; border-radius: 3px; cursor: pointer; font-size: 11px; }
-    .debug-btn:hover { background: var(--vscode-button-secondaryHoverBackground, #45494e); }
-    .debug-btn-stop { color: var(--vscode-testing-iconFailed, #f48771); }
+    .debug-controls { display: none; align-items: center; gap: 4px; padding: 4px 12px; background: #1a2e1a; border-bottom: 1px solid var(--vscode-charts-green, #89d185); flex-shrink: 0; }
+    .ctrl-btn { background: transparent; border: 1px solid transparent; color: var(--vscode-foreground, #ccc); border-radius: 3px; width: 28px; height: 24px; cursor: pointer; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; padding: 0; line-height: 1; }
+    .ctrl-btn:hover { background: rgba(255,255,255,0.08); border-color: var(--vscode-panel-border, #333); }
+    .ctrl-btn.continue-btn { color: var(--vscode-debugIcon-startForeground, #89d185); }
+    .ctrl-btn.step-btn { color: var(--vscode-charts-blue, #4fc1ff); }
+    .ctrl-btn.restart-btn { color: var(--vscode-charts-green, #89d185); }
+    .ctrl-btn.stop-btn { color: var(--vscode-testing-iconFailed, #f48771); }
+    .ctrl-sep { width: 1px; height: 18px; background: var(--vscode-panel-border, #333); }
+    .ctrl-status { font-size: 11px; color: var(--vscode-descriptionForeground, #888); margin-left: 8px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ctrl-status .state-name { color: var(--vscode-debugIcon-startForeground, #89d185); font-weight: 600; }
+    .ctrl-status .step-count { background: var(--vscode-badge-background, #4d4d4d); color: var(--vscode-badge-foreground, #d4d4d4); padding: 1px 6px; border-radius: 8px; font-size: 10px; margin-left: 6px; }
 
     .debug-active-state { outline: 2px solid var(--vscode-debugIcon-startForeground, #89d185) !important; outline-offset: 2px; }
     .debug-visited-state { opacity: 1 !important; }
@@ -1027,5 +1059,10 @@ function getBaseStyles(): string {
     .debug-breakpoint { position: relative; }
     .debug-breakpoint::after { content: ''; position: absolute; left: -6px; top: 50%; transform: translateY(-50%); width: 10px; height: 10px; background: var(--vscode-debugIcon-breakpointForeground, #e51400); border-radius: 50%; pointer-events: none; }
     [data-state-id].debug-breakpoint > rect, [data-state-id].debug-breakpoint > polygon, [data-state-id].debug-breakpoint > circle { stroke: var(--vscode-debugIcon-breakpointForeground, #e51400) !important; stroke-width: 2.5; }
+
+    .diagram-tooltip { display: none; position: fixed; background: var(--vscode-editorHoverWidget-background, #252526); border: 1px solid var(--vscode-editorHoverWidget-border, #454545); border-radius: 4px; padding: 6px 10px; font-size: 11px; font-family: var(--vscode-editor-font-family, monospace); color: var(--vscode-foreground, #d4d4d4); max-width: 350px; white-space: pre; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 2px 8px rgba(0,0,0,0.5); z-index: 1000; pointer-events: none; }
+    .diagram-tooltip .tt-state-id { color: var(--vscode-debugIcon-startForeground, #89d185); font-weight: 600; }
+    .diagram-tooltip .tt-kind { color: var(--vscode-descriptionForeground, #888); margin-left: 6px; }
+    .diagram-tooltip .tt-label { display: block; margin-top: 4px; color: var(--vscode-charts-purple, #b180d7); }
   `;
 }

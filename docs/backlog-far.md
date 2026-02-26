@@ -31,24 +31,25 @@ Reagent — не агентский фреймворк. Reagent — **protocol c
 │  ┌────────────────────────────────────────────────────────────────┐  │
 │  │                    Protocol Core                                │  │
 │  │                                                                │  │
-│  │  ProtocolEngine          ProtocolInstance (per-run)             │  │
-│  │  ├─ IR loader            ├─ FSM walker (state transitions)     │  │
-│  │  ├─ protocol registry    ├─ $ctx (per-role, owned by RC)       │  │
-│  │  ├─ fingerprint checker  ├─ message inbox/routing              │  │
-│  │  └─ dependency resolver  ├─ message inbox/resolver             │  │
-│  │                          ├─ fork/join/scatter coordinator      │  │
-│  │                          └─ trace emitter                      │  │
+│  │  ProtocolInstance (per-run)                                     │  │
+│  │  ├─ ProtocolEngine (FSM walker, $ctx, state transitions)       │  │
+│  │  ├─ AgentInterface impl (managed / custom / gate)              │  │
+│  │  ├─ message inbox/routing                                      │  │
+│  │  ├─ fork/join/scatter coordinator                              │  │
+│  │  └─ trace emitter                                              │  │
+│  │                                                                │  │
+│  │  Protocol Registry (IR loader, fingerprints, dependencies)      │  │
 │  └────────────────────────────────────────────────────────────────┘  │
 │                                                                      │
 │  ┌────────────────────────────────────────────────────────────────┐  │
 │  │                    Agent Integration Layer                      │  │
 │  │                                                                │  │
 │  │  ┌──────────────┐  ┌───────────────┐  ┌────────────────────┐  │  │
-│  │  │ Managed Mode │  │  Hook Mode    │  │  Message Gate Mode │  │  │
+│  │  │ Managed Mode │  │ Custom Agent  │  │  Message Gate Mode │  │  │
 │  │  │              │  │               │  │                    │  │  │
-│  │  │ Zone exec    │  │ on_action()   │  │ WS/gRPC/HTTP      │  │  │
-│  │  │ $agent inject│  │ on_send()     │  │ FSM validation     │  │  │
-│  │  │ InprocNode   │  │ on_receive()  │  │ accept/reject      │  │  │
+│  │  │ Zone exec    │  │ handle(event) │  │ WS/stdio/HTTP      │  │  │
+│  │  │ $agent inject│  │ → response    │  │ FSM validation     │  │  │
+│  │  │ InprocNode   │  │ CustomNode    │  │ accept/reject      │  │  │
 │  │  └──────────────┘  └───────────────┘  └────────────────────┘  │  │
 │  └────────────────────────────────────────────────────────────────┘  │
 │                                                                      │
@@ -62,9 +63,9 @@ Reagent — не агентский фреймворк. Reagent — **protocol c
                           │              │               │
                   ┌───────┘       ┌──────┘        ┌──────┘
                   ▼               ▼               ▼
-           Managed agents    Hook agents     External agents
-           (Python/TS,       (any lang,      (LLM APIs,
-            zone code)       callbacks)       microservices,
+           Managed agents    Custom agents   External agents
+           (Python/TS,       (any lang,      (LLM APIs, MCP,
+            zone code)        handle())       microservices,
                                               A2A, browser)
 ```
 
@@ -73,7 +74,7 @@ Reagent — не агентский фреймворк. Reagent — **protocol c
 | State | Owner | Видимость для RC |
 |-------|-------|-----------------|
 | Protocol FSM (current state, transitions) | RC | Полная. RC — единственный интерпретатор IR. |
-| `$ctx` (per-role, per-instance working memory) | RC | Полная. RC создаёт, изолирует, передаёт в хуки. |
+| `$ctx` (per-role, per-instance working memory) | RC | Полная. RC создаёт, изолирует, передаёт в хуки. **Caveat**: scatter branches get isolated `$ctx` via `Object.create()` (v0.0.11), but mutations to inherited collection properties (e.g. `push()`) still affect the parent. Needs explicit gather/reduce semantics (see 1.4 scatter RFC, F4). |
 | ~~`$flow`~~ | — | Removed in v0.0.11. Data flows via message payloads. |
 | `$self` (persistent agent state) | Agent | **Opaque**. RC не видит, не сериализует, не инспектирует. |
 | `$agent` (native I/O module) | Agent | Не существует в hook/gate mode. В managed mode — инжектится RC. |
@@ -93,10 +94,10 @@ class AgentInterface:
 
 ```python
 ProtocolEvent = (
-    ReceiveEvent     # {"type": "receive", "message": "Bid", "payload": {...}, "ctx": {...}, "flow": {...}}
-  | SendRequired     # {"type": "send_required", "message": "Bid", "ctx": {...}, "flow": {...}}
-  | ActionRequired   # {"type": "action", "stateId": "s3", "ctx": {...}, "flow": {...}}
-  | ProtocolComplete # {"type": "protocol_completed", "ctx": {...}, "flow": {...}}
+    ReceiveEvent     # {"type": "receive", "message": "Bid", "payload": {...}, "ctx": {...}}
+  | SendRequired     # {"type": "send_required", "message": "Bid", "ctx": {...}}
+  | ActionRequired   # {"type": "action", "stateId": "s3", "ctx": {...}}
+  | ProtocolComplete # {"type": "protocol_completed", "ctx": {...}}
   | StateUpdate      # {"type": "state", "expecting": [...], "awaiting": [...], "protocolStatus": "running"}
   | ProtocolUpgraded # {"type": "protocol_upgraded", "oldVersion": "1.0.0", "newVersion": "1.1.0", "compatible": false}
 )
@@ -141,19 +142,45 @@ class BuyerAgent(AgentInterface):
 
 Hot deploy: RC присылает `ProtocolUpgraded` event. Агент решает сам — адаптироваться или отключиться.
 
-**Strategy 3: Message Gate** (AgentInterface over network)
+**Strategy 3: Message Gate** (AgentInterface over transport)
 
-`AgentInterface` реализован через WS/gRPC/HTTP transport. Тот же event/response JSON — но по сети. Внешний агент (LLM, микросервис, браузер) получает events и шлёт responses.
+`AgentInterface` реализован через внешний транспорт. Тот же event/response JSON — но по каналу связи. Внешний агент получает events и шлёт responses. Gate = `AgentInterface` impl + transport + FSM validation.
 
+**Gate — transport-агностичный.** Один `GateSession` (FSM validation + event/response framing) работает поверх любого `GateTransport`:
+
+| Transport | Use case | Framing |
+|-----------|----------|---------|
+| **WebSocket** | Browser agents, remote LLM APIs, A2A, microservices | JSON text frames |
+| **stdio** (JSON-line) | MCP servers, subprocess agents, CLI tools, language runtimes | `\n`-delimited JSON on stdin/stdout |
+| **HTTP** (stateless) | Serverless functions, webhooks, legacy REST | `POST /handle` + `GET /events?since=<seq>` + `GET /state` |
+
+```
+GateTransport interface:
+  send(frame: GateFrame): void
+  onFrame(handler: (frame: GateFrame) => void): void
+  close(): void
+
+Implementations:
+  WsGateTransport    — WebSocket (server accepts, or client connects)
+  StdioGateTransport — spawn child process, bridge stdin/stdout JSON lines
+  HttpGateTransport  — stateless poll/push over HTTP
+```
+
+Пример WS:
 ```
 RC ──[WS]──► {"type": "receive", "message": "AuctionStart", "payload": {...}}
             ◄── {"ctx": {"bid": 75}}
-
-RC ──[WS]──► {"type": "send_required", "message": "Bid", ...}
-            ◄── {"payload": {"amount": 75}}
 ```
 
-Hot deploy: RC шлёт `protocol_upgraded` event. Если агент несовместим и шлёт невалидное сообщение — Gate reject'ит.
+Пример stdio (MCP server или subprocess agent):
+```
+RC ──[stdin]──► {"type": "send_required", "message": "Bid", ...}\n
+   [stdout]◄── {"payload": {"amount": 75}}\n
+```
+
+`StdioGateTransport` — RC запускает дочерний процесс, пишет JSON lines в stdin, читает JSON lines из stdout. Это тот же паттерн, что у существующего `PythonAgentNode` (JSON-line IPC), но обобщённый: любой процесс, понимающий Gate wire format, подключается без SDK. Работает для MCP stdio servers, Python/Ruby/Go агентов, CLI инструментов.
+
+Hot deploy: RC шлёт `protocol_upgraded` event через тот же транспорт. Если агент несовместим и шлёт невалидное сообщение — Gate reject'ит.
 
 **Message Gate: FSM introspection**
 
@@ -173,8 +200,6 @@ Gate-connected агенты дополнительно получают `state` 
 - `awaiting` — что RC доставит агенту (сообщения от других ролей)
 - Оба пустые — протокол завершён
 
-HTTP fallback (stateless): `POST /handle` + `GET /events?since=<seq>` + `GET /state`.
-
 **Hot deploy compatibility matrix**
 
 | Strategy | Hot deploy behaviour |
@@ -183,7 +208,125 @@ HTTP fallback (stateless): `POST /handle` + `GET /events?since=<seq>` + `GET /st
 | Custom | RC шлёт `ProtocolUpgraded` event. Агент адаптируется или disconnects. |
 | Message Gate | RC шлёт `protocol_upgraded` frame + новый `state`. Невалидные сообщения — reject. |
 
-Подходит для: LLM-агенты через API, микросервисы, A2A, legacy-системы, browser-based agents. Позволяет строить надёжные агентские сети поверх ненадёжных участников — протокольная оболочка RC гарантирует корректность взаимодействия на уровне хореографии.
+Подходит для: LLM-агенты через API, MCP серверы (stdio), микросервисы, A2A, legacy-системы, browser-based agents. Позволяет строить надёжные агентские сети поверх ненадёжных участников — протокольная оболочка RC гарантирует корректность взаимодействия на уровне хореографии.
+
+### Двухуровневые перехватчики (Interceptor architecture)
+
+Interceptor-ы работают на **двух уровнях**: message routing (RC) и protocol instance lifecycle. Это позволяет реализовать cross-cutting concerns (logging, auth, rate-limiting) на правильном слое абстракции.
+
+**Level 1: Message interceptors** (существующие, на RC)
+
+Перехватывают каждый `MessageEnvelope`, проходящий через RC — inbound, outbound, loopback. Работают на уровне маршрутизации, не зная о protocol state.
+
+```typescript
+type InterceptorFn = (ctx: InterceptorContext, next: () => void) => void;
+
+interface InterceptorContext {
+  envelope: MessageEnvelope;
+  direction: "outbound" | "inbound" | "loopback";
+  nodeId: string;
+}
+```
+
+Use cases: tracing, OTel spans, message logging, rate-limiting, auth envelope headers, message filtering.
+
+**Level 2: Protocol instance interceptors** (новые, на ProtocolInstance)
+
+Перехватывают **события жизненного цикла** protocol instance: переход FSM, вход/выход из zone, завершение протокола, ошибки. Имеют доступ к protocol state — `$ctx`, `$self`, stateId, instanceId.
+
+```typescript
+type ProtocolInterceptorFn = (
+  ctx: ProtocolInterceptorContext,
+  next: () => Promise<void>,
+) => Promise<void>;
+
+type ProtocolEventKind =
+  | "state_enter"      // FSM перешёл в новое состояние
+  | "state_exit"       // FSM покидает состояние
+  | "zone_before"      // перед выполнением zone code
+  | "zone_after"       // после выполнения zone code
+  | "message_validate" // валидация входящего сообщения по FSM
+  | "instance_complete"// protocol instance завершён
+  | "instance_error";  // ошибка в protocol instance
+
+interface ProtocolInterceptorContext {
+  event: ProtocolEventKind;
+  instanceId: string;
+  agentName: string;
+  stateId: string;
+  protocolName: string;
+  protocolVersion: string;
+  ctx: Record<string, unknown>;       // read-only view of $ctx
+  self: Record<string, unknown>;      // read-only view of $self
+  envelope?: MessageEnvelope;         // present for message_validate
+  error?: Error;                      // present for instance_error
+}
+```
+
+Use cases: protocol-level audit log, per-instance metrics, zone execution profiling, $ctx validation, business rule enforcement, conformance testing.
+
+**Конфигурация:**
+
+```typescript
+// Message interceptors — на RC (как сейчас)
+const rc = new ReagentController({
+  nodeId: "node-1",
+  agentNode: node,
+  interceptors: [otelMessageInterceptor, authInterceptor],
+});
+
+// Protocol interceptors — при создании instance
+rc.instantiate({
+  protocolName: "auction",
+  instanceId: "auction-42",
+  roleToAgent: { buyer: "buyer-agent", seller: "seller-agent" },
+  protocolInterceptors: [auditInterceptor, metricsInterceptor],
+});
+
+// Или глобально на RC — применяются ко всем instances
+rc.addProtocolInterceptor(globalAuditInterceptor);
+```
+
+**Порядок вызова:**
+
+Входящее сообщение проходит: message interceptors → dispatch → protocol instance interceptors → zone execution.
+
+```
+Message arrives
+  │
+  ▼
+┌─────────────────────────────┐
+│  Message Interceptor Chain  │  ← RC level: auth, tracing, filtering
+│  (InterceptorFn[])          │
+└─────────────┬───────────────┘
+              │ next()
+              ▼
+         dispatchLocal()
+              │
+              ▼
+┌─────────────────────────────┐
+│  Protocol Interceptor Chain │  ← Instance level: audit, metrics, validation
+│  (ProtocolInterceptorFn[])  │
+└─────────────┬───────────────┘
+              │ next()
+              ▼
+         zone execution
+```
+
+**Существующий `AdvanceHook` → миграция:**
+
+Текущий `AdvanceHook` — это частный случай protocol interceptor (`zone_after` event). При реализации `ProtocolInterceptorFn` — `AdvanceHook` становится sugar:
+
+```typescript
+function advanceHookToInterceptor(hook: AdvanceHook): ProtocolInterceptorFn {
+  return async (ctx, next) => {
+    await next();
+    if (ctx.event === "zone_after") {
+      await hook({ instanceId: ctx.instanceId, agentName: ctx.agentName, ... });
+    }
+  };
+}
+```
 
 ### Формальная верификация
 
@@ -225,224 +368,198 @@ RC формализован как **спецификация** (интерфе�
 - **Python RC** — текущая, адаптируется к spec (симуляции)
 - **Rust RC** (`reagent-core`) — production, компилируется в WASM (браузер), PyO3 (Python), napi-rs (Node)
 
----
+### Архитектурные диаграммы
 
-## Часть II. План рефакторинга
+#### Message Gate: multi-transport architecture
 
-### Карта компонентов и стратегия
+```mermaid
+classDiagram
+    class GateTransport {
+        <<interface>>
+        +send(frame: GateFrame) void
+        +onFrame(handler) void
+        +close() void
+    }
 
-| Компонент | LOC | Стратегия | Когда |
-|-----------|-----|-----------|-------|
-| Compiler (`lang/src/`) | ~5,500 | Не трогать. Добавлять модули: `tla-generator.ts`, gate metadata в IR | Аддитивно |
-| `ProtocolInstance` (TS: 1,236, Py: 929) | ~2,200 | **Расслоить**: выделить ProtocolEngine (FSM) + AgentInterface (pluggable) | Wave 2 |
-| `AgentRunner` (TS: 276, Py: 333) | ~600 | Упростить до ManagedAgentAdapter impl of AgentInterface | Wave 2 |
-| `ReagentController` (TS: 421, Py: 382) | ~800 | Итерировать: добавить CustomAgentNode + MessageGate, migrate state ownership | Wave 2 |
-| ROS (`ros.ts`: 1,278) | 1,278 | Итерировать сейчас, переформулировать как agent позже | Wave 3 |
-| Debug infra (500 LOC total) | 500 | Мигрировать хуки на ProtocolEngine | Wave 2 |
-| VSCode Extension (~5,400) | 5,400 | **Не трогать**. Общается через RAP/WS, не зависит от RC internals | — |
-| Python Runtime (~3,500) | 3,500 | Заморозить. Заменить через Rust+PyO3 | Wave 4 |
-| **Новое: AgentInterface + ManagedAdapter** | ~300 | Написать с нуля (types + managed wrapper) | Wave 2 |
-| **Новое: CustomAgentNode** | ~150 | Написать с нуля | Wave 2 |
-| **Новое: Message Gate** | ~500 | Написать с нуля (WS + FSM validation + state frames) | Wave 2 |
-| **Новое: TLA+ generator** | ~500 | Написать с нуля | Wave 1 |
-| **Новое: OTel interceptor** | ~150 | Написать с нуля | Wave 1 |
+    class WsGateTransport {
+        -ws: WebSocket
+        +send(frame) void
+        +onFrame(handler) void
+        +close() void
+    }
 
-### Документы и скиллы — что обновить
+    class StdioGateTransport {
+        -child: ChildProcess
+        -rl: ReadlineInterface
+        +spawn(cmd, args) void
+        +send(frame) void
+        +onFrame(handler) void
+        +close() void
+    }
 
-| Документ / скилл | Действие | Когда |
-|------------------|----------|-------|
-| `docs/backlog.md` | Убрать все упоминания Losos. Обновить overview: "Reagent RC is the production engine" | Wave 1 |
-| `docs/ir-losos-mapping.md` | **Удалить** | Wave 1 |
-| `docs/lang-spec.md` | Без изменений (язык не меняется) | — |
-| `docs/connectivity.md` | Добавить секцию про Message Gate и Hook Interface | Wave 2 |
-| `docs/orchestrator.md` | Обновить: ROS → self-hosted agent, добавить bootstrap flow | Wave 3 |
-| `docs/user-guide.md` | Добавить: Hook mode, Message Gate mode, `reagent verify` | Wave 2-3 |
-| `docs/rc-spec.md` | **Новый документ**: RC спецификация (core, 3 modes, wire protocol, conformance) | Wave 2 |
-| `docs/protocol-versioning.md` | Без изменений | — |
-| `docs/dx-tooling.md` | Добавить: Gate UI в cluster panel, OTel dashboard | Wave 3 |
-| `.cursor/skills/reagent-developer/SKILL.md` | Обновить: три режима интеграции, state ownership, `run.py` для hook/gate mode | Wave 2 |
-| `.cursor/skills/reagent-language-evolution/SKILL.md` | Добавить: TLA+ generator в project layout, `reagent verify` в CLI section | Wave 1 |
-| `.cursor/project-metadata.md` | Убрать Losos, добавить RC Spec, Message Gate | Wave 1 |
-| `examples/projects/` | Добавить: `hook-agent-demo/`, `message-gate-demo/` | Wave 2 |
+    class HttpGateTransport {
+        -baseUrl: string
+        -pollInterval: number
+        +send(frame) void
+        +onFrame(handler) void
+        +close() void
+    }
 
----
+    class GateSession {
+        -transport: GateTransport
+        -fsmValidator: FsmValidator
+        -instanceId: string
+        +deliverEvent(event: ProtocolEvent) void
+        +onResponse(handler) void
+        +sendState(state: StateSnapshot) void
+    }
 
-### Wave 1: Foundation (недели 1-3)
+    class MessageGateNode {
+        -sessions: Map~string, GateSession~
+        +createAgent(name, config) AgentHandle
+        +destroyAgent(name) void
+    }
 
-Четыре параллельных трека, не блокирующих друг друга.
-
-#### 1.1 Finish M9-DX (phases 4-R..7-R) — ~15 дней
-
-Текущий DX milestone. Topology view, Python sim bridge, multi-node deployment, Mermaid export. Завершить как запланировано в `backlog.md`.
-
-#### 1.2 Losos cleanup — 1 день
-
-- [ ] Удалить `docs/ir-losos-mapping.md`
-- [ ] Убрать упоминания Losos из `docs/backlog.md` (overview, §Future work, reference runner matrix)
-- [ ] Убрать из `.cursor/project-metadata.md`
-- [ ] Проверить `.cursor/skills/` на ссылки
-- [ ] Обновить `backlog.md` overview: "Reagent RC is the production engine"
-
-#### 1.3 OTel integration — 2 дня
-
-- [ ] `runtime/ts/src/otel-interceptor.ts` — `OTelInterceptor` (InterceptorFn), TraceEvent → OTel span mapping
-- [ ] `runtime/ts/src/otel-trace-hook.ts` — `OTelTraceHook` для agent-level events
-- [ ] `runtime/py/reagent_runtime/otel_interceptor.py` — Python mirror
-- [ ] Wire into RC: `interceptors=[OTelInterceptor(endpoint)]`
-- [ ] Test: run auction-sim with OTel → verify traces in Jaeger
-
-#### 1.4 TLA+ model checking prototype — 5 дней
-
-- [ ] `lang/src/tla-generator.ts` — IR → TLA+ spec generation (per-role FSM → TLA+ process, composition → system spec)
-- [ ] Start with linear + alt protocols (examples 00-03)
-- [ ] Properties: deadlock freedom, protocol completion
-- [ ] CLI: `reagent verify <file.rg>` — compile → generate TLA+ → invoke TLC → report pass/fail + counterexample
-- [ ] Test: verify all 24 examples, expect pass. Inject a deadlock, expect fail with trace.
-- [ ] Update `reagent-language-evolution` skill: add TLA+ generator to project layout
-
----
-
-### Wave 2: RC Redesign (недели 3-8)
-
-Sequential dependency chain. This is the architectural pivot.
-
-#### 2.1 ProtocolEngine + AgentInterface — 1.5 недели
-
-Extract the FSM walker from `ProtocolInstance` into a pure `ProtocolEngine` and define the unified `AgentInterface`.
-
-**ProtocolEngine** (new, ~600 LOC extracted from ProtocolInstance):
-- Owns: IR graph, current state, $ctx, message inbox, fork/join state, scatter state
-- Pure logic: `advance()` walks FSM, emits `ProtocolEvent` (receive, send_required, action, state, protocol_completed, protocol_upgraded)
-- Consumes `AgentResponse` (ctx_update, send_payload, noop)
-- No side effects: doesn't call zone executor, doesn't send messages, doesn't know about transport
-
-**AgentInterface** (new, core abstraction):
-- Single method: `handle(event: ProtocolEvent) -> AgentResponse`
-- Same event/response types as Message Gate wire format (JSON-serializable)
-- Three implementations: ManagedAgentAdapter (zones), CustomAgent (user code), GateTransport (WS/HTTP)
-
-**ProtocolInstance** (refactored, thinner):
-- Wraps ProtocolEngine + AgentInterface impl
-- Routes EngineEvents to AgentInterface, feeds responses back to Engine
-- Handles transport (sending messages between roles via RC routing)
-- Backwards compatible: existing tests pass unchanged
-
-```
-Before:  ProtocolInstance = FSM + zones + transport + trace
-After:   ProtocolEngine   = FSM + $ctx (pure, emits events)
-         AgentInterface    = handle(event) -> response (pluggable)
-         ProtocolInstance  = Engine + Interface + transport (wiring)
+    GateTransport <|.. WsGateTransport
+    GateTransport <|.. StdioGateTransport
+    GateTransport <|.. HttpGateTransport
+    GateSession --> GateTransport : uses
+    MessageGateNode --> GateSession : manages
 ```
 
-Files:
-- [ ] New: `runtime/ts/src/protocol-engine.ts` — FSM core + ProtocolEvent/AgentResponse types
-- [ ] New: `runtime/ts/src/agent-interface.ts` — `AgentInterface` type + `ManagedAgentAdapter` (wraps zone execution)
-- [ ] Refactor: `runtime/ts/src/protocol-instance.ts` (delegate FSM to engine, zones to adapter)
-- [ ] All existing tests pass (T1-T36, C1-C12) via ManagedAgentAdapter
+#### Message Gate: stdio agent lifecycle
 
-#### 2.2 Custom Agent + Message Gate — 1.5 недели
+```mermaid
+sequenceDiagram
+    participant RC as ReagentController
+    participant Gate as GateSession
+    participant Stdio as StdioGateTransport
+    participant Agent as Subprocess Agent
 
-Two AgentInterface implementations on top of 2.1.
+    RC->>Gate: createAgent("llm-buyer")
+    Gate->>Stdio: spawn("python", ["-m", "my_agent"])
+    activate Agent
 
-**Custom Agent** (in-process):
-- [ ] New: `runtime/ts/src/custom-agent-node.ts` — `CustomAgentNode` implements `AgentNode`
-- [ ] User provides class implementing `AgentInterface.handle(event)`
-- [ ] Python mirror: `runtime/py/reagent_runtime/custom_agent_node.py`
-- [ ] Test: auction-sim buyer as custom agent (switch on event.type + event.message)
-- [ ] Example: `examples/projects/custom-agent-demo/`
+    Stdio->>Agent: stdin: {"type":"state","expecting":[...]}\n
+    Agent-->>Stdio: stdout: {}\n
 
-**Message Gate** (network):
-- [ ] New: `runtime/ts/src/message-gate.ts` — `MessageGate` class
-- [ ] WS endpoint: accept connections, authenticate agent identity, bind to role
-- [ ] Serializes ProtocolEvents as JSON frames to agent, deserializes AgentResponses
-- [ ] FSM validation on agent-initiated sends: check if `messageName` is allowed in current state
-- [ ] Accept → feed to ProtocolEngine. Reject → error response with diagnostics.
-- [ ] `state` frames: on connect, after each FSM transition, on `get_state` request
-- [ ] `protocol_upgraded` frame on hot deploy (version + compatible flag + detail)
-- [ ] HTTP fallback: `POST /handle` + `GET /events?since=<seq>` + `GET /state`
-- [ ] Test: auction-sim with buyer agents via WebSocket Message Gate
-- [ ] Example: `examples/projects/message-gate-demo/`
+    RC->>Gate: deliverEvent(ReceiveEvent)
+    Gate->>Stdio: send(event)
+    Stdio->>Agent: stdin: {"type":"receive","message":"AuctionStart",...}\n
+    Agent-->>Stdio: stdout: {"ctx":{"bid":75}}\n
+    Stdio-->>Gate: onFrame(response)
+    Gate-->>RC: AgentHandle.onResponse(response)
 
-#### 2.4 RC Spec v1 — 2 недели (partially parallel with 2.2-2.3)
+    RC->>Gate: deliverEvent(SendRequired)
+    Gate->>Stdio: send(event)
+    Stdio->>Agent: stdin: {"type":"send_required","message":"Bid",...}\n
+    Agent-->>Stdio: stdout: {"payload":{"amount":75}}\n
+    Stdio-->>Gate: onFrame(response)
+    Gate-->>RC: AgentHandle.onResponse(response)
 
-- [ ] New: `docs/rc-spec.md`
-  - §1 Core model: ProtocolEngine, state ownership, envelope format
-  - §2 Managed mode: AgentNode, AgentHandle, zone execution contract
-  - §3 Hook mode: AgentHooks interface, callback contract, ctx mutability rules
-  - §4 Message Gate mode: WS/HTTP API, FSM validation semantics, error codes
-  - §5 Infrastructure: routing table, interceptor chain, NodeLink, AddressPage
-  - §6 Wire protocol: envelope JSON schema, NodeLink frame format, Gate API schema
-  - §7 Protocol registry: register, query, canDeploy, protocolVersion
-- [ ] New: `spec/conformance/` — test fixtures (IR JSON + expected trace files)
-- [ ] Conformance runner: loads fixtures, runs through each mode, compares traces
-- [ ] TS RC passes conformance. Python RC passes conformance.
+    RC->>Gate: destroyAgent("llm-buyer")
+    Gate->>Stdio: close()
+    Stdio->>Agent: close stdin
+    deactivate Agent
+```
 
-#### 2.5 @reagent/system project — 1 неделя
+#### Two-level interceptor pipeline
 
-- [ ] `reagent init packages/reagent-system`
-- [ ] Move `tools/rap/*.rg` → `packages/reagent-system/protocols/rap/`
-- [ ] Define system roles in `packages/reagent-system/roles/system-roles.rg`:
-  - `OrchestratorRole [*]` — plays Handshake, DeployProtocol, ClusterStatus, SubmitDeploySpec
-  - `DebugRole [*]` — plays DebugSession, SetBreakpoints, InspectState
-  - `ReconcilerRole [*]` — plays ReconciliationLoop
-  - `DiscoveryRole [*]` — plays NodeGossip (placeholder)
-- [ ] Define agents: `agent ROS runs OrchestratorRole`, etc.
-- [ ] `reagent build packages/reagent-system` — verify compilation
-- [ ] Update ROS to load system protocols from `@reagent/system` instead of hardcoded paths
+```mermaid
+flowchart TD
+    subgraph "Level 1: Message Interceptors (RC)"
+        A[Message arrives] --> B[Auth Interceptor]
+        B -->|next| C[OTel Interceptor]
+        C -->|next| D[Rate-Limit Interceptor]
+        D -->|next| E[dispatchLocal]
+    end
 
-#### 2.6 Documentation + skills update
+    subgraph "Level 2: Protocol Interceptors (Instance)"
+        E --> F[message_validate]
+        F -->|next| G[state_exit event]
+        G -->|next| H[zone_before event]
+        H -->|next| I[Zone Execution]
+        I --> J[zone_after event]
+        J -->|next| K[state_enter event]
+    end
 
-- [ ] Update `docs/connectivity.md` — add §Message Gate, §Hook Interface
-- [ ] Update `docs/user-guide.md` — add hook mode and gate mode sections
-- [ ] Update `.cursor/skills/reagent-developer/SKILL.md`:
-  - State ownership table
-  - Three integration modes with code examples
-  - run.py patterns for hook/gate
-  - New examples reference
-- [ ] Update `.cursor/project-metadata.md` — reflect new architecture
+    subgraph "Interceptor Stacks"
+        L["RC.interceptors[]<br/>(InterceptorFn)"]
+        M["Instance.protocolInterceptors[]<br/>(ProtocolInterceptorFn)"]
+        N["RC.globalProtocolInterceptors[]<br/>(ProtocolInterceptorFn)"]
+    end
+
+    L -.->|applied at| B
+    M -.->|applied at| F
+    N -.->|applied at| F
+```
+
+#### Combined architecture: Gate + Interceptors + RC
+
+```mermaid
+graph TB
+    subgraph "External Agents"
+        WS[Browser Agent<br/>WebSocket]
+        MCP[MCP Server<br/>stdio]
+        SVC[Microservice<br/>HTTP]
+    end
+
+    subgraph "Message Gate Node"
+        WsT[WsGateTransport]
+        StdioT[StdioGateTransport]
+        HttpT[HttpGateTransport]
+        GS1[GateSession<br/>FSM Validator]
+        GS2[GateSession<br/>FSM Validator]
+        GS3[GateSession<br/>FSM Validator]
+    end
+
+    subgraph "ReagentController"
+        MI[Message Interceptor Chain]
+        DISP[Dispatcher]
+        PI1[ProtocolInstance #1]
+        PI2[ProtocolInstance #2]
+
+        subgraph "Per-Instance"
+            PIC[Protocol Interceptor Chain]
+            FSM[FSM Walker]
+            ZE[Zone Executor]
+        end
+    end
+
+    subgraph "Local Agents"
+        NA[NativeAgentNode<br/>in-process]
+        PA[PythonAgentNode<br/>subprocess IPC]
+    end
+
+    WS <--> WsT
+    MCP <--> StdioT
+    SVC <--> HttpT
+
+    WsT <--> GS1
+    StdioT <--> GS2
+    HttpT <--> GS3
+
+    GS1 --> MI
+    GS2 --> MI
+    GS3 --> MI
+    NA --> MI
+    PA --> MI
+
+    MI --> DISP
+    DISP --> PI1
+    DISP --> PI2
+    PI1 --> PIC
+    PIC --> FSM
+    FSM --> ZE
+```
 
 ---
 
-### Wave 3: Self-hosting + Scaling (недели 8-14)
+## Часть II. Execution plan
 
-#### 3.1 Self-hosting bootstrap — 2 недели
+Waves 1–3 (Foundation, RC Redesign, Self-hosting + Scaling) have been moved to the active backlog: [backlog.md](backlog.md).
 
-- [ ] Refactor ROS to use its own RC for system protocols
-- [ ] On startup: ROS creates RC, registers system agents (Orchestrator, Debugger, Reconciler)
-- [ ] RAP handlers → become zone code of system agents (or hook implementations)
-- [ ] External clients (VSCode, CLI) interact with ROS via Message Gate
-- [ ] System protocols visible in debug, diagrams, traces — like any user protocol
-- [ ] Update `docs/orchestrator.md` — document bootstrap flow
-
-#### 3.2 Gossip node discovery — 1 неделя
-
-- [ ] Write `packages/reagent-system/protocols/discovery/gossip.rg` — SWIM-like protocol
-- [ ] `DiscoveryRole` agent: periodic heartbeat, agent list exchange, failure detection
-- [ ] Replace static `AddressPage` with gossip-populated routing table
-- [ ] RC auto-joins gossip on startup if configured: `rc = ReagentController(gossip=True)`
-
-#### 3.3 Scatter scaling — 2 недели
-
-**Layer 1: Streaming scatter**
-- [ ] ProtocolEngine: scatter emits per-branch results immediately (no await-all join)
-- [ ] Coordinator's onReceive fires per result, $ctx accumulates incrementally
-- [ ] Backwards compatible: existing scatter semantics preserved when branch count < threshold
-
-**Layer 2: Partitioned scatter**
-- [ ] RC auto-partitions scatter when N > configurable threshold
-- [ ] Each partition → separate AgentNode (process via IpcAgentNode)
-- [ ] RC coordinates partitions via routing table
-- [ ] Test: scatter with 100+ agents across 4 partitions
-
-#### 3.4 Documentation
-
-- [ ] Update `docs/dx-tooling.md` — Gate UI in cluster panel, OTel dashboard link
-- [ ] Update `docs/orchestrator.md` — self-hosting architecture
-- [ ] Update `docs/connectivity.md` — gossip discovery section
-
----
-
-### Wave 4: Rust core (месяцы 4-6)
+### Wave 4: Rust core
 
 Only if there is traction. Current TS/Python RCs are sufficient for development.
 
@@ -472,78 +589,190 @@ Only if there is traction. Current TS/Python RCs are sufficient for development.
 
 ---
 
-### Dependency graph
+## Часть III. Formal Foundations
+
+Derived from comparison with choreography-focused languages (Scribble, Effpi, Links, ATS). Reagent occupies a unique niche — the only system combining choreography-level description with embedded computation (zones) and an executable runtime. These items close the formal-guarantees gap without sacrificing that practicality.
+
+Items are numbered F1–F6. Dependencies on existing waves are noted; suggested placement is **Wave 2–5**, interleaved with the refactoring plan above.
+
+### F1. Formal MPST Projection (from Scribble)
+
+**Problem.** The IR emitter (`lang/src/ir-emitter.ts`, `GraphBuilder`) does ad hoc per-role projection: it walks the global AST and skips irrelevant constructs per role. Known gaps:
+
+- No cross-role consistency check — sender's `send` and receiver's `receive` are never verified to match.
+- Non-involved roles get no visibility of messages (no synchronization barrier).
+- Alt branches for non-involved roles use passthrough guards with no mechanism for branch-choice propagation.
+- Par/fork emitted per-role without verifying all roles agree on the same parallelism structure.
+
+**Goal.** Reformulate the IR emitter as MPST projection: global type → per-role local types, with a mechanized check that the projection preserves deadlock freedom and session fidelity.
+
+**Approach:**
+
+- Define a "global type" intermediate representation derived from the AST (the current AST is close but not formally a global type).
+- Implement projection as a well-defined algorithm (Yoshida/Honda/Vasconcelos style) rather than syntactic filtering.
+- After projection, verify: (a) all roles' local types compose back to the original global type, (b) no unmatched sends/receives.
+- This gives deadlock freedom **by construction** without TLA+.
+
+**Relationship to 1.3 (TLA+).** Complementary. MPST projection gives structural safety cheaply (compile-time, O(n) in protocol size). TLA+ gives behavioral properties that require state-space exploration (liveness, fairness, domain invariants). Both are useful.
+
+**Scope.** Wave 4–5 (research-grade). Start with a prototype on linear + alt protocols (examples 00–05), then extend to loop, scatter, par.
+
+**References:** Scribble Protocol Language (Yoshida et al.); Honda/Yoshida/Carbone "Multiparty Asynchronous Session Types" (POPL 2008).
+
+---
+
+### F2. Explicit Decision Maker in Alt (from Scribble)
+
+**Problem.** Scribble requires `choice at A` — always explicit who decides. Reagent `alt` has two modes:
+
+- Message-based: decision maker is the sender of the distinguishing message (implicit).
+- Expression-based: decision maker is the role evaluating `$ctx` (implicit from which role owns the ctx).
+
+The decision maker is inferred, not declared. This works but makes formal reasoning harder and is a source of subtle bugs when the guard expression could be evaluated by multiple roles.
+
+**Proposal.** Add optional `at <role>` annotation:
+
+```
+alt at buyer ($ctx.budget > 100) {
+  ...
+} else {
+  ...
+}
+```
+
+- If `at <role>` is present, compiler verifies the guard expression is evaluable by that role.
+- If absent, current inference continues (backwards compatible).
+- For message-based alt, `at` is redundant (the sender is always the decision maker) but allowed for documentation.
+
+**Scope.** Small language change, additive. Parser + IR emitter + validator. Wave 2–3. Prereq for F1 (MPST projection needs an unambiguous decision maker per branch).
+
+---
+
+### F3. Optional Session Type Annotations (from Effpi)
+
+**Problem.** Reagent message definitions are payload schemas only — no way to express the full interaction pattern of a role as a type. Session types describe the entire communication behavior: `!Claim.?Objection.(!Revision + !Accept).end`.
+
+**Proposal.** Add optional `session:` annotation to role declarations:
+
+```
+role BuyerRole [ts] {
+  session: !Bid.?BidResult.(+{won: ?Invoice.!Payment, lost: end})
+  plays Auction as buyer
+}
+```
+
+- Compiler checks that the protocol body (as projected to this role) conforms to the declared session type.
+- Opt-in: existing roles without `session:` work unchanged.
+- Session type syntax: `!Msg` (send), `?Msg` (receive), `.` (sequence), `+{label: ...}` (internal choice), `&{label: ...}` (external choice), `rec X. ... X` (recursion), `end` (termination).
+- This is a **verification annotation**, not a runtime enforcement mechanism.
+
+**Scope.** Medium language change. Requires a session type parser + a conformance checker (session type vs projected FSM). Wave 4+. Benefits from F1 (formal projection makes conformance checking well-defined).
+
+---
+
+### F4. Immutable `$ctx` Between Steps (from Links)
+
+**Problem.** `$ctx` is mutated in-place by zones via `new Function(...)`. Consequences:
+
+- No guarantee that `$ctx.msg` isn't read after it should be "consumed".
+- Stale state after send.
+- Parallel branches mutate shared nested objects (`$ctx.results.push(...)` in scatter) — fragile.
+- Makes formal reasoning about state impossible.
+
+**Current state.** Zone executor (`runtime/ts/src/zone-executor.ts`) passes `$ctx` by reference. ~15 call sites in `protocol-instance.ts` rely on mutation. `Object.create(this.ctx)` used for par/scatter branch isolation (prototype-chain trick).
+
+**Proposal (two phases):**
+
+Phase A — Framework-side immutability (non-breaking):
+
+- After each zone execution, snapshot `$ctx` (deep clone or structural sharing).
+- Framework code uses the snapshot; the zone still mutates, but the old reference is discarded.
+- `$ctx.msg` explicitly removed from snapshot after send/receive (already done, but now formally guaranteed).
+- Scope: Wave 2–3 (runtime change only, no language change).
+
+Phase B — Zone-side immutability (breaking):
+
+- Zones receive a `Proxy`-wrapped `$ctx` that traps writes and builds a diff/new object.
+- Zone code syntax unchanged (`$ctx.foo = bar` still works) but semantically produces a new ctx.
+- Alternative: compile `$ctx.x = y` to `return { x: y }` via a source transform.
+- Scatter gather needs a new accumulator pattern (e.g., `reagent.collect(value)` instead of `$ctx.results.push(...)`).
+- Scope: Wave 4+ (language + runtime change, breaking for scatter patterns).
+
+---
+
+### F5. Refinement Types for Protocol Invariants (from ATS)
+
+**Problem.** Loop guards, scatter collections, and alt conditions are runtime expressions with no static bounds. The compiler cannot verify:
+
+- A loop terminates (or has a max iteration count).
+- Scatter collection has a known size range.
+- Alt branches are exhaustive.
+
+**Proposal.** Add optional refinement annotations:
+
+```
+loop (max: 5) ($ctx.attempt < 5) { ... }
+scatter (size: 1..100) ($ctx.workers as worker) { ... }
+alt (exhaustive) { ... }
+```
+
+- `max: N` on loop — compiler/verifier can bound the state space.
+- `size: range` on scatter — compiler knows branch cardinality for verification.
+- `exhaustive` on alt — compiler checks all possible cases are covered.
+- These are **hints for the verifier** (TLA+ generator, MPST projection), not runtime enforcement.
+- If annotation is absent, current behavior unchanged.
+
+**Scope.** Small language additions. Wave 3–4. Most value when combined with 1.3 (TLA+ generator) — refinements bound the state space that TLC must explore.
+
+---
+
+### F6. Formalized Exception Handling (from Links)
+
+**Problem.** Reagent `try/catch` is ad hoc. The IR emitter adds an error edge only from `tryEntry` to `catch` (not from every state within the try body). There is no formal relationship between exception handling and the session type / FSM.
+
+**Current state.** The error edge in `ir-emitter.ts` (line ~637) connects `tryEntry` → `catchEntry`, underrepresenting the error surface.
+
+**Proposal:**
+
+- Model `try/catch` as a session type construct: `try { S } catch { S' }` means "execute session S; on failure at any point, switch to session S'".
+- Error edges should connect from **every state within the try body** to the catch entry, or use a hierarchical FSM model where the try block is a sub-FSM with a global error transition.
+- Define which messages are "in flight" when an error occurs and what happens to them (compensation protocol).
+- Formal treatment: follow Fowler et al., "Exceptional Asynchronous Session Types" (POPL 2019).
+
+**Scope.** Medium. IR emitter change + session type extension. Wave 4+.
+
+---
+
+### Formal Foundations: priority and dependencies
+
+| Item | Effort | Value | Wave | Depends on |
+|------|--------|-------|------|------------|
+| F2: Explicit decision maker in alt | Small | Medium — clarity + formal foundation | 2–3 | — |
+| F5: Refinement types | Small | Medium — verifier hints | 3–4 | 1.3 (TLA+) |
+| F4 Phase A: Framework-side immutable $ctx | Medium | Medium — safety, debugging | 2–3 | 2.1 (ProtocolEngine) |
+| F6: Formalized exception handling | Medium | Medium — correctness | 4+ | F1 (projection) |
+| F1: Formal MPST projection | Large | High — deadlock freedom by construction | 4–5 | F2 (decision maker), 1.3 (TLA+) |
+| F3: Optional session type annotations | Medium | High — formal verification | 4+ | F1 (projection) |
+| F4 Phase B: Zone-side immutable $ctx | Large | High — linearity | 4+ | F4A, 2.1 (ProtocolEngine) |
 
 ```mermaid
 graph TD
-  M9["1.1 Finish M9-DX"] --> PE["2.1 ProtocolEngine + AgentInterface"]
-  Losos["1.2 Losos cleanup"]
-  OTel["1.3 OTel integration"]
-  TLA["1.4 TLA+ model checking"]
+  TLA["1.3 TLA+ model checking"]
+  PE["2.1 ProtocolEngine"]
 
-  PE --> CG["2.2 Custom Agent + Message Gate"]
-  PE --> Spec["2.3 RC Spec v1"]
-  CG --> Spec
-  Spec --> Conform["Conformance suite"]
-  Spec --> SysPkg["2.4 @reagent/system"]
-  PE --> Docs2["2.5 Docs + skills update"]
-  CG --> Docs2
+  F2["F2: Explicit decision maker in alt"]
+  F5["F5: Refinement types"]
+  F4A["F4A: Framework-side immutable ctx"]
+  F1["F1: Formal MPST projection"]
+  F3["F3: Session type annotations"]
+  F4B["F4B: Zone-side immutable ctx"]
+  F6["F6: Formalized exception handling"]
 
-  SysPkg --> SelfHost["3.1 Self-hosting bootstrap"]
-  SysPkg --> Gossip["3.2 Gossip discovery"]
-  CG --> Scatter["3.3 Scatter scaling"]
-  SelfHost --> Docs3["3.4 Documentation"]
-  Gossip --> Docs3
-
-  Conform --> Rust["4.1 Rust reagent-core"]
-  Rust --> Wasm["4.2 WASM target"]
-  Rust --> Bind["4.3 Language bindings"]
-  Bind --> Deprecate["4.4 Python RT deprecation"]
-
-  subgraph w1 ["Wave 1 (weeks 1-3, parallel)"]
-    M9
-    Losos
-    OTel
-    TLA
-  end
-
-  subgraph w2 ["Wave 2 (weeks 3-8, sequential core)"]
-    PE
-    CG
-    Spec
-    Conform
-    SysPkg
-    Docs2
-  end
-
-  subgraph w3 ["Wave 3 (weeks 8-14)"]
-    SelfHost
-    Gossip
-    Scatter
-    Docs3
-  end
-
-  subgraph w4 ["Wave 4 (months 4-6, if traction)"]
-    Rust
-    Wasm
-    Bind
-    Deprecate
-  end
+  TLA --> F5
+  TLA --> F1
+  F2 --> F1
+  PE --> F4A
+  F4A --> F4B
+  F1 --> F3
+  F1 --> F6
 ```
-
-### Effort summary
-
-| Wave | Calendar | Work days | Gate |
-|------|----------|-----------|------|
-| Wave 1: Foundation | Weeks 1-3 | ~20 days | M9-DX done, OTel works, TLA+ prototype, Losos gone |
-| Wave 2: RC Redesign | Weeks 3-8 | ~25 days | ProtocolEngine extracted, Hook + Gate work, RC Spec written, conformance passes, @reagent/system compiles |
-| Wave 3: Self-hosting + Scaling | Weeks 8-14 | ~25 days | ROS self-hosted, gossip works, scatter scales to 100+ |
-| Wave 4: Rust core | Months 4-6 | ~40 days | Rust RC passes conformance, WASM demo in browser |
-
-**Critical path**: M9-DX → ProtocolEngine → Hook + Gate → RC Spec → Self-hosting.
-
-**Highest ROI items** (do first within each wave):
-1. **ProtocolEngine + AgentInterface** — architectural foundation; единый интерфейс вместо трёх API
-2. **Message Gate** — transforms Reagent from "agent DSL" to "protocol enforcement infrastructure"
-3. **TLA+ model checking** — unique differentiator, low effort, high wow-factor
-4. **@reagent/system** — "Reagent on Reagent" validates the entire model

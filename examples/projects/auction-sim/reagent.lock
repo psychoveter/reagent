@@ -1,11 +1,11 @@
 {
   "protocols": {
     "Auction": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "12bdb6ef3baee50c163eb5d2fbb4819676afe1daabd55890e929e76884f5c6eb",
+        "structureHash": "be8f730b6c7d481aca5af0de4245980865ede78e4746eda02fe2307b7f39bfc8",
         "schemaHash": "94e14fc869c90741f844af7799959f8b86663f3f944517d294e214ee02507c48",
-        "implHash": "2e0499bdbe533d5e511334af84137d8b158116c53061a20ddfd69ac5416d5826"
+        "implHash": "1175bf28ed921d78419e6075288ec07100ab65a36baddb32ad54f5daf42f428b"
       }
     }
   },

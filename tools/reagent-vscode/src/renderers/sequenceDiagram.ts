@@ -124,9 +124,10 @@ export function renderSequenceDiagram(data: SequenceDiagramData, opts: RenderOpt
   for (let i = 0; i < participants.length; i++) {
     const p = participants[i];
     const x = px[i];
-    const headerW = Math.max(100, p.name.length * 8.5 + 32);
+    const langExtra = p.lang ? (p.lang.length + 3) * 6.5 : 0;
+    const headerW = Math.max(100, p.name.length * 9.5 + langExtra + 32);
     const headerH = 34;
-    svg += `<rect x="${x - headerW / 2}" y="10" width="${headerW}" height="${headerH}" rx="6" class="participant-box"/>`;
+    svg += `<rect x="${x - headerW / 2}" y="10" width="${headerW}" height="${headerH}" rx="4" class="participant-box"/>`;
     svg += `<text x="${x}" y="31" class="participant-label">${esc(p.name)}`;
     if (p.lang) svg += ` <tspan class="lang-tag">[${esc(p.lang)}]</tspan>`;
     svg += `</text>`;
@@ -156,7 +157,7 @@ export function renderSequenceDiagram(data: SequenceDiagramData, opts: RenderOpt
     rowIdx++;
 
     const debug = debugClass(el.stateId, opts);
-    const srcAttr = sourceAttr(el.stateId, sourceFile, opts.sourceMap);
+    const srcAttr = sourceAttr(el.stateId, sourceFile, opts.sourceMap, el.kind, el.label);
 
     switch (el.kind) {
       case "message": {
@@ -255,8 +256,10 @@ function debugClass(stateId: string | undefined, opts: RenderOptions): string {
   return "future";
 }
 
-function sourceAttr(stateId: string | undefined, file: string, sourceMap?: Map<string, number>): string {
+function sourceAttr(stateId: string | undefined, file: string, sourceMap?: Map<string, number>, kind?: string, label?: string): string {
   let attr = stateId ? `data-state-id="${esc(stateId)}"` : "";
+  if (kind) attr += ` data-state-kind="${esc(kind)}"`;
+  if (label) attr += ` data-state-label="${esc(label)}"`;
   if (stateId && sourceMap) {
     const line = sourceMap.get(stateId);
     if (line != null) {
@@ -282,15 +285,15 @@ export const SEQUENCE_DIAGRAM_CSS = `
   svg { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 
   .participant-box { fill: var(--vscode-sideBar-background, #252526); stroke: var(--vscode-panel-border, #555); stroke-width: 1.2; }
-  .participant-label { text-anchor: middle; font-size: 11px; font-weight: 600; fill: var(--vscode-foreground, #d4d4d4); }
+  .participant-label { text-anchor: middle; font-size: 13px; font-weight: 600; fill: var(--vscode-foreground, #d4d4d4); }
   .lang-tag { font-size: 9px; fill: var(--vscode-descriptionForeground, #888); font-weight: 400; }
-  .lifeline { stroke: var(--vscode-panel-border, #3a3a3a); stroke-width: 0.8; stroke-dasharray: 4 4; }
+  .lifeline { stroke: var(--vscode-panel-border, #3a3a3a); stroke-width: 0.8; stroke-dasharray: 4 3; }
 
   .msg-arrow { stroke: var(--vscode-charts-blue, #4fc1ff); stroke-width: 1.2; }
   .msg-label { text-anchor: middle; font-size: 10px; font-weight: 500; fill: var(--vscode-charts-blue, #4fc1ff); }
 
   .action-box { fill: rgba(177, 128, 215, 0.10); stroke: var(--vscode-charts-purple, #b180d7); stroke-width: 0.8; }
-  .action-label { text-anchor: middle; font-size: 9.5px; font-weight: 500; fill: #c898e0; letter-spacing: 0.2px; }
+  .action-label { text-anchor: middle; font-size: 9.5px; font-weight: 500; fill: #cda0e7; letter-spacing: 0.2px; }
 
   .timer-box { fill: rgba(204, 167, 0, 0.08); stroke: var(--vscode-charts-yellow, #cca700); stroke-width: 0.8; }
   .timer-label { text-anchor: middle; font-size: 9px; fill: var(--vscode-charts-yellow, #cca700); }
@@ -326,14 +329,14 @@ export const SEQUENCE_DIAGRAM_CSS = `
   .arrowhead-fill-dashed { fill: var(--vscode-charts-green, #89d185); }
 
   .step { cursor: pointer; transition: opacity 0.15s ease; }
-  .step:hover .msg-arrow { stroke-width: 2; }
-  .step:hover .action-box { stroke-width: 1.2; filter: brightness(1.15); }
-  .step.visited .msg-arrow, .step.visited .msg-label { opacity: 0.35; }
-  .step.visited .action-box, .step.visited .action-label { opacity: 0.35; }
-  .step.active .msg-arrow { stroke: var(--vscode-debugIcon-startForeground, #89d185); stroke-width: 2; animation: pulse-line 1.5s ease-in-out infinite; }
+  .step:hover .msg-arrow { stroke-width: 2.5; }
+  .step:hover .action-box { stroke-width: 1.5; filter: brightness(1.15); }
+  .step.visited .msg-arrow, .step.visited .msg-label { opacity: 0.4; }
+  .step.visited .action-box, .step.visited .action-label { opacity: 0.4; }
+  .step.active .msg-arrow { stroke: var(--vscode-debugIcon-startForeground, #89d185); stroke-width: 2.5; animation: pulse-line 1.5s ease-in-out infinite; }
   .step.active .msg-label { fill: var(--vscode-debugIcon-startForeground, #89d185); }
-  .step.active .action-box { stroke: var(--vscode-debugIcon-startForeground, #89d185); stroke-width: 1.5; animation: pulse-box 1.5s ease-in-out infinite; }
-  .step.future .msg-arrow, .step.future .msg-label, .step.future .action-box, .step.future .action-label { opacity: 0.2; }
+  .step.active .action-box { stroke: var(--vscode-debugIcon-startForeground, #89d185); stroke-width: 2; animation: pulse-box 1.5s ease-in-out infinite; }
+  .step.future .msg-arrow, .step.future .msg-label, .step.future .action-box, .step.future .action-label { opacity: 0.25; }
 
   @keyframes pulse-line { 0%,100%{stroke-opacity:1} 50%{stroke-opacity:0.5} }
   @keyframes pulse-box { 0%,100%{stroke-opacity:1} 50%{stroke-opacity:0.4} }
