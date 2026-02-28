@@ -559,7 +559,11 @@ graph TB
 
 Waves 1–3 (Foundation, RC Redesign, Self-hosting + Scaling) have been moved to the active backlog: [backlog.md](backlog.md).
 
-### Wave 4: Rust core
+### Wave 4: Rust core, hot deploy, holonic composition
+
+Three interconnected long-horizon themes. Rust RC enables performant nested agents;
+hot deploy strategy governs upgrade propagation; holonic composition defines recursive
+agent structure.
 
 Only if there is traction. Current TS/Python RCs are sufficient for development.
 
@@ -586,6 +590,41 @@ Only if there is traction. Current TS/Python RCs are sufficient for development.
 - [ ] Freeze `runtime/py/` — no new features
 - [ ] Migrate users to Rust+PyO3 binding
 - [ ] Archive Python runtime
+
+#### 4.5 CompositeAgent (holonic architecture)
+
+RFC: [`composite-agent.md`](composite-agent.md)
+
+An agent that externally is a single `AgentHandle` and internally runs its own `ReagentController` with its own agents and protocols. A **runtime-only pattern** built on `CustomAgentNode` + `AgentInterface` — no language/compiler changes.
+
+Key properties:
+- **Encapsulation**: parent RC sees one agent; inner structure is hidden.
+- **Recursive composition**: inner agents can themselves be composite (holarchy).
+- **Facade-only communication**: inner agents are not addressable from outside.
+
+Synergies with other Wave 4 items:
+- **Rust RC (4.1)**: inner RCs benefit from a fast Rust `ProtocolEngine`, especially for deeply nested holarchies.
+- **WASM (4.2)**: a browser-based composite agent could run inner protocols in a Web Worker.
+
+- [ ] `CompositeAgentAdapter` class (TS): `AgentInterface` facade with inner RC
+- [ ] Event routing strategies (trigger-per-event, persistent-inner-protocol, event-bus-dispatch)
+- [ ] OTel trace propagation (parent span context → inner RC interceptors)
+- [ ] VSCode cluster tree: expandable composite agent nodes
+- [ ] Telescopic debug (DAP nested sessions — future enhancement)
+- [ ] Python mirror: `CompositeAgentAdapter` on `CustomAgentNode`
+- [ ] Conformance: composite agent produces same external behavior as equivalent leaf agent
+
+#### 4.6 Hot deploy strategy
+
+Not yet designed. Governs how protocol upgrades propagate across:
+- Agent integration modes (Managed: RC controls; Custom: `ProtocolUpgraded` event; Gate: frame + FSM re-validate)
+- Holarchy levels (parent upgraded → how does inner RC respond?)
+- Running protocol instances (drain vs. abort vs. live-migrate)
+
+- [ ] Design document: hot deploy semantics per integration mode
+- [ ] `ProtocolUpgraded` event handling contract for CustomAgent / Gate
+- [ ] Holarchy propagation policy (cascade, isolate, version-pin)
+- [ ] Rolling upgrade strategy for multi-node clusters (ROS reconciler integration)
 
 ---
 
@@ -743,6 +782,43 @@ alt (exhaustive) { ... }
 
 ---
 
+### F7. Trigger Supervision System
+
+**Problem.** When a resolve pipeline produces an empty set (no agents match), the protocol instantiation fails. Currently there is no recovery mechanism — the trigger fire is lost. More broadly: who supervises trigger failures? Retries, escalation, dead-letter queues for failed trigger attempts are all unaddressed.
+
+**Design space:**
+
+- **Self-supervised**: triggers could be supervised by other protocols (e.g. a `TriggerSupervisor` system protocol that watches for `system.trigger.failed` events and applies retry/escalation policies). This is consistent with the "self-hosting" philosophy (system infra as Reagent protocols).
+- **RC-level policy**: trigger retry policies alongside existing `TriggerPolicy` (`rc-spec.md` §8.4). Simpler but less flexible.
+- **Erlang-style supervision trees**: triggers belong to a supervision hierarchy. Failed triggers escalate to a supervisor protocol.
+
+**Open questions:**
+- Should supervision be declarative (in `.rg`) or configuration-only (`deployment.json`)?
+- Who supervises the supervisor? (The "turtles all the way down" problem.)
+- Interaction with `fallback()` resolve step — is `fallback` sufficient for most cases?
+
+**Scope.** Wave 4–5. Depends on trigger runtime maturity and production experience.
+
+**Refs:** `resolve-policy.md` Q3.
+
+---
+
+### F8. Dynamic Participant First-Use Verification
+
+**Problem.** A `dynamic` participant may be used in a message step before being resolved (via `reagent.resolve()` or `spawns`). Currently no compile-time check exists — the error surfaces at runtime.
+
+**Approach:** This naturally falls under formal verification:
+
+- MPST projection (F1) would detect unbound participants as unmatched sends/receives.
+- Refinement types (F5) could express "participant is bound" as a precondition.
+- A simpler approximation: control-flow analysis in the IR emitter that tracks resolve/spawn points and verifies all message targets are bound on all paths.
+
+**Scope.** Small-medium. The simple version (textual ordering check) is a compiler enhancement. The thorough version requires flow analysis. Wave 3–5, naturally interleaved with F1/F5.
+
+**Refs:** `resolve-policy.md` Q4.
+
+---
+
 ### Formal Foundations: priority and dependencies
 
 | Item | Effort | Value | Wave | Depends on |
@@ -754,11 +830,15 @@ alt (exhaustive) { ... }
 | F1: Formal MPST projection | Large | High — deadlock freedom by construction | 4–5 | F2 (decision maker), 1.3 (TLA+) |
 | F3: Optional session type annotations | Medium | High — formal verification | 4+ | F1 (projection) |
 | F4 Phase B: Zone-side immutable $ctx | Large | High — linearity | 4+ | F4A, 2.1 (ProtocolEngine) |
+| F7: Trigger supervision system | Medium | Medium — production resilience | 4–5 | Trigger runtime (Phase 3), resolve-policy |
+| F8: Dynamic participant first-use verification | Small-Med | Medium — safety | 3–5 | F1 (thorough) or standalone (simple) |
 
 ```mermaid
 graph TD
   TLA["1.3 TLA+ model checking"]
   PE["2.1 ProtocolEngine"]
+  RP["resolve-policy"]
+  TR["Trigger runtime (Phase 3)"]
 
   F2["F2: Explicit decision maker in alt"]
   F5["F5: Refinement types"]
@@ -767,6 +847,8 @@ graph TD
   F3["F3: Session type annotations"]
   F4B["F4B: Zone-side immutable ctx"]
   F6["F6: Formalized exception handling"]
+  F7["F7: Trigger supervision"]
+  F8["F8: Dynamic participant verification"]
 
   TLA --> F5
   TLA --> F1
@@ -775,4 +857,8 @@ graph TD
   F4A --> F4B
   F1 --> F3
   F1 --> F6
+  TR --> F7
+  RP --> F7
+  F1 -.-> F8
+  F5 -.-> F8
 ```

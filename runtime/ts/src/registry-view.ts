@@ -43,6 +43,11 @@ export interface RegistryAgentEntry {
   protocolName: string;
   nodeId: string;
   status: "running" | "stopped" | "error" | "deploying";
+  tags?: string[];
+  capabilities?: string[];
+  labels?: Record<string, string>;
+  /** If this agent was spawned, the instanceId of the spawning protocol */
+  spawnedBy?: string;
 }
 
 // ── Builder ─────────────────────────────────────────────────────────

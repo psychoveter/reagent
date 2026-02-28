@@ -1,0 +1,17 @@
+{
+  "roleName": "UserRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "TaskExecutionWithMultipartyChild",
+      "roleName": "user",
+      "protocolVersion": "1.0.0"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "6.0.0",
+  "fingerprints": {
+    "playsHash": "bb0ee7ed7fa78356f5279c02ad970a326cabd992a26d66bc77f573bba2385e51",
+    "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+  }
+}

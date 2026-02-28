@@ -5,10 +5,6 @@
  * All functions are pure (no I/O, no side effects).
  */
 import type { IRGraph, IRMessageSchema, RoleIR, ProtocolFingerprint, RoleFingerprint, ProtocolDependency } from "./ir.js";
-/**
- * Computes the structure hash — captures choreography topology.
- * Roles sorted alphabetically, state IDs replaced with BFS indices.
- */
 export declare function computeStructureHash(graphs: Map<string, IRGraph>): string;
 /**
  * Computes the schema hash — captures message type definitions.

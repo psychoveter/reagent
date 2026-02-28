@@ -8,9 +8,13 @@ message ValidationError {}
 // reagent.break() is the explicit break sentinel visible to the IR.
 
 protocol LoopRetryBackoff {
-  participants: comma [ts], sia [*]
-  initiator: comma
-  input: ValidateIntent
+  participants:
+    comma [ts] initiator,
+    sia [*]
+  trigger on invoke with ValidateIntent {
+    resolve comma = single
+    resolve sia = single
+  }
 
   comma {
     $ctx.attempt = 0
@@ -34,3 +38,14 @@ protocol LoopRetryBackoff {
     }
   }
 }
+
+role CommaRole [ts] {
+  plays LoopRetryBackoff as comma
+}
+
+role SiaRole [*] {
+  plays LoopRetryBackoff as sia
+}
+
+agent Comma runs CommaRole
+agent Sia runs SiaRole

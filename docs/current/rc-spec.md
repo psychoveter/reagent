@@ -521,3 +521,109 @@ RC                          Agent HTTP Server
 5. **Interceptor transparency.** Adding or removing interceptors must not change the
    trace output of a protocol execution (interceptors may log or drop messages, but
    the conformance suite runs without message-dropping interceptors).
+
+---
+
+## 8. Trigger System (Phase 3)
+
+The RC embeds a trigger subsystem for declarative protocol instantiation. Three
+components are co-located in the RC:
+
+### 8.1 LocalEventBus
+
+In-process pub/sub (`publish(topic, event)` / `subscribe(topic, handler)`). Supports
+topic-specific and wildcard (`"*"`) subscriptions. Used for event triggers in
+single-node deployments. Cross-node event routing (via EventHubAgent) is future work.
+
+### 8.2 CronAgent
+
+System agent with a 5-field cron expression parser (plus aliases like `@daily`,
+`@hourly`). Started via `RC.start()` with a configurable tick interval (default 15s).
+Emits `cron.tick.<protocolName>` events to the LocalEventBus.
+
+### 8.3 TriggerMatcher
+
+Reads `TriggerIR` from `ProtocolRegistry` entries and builds a match table:
+
+- **Invoke triggers** — registered in a protocol-name → entry map. Invocable at
+  deploy-time via `matchInvokeTrigger(protocolName, input)`.
+- **Event triggers** — subscribed to LocalEventBus topics. On match, instantiates
+  protocol via `RC.triggerProtocol()`.
+- **Cron triggers** — registered with CronAgent. CronAgent emits tick events →
+  TriggerMatcher picks them up and fires.
+
+**Input resolution (two-step)**:
+
+1. The raw trigger data is used as the initial `$ctx.input` (caller payload for invoke, event payload for event, CronTrigger payload for cron).
+2. If `TriggerIR.inputExpr` is defined, it is evaluated as a post-processing transform with `$ctx` in scope, and the result replaces `$ctx.input`.
+
+### 8.4 TriggerPolicy
+
+Runtime-configurable policy enforced before instantiation:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | boolean | Kill switch (default `true`) |
+| `maxConcurrent` | number? | Max running instances from this trigger |
+| `cooldownMs` | number? | Min interval between fires |
+| `circuitBreaker` | object? | `{ failureThreshold, resetMs }` |
+| `dedup` | object? | `{ windowMs }` — dedup identical payloads |
+
+When a trigger is suppressed, the system emits a `TriggerSuppressed` trace event with
+the trigger ID, reason, and suppressed payload.
+
+### 8.5 Initiator Resolution
+
+For external triggers (event, cron), the TriggerMatcher resolves the initiator agent:
+1. Read the `initiator` role from IRGraph metadata.
+2. Find the local agent that plays that role for the protocol.
+3. Fallback: first local agent bound to the protocol.
+
+### 8.6 Zone-level `reagent.emit()` → Bus
+
+`reagent.emit(topic, data)` in zone code propagates through:
+`ProtocolInstance.emitCallback` → `AgentRunner.handleEmit()` → lifecycle handlers +
+`RC.emitEvent()` → `LocalEventBus.publish()` → TriggerMatcher subscriptions.
+
+### 8.7 RC Configuration
+
+```typescript
+interface ReagentControllerConfig {
+  // ... existing fields ...
+  triggerPolicies?: Record<string, TriggerPolicy>;
+  traceCallback?: (event: TraceEvent) => void;
+  cronIntervalMs?: number;  // default 15000, 0 to disable
+}
+```
+
+Access via `rc.eventBus`, `rc.cronAgent`, `rc.triggerMatcher`.
+
+### 8.8 Cron Singleton Policy
+
+Cron triggers fire **once per cluster** by default, not per-node. CronAgent is a cluster
+singleton (leader-elected). This is configurable:
+
+```json
+{ "trigger.cron.mode": "singleton" | "per-node" }
+```
+
+### 8.9 Future: Cross-Node Event Routing
+
+For single-node deployments the LocalEventBus (§8.1) is sufficient. Cross-node event
+routing will be handled by self-hosted system agents within the existing RC routing
+infrastructure:
+
+- **EventHubAgent**: owns subscription tables, routes published events to subscriber RCs.
+  Visible in traces and debuggable like user protocols. Cross-node transport reuses
+  existing `NodeLink` routing — no separate federation layer.
+- **WebhookIngress** (optional): HTTP/WS endpoint that translates external HTTP calls
+  into events published to topics (consumed by `trigger on event`).
+
+Expected flow:
+
+```
+External HTTP  → WebhookIngress → event topic → RC.TriggerMatcher → new instance
+Cron tick      → CronAgent → EventHub → RC.TriggerMatcher → new instance
+reagent.emit() → EventHub → RC.TriggerMatcher → new instance
+invokes/async invokes → RC direct dispatch (compile-time verified) → new instance
+```

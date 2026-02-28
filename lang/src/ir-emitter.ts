@@ -1,10 +1,10 @@
 /**
- * Reagent IR Emitter — v0.0.11
+ * Reagent IR Emitter — v0.0.14
  *
  * Transforms AST nodes into IR:
  * - ProtocolDef → set of IRGraphs (one per role)
  * - RoleDef → RoleIR (rich behavioral contract with lifecycle)
- * - AgentDef → AgentIR (thin deployment binding referencing a role)
+ * - AgentDef → AgentIR (deployment binding referencing a role, with metadata)
  */
 
 import type {
@@ -32,6 +32,7 @@ import type {
 import type {
   AgentAction,
   AgentIR,
+  AgentRegistrationIR,
   AgentLifecycleHandler,
   AgentPlaysBinding,
   IRFieldSchema,
@@ -41,7 +42,10 @@ import type {
   IRStateData,
   IRTransition,
   IRTransitionLabel,
+  ParticipantIR,
+  ResolvePolicyIR,
   RoleIR,
+  TriggerIR,
 } from "./ir.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -79,14 +83,88 @@ export function emitIR(protocol: ProtocolDef): EmitResult {
     langMap.set(p.name, p.lang);
   }
 
-  const initiatorRole = findInitiatorRole(protocol.body);
+  const participants: ParticipantIR[] = protocol.participants.map(p => ({
+    name: p.name,
+    lang: p.lang,
+    binding: p.binding ?? "static",
+    cardinality: p.cardinality ?? "single",
+    initiator: p.initiator === true,
+  }));
+
+  const initiatorParticipant = participants.find(p => p.initiator);
+
+  // Validate initiator
+  const initiatorCount = participants.filter(p => p.initiator).length;
+  if (initiatorCount === 0) {
+    errors.push(`Protocol "${protocol.name}" has no initiator participant. Mark one participant with the "initiator" modifier.`);
+  } else if (initiatorCount > 1) {
+    errors.push(`Protocol "${protocol.name}" has ${initiatorCount} initiator participants. Exactly one is required.`);
+  }
+  if (initiatorParticipant) {
+    if (initiatorParticipant.binding !== "static") {
+      errors.push(`Protocol "${protocol.name}": initiator "${initiatorParticipant.name}" must be static (initiator implies static single).`);
+    }
+    if (initiatorParticipant.cardinality !== "single") {
+      errors.push(`Protocol "${protocol.name}": initiator "${initiatorParticipant.name}" must be single (initiator implies static single).`);
+    }
+  }
+
+  const triggers: TriggerIR[] = (protocol.triggers ?? []).map(t => {
+    const resolveMap: Record<string, ResolvePolicyIR> | undefined = t.resolveDecls
+      ? Object.fromEntries(t.resolveDecls.map(rd => [rd.role, rd.pipeline as ResolvePolicyIR]))
+      : undefined;
+
+    switch (t.triggerKind) {
+      case "invoke": return {
+        kind: "invoke" as const,
+        withType: t.withType!,
+        ...(t.inputExpr != null && { inputExpr: t.inputExpr }),
+        ...(resolveMap != null && { resolveMap }),
+      };
+      case "cron": return {
+        kind: "cron" as const,
+        cron: t.cronExpr!,
+        ...(t.inputExpr != null && { inputExpr: t.inputExpr }),
+        ...(resolveMap != null && { resolveMap }),
+      };
+      case "event": return {
+        kind: "event" as const,
+        topic: t.topic!,
+        withType: t.withType!,
+        ...(t.inputExpr != null && { inputExpr: t.inputExpr }),
+        ...(resolveMap != null && { resolveMap }),
+      };
+    }
+  });
+  const invocable = triggers.some(t => t.kind === "invoke");
+
+  if (triggers.length === 0) {
+    errors.push(`Protocol "${protocol.name}" has no triggers. Declare at least one trigger (e.g. trigger on invoke with MsgType).`);
+  }
+
+  // Validate resolve: static participants must have resolve in every trigger
+  for (const t of protocol.triggers ?? []) {
+    const resolvedRoles = new Set((t.resolveDecls ?? []).map(rd => rd.role));
+    for (const p of participants) {
+      if (p.binding === "static" && !resolvedRoles.has(p.name)) {
+        errors.push(`Protocol "${protocol.name}": static participant "${p.name}" requires a "resolve" declaration in trigger on ${t.triggerKind}.`);
+      }
+      if (p.binding === "dynamic" && resolvedRoles.has(p.name)) {
+        errors.push(`Protocol "${protocol.name}": dynamic participant "${p.name}" must not have a "resolve" in trigger — it is resolved at runtime.`);
+      }
+    }
+  }
 
   for (const p of protocol.participants) {
     const builder = new GraphBuilder(protocol.name, p.name, p.lang, langMap);
     builder.emitBody(protocol.body);
     builder.finalize();
     const graph = builder.toGraph();
-    if (initiatorRole) graph.initiator = initiatorRole;
+    graph.participants = participants;
+    if (triggers.length > 0) {
+      graph.triggers = triggers;
+      graph.invocable = invocable;
+    }
 
     if (p.lang === "*") {
       for (const s of graph.states) {
@@ -102,38 +180,6 @@ export function emitIR(protocol: ProtocolDef): EmitResult {
   }
 
   return { ok: errors.length === 0, graphs, errors, sourceMap };
-}
-
-/** Walk protocol body to find the sender of the first message (the initiator role). */
-function findInitiatorRole(body: ProtocolItem[]): string | undefined {
-  for (const item of body) {
-    if (item.kind === "MessageStmt") return item.from;
-    if (item.kind === "AltStmt") {
-      for (const branch of item.branches) {
-        const found = findInitiatorRole(branch.body);
-        if (found) return found;
-      }
-    }
-    if (item.kind === "LoopStmt") {
-      const found = findInitiatorRole(item.body);
-      if (found) return found;
-    }
-    if (item.kind === "TryStmt") {
-      const found = findInitiatorRole(item.tryBody);
-      if (found) return found;
-    }
-    if (item.kind === "ParStmt") {
-      for (const branch of item.branches) {
-        const found = findInitiatorRole(branch.body);
-        if (found) return found;
-      }
-    }
-    if (item.kind === "ScatterStmt") {
-      const found = findInitiatorRole(item.body);
-      if (found) return found;
-    }
-  }
-  return undefined;
 }
 
 // ── Role IR Emitter ─────────────────────────────────────────────────
@@ -271,8 +317,26 @@ export function emitAgentIR(agent: AgentDef, roleMap: Map<string, RoleDef>): Age
 
   return {
     ok: errors.length === 0,
-    agentIR: { agentName: agent.name, lang, roleName: agent.runs, roleFile },
+    agentIR: {
+      agentName: agent.name,
+      lang,
+      roleName: agent.runs,
+      roleFile,
+      ...(agent.tags != null && { tags: agent.tags }),
+      ...(agent.capabilities != null && { capabilities: agent.capabilities }),
+      ...(agent.labels != null && { labels: agent.labels }),
+    },
     errors,
+  };
+}
+
+export function emitAgentRegistrationIR(agent: AgentDef): AgentRegistrationIR {
+  return {
+    agentName: agent.name,
+    roleName: agent.runs,
+    ...(agent.tags != null && { tags: agent.tags }),
+    ...(agent.capabilities != null && { capabilities: agent.capabilities }),
+    ...(agent.labels != null && { labels: agent.labels }),
   };
 }
 
@@ -646,22 +710,32 @@ class GraphBuilder {
     this.currentId = mergeId;
   }
 
-  // ── Invoke ──────────────────────────────────────────────────────
+  // ── Invoke (sync and async) ─────────────────────────────────────
 
   private emitInvoke(stmt: InvokeStmt): void {
     if (stmt.callerRole !== this.role) return;
 
-    const id = nextId("invoke");
-    this.advance(id, {
-      kind: "invoke",
-      protocolName: stmt.protocolName,
-      input: stmt.input,
-      roleMapping: stmt.roleMapping,
-      resultTarget: stmt.resultTarget,
-    }, { kind: "default" }, stmt.loc);
+    if (stmt.async) {
+      const id = nextId("async_invoke");
+      this.advance(id, {
+        kind: "async_invoke",
+        protocolName: stmt.protocolName,
+        input: stmt.input,
+        roleMapping: stmt.roleMapping,
+      }, { kind: "default" }, stmt.loc);
+    } else {
+      const id = nextId("invoke");
+      this.advance(id, {
+        kind: "invoke",
+        protocolName: stmt.protocolName,
+        input: stmt.input,
+        roleMapping: stmt.roleMapping,
+        resultTarget: stmt.resultTarget,
+      }, { kind: "default" }, stmt.loc);
+    }
   }
 
-  // ── Spawn ──────────────────────────────────────────────────────
+  // ── Spawn (role instantiation) ──────────────────────────────────
 
   private emitSpawn(stmt: SpawnStmt): void {
     if (stmt.callerRole !== this.role) return;
@@ -669,9 +743,11 @@ class GraphBuilder {
     const id = nextId("spawn");
     this.advance(id, {
       kind: "spawn",
-      protocolName: stmt.protocolName,
-      input: stmt.input,
-      roleMapping: stmt.roleMapping,
+      roleName: stmt.roleName,
+      config: stmt.config,
+      bindAs: stmt.bindAs,
+      resultTarget: stmt.resultTarget,
+      persistent: stmt.persistent === true,
     }, { kind: "default" }, stmt.loc);
   }
 

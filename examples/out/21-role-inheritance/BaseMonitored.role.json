@@ -4,7 +4,8 @@
   "plays": [
     {
       "protocolName": "HealthCheck",
-      "roleName": "node"
+      "roleName": "node",
+      "protocolVersion": "19.0.0"
     }
   ],
   "initAction": {
@@ -21,9 +22,9 @@
       }
     }
   ],
-  "version": "0.1.0",
+  "version": "2.0.0",
   "fingerprints": {
-    "playsHash": "696fb96cf8851fcf98d1819a4d1118e663661c349c4f9b0dbe5e893933e0fdaa",
+    "playsHash": "3fbca0dd189d9755578331f5f79283168431a1031b0fb9bb77de363be8778163",
     "behaviorHash": "7246bd57418d671816112a85ae12c0f2a2c9312dc9ba96c027adaabeb9d7a4d0"
   }
 }

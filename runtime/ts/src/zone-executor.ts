@@ -9,6 +9,9 @@ export type ReagentStub = {
   spawn: (proto: unknown, args?: Record<string, unknown>) => void;
   return: (value: unknown) => void;
   break: () => void;
+  resolve: (role: string, pipeline?: unknown[]) => unknown[];
+  registry: { findByRole: (role: string) => unknown[]; get: (name: string) => unknown | undefined; all: () => unknown[] };
+  stop: () => void;
 };
 
 export function createReagentStub(): ReagentStub {
@@ -27,6 +30,17 @@ export function createReagentStub(): ReagentStub {
     },
     break: () => {
       throw new BreakRequest();
+    },
+    resolve: (_role, _pipeline) => {
+      throw new ResolveRequest(_role, _pipeline);
+    },
+    registry: {
+      findByRole: () => [],
+      get: () => undefined,
+      all: () => [],
+    },
+    stop: () => {
+      throw new StopRequest();
     },
   };
 }
@@ -67,6 +81,20 @@ export class EmitRequest {
 /** Sentinel thrown when a zone calls reagent.break() */
 export class BreakRequest {
   readonly __reagentBreak = true;
+}
+
+/** Sentinel thrown when a zone calls reagent.resolve() */
+export class ResolveRequest {
+  readonly __reagentResolve = true;
+  constructor(
+    public readonly role: string,
+    public readonly pipeline?: unknown[],
+  ) {}
+}
+
+/** Sentinel thrown when a zone calls reagent.stop() */
+export class StopRequest {
+  readonly __reagentStop = true;
 }
 
 /**

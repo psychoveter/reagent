@@ -1,0 +1,6 @@
+{
+  "agentName": "Sia",
+  "lang": "*",
+  "roleName": "SiaRole",
+  "roleFile": "SiaRole.role.json"
+}

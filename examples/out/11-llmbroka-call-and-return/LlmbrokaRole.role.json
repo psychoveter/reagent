@@ -1,0 +1,17 @@
+{
+  "roleName": "LlmbrokaRole",
+  "lang": "*",
+  "plays": [
+    {
+      "protocolName": "CommaAsksLlmAndReplies",
+      "roleName": "llmbroka",
+      "protocolVersion": "0.1.1"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "ba28b7e653288a582d137f6f894780f2b78caad704d28974bd4a07a2169be884",
+    "behaviorHash": "90d1d22e125fdbed9a3af8dc227859c7d65a22e6f61a23a44c9bf8360e17026a"
+  }
+}

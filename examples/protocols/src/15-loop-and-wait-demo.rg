@@ -6,9 +6,13 @@ message Pong {}
 message Done {}
 
 protocol LoopWaitDemo {
-  participants: poller [ts], responder [ts]
-  initiator: poller
-  input: Start
+  participants:
+    poller [ts] initiator,
+    responder [ts]
+  trigger on invoke with Start {
+    resolve poller = single
+    resolve responder = single
+  }
 
   poller {
     $ctx.iteration = 0

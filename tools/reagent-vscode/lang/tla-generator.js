@@ -207,7 +207,7 @@ export function generateTLAPlus(protocolName, graphs) {
                 }
                 continue;
             }
-            if (state.data.kind === "invoke" || state.data.kind === "spawn") {
+            if (state.data.kind === "invoke" || state.data.kind === "async_invoke" || state.data.kind === "spawn") {
                 const defaultTrans = transitions.filter((t) => t.label.kind === "default");
                 if (defaultTrans.length === 1) {
                     lines.push(`${roleId}_${stateId} ==`);

@@ -1,5 +1,5 @@
 /**
- * Reagent recursive-descent parser — v0.0.7
+ * Reagent recursive-descent parser — v0.0.14
  *
  * Parses a Reagent source string into the typed AST defined in ast.ts.
  * Zone bodies are captured as raw text (brace-balanced, string/comment-aware).
@@ -330,6 +330,7 @@ function readDuration(c) {
 }
 // ── Participant list ────────────────────────────────────────────────
 const VALID_LANG_TAGS = new Set(["ts", "js", "py", "kt", "*"]);
+const PARTICIPANT_MODIFIERS = new Set(["static", "dynamic", "single", "many", "initiator"]);
 function pParticipantList(c) {
     const result = [];
     for (;;) {
@@ -358,10 +359,42 @@ function pParticipantList(c) {
         if (c.peek() !== "]")
             return null;
         c.next();
+        let binding;
+        let cardinality;
+        let initiator;
+        for (;;) {
+            skipWSAndComments(c);
+            const modSaved = c.save();
+            const modId = readIdent(c);
+            if (!modId || !PARTICIPANT_MODIFIERS.has(modId.name)) {
+                c.restore(modSaved);
+                break;
+            }
+            switch (modId.name) {
+                case "static":
+                    binding = "static";
+                    break;
+                case "dynamic":
+                    binding = "dynamic";
+                    break;
+                case "single":
+                    cardinality = "single";
+                    break;
+                case "many":
+                    cardinality = "many";
+                    break;
+                case "initiator":
+                    initiator = true;
+                    break;
+            }
+        }
         result.push({
             kind: "ParticipantDecl",
             name: id.name,
             lang: langTagName,
+            ...(binding != null && { binding }),
+            ...(cardinality != null && { cardinality }),
+            ...(initiator != null && { initiator }),
             loc: c.locFrom(start),
         });
         skipWSAndComments(c);
@@ -517,8 +550,11 @@ function pMessageStmtFromIdent(c, from, fromStart) {
 // ── Agent zone (standalone) ─────────────────────────────────────────
 const PROTOCOL_KEYWORDS = new Set([
     "protocol", "alt", "loop", "par", "try", "catch", "else", "wait",
-    "timeout", "and", "import", "break", "participants", "initiator", "input",
-    "agent", "plays", "init", "on", "invokes", "spawns", "scatter", "where", "as",
+    "timeout", "and", "import", "break", "participants", "input",
+    "agent", "plays", "init", "on", "invokes", "spawns", "scatter", "where", "as", "with",
+    "async", "trigger", "resolve", "filter", "static", "dynamic", "single", "many",
+    "initiator", "persistent", "all", "from", "roundRobin", "leastLoaded", "random",
+    "sample", "first", "fallback", "custom",
 ]);
 function pAgentZoneFromIdent(c, agent, agentStart, lang) {
     const start = agentStart;
@@ -840,7 +876,8 @@ function pTryStmt(c) {
 }
 // ── Invoke statement ────────────────────────────────────────────────
 // Syntax: <role> invokes <Proto>(args) { roleMap } -> $ctx.target
-function pInvokeStmtFromIdent(c, callerRole, startPos) {
+// Syntax: <role> async invokes <Proto>(args) { roleMap }
+function pInvokeStmtFromIdent(c, callerRole, startPos, isAsync = false) {
     // `invokes` keyword already peeked by caller; consume it
     if (!consumeKeyword(c, "invokes"))
         return null;
@@ -921,6 +958,7 @@ function pInvokeStmtFromIdent(c, callerRole, startPos) {
     }
     return {
         kind: "InvokeStmt",
+        ...(isAsync ? { async: true } : {}),
         protocolName,
         input,
         callerRole,
@@ -929,30 +967,20 @@ function pInvokeStmtFromIdent(c, callerRole, startPos) {
         loc: c.locFrom(startPos),
     };
 }
-// ── Spawn statement ─────────────────────────────────────────────────
-// Syntax: <role> spawns <Proto>(args) { roleMap }
+// ── Spawn statement (role instantiation) ────────────────────────────
+// Syntax: <role> spawns <RoleName>(config) as <participant> persistent -> $ctx.ref
 function pSpawnStmtFromIdent(c, callerRole, startPos) {
-    // `spawns` keyword already peeked by caller; consume it
     if (!consumeKeyword(c, "spawns"))
         return null;
     skipWSAndComments(c);
-    const protoId = readIdent(c);
-    if (!protoId)
+    const roleId = readIdent(c);
+    if (!roleId)
         return null;
-    let protocolName = protoId.name;
-    while (c.peek() === ".") {
-        c.next();
-        const next = readIdent(c);
-        if (!next)
-            return null;
-        protocolName += "." + next.name;
-    }
     skipWSAndComments(c);
-    // Input expression in parens
     if (c.peek() !== "(")
         return null;
     c.next();
-    let input = "";
+    let config = "";
     let depth = 1;
     while (!c.eof() && depth > 0) {
         const ch = c.next();
@@ -963,46 +991,44 @@ function pSpawnStmtFromIdent(c, callerRole, startPos) {
             if (depth === 0)
                 break;
         }
-        input += ch;
+        config += ch;
     }
-    input = input.trim();
+    config = config.trim();
     skipWSAndComments(c);
-    // Optional role mapping: `{ childRole: parentRole, ... }`
-    let roleMapping;
-    if (c.peek() === "{") {
-        c.next();
-        roleMapping = {};
-        for (;;) {
-            skipWSAndComments(c);
-            if (c.eof())
-                return null;
-            if (c.peek() === "}") {
-                c.next();
-                break;
-            }
-            const key = readIdent(c);
-            if (!key)
-                return null;
-            skipWSAndComments(c);
-            if (c.peek() !== ":")
-                return null;
-            c.next();
-            skipWSAndComments(c);
-            const val = readIdent(c);
-            if (!val)
-                return null;
-            roleMapping[key.name] = val.name;
-            skipWSAndComments(c);
-            if (c.peek() === ",")
-                c.next();
+    let bindAs;
+    if (startsWithKeyword(c, "as")) {
+        consumeKeyword(c, "as");
+        skipWSAndComments(c);
+        const bindId = readIdent(c);
+        if (!bindId)
+            return null;
+        bindAs = bindId.name;
+        skipWSAndComments(c);
+    }
+    let persistent;
+    if (startsWithKeyword(c, "persistent")) {
+        consumeKeyword(c, "persistent");
+        persistent = true;
+        skipWSAndComments(c);
+    }
+    let resultTarget;
+    if (c.startsWith("->")) {
+        c.advance(2);
+        skipWSAndComments(c);
+        let target = "";
+        while (!c.eof() && !isWS(c.peek()) && c.peek() !== "\n" && c.peek() !== "}" && c.peek() !== ";") {
+            target += c.next();
         }
+        resultTarget = target.trim() || undefined;
     }
     return {
         kind: "SpawnStmt",
-        protocolName,
-        input,
         callerRole,
-        roleMapping,
+        roleName: roleId.name,
+        config,
+        ...(bindAs != null && { bindAs }),
+        ...(resultTarget != null && { resultTarget }),
+        ...(persistent != null && { persistent }),
         loc: c.locFrom(startPos),
     };
 }
@@ -1118,11 +1144,21 @@ function pProtocolItem(c) {
         return null;
     }
     skipWSAndComments(c);
+    // `<role> async invokes <Proto>(...)` — non-blocking protocol call
+    if (startsWithKeyword(c, "async")) {
+        const saved = c.save();
+        consumeKeyword(c, "async");
+        skipWSAndComments(c);
+        if (startsWithKeyword(c, "invokes")) {
+            return pInvokeStmtFromIdent(c, id.name, id.loc.start, true);
+        }
+        c.restore(saved);
+    }
     // `<role> invokes <Proto>(...)`
     if (startsWithKeyword(c, "invokes")) {
-        return pInvokeStmtFromIdent(c, id.name, id.loc.start);
+        return pInvokeStmtFromIdent(c, id.name, id.loc.start, false);
     }
-    // `<role> spawns <Proto>(...)`
+    // `<role> spawns <Proto>(...)` — DEPRECATED: compiles as async invoke
     if (startsWithKeyword(c, "spawns")) {
         return pSpawnStmtFromIdent(c, id.name, id.loc.start);
     }
@@ -1156,9 +1192,7 @@ function pProtocolDef(c) {
         return null;
     c.next();
     let participants = [];
-    let initiator = "";
-    let input = "";
-    // Parse directives first (they must appear before body items)
+    const triggers = [];
     for (;;) {
         skipWSAndComments(c);
         if (c.eof() || c.peek() === "}")
@@ -1173,42 +1207,20 @@ function pProtocolDef(c) {
             if (!list)
                 return null;
             participants = list;
-            // Update the lang map for zone resolution
             currentLangMap = new Map();
             for (const p of participants)
                 currentLangMap.set(p.name, p.lang);
             continue;
         }
-        if (startsWithKeyword(c, "initiator")) {
-            consumeKeyword(c, "initiator");
-            skipWSAndComments(c);
-            if (c.peek() !== ":")
+        if (startsWithKeyword(c, "trigger")) {
+            const trig = pTriggerDecl(c);
+            if (!trig)
                 return null;
-            c.next();
-            skipWSAndComments(c);
-            const id = readIdent(c);
-            if (!id)
-                return null;
-            initiator = id.name;
+            triggers.push(trig);
             continue;
         }
-        if (startsWithKeyword(c, "input")) {
-            consumeKeyword(c, "input");
-            skipWSAndComments(c);
-            if (c.peek() !== ":")
-                return null;
-            c.next();
-            skipWSAndComments(c);
-            const id = readIdent(c);
-            if (!id)
-                return null;
-            input = id.name;
-            continue;
-        }
-        // Not a directive — start parsing body
         break;
     }
-    // Parse body items
     const body = pProtocolBody(c);
     skipWSAndComments(c);
     if (c.peek() !== "}")
@@ -1218,11 +1230,373 @@ function pProtocolDef(c) {
         kind: "ProtocolDef",
         name: name.name,
         participants,
-        initiator,
-        input,
+        triggers,
         body,
         loc: c.locFrom(start),
     };
+}
+// ── Trigger declaration ─────────────────────────────────────────────
+// trigger on invoke with MsgType
+// trigger on invoke with MsgType { $ctx.input = <transform-expr> }
+// trigger on cron "expr"
+// trigger on cron "expr" { $ctx.input = <transform-expr> }
+// trigger on event "topic" with MsgType
+// trigger on event "topic" with MsgType { $ctx.input = <transform-expr> }
+function pTriggerDecl(c) {
+    const start = c.pos();
+    if (!consumeKeyword(c, "trigger"))
+        return null;
+    skipWSAndComments(c);
+    if (!consumeKeyword(c, "on"))
+        return null;
+    skipWSAndComments(c);
+    let triggerKind;
+    let cronExpr;
+    let topic;
+    if (startsWithKeyword(c, "invoke")) {
+        consumeKeyword(c, "invoke");
+        triggerKind = "invoke";
+    }
+    else if (startsWithKeyword(c, "cron")) {
+        consumeKeyword(c, "cron");
+        skipWSAndComments(c);
+        const cronStr = readStringLiteral(c);
+        if (cronStr === null)
+            return null;
+        cronExpr = cronStr;
+        triggerKind = "cron";
+    }
+    else if (startsWithKeyword(c, "event")) {
+        consumeKeyword(c, "event");
+        skipWSAndComments(c);
+        const topicStr = readStringLiteral(c);
+        if (topicStr === null)
+            return null;
+        topic = topicStr;
+        triggerKind = "event";
+    }
+    else {
+        return null;
+    }
+    skipWSAndComments(c);
+    let withType;
+    if (triggerKind === "cron") {
+        // cron uses system CronTrigger
+    }
+    else if (consumeKeyword(c, "with") || consumeKeyword(c, "as")) {
+        skipWSAndComments(c);
+        const msgType = readIdent(c);
+        if (!msgType)
+            return null;
+        withType = msgType.name;
+        skipWSAndComments(c);
+    }
+    else {
+        return null;
+    }
+    let inputExpr;
+    let resolveDecls;
+    if (c.peek() === "{") {
+        c.next();
+        resolveDecls = [];
+        for (;;) {
+            skipWSAndComments(c);
+            if (c.eof() || c.peek() === "}")
+                break;
+            if (startsWithKeyword(c, "resolve")) {
+                const rd = pResolveDecl(c);
+                if (!rd)
+                    return null;
+                resolveDecls.push(rd);
+                continue;
+            }
+            if (c.startsWith("$ctx.input")) {
+                const saved = c.save();
+                let expr = "";
+                let braceDepth = 0;
+                while (!c.eof()) {
+                    const ch = c.peek();
+                    if (ch === "{") {
+                        braceDepth++;
+                        expr += c.next();
+                        continue;
+                    }
+                    if (ch === "}") {
+                        if (braceDepth > 0) {
+                            braceDepth--;
+                            expr += c.next();
+                            continue;
+                        }
+                        break;
+                    }
+                    if (ch === "\n" && braceDepth === 0)
+                        break;
+                    expr += c.next();
+                }
+                const match = expr.match(/\$ctx\.input\s*=\s*([\s\S]+)/);
+                if (match) {
+                    inputExpr = match[1].trim();
+                }
+                else {
+                    c.restore(saved);
+                    break;
+                }
+                continue;
+            }
+            break;
+        }
+        skipWSAndComments(c);
+        if (c.peek() !== "}")
+            return null;
+        c.next();
+        if (resolveDecls.length === 0)
+            resolveDecls = undefined;
+    }
+    return {
+        kind: "TriggerDecl",
+        triggerKind,
+        withType,
+        cronExpr,
+        topic,
+        inputExpr,
+        resolveDecls,
+        loc: c.locFrom(start),
+    };
+}
+// ── Resolve declaration ─────────────────────────────────────────────
+// resolve <role> = <pipeline>
+function pResolveDecl(c) {
+    const start = c.pos();
+    if (!consumeKeyword(c, "resolve"))
+        return null;
+    skipWSAndComments(c);
+    const roleId = readIdent(c);
+    if (!roleId)
+        return null;
+    skipWSAndComments(c);
+    if (c.peek() !== "=")
+        return null;
+    c.next();
+    skipWSAndComments(c);
+    const pipeline = pResolvePipeline(c);
+    if (!pipeline || pipeline.length === 0)
+        return null;
+    return { kind: "ResolveDecl", role: roleId.name, pipeline, loc: c.locFrom(start) };
+}
+function pResolvePipeline(c) {
+    const steps = [];
+    const first = pResolvePipelineStep(c);
+    if (!first)
+        return null;
+    steps.push(first);
+    for (;;) {
+        skipWSAndComments(c);
+        if (c.peek() !== "|")
+            break;
+        c.next();
+        skipWSAndComments(c);
+        const next = pResolvePipelineStep(c);
+        if (!next)
+            return null;
+        steps.push(next);
+    }
+    return steps;
+}
+function pResolvePipelineStep(c) {
+    if (startsWithKeyword(c, "all")) {
+        consumeKeyword(c, "all");
+        return { step: "all" };
+    }
+    if (startsWithKeyword(c, "single")) {
+        consumeKeyword(c, "single");
+        return { step: "single" };
+    }
+    if (startsWithKeyword(c, "roundRobin")) {
+        consumeKeyword(c, "roundRobin");
+        return { step: "roundRobin" };
+    }
+    if (startsWithKeyword(c, "leastLoaded")) {
+        consumeKeyword(c, "leastLoaded");
+        return { step: "leastLoaded" };
+    }
+    if (startsWithKeyword(c, "random")) {
+        consumeKeyword(c, "random");
+        return { step: "random" };
+    }
+    if (startsWithKeyword(c, "first")) {
+        consumeKeyword(c, "first");
+        return { step: "first" };
+    }
+    if (startsWithKeyword(c, "from")) {
+        consumeKeyword(c, "from");
+        skipWSAndComments(c);
+        if (c.peek() !== "(")
+            return null;
+        c.next();
+        let expr = "";
+        let depth = 1;
+        while (!c.eof() && depth > 0) {
+            const ch = c.next();
+            if (ch === "(")
+                depth++;
+            else if (ch === ")") {
+                depth--;
+                if (depth === 0)
+                    break;
+            }
+            expr += ch;
+        }
+        return { step: "from", expr: expr.trim() };
+    }
+    if (startsWithKeyword(c, "filter")) {
+        consumeKeyword(c, "filter");
+        skipWSAndComments(c);
+        if (c.peek() !== "(")
+            return null;
+        c.next();
+        let predicate = "";
+        let depth = 1;
+        while (!c.eof() && depth > 0) {
+            const ch = c.next();
+            if (ch === "(")
+                depth++;
+            else if (ch === ")") {
+                depth--;
+                if (depth === 0)
+                    break;
+            }
+            predicate += ch;
+        }
+        return { step: "filter", predicate: predicate.trim() };
+    }
+    if (startsWithKeyword(c, "sample")) {
+        consumeKeyword(c, "sample");
+        skipWSAndComments(c);
+        if (c.peek() !== "(")
+            return null;
+        c.next();
+        skipWSAndComments(c);
+        let numStr = "";
+        while (!c.eof() && isDigit(c.peek()))
+            numStr += c.next();
+        skipWSAndComments(c);
+        if (c.peek() !== ")")
+            return null;
+        c.next();
+        return { step: "sample", count: Number(numStr) };
+    }
+    if (startsWithKeyword(c, "fallback")) {
+        consumeKeyword(c, "fallback");
+        skipWSAndComments(c);
+        if (c.peek() !== "(")
+            return null;
+        c.next();
+        skipWSAndComments(c);
+        const chain = pResolvePipeline(c);
+        if (!chain)
+            return null;
+        skipWSAndComments(c);
+        if (c.peek() !== ")")
+            return null;
+        c.next();
+        return { step: "fallback", chain };
+    }
+    if (startsWithKeyword(c, "custom")) {
+        consumeKeyword(c, "custom");
+        skipWSAndComments(c);
+        if (c.peek() !== "(")
+            return null;
+        c.next();
+        skipWSAndComments(c);
+        const nameStr = readStringLiteral(c);
+        if (nameStr === null)
+            return null;
+        skipWSAndComments(c);
+        if (c.peek() !== ")")
+            return null;
+        c.next();
+        return { step: "custom", name: nameStr };
+    }
+    // Shorthands: hasTag("x"), hasCapability("x"), hasLabel("k","v"), isAlive
+    if (startsWithKeyword(c, "hasTag")) {
+        consumeKeyword(c, "hasTag");
+        skipWSAndComments(c);
+        if (c.peek() !== "(")
+            return null;
+        c.next();
+        skipWSAndComments(c);
+        const tag = readStringLiteral(c);
+        if (tag === null)
+            return null;
+        skipWSAndComments(c);
+        if (c.peek() !== ")")
+            return null;
+        c.next();
+        return { step: "filter", predicate: `"${tag}" in agent.tags` };
+    }
+    if (startsWithKeyword(c, "hasCapability")) {
+        consumeKeyword(c, "hasCapability");
+        skipWSAndComments(c);
+        if (c.peek() !== "(")
+            return null;
+        c.next();
+        skipWSAndComments(c);
+        const cap = readStringLiteral(c);
+        if (cap === null)
+            return null;
+        skipWSAndComments(c);
+        if (c.peek() !== ")")
+            return null;
+        c.next();
+        return { step: "filter", predicate: `"${cap}" in agent.capabilities` };
+    }
+    if (startsWithKeyword(c, "hasLabel")) {
+        consumeKeyword(c, "hasLabel");
+        skipWSAndComments(c);
+        if (c.peek() !== "(")
+            return null;
+        c.next();
+        skipWSAndComments(c);
+        const key = readStringLiteral(c);
+        if (key === null)
+            return null;
+        skipWSAndComments(c);
+        if (c.peek() !== ",")
+            return null;
+        c.next();
+        skipWSAndComments(c);
+        const val = readStringLiteral(c);
+        if (val === null)
+            return null;
+        skipWSAndComments(c);
+        if (c.peek() !== ")")
+            return null;
+        c.next();
+        return { step: "filter", predicate: `agent.labels.${key} == "${val}"` };
+    }
+    if (startsWithKeyword(c, "isAlive")) {
+        consumeKeyword(c, "isAlive");
+        return { step: "filter", predicate: `agent.metadata._alive == true` };
+    }
+    return null;
+}
+function readStringLiteral(c) {
+    const quote = c.peek();
+    if (quote !== '"' && quote !== "'")
+        return null;
+    c.next();
+    let result = "";
+    while (!c.eof()) {
+        const ch = c.next();
+        if (ch === "\\") {
+            result += c.next();
+            continue;
+        }
+        if (ch === quote)
+            return result;
+        result += ch;
+    }
+    return null;
 }
 // ── Agent definition (thin deployment binding) ─────────────────────
 // agent Name [lang]? runs RoleName
@@ -1255,13 +1629,120 @@ function pAgentDef(c) {
     const roleName = readIdent(c);
     if (!roleName)
         return null;
+    skipWSAndComments(c);
+    let tags;
+    let capabilities;
+    let labels;
+    if (c.peek() === "{") {
+        c.next();
+        for (;;) {
+            skipWSAndComments(c);
+            if (c.eof())
+                return null;
+            if (c.peek() === "}") {
+                c.next();
+                break;
+            }
+            if (startsWithKeyword(c, "tags")) {
+                consumeKeyword(c, "tags");
+                skipWSAndComments(c);
+                if (c.peek() !== ":")
+                    return null;
+                c.next();
+                skipWSAndComments(c);
+                const t = pStringArray(c);
+                if (!t)
+                    return null;
+                tags = t;
+                continue;
+            }
+            if (startsWithKeyword(c, "capabilities")) {
+                consumeKeyword(c, "capabilities");
+                skipWSAndComments(c);
+                if (c.peek() !== ":")
+                    return null;
+                c.next();
+                skipWSAndComments(c);
+                const cap = pStringArray(c);
+                if (!cap)
+                    return null;
+                capabilities = cap;
+                continue;
+            }
+            if (startsWithKeyword(c, "labels")) {
+                consumeKeyword(c, "labels");
+                skipWSAndComments(c);
+                if (c.peek() !== ":")
+                    return null;
+                c.next();
+                skipWSAndComments(c);
+                const lbl = pStringRecord(c);
+                if (!lbl)
+                    return null;
+                labels = lbl;
+                continue;
+            }
+            skipToNewline(c);
+        }
+    }
     return {
         kind: "AgentDef",
         name: name.name,
         lang,
         runs: roleName.name,
+        ...(tags != null && { tags }),
+        ...(capabilities != null && { capabilities }),
+        ...(labels != null && { labels }),
         loc: c.locFrom(start),
     };
+}
+function pStringArray(c) {
+    if (c.peek() !== "[")
+        return null;
+    c.next();
+    const result = [];
+    for (;;) {
+        skipWSAndComments(c);
+        if (c.peek() === "]") {
+            c.next();
+            return result;
+        }
+        const s = readStringLiteral(c);
+        if (s === null)
+            return null;
+        result.push(s);
+        skipWSAndComments(c);
+        if (c.peek() === ",")
+            c.next();
+    }
+}
+function pStringRecord(c) {
+    if (c.peek() !== "{")
+        return null;
+    c.next();
+    const result = {};
+    for (;;) {
+        skipWSAndComments(c);
+        if (c.peek() === "}") {
+            c.next();
+            return result;
+        }
+        const key = readIdent(c);
+        if (!key)
+            return null;
+        skipWSAndComments(c);
+        if (c.peek() !== ":")
+            return null;
+        c.next();
+        skipWSAndComments(c);
+        const val = readStringLiteral(c);
+        if (val === null)
+            return null;
+        result[key.name] = val;
+        skipWSAndComments(c);
+        if (c.peek() === ",")
+            c.next();
+    }
 }
 // ── Role definition (primary behavioral contract) ──────────────────
 const ROLE_EVENT_KINDS = new Set([

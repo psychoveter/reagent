@@ -1,0 +1,22 @@
+{
+  "roleName": "CommaRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "TaskExecutionWithChild",
+      "roleName": "comma",
+      "protocolVersion": "1.0.0"
+    },
+    {
+      "protocolName": "DeriveDsiBsi",
+      "roleName": "comma",
+      "protocolVersion": "0.1.0"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "19.0.0",
+  "fingerprints": {
+    "playsHash": "031b90e6a783278f213b3e2378a2f728361412ccd12ec14c5754fe79550f3b0a",
+    "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+  }
+}

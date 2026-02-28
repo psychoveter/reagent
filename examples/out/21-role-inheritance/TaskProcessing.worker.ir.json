@@ -85,7 +85,7 @@
     "end_9"
   ],
   "initiator": "dispatcher",
-  "version": "8.0.0",
+  "version": "12.0.0",
   "fingerprints": {
     "structureHash": "06a1cd9d565a8a8ed2886f4dbe5ac9d329ad7d8e7415e01e057cc7465e7226b4",
     "schemaHash": "a478e832eb757283f3e9a4aaf7ee176db5eeced0f5acb78e69f601fddd77c3cd",

@@ -1,6 +1,14 @@
 // RAP sub-protocol: TraceStream
 // Adapter pushes real-time trace events and session status changes to connected clients
 // through the orchestrator. This is a streaming (push) protocol — no request/response.
+//
+// Event kinds include: ProtocolStarted, ProtocolCompleted, ProtocolFailed,
+//   MessageSent, MessageReceived, ActionStarted, ActionFinished, GuardEvaluated,
+//   TimerStarted, TimerFired, ForkStarted, JoinCompleted, ErrorCaught,
+//   InvokeStarted, InvokeCompleted, AsyncInvokeStarted, Spawned,
+//   ScatterStarted, ScatterCompleted, EventEmitted,
+//   TriggerMatched, TriggerSuppressed, TriggerDedupSkipped, CronTick,
+//   ResolveCompleted, SpawnStarted, SpawnCompleted, SpawnFailed
 
 message TraceEvent {
   instanceId: string
@@ -19,8 +27,10 @@ message SessionStatus {
 }
 
 protocol TraceStream {
-  participants: adapter [*], orchestrator [*], client [*]
-  initiator: adapter
+  participants:
+    adapter [*] initiator,
+    orchestrator [*],
+    client [*]
 
   adapter --> orchestrator: TraceEvent
   orchestrator --> client: TraceEvent

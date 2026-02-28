@@ -18,8 +18,9 @@ message StopAgentFailed {
 }
 
 protocol StopAgent {
-  participants: ros [*], rc [*]
-  initiator: ros
+  participants:
+    ros [*] initiator,
+    rc [*]
 
   ros --> rc: StopAgentRequest
 

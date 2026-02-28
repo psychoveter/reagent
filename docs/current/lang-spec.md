@@ -1,4 +1,4 @@
-## Reagent language spec (v0.0.11)
+## Reagent language spec (v0.0.14)
 
 This document defines the **Reagent protocol language**.
 
@@ -6,6 +6,7 @@ Reagent is a **meta-language**: it describes the choreography of agents, message
 The actual computation happens inside **agent zones** written in a **host language** chosen per participant.
 
 Design goals:
+
 - Human-writable, line-oriented protocol choreography.
 - Extensible "props-like" dictionaries on message steps (for runtime hooks).
 - **Agent functional zones** are host-language code blocks: `AgentName { ... }` (language from `participants:`).
@@ -13,10 +14,12 @@ Design goals:
 - Produces a well-defined **AST** with source locations, suitable for Cursor plugins.
 
 Non-goals (v0):
+
 - Full typechecking of embedded code (zones are raw text to the Reagent toolchain).
 - Full parsing of host languages inside zones (parser only balances braces).
 
 Status note:
+
 - The language is being designed **from examples first**. See `projects/reagent/examples/`.
 - Cursor/VSCode syntax highlighting lives in `projects/reagent/tools/reagent-vscode/` (TextMate grammar).
 
@@ -28,21 +31,85 @@ Status note:
 
 ```
 protocol Name {
-  participants: roleA [ts], roleB [py], roleC [kt]
-  initiator: roleA
-  input: SomeMessage
+  participants: roleA [ts] static single initiator, roleB [py] dynamic many, roleC [kt]
+
+  trigger on invoke with InputMsg
+  trigger on cron "0 9 * * MON"
+  trigger on event "order.created" with InputMsg
+
   ...body...
 }
 ```
 
 - `participants` lists roles. Each role MUST have a **language tag** in `[brackets]`.
-  Supported tags (v0): `ts`, `js`, `py`, `kt`, `*`.
-  The language tag declares which host language the agent's zones are written in.
+Supported tags (v0): `ts`, `js`, `py`, `kt`, `*`.
+The language tag declares which host language the agent's zones are written in.
 - `[*]` is the **wildcard lang tag**: it marks a role as **language-agnostic**.
-  Wildcard participants participate in the choreography (sending/receiving messages) but MUST NOT have agent zone blocks (standalone or inline via `onSend`/`onReceive` hooks).
-  Use `[*]` for roles whose implementation language is not fixed by the protocol — e.g. wire-only control protocols, adapters, or roles that will be bound to a concrete language at deployment time.
-- `initiator` is the role that receives the external `input` message.
-- `input: SomeMessage` declares the protocol's input type (protocol-as-function).
+Wildcard participants participate in the choreography (sending/receiving messages) but MUST NOT have agent zone blocks (standalone or inline via `onSend`/`onReceive` hooks).
+Use `[*]` for roles whose implementation language is not fixed by the protocol — e.g. wire-only control protocols, adapters, or roles that will be bound to a concrete language at deployment time.
+
+#### Participant modifiers
+
+Each participant declaration supports optional modifiers after the language tag:
+
+```
+Name [lang] static|dynamic single|many initiator
+```
+
+- **Binding**: `static` (default) — the agent is resolved at trigger time. `dynamic` — the agent can be spawned or resolved during protocol execution.
+- **Cardinality**: `single` (default) — exactly one agent per role. `many` — multiple agents can play this role (e.g. scatter participants).
+- **Initiator**: the `initiator` modifier marks the role that receives `$ctx.input` and starts the protocol body. Exactly one participant MUST be marked `initiator`. This replaces the old `initiator:` directive.
+
+All modifiers are optional. When omitted, the defaults are `static single` (non-initiator). The order of modifiers is flexible but the recommended convention is `binding cardinality initiator`.
+
+#### Triggers (protocol entry points)
+
+**Triggers** declare how a protocol can be instantiated: what stimulus starts it and how `$ctx.input` is formed.
+
+A protocol MUST declare at least one trigger. The set of triggers defines the protocol's **activation surface**.
+
+Three trigger kinds:
+
+- `trigger on invoke with MsgType` — the protocol can be called via `<role> invokes Proto(...)` / `<role> async invokes Proto(...)`. If absent, the compiler rejects any `invokes`/`async invokes` references.
+- `trigger on cron "expr"` — time-based schedule (cron expression). The `with` clause is **forbidden** for cron; the runtime always provides a system `CronTrigger` payload (`runIndex`, `firedAt`, `nextFireAt`).
+- `trigger on event "topic" with MsgType` — reactive: fires when an event is published to the named topic.
+
+The runtime **automatically** sets `$ctx.input` to the trigger data before the protocol body runs:
+
+| Kind | `$ctx.input` contains |
+|---|---|
+| `invoke` | Caller's payload object |
+| `cron` | `{ runIndex, firedAt, nextFireAt, cronExpr, protocolName }` |
+| `event` | Event payload object |
+
+An **optional** body block `{ $ctx.input = <expr> }` can be added to any trigger for post-processing. When present, `$ctx.input` is already populated with the raw trigger data, and the expression can reshape it using `$ctx`:
+
+```rg
+trigger on cron "0 9 * * MON" { $ctx.input = { day: $ctx.input.firedAt } }
+```
+
+`with MsgType` is mandatory for invoke and event triggers — it gives the compiler the input type for validation and tooling.
+
+#### Resolve declarations (participant resolution in triggers)
+
+Triggers for external stimuli (cron, event) must specify how to resolve each participant role to a concrete agent. This is done via `resolve` declarations inside the trigger body:
+
+```rg
+trigger on cron "0 9 * * MON" {
+  resolve coordinator = all | filter(hasTag("batch-coord")) | roundRobin
+  resolve worker = all | filter(hasTag("batch-worker"))
+}
+```
+
+Syntax: `resolve <role> = <pipeline>` where `<pipeline>` is a sequence of steps separated by `|`:
+
+- **Source step** (first): `all` (all registered agents for this role), `single` (exactly one expected), `from($ctx.input.field)` (agent ref from input payload).
+- **Filter steps** (middle, zero or more): `filter(hasTag("tag"))`, `filter(hasCapability("cap"))`, `filter(label("key") == "value")`.
+- **Selection step** (last, optional): `roundRobin`, `random`, `leastLoaded`, `first`.
+
+For `trigger on invoke`, resolve declarations are optional — the invoking protocol binds participants explicitly via role mapping. For cron and event triggers, the compiler auto-injects `resolve <role> = single` when no resolve declaration is present (with a deprecation warning). New protocols should declare resolve policies explicitly.
+
+The resolve pipeline is evaluated by `ResolvePolicyEvaluator` in the RC when TriggerMatcher fires.
 
 ### 1.2 Message step
 
@@ -56,6 +123,7 @@ A --> B: MessageName
 - `= { ... }` is an **optional** props dict for hooks (`onSend`, `onReceive`). May be omitted if no hooks needed.
 
 Arrow types:
+
 - `-->` — default message (async delivery). **This is the only arrow used in v0 examples.**
 - `->`, `->>`, `-->>` — reserved for future semantics (e.g. sync call, broadcast). Not yet defined.
 
@@ -106,6 +174,7 @@ The zone body is written in that host language.
 Zone body is **raw host-language code** — stored as text by the parser (braces are balanced, strings/comments skipped).
 
 **Runtime injection**: the engine injects four bindings into every zone:
+
 - `$ctx` — **per-role isolated** working memory. Each role has its own `$ctx` that is not shared. Data between roles is passed explicitly via message payload (`$ctx.msg`).
 - `$self` — **role-level persistent state**. Survives across protocol instances.
 - `reagent` — the **Reagent runtime library** (see §1.4).
@@ -114,6 +183,7 @@ Zone body is **raw host-language code** — stored as text by the parser (braces
 **Async zones**: if a zone body contains the `await` keyword, the compiler marks the corresponding IR state as asynchronous (`async: true` on `action`, `preSendAsync` on `send`, `postReceiveAsync` on `receive`). The runtime detects this flag and executes the zone with an async executor (`AsyncFunction` in TS, `async def` wrapper in Python). This is transparent to the `.rg` author — no special syntax is needed beyond writing `await` in the host-language code inside the zone. Async zones are typically used with `$agent` methods that perform I/O (LLM calls, database queries, HTTP requests).
 
 **Important constraints**:
+
 - Zones of **different roles** MUST NOT be adjacent without an intervening message (ordering guarantee).
 - Multiple consecutive zones of the **same role** are allowed (they execute sequentially on that agent).
 
@@ -156,7 +226,7 @@ alice {
 
 See also: protocol-versioning.md §9.3–9.4 for `agent.json` format and native module loading.
 
-### 1.4 Reagent runtime library (`reagent.*`)
+### 1.4 Reagent runtime library (`reagent.`*)
 
 Every agent zone has access to the `reagent` runtime library, **auto-imported** by the engine. It provides functions for protocol-level operations, written in native host-language syntax.
 
@@ -197,6 +267,7 @@ Reagent provides three built-in context bindings with distinct scope and propaga
 `$ctx` is a **per-role, per-instance** dict/object. Each role has its own `$ctx` — writes by one role are NEVER visible to another role.
 
 Fixed fields (reserved by the runtime):
+
 - `$ctx.instanceId` — protocol instance identifier (stable across restarts).
 - `$ctx.input` — the external protocol input message delivered to `initiator`.
 - `$ctx.msg` — the "current message" payload. **Binding rules:**
@@ -207,7 +278,7 @@ Fixed fields (reserved by the runtime):
   - In `par` branches: each branch gets its own isolated `$ctx.msg` (via prototype chain in TS, shallow copy in Python). Writes to `$ctx.msg` in one branch do not affect other branches.
 - `$ctx.error` — bound inside `catch { ... }` blocks. See §1.9 for details.
 
-User-defined fields: `$ctx.*` MAY contain arbitrary keys for per-role working memory.
+User-defined fields: `$ctx.`* MAY contain arbitrary keys for per-role working memory.
 
 #### `$flow` — REMOVED (v0.0.11)
 
@@ -228,6 +299,7 @@ In `scatter` blocks, each branch gets its own isolated copy of `$ctx` with `_sca
 ### 1.7 Hooks vs standalone zones (and ordering)
 
 Two ways to attach behaviour to a role:
+
 - **Standalone agent zone** (`RoleName { ... }`): a free-standing host-language code block placed between message steps.
 - **Hook zones** (`onSend { ... }`, `onReceive { ... }` inside message props): inline agent zones tied to a specific message step.
 
@@ -235,6 +307,7 @@ Both are agent zones — they contain host-language code with full access to `$c
 The difference is **placement and timing**: hook zones are anchored to a message step.
 
 Execution order for `A --> B: M = { onSend { ... } onReceive { ... } }`:
+
 1. `A` executes `onSend { ... }` zone — code runs on **sender** `A`. `$ctx.msg` refers to the outgoing message.
 2. Engine records `MessageSent`
 3. Message is delivered to `B`
@@ -280,13 +353,12 @@ entity {
 
 **TypeScript/JavaScript** (`[ts]`, `[js]`): zone code runs inside `new Function(...)`, which does not support `import` statements. Two options:
 
-1. **`$agent` methods** (preferred): put helpers on the native module and call via `$agent`:
-   ```
+1. `**$agent` methods** (preferred): put helpers on the native module and call via `$agent`:
+  ```
    sender {
      $ctx.result = $agent.computeHash($ctx.data)
    }
-   ```
-
+  ```
 2. **Code module imports** (above): `import "./helpers.ts" as helpers` makes the module available in zones.
 
 **Kotlin** (`[kt]`): follows the same pattern as TypeScript — use `$agent` for external logic.
@@ -300,6 +372,7 @@ These constructs operate at the **protocol choreography level** (outside agent z
 Two modes:
 
 **Message-based (reactive)**: waits for one of several possible messages. Use `where` for pattern matching:
+
 ```
 alt (B --> A: Accept) {
   ...
@@ -311,6 +384,7 @@ alt (B --> A: Accept) {
 ```
 
 With pattern matching (`where` keyword):
+
 ```
 alt (sia --> comma: ValidationError where { code: "TRANSIENT" }) {
   // transient error — retry
@@ -318,9 +392,11 @@ alt (sia --> comma: ValidationError where { code: "TRANSIENT" }) {
   // fatal error — abort
 }
 ```
+
 `where { key: value }` matches only messages where the payload has `key == value`. The `where` keyword disambiguates patterns from hooks.
 
 **Expression-based (evaluative)**: checks `$ctx` predicates.
+
 ```
 alt ($ctx.outcome == "done") {
   ...
@@ -336,6 +412,7 @@ loop ($ctx.attempt < 3) {
   ...
 }
 ```
+
 Guard expression uses `$ctx` and is evaluated by the runtime before each iteration.
 
 Exit from within a zone using `reagent.break()` (see §1.4).
@@ -349,9 +426,10 @@ par {
   ...
 }
 ```
+
 All branches run concurrently. The `par` completes when **all** branches complete (join semantics). `and` is a keyword separating branches.
 
-**`$ctx.msg` isolation**: each parallel branch gets its own isolated `$ctx.msg`. Messages received in one branch do not overwrite `$ctx.msg` in another branch.
+`**$ctx.msg` isolation**: each parallel branch gets its own isolated `$ctx.msg`. Messages received in one branch do not overwrite `$ctx.msg` in another branch.
 
 #### `wait` — time delay
 
@@ -403,15 +481,30 @@ comma invokes v.ValidateIntentWithSia({ intent: $ctx.intent }) {
 } -> $ctx.validation
 ```
 
-#### `<role> spawns` — fire-and-forget child protocol (protocol-level)
+#### `<role> async invokes` — fire-and-forget child protocol (protocol-level)
 
 ```
-orchestrator spawns BackgroundTask({ taskName: $ctx.taskName })
+orchestrator async invokes BackgroundTask({ taskName: $ctx.taskName })
 ```
 
-- `<role> spawns ProtoName(inputExpr)` creates an independent child protocol instance from the named role.
-- **Fire-and-forget**: the parent does not block.
+- `<role> async invokes ProtoName(inputExpr)` creates an independent child protocol instance from the named role.
+- **Fire-and-forget**: the parent does not block; no result is captured.
 - The role is explicit.
+- IR state kind: `async_invoke`.
+
+#### `<role> spawns` — create a new role instance (protocol-level)
+
+```rg
+coordinator spawns WorkerRole({ id: $ctx.workerId }) as worker persistent -> $ctx.workerRef
+```
+
+- `<role> spawns <RoleName>(config)` creates a new agent running the specified role at runtime.
+- `as <participant>` binds the spawned agent to a protocol participant name (for subsequent messaging).
+- `persistent` (optional) — the spawned agent survives beyond the parent protocol's lifetime. Without this flag, spawned agents are scoped to the parent protocol instance (stopped when it completes).
+- `-> $ctx.ref` (optional) — stores the agent reference in `$ctx` for later use.
+- The spawned agent is registered in the RC routing table and can send/receive messages immediately.
+- Target is a **role name** (defined via `role ... { ... }`), not a protocol name.
+- IR state kind: `spawn` with `roleName`, `config`, `bindAs`, `persistent`, `resultTarget`.
 
 #### `scatter` — dynamic multicast to participant list
 
@@ -433,6 +526,7 @@ scatter ($ctx.workers as worker) {
 - Designed for patterns like **Call for Proposal** (CFP), map-reduce, and fan-out/fan-in.
 
 **Per-branch variables**: inside each scatter branch, the runtime injects two special `$ctx` fields:
+
 - `$ctx._scatterIdx` — the zero-based index of the current item in the collection.
 - `$ctx._scatterItem` — the current item value from the collection.
 
@@ -452,6 +546,7 @@ scatter ($ctx.agentIds as worker) {
 ---
 
 **Not at protocol level** (handled in zones or by host-language):
+
 - `if/else` — condition branching is done inside agent zones in host-language code.
 - `throw` — host-language construct; signals a failure caught by `try/catch` via the reagent bridge.
 - `return` — zone-only via `reagent.return()` (see §1.4).
@@ -461,7 +556,8 @@ scatter ($ctx.agentIds as worker) {
 ### 1.10 Protocol completion
 
 A protocol instance terminates when:
-1. **`reagent.return(value)`** executes inside a zone — the protocol completes by sending a return message to the invoker. The invoking parent (if any) receives this value as the result of `reagent.invoke()`.
+
+1. `**reagent.return(value)`** executes inside a zone — the protocol completes by sending a return message to the invoker. The invoking parent (if any) receives this value as the result of `reagent.invoke()`.
 2. **End of `ProtocolBody`** is reached — implicit completion with no return value (`undefined`).
 3. **Uncaught `throw`** (host-language) — the protocol aborts with an error (propagated to invoking parent as their `$ctx.error`).
 
@@ -470,23 +566,26 @@ There is no explicit "ProtocolCompleted" statement; completion is structural.
 ### 1.11 Host-language functions vs Reagent runtime library
 
 Inside agent zones, there are two kinds of calls:
-- **`reagent.*`** functions (`reagent.return`, `reagent.emit`, `reagent.break`) — provided by the auto-imported Reagent runtime library. These interact with the protocol engine.
+
+- `**reagent.***` functions (`reagent.return`, `reagent.emit`, `reagent.break`) — provided by the auto-imported Reagent runtime library. These interact with the protocol engine.
 - **Everything else** (e.g. `compensate(...)`, `taskToDsiBsi(...)`, `merge(...)`) — opaque host-language calls. The Reagent parser treats them as raw code.
 
-Note: `invokes` and `spawns` are now **protocol-level** constructs (see §1.9), not zone-level `reagent.*` functions. The syntax is `<role> invokes Proto(...)` / `<role> spawns Proto(...)`, making the caller role explicit. Legacy `reagent.invoke()` and `reagent.spawn()` in zones are still supported at runtime for backward compatibility but are deprecated.
+Note: `invokes`, `async invokes`, and `spawns` are **protocol-level** constructs (see §1.9), not zone-level `reagent.*` functions. The syntax is `<role> invokes Proto(...)` / `<role> async invokes Proto(...)` / `<role> spawns Role(...)`, making the caller role explicit.
 
 ### 1.12 Reagent as a meta-language
 
 Reagent does **not** execute agent logic itself. It is a **meta-language** that:
+
 1. Describes the **choreography** (who sends what to whom, in what order).
 2. Embeds **host-language code** inside agent zones (executed by the engine for that language).
-3. Provides **`$ctx`** and the **`reagent` runtime library** as bridges between choreography and computation.
+3. Provides `**$ctx`** and the `**reagent` runtime library** as bridges between choreography and computation.
 
 The engine is responsible for:
+
 - Parsing zone bodies in the appropriate host language.
 - Injecting `$ctx`, `$self`, and `reagent` into zone execution contexts.
-- Implementing the `reagent.*` API (`return`, `emit`, `break`).
-- Executing protocol-level `invokes`, `spawns`, `scatter` by managing child instances.
+- Implementing the `reagent.`* API (`return`, `emit`, `break`).
+- Executing protocol-level `invokes`, `async invokes`, `scatter` by managing child instances.
 - Bridging host-language `throw` to protocol-level `try` semantics.
 - Enforcing message ordering and protocol semantics.
 
@@ -506,11 +605,30 @@ An optional lang tag overrides the role's language when the role uses `[*]`:
 agent Comma [ts] runs CommaRole
 ```
 
+#### Agent metadata body
+
+An agent definition may include an optional metadata body with `tags`, `capabilities`, and `labels`. These are used by resolve policies to match agents to protocol roles at trigger time:
+
+```rg
+agent BatchCoordinator runs CoordinatorRole {
+  tags: ["batch-coord", "production"]
+  capabilities: ["schedule", "monitor"]
+  labels: { region: "eu-west", tier: "primary" }
+}
+```
+
+- `tags: [...]` — string array. Matched by `filter(hasTag("..."))` in resolve pipelines.
+- `capabilities: [...]` — string array. Matched by `filter(hasCapability("..."))`.
+- `labels: { key: value, ... }` — string key-value map. Matched by `filter(label("key") == "value")`.
+
+All three fields are optional. When absent, the agent has empty tags/capabilities and no labels. Metadata is compiled into `AgentRegistrationIR` and written to the `StateStore` agent registry at agent startup.
+
 **Constraints**:
+
 - If the agent specifies a lang tag and the role also specifies a concrete lang tag, they must match.
 - If the role has `[*]`, the agent may provide a concrete lang tag for deployment.
 - If neither specifies a lang tag, the effective lang is `*` (language-agnostic).
-- The agent has no body — no plays, no init, no handlers. All behavior comes from the role.
+- An agent with a metadata body still has no behavioral content (no plays, no init, no handlers). All behavior comes from the role.
 
 ### 1.14 Message types (typed payloads)
 
@@ -537,6 +655,7 @@ message Rejected {
 **Dynamic payload construction**: the runtime initializes `$ctx.msg = {}` before every `onSend` zone. The zone populates fields dynamically (e.g. `$ctx.msg.obs = ...`). This means empty `message` declarations are fully usable — the schema is documentary, and the actual payload is whatever the zone writes to `$ctx.msg`. This is by design: Reagent does not enforce message schemas at runtime (v0).
 
 **Type system (minimal)**:
+
 - Scalars: `string`, `number`, `boolean`
 - Escape hatch: `any` (gradual typing — no static checks)
 - Array: `type[]` (e.g. `string[]`, `{ id: number }[]`)
@@ -578,6 +697,7 @@ In agent zones, `$ctx.msg` is bound to the **payload** (not the full envelope). 
 **Backward compatible**: messages without a `message` declaration remain valid — payload is `Record<string, unknown>`. Typing is opt-in. Existing untyped protocols continue to work.
 
 **What it enables**:
+
 - JSON Schema generation from `message` definitions (wire validation)
 - Code generation: TypeScript interfaces, Python dataclasses, Kotlin data classes from `.rg`
 - The `.rg` file becomes a self-contained wire format spec
@@ -614,18 +734,22 @@ role CommaRole [ts] {
 - `on <event>(<Proto>) { ... }` reacts to lifecycle events (multiple handlers allowed).
 - `$self` is the role's persistent state, accessible in init, on handlers, and protocol zones.
 
-**`$self` vs `$ctx`**:
+`**$self` vs `$ctx**`:
+
 - `$self` is the role-level persistent state. It survives across protocol instances and is scoped to the agent's lifetime.
 - `$ctx` is the per-role, per-protocol-instance working memory. Strictly isolated to each role. Data between roles flows via message payloads (`$ctx.msg`).
 - Inside a protocol zone, both `$self` and `$ctx` are available.
 
 **Lifecycle events**:
-| Event | When |
-|---|---|
-| `protocolStarted(Proto)` | A protocol instance this role participates in has started |
-| `protocolCompleted(Proto)` | Protocol completed normally |
-| `protocolFailed(Proto)` | Protocol ended with an error |
+
+
+| Event                      | When                                                                        |
+| -------------------------- | --------------------------------------------------------------------------- |
+| `protocolStarted(Proto)`   | A protocol instance this role participates in has started                   |
+| `protocolCompleted(Proto)` | Protocol completed normally                                                 |
+| `protocolFailed(Proto)`    | Protocol ended with an error                                                |
 | `protocolEvent(eventName)` | Custom event emitted via `reagent.emit()` from any protocol this role plays |
+
 
 ### 1.16 Role inheritance via `extends`
 
@@ -648,6 +772,7 @@ role WorkerRole [ts] extends BaseMonitored {
 ```
 
 **Inheritance semantics**:
+
 - `plays` bindings are merged (parent first, child appended, deduped by protocol+role).
 - `init` blocks are chained: parent init runs first, then child init.
 - `on` handlers from both parent and child fire for matching events (parent first).
@@ -660,7 +785,7 @@ role WorkerRole [ts] extends BaseMonitored {
 
 ---
 
-## 2. EBNF (v0.0.8)
+## 2. EBNF (v0.0.14)
 
 ```
 Program         ::= (WS | Comment | ImportStmt | ProtocolDef | AgentDef | MessageDef | RoleDef)* EOF
@@ -670,13 +795,23 @@ ImportStmt      ::= "import" WS+ String (WS+ "as" WS+ Ident)? WS* (";" WS*)?
 ProtocolDef     ::= "protocol" WS+ Ident WS* "{" ProtocolBody "}"
 ProtocolBody    ::= (WS | Comment | ProtocolDirective | Item | ReservedStmt)*
 
-ProtocolDirective ::= ParticipantsStmt | InitiatorStmt | InputStmt
+ProtocolDirective ::= ParticipantsStmt | TriggerDecl
 ParticipantsStmt  ::= "participants" WS* ":" WS* ParticipantList
 ParticipantList   ::= Participant (WS* "," WS* Participant)*
-Participant       ::= Ident (WS* "[" LangTag "]")?
+Participant       ::= Ident (WS* "[" LangTag "]")? ParticipantModifiers?
 LangTag           ::= "ts" | "js" | "py" | "kt" | "*"
-InitiatorStmt     ::= "initiator" WS* ":" WS* Ident
-InputStmt         ::= "input" WS* ":" WS* Ident
+ParticipantModifiers ::= (WS+ ("static" | "dynamic"))? (WS+ ("single" | "many"))? (WS+ "initiator")?
+TriggerDecl       ::= "trigger" WS+ "on" WS+ TriggerKind TriggerType? TriggerBodyOpt?
+TriggerKind       ::= "invoke"
+                     | "cron" WS+ StringLiteral
+                     | "event" WS+ StringLiteral
+TriggerType       ::= WS+ "with" WS+ Ident          /* mandatory for invoke/event, forbidden for cron */
+TriggerBodyOpt    ::= WS* "{" WS* TriggerBodyItem* WS* "}"
+TriggerBodyItem   ::= ResolveDecl | TriggerInputAssign
+ResolveDecl       ::= "resolve" WS+ Ident WS* "=" WS* ResolvePipeline
+ResolvePipeline   ::= ResolveStep (WS* "|" WS* ResolveStep)*
+ResolveStep       ::= Ident ("(" Expr ")")?           /* e.g. all, filter(hasTag("x")), roundRobin */
+TriggerInputAssign ::= "$ctx.input" WS* "=" WS* Expr  /* optional post-processing; $ctx.input already set */
 
 Item            ::= MessageStmt | AgentZone | InvokeStmt | SpawnStmt
 
@@ -695,7 +830,8 @@ ZoneBody        ::= BalancedText   // raw host-language code; braces balanced, s
                                    // language is determined by the participant's [LangTag] declaration
 
 InvokeStmt      ::= Ident WS+ "invokes" WS+ DottedIdent "(" ZoneBody ")" (WS* RoleMapping)? (WS* "->" WS* Target)?
-SpawnStmt       ::= Ident WS+ "spawns" WS+ DottedIdent "(" ZoneBody ")" (WS* RoleMapping)?
+AsyncInvokeStmt ::= Ident WS+ "async" WS+ "invokes" WS+ DottedIdent "(" ZoneBody ")" (WS* RoleMapping)?
+SpawnStmt       ::= Ident WS+ "spawns" WS+ Ident "(" ZoneBody ")" (WS+ "as" WS+ Ident)? (WS+ "persistent")? (WS* "->" WS* Target)?
 DottedIdent     ::= Ident ("." Ident)*
 RoleMapping     ::= "{" WS* (Ident ":" Ident ("," WS* Ident ":" Ident)*)? WS* "}"
 ScatterStmt     ::= "scatter" WS* "(" WS* Expr WS+ "as" WS+ Ident WS* ")" WS* "{" ProtocolBody "}"
@@ -709,7 +845,10 @@ RoleOnHandler   ::= "on" WS+ RoleEvent WS* "{" ZoneBody "}"
 RoleEvent       ::= ("protocolStarted" | "protocolCompleted" | "protocolFailed") "(" Ident ")"
                   | "protocolEvent" "(" Ident ")"
 
-AgentDef        ::= "agent" WS+ Ident (WS* "[" LangTag "]")? WS+ "runs" WS+ Ident
+AgentDef        ::= "agent" WS+ Ident (WS* "[" LangTag "]")? WS+ "runs" WS+ Ident (WS* "{" AgentMetaBody "}")?
+AgentMetaBody   ::= (WS | Comment | AgentMetaField)*
+AgentMetaField  ::= ("tags" | "capabilities") WS* ":" WS* Array
+                  | "labels" WS* ":" WS* Object
 
 MessageDef      ::= "message" WS+ Ident WS* "{" FieldList "}"
 FieldList       ::= (WS | Comment | FieldDef (",")?)*
@@ -761,15 +900,17 @@ WS              ::= (" " | "\t" | "\r" | "\n")+
 ```
 
 **Key changes from v0**:
+
 - `Participant` in `ParticipantList` now carries a required `[LangTag]` (language declared per role, once).
 - `AgentZone` is bare `Ident { ... }` — language is resolved from `participants:`.
-- `IfStmt`, `SpawnStmt`, `BreakStmt`, `ThrowStmt` removed from protocol-level `ReservedStmt`.
+- `IfStmt`, `BreakStmt`, `ThrowStmt` removed from protocol-level `ReservedStmt`.
 - `= Object` in `MessageStmt` is now optional (bare `A --> B: Name` allowed).
 - `MessageProps` replaces plain `Object` in message steps: supports `onSend { ... }` / `onReceive { ... }` as inline agent zones (host-language code blocks), in addition to key-value pairs for pattern matching in `alt` guards.
-- `reagent.*` runtime library replaces magic keywords in zones (`reagent.invoke`, `reagent.spawn`, `reagent.return`, `reagent.emit`).
+- `reagent.*` runtime library replaces magic keywords in zones (`reagent.invoke`, `reagent.spawn` (deprecated), `reagent.return`, `reagent.emit`).
 - `break`, `throw` are host-language constructs bridged by the runtime.
 
 **Changes in v0.0.5**:
+
 - `AgentDef` added as a new top-level construct (`agent Name [langTag] { ... }`).
 - `PlaysStmt` binds an agent to a protocol role (`plays Proto as role`).
 - `AgentInitBlock` and `AgentOnHandler` provide agent lifecycle logic.
@@ -777,16 +918,19 @@ WS              ::= (" " | "\t" | "\r" | "\n")+
 - `Program` production now includes `AgentDef` alongside `ImportStmt` and `ProtocolDef`.
 
 **Changes in v0.1.0 (M2-LANG)**:
+
 - `[*]` **wildcard lang tag**: marks a participant as language-agnostic. Zone blocks are forbidden for `[*]` roles. Enables wire-only protocol specs (RAP, A2A).
 - `MessageDef` added as a new top-level construct (`message Name { fields }`). Defines typed payload schemas with minimal type system (`string`, `number`, `boolean`, `any`, `type[]`, `{ ... }`, `name?: type`). Backward compatible — untyped messages remain valid.
 - `Program` production now includes `MessageDef`.
 
 **Changes in v0.0.6 (M3-LANG)**:
+
 - `RoleDef` added as a new top-level construct (`role Name { plays Proto as role ... }`). A role was a named multi-protocol interface contract with no lang tag or lifecycle.
 - `implements RoleName` added inside `AgentDef` body.
 - `RoleIR` added to IR.
 
 **Changes in v0.0.7 (M4-LANG — role-centric refactoring)**:
+
 - **Role becomes the primary behavioral contract**: `role Name [langTag]? { plays, init, on ... }` now carries lifecycle (init block, event handlers), persistent state (`$self`), and a host-language tag.
 - **Role inheritance**: `role Child [lang] extends Parent { ... }` — single inheritance. Plays merged, init chained (parent first), handlers merged (both fire).
 - **Agent becomes a deployment binding**: `agent Name [lang]? runs RoleName` — no body, no plays, no init, no handlers. All behavior comes from the role.
@@ -797,29 +941,60 @@ WS              ::= (" " | "\t" | "\r" | "\n")+
 - The runtime resolves `AgentIR` + `RoleIR` at load time to obtain the full behavioral contract.
 - **Breaking change**: old `agent Name [lang] { plays ... init ... on ... }` syntax is removed.
 
+**Changes in v0.0.14 (M10 Phase 4a/4b + M11-STATE)**:
+
+- **Participant modifiers**: `participants:` now supports `static|dynamic`, `single|many`, and `initiator` modifiers per role. The `initiator:` directive is removed — use the `initiator` modifier on the participant instead. The `input:` directive is removed entirely.
+- **Resolve declarations**: trigger bodies support `resolve <role> = <pipeline>` declarations for participant resolution. Pipeline syntax: `step | step | ...` with source (`all`, `single`, `from(...)`), filter (`filter(hasTag(...))`, `filter(hasCapability(...))`, `filter(label(...) == ...)`), and selection (`roundRobin`, `random`, `leastLoaded`, `first`) steps.
+- **Agent metadata body**: `agent Name runs Role { tags: [...], capabilities: [...], labels: {...} }` — optional metadata for resolve policy matching. Compiled into `AgentRegistrationIR`.
+- **New `spawns` for role instances**: `<role> spawns <RoleName>(config) as <participant> persistent -> $ctx.ref` creates a new agent running a role at runtime. The old `spawns <ProtocolName>` (fire-and-forget protocol call) is removed — use `async invokes` instead.
+- **IR**: new `ParticipantIR` with `binding`/`cardinality`/`initiator` fields. `TriggerIR` gains `resolveMap`. New `AgentRegistrationIR`. `spawn` IR state redesigned: `roleName`, `config`, `bindAs`, `persistent`, `resultTarget`.
+- **Removed**: `initiator:` directive, `input:` directive, deprecated `spawns <ProtocolName>` syntax, zone-level `reagent.spawn("Proto", ...)`.
+
+**Changes in v0.0.13 (remove $trigger, auto-set $ctx.input)**:
+
+- **`$trigger` removed**: the `$trigger` envelope variable no longer exists. The runtime writes trigger data directly to `$ctx.input` before the protocol body runs.
+- **Trigger body is now optional**: `trigger on invoke with M` (no body) is valid — `$ctx.input` is the caller's payload. If a body `{ $ctx.input = <expr> }` is present, it acts as a post-processing transform; the expression can reference `$ctx.input` (already populated with raw trigger data).
+- **`with` keyword replaces `as`**: `trigger on invoke with MsgType` (both `with` and `as` accepted for backward compatibility).
+- **`with` forbidden on cron**: `trigger on cron "expr"` — no type clause allowed; runtime always provides system CronTrigger payload.
+- **IR**: `TriggerIR.inputExpr` is now optional (`undefined` = no transform, use raw data).
+- **All examples updated**: boilerplate `{ $ctx.input = $trigger.payload }` bodies removed.
+
+**Changes in v0.0.12 (triggers — language phase)**:
+
+- **`trigger on invoke|cron|event` syntax**: protocol entry points are now declared explicitly via trigger blocks. Each trigger specifies the stimulus kind and input message type (`with MsgType`).
+- **`input:` deprecated**: `input: MsgType` is still parsed but auto-converts to `trigger on invoke with MsgType`. New protocols should use trigger syntax.
+- **Invocability is compiler-checked**: a protocol without `trigger on invoke` cannot be referenced by `invokes`/`async invokes`. The compiler rejects such references.
+- **At least one trigger required**: protocols without any triggers are a compiler error.
+- **IR**: `TriggerIR` type added to `IRGraph` (`triggers: TriggerIR[]`, `invocable: boolean`). Trigger metadata is included in protocol fingerprints (activation surface is structural).
+- **All examples migrated** from `input:` to `trigger on invoke`.
+- New keywords: `trigger`, `invoke` (as trigger kind), `cron`, `event`.
+
 **Changes in v0.0.11**:
-- **`$flow` removed** (breaking change): `$flow` is no longer part of the language. All inter-role data transfer now happens explicitly via message payloads (`$ctx.msg`). `$ctx` is the sole per-role working memory. See §1.5 for migration guidance.
+
+- `**$flow` removed** (breaking change): `$flow` is no longer part of the language. All inter-role data transfer now happens explicitly via message payloads (`$ctx.msg`). `$ctx` is the sole per-role working memory. See §1.5 for migration guidance.
 - **Scatter `$ctx` isolation**: each scatter branch gets its own isolated `$ctx` copy with `_scatterItem` and `_scatterIdx` injected automatically.
 - `propagateFlow` flag removed from IR send/receive states.
 - `MessageEnvelope.flow` field removed.
 
 **Changes in v0.0.8 (M5-LANG)**:
+
 - **Protocol-level `invokes`**: `<role> invokes ProtoName(inputExpr) -> $ctx.result` — synchronous child protocol call at protocol level with explicit caller role (was zone-level `reagent.invoke()`).
-- **Protocol-level `spawns`**: `<role> spawns ProtoName(inputExpr)` — fire-and-forget child protocol at protocol level with explicit caller role (was zone-level `reagent.spawn()`).
-- **`scatter`/`gather`**: `scatter (collection as itemRole) { ... }` — dynamic multicast to a list of participants. Enables CFP, map-reduce, fan-out/fan-in patterns.
-- **`alt where`**: `where { key: value }` keyword for pattern matching in `alt` guards, disambiguating from `= { onSend { ... } }` hook syntax.
-- **`reagent.break()`**: zone-level function to exit the enclosing `loop`. Replaces bare `break` (host-language construct).
-- **`$ctx.msg` isolation in `par`**: each parallel branch gets its own isolated `$ctx.msg`.
+- **Protocol-level `async invokes`**: `<role> async invokes ProtoName(inputExpr)` — fire-and-forget child protocol at protocol level with explicit caller role. IR state kind: `async_invoke`. (Replaces deprecated `spawns`.)
+- `**scatter`/`gather**`: `scatter (collection as itemRole) { ... }` — dynamic multicast to a list of participants. Enables CFP, map-reduce, fan-out/fan-in patterns.
+- `**alt where**`: `where { key: value }` keyword for pattern matching in `alt` guards, disambiguating from `= { onSend { ... } }` hook syntax.
+- `**reagent.break()**`: zone-level function to exit the enclosing `loop`. Replaces bare `break` (host-language construct).
+- `**$ctx.msg` isolation in `par**`: each parallel branch gets its own isolated `$ctx.msg`.
 - **Message inbox buffering**: messages arriving before a resolver is registered are buffered (fixes synchronous loopback transport with `par`).
-- New IR state kinds: `invoke`, `spawn`, `scatter`.
-- New keywords: `invokes`, `spawns`, `scatter`, `gather`, `where`.
-- Legacy `reagent.invoke()` / `reagent.spawn()` in zones remain supported at runtime but are deprecated.
+- New IR state kinds: `invoke`, `async_invoke`, `scatter`.
+- New keywords: `invokes`, `async` (before `invokes`), `scatter`, `gather`, `where`.
+- Legacy `reagent.invoke()` in zones remains supported at runtime but is deprecated.
 - Syntax changed from `invoke Proto(...) as <role>` to `<role> invokes Proto(...)` — caller role is now the grammatical subject.
 
 **Runtime changes in M8b (Agent Model Evolution)** (no syntax changes):
-- **`$agent` binding**: new optional 5th runtime-injected binding in zone scope. Present when the agent has an `agent.json` manifest with a `module` field. Provides access to native host-language module methods (see §1.3.1).
+
+- `**$agent` binding**: new optional 5th runtime-injected binding in zone scope. Present when the agent has an `agent.json` manifest with a `module` field. Provides access to native host-language module methods (see §1.3.1).
 - **Async zones**: if a zone body contains `await`, the compiler sets `async: true` (action), `preSendAsync` (send), or `postReceiveAsync` (receive) on the IR state. The runtime uses `AsyncFunction` (TS) or `async def` wrapper (Python) to execute such zones. No `.rg` syntax change — `await` is host-language code inside `{ }`.
-- **`agent.json` manifest**: per-agent manifest file (`name`, `role`, `module`, `config`) that takes priority over `.rg` `agent` declarations when present. See protocol-versioning.md §9.4.
+- `**agent.json` manifest**: per-agent manifest file (`name`, `role`, `module`, `config`) that takes priority over `.rg` `agent` declarations when present. See protocol-versioning.md §9.4.
 
 ---
 
@@ -836,9 +1011,10 @@ See `projects/reagent/examples/src/01-task-execution-basic.rg`.
 The parser outputs an AST conforming to the TypeScript types at `lang/src/ast.ts`.
 
 The full AST covers all language constructs:
+
 - `Program` (top-level: imports + protocol definitions + agent definitions + message definitions + role definitions)
 - `ImportStmt` (protocol `.rg` imports + code module imports)
-- `ProtocolDef` (header + body), `ParticipantDecl` (name + `LangTag`)
+- `ProtocolDef` (header + triggers + body), `ParticipantDecl` (name + `LangTag` + optional modifiers: `binding`, `cardinality`, `initiator`), `TriggerDecl` (trigger kind + `withType` + optional cron/topic + input expression + optional `resolveMap`)
 - `MessageStmt` (sender, arrow, receiver, message name, optional `MessageProps` with `HookZone` and `PropPair`)
 - `AgentZone` (standalone: role name + `lang` resolved from participants + raw body text)
 - `AltStmt` (branches with `AltMessageGuard` / `AltExprGuard` / `AltTimeoutGuard` / `AltElseGuard`; message guards support `whereClause`)
@@ -847,7 +1023,8 @@ The full AST covers all language constructs:
 - `WaitStmt` (duration literal)
 - `TryStmt` (try body + catch label + catch body)
 - `InvokeStmt` (caller role + protocol name + input expression + optional role mapping + optional result target — **protocol-level synchronous call**: `<role> invokes Proto(...)`)
-- `SpawnStmt` (caller role + protocol name + input expression + optional role mapping — **protocol-level fire-and-forget**: `<role> spawns Proto(...)`)
+- `InvokeStmt` with `async: true` (caller role + protocol name + input expression + optional role mapping — **protocol-level fire-and-forget**: `<role> async invokes Proto(...)`)
+- `SpawnStmt` (caller role + role name + config expression + optional `as` binding + optional `persistent` flag + optional result target — **role instance spawn**: `<role> spawns Role(...) as participant persistent -> $ctx.ref`)
 - `ScatterStmt` (collection expression + item role + body — **dynamic multicast**)
 - `RoleDef` (role name + optional lang tag + optional extends + plays bindings + init block + lifecycle handlers — **primary behavioral contract**)
 - `AgentDef` (agent name + optional lang tag + `runs` role name — **thin deployment binding**)
@@ -865,15 +1042,18 @@ Every node carries `Loc` (source location: `start: {index, line, col}`, `end: {i
 Hand-written **recursive-descent parser** in TypeScript (`lang/src/parser.ts`).
 Zone bodies remain **raw text** (parser only balances braces, does not parse host language).
 
-### 4.3 Protocol IR (v0.0.8)
+### 4.3 Protocol IR (v0.0.14)
 
 The compiler produces per-role **Protocol IR** — directed graphs of states and transitions:
-- `IRGraph` per role (local view of the global protocol)
-- `IRState` types: `initial`, `send`, `receive`, `action`, `guard`, `fork`, `join`, `timer`, `terminal`, `error`, `invoke`, `spawn`, `scatter`
+
+- `IRGraph` per role (local view of the global protocol), with `triggers: TriggerIR[]` and `invocable: boolean`
+- `TriggerIR` — protocol entry point metadata: `{ kind: "invoke", withType, inputExpr? }` | `{ kind: "cron", cron, inputExpr? }` | `{ kind: "event", topic, withType, inputExpr? }`
+- `IRState` types: `initial`, `send`, `receive`, `action`, `guard`, `fork`, `join`, `timer`, `terminal`, `error`, `invoke`, `async_invoke`, `spawn`, `scatter`
 - `IRTransition` labels: `default`, `message`, `timeout`, `expression`, `else`, `error`, `branch`
 - `send`/`receive` states have the standard message routing fields
 - `invoke` state: `protocolName`, `input` expression, optional `resultTarget`
-- `spawn` state: `protocolName`, `input` expression
+- `async_invoke` state: `protocolName`, `input` expression (fire-and-forget)
+- `spawn` state: `roleName`, `config` expression, optional `bindAs`, optional `persistent` flag, optional `resultTarget`
 - `scatter` state: `collection` expression, `itemRole`, `branchStartIds`
 - `action` states have optional `async: true` flag (zone body contains `await`)
 - `send` states have optional `preSendAsync: true` (onSend zone contains `await`)
@@ -882,6 +1062,7 @@ The compiler produces per-role **Protocol IR** — directed graphs of states and
 ### 4.4 Role IR (v0.0.8)
 
 The compiler produces per-role-definition **Role IR** — the rich behavioral contract:
+
 - `RoleIR`: role name, optional lang tag, optional extends reference, plays bindings, init action (chained from extends), lifecycle handlers (merged from extends).
 - Emitted as `<RoleName>.role.json`.
 - `extends` is resolved at compile time: the emitted `RoleIR` is the fully flattened behavioral contract.
@@ -889,6 +1070,7 @@ The compiler produces per-role-definition **Role IR** — the rich behavioral co
 ### 4.5 Agent IR (v0.0.8)
 
 The compiler produces per-agent **Agent IR** — a thin deployment binding that references the role:
+
 - `AgentIR`: agent name, language tag, role name, role file path. No behavioral data (plays, init, handlers).
 - The runtime loads `AgentIR` and then resolves the referenced `RoleIR` to obtain the full behavioral contract (plays, init, lifecycle handlers).
 - This eliminates redundancy: behavioral data lives in `RoleIR` only, and `AgentIR` is a pure deployment artifact.
@@ -907,6 +1089,7 @@ reagent-lang compile  <file.rg> <out-dir>      — compile to per-role and per-a
 ```
 
 The `compile` command produces:
+
 - `<Proto>.<role>.ir.json` — one IRGraph per role in each protocol
 - `<RoleName>.role.json` — one RoleIR per role definition (rich behavioral contract)
 - `<Agent>.agent.json` — one AgentIR per agent (thin binding referencing role)
@@ -917,7 +1100,7 @@ The `compile` command produces:
 
 Lightweight **reference runners** (TypeScript and Python) interpret IR JSON directly:
 
-- **AgentRunner** — one instance per agent. Manages `$self`, lifecycle handlers, message routing to ProtocolInstances. Wires `invoke_callback` and `spawn_callback` for IR-level `invoke`/`spawn` states.
+- **AgentRunner** — one instance per agent. Manages `$self`, lifecycle handlers, message routing to ProtocolInstances. Wires `invoke_callback` and `spawn_callback` for IR-level `invoke`/`async_invoke` states.
 - **ProtocolInstance** — interprets one IRGraph state machine per protocol instance. Has its own `$ctx`. Includes a **message inbox buffer** for messages arriving before receivers register (critical for synchronous loopback transport).
 - **Zone Executor** — executes raw zone body strings with `$ctx`, `$self`, `reagent` in scope. Python executor includes JS→Python compatibility layer (`true`→`True`, `===`→`==`, etc.).
 
@@ -929,9 +1112,9 @@ The TS `ReagentController` (in `runtime/ts/`) manages agent registry, routing ta
 
 The Python `ReagentController` (in `runtime/py/reagent_runtime/controller.py`) mirrors the TS RC architecture as a pure-Python orchestrator. No NATS or TS parent required. Key components:
 
-- **`InprocAgentNode`** — runs agents in the same process via `AgentRunner` + `InprocTransport`. Zero serialization overhead. Primary mode for NMMO-style multi-agent simulations.
-- **`IpcAgentNode`** — runs agents as subprocesses via `ipc_agent.py` with JSON-line stdin/stdout IPC.
-- **`InprocTransport`** — per-agent transport that routes envelopes through the RC's routing table via a callback. Traces go to an optional trace callback. Subscriptions are no-ops.
+- `**InprocAgentNode`** — runs agents in the same process via `AgentRunner` + `InprocTransport`. Zero serialization overhead. Primary mode for NMMO-style multi-agent simulations.
+- `**IpcAgentNode**` — runs agents as subprocesses via `ipc_agent.py` with JSON-line stdin/stdout IPC.
+- `**InprocTransport**` — per-agent transport that routes envelopes through the RC's routing table via a callback. Traces go to an optional trace callback. Subscriptions are no-ops.
 
 Usage:
 
@@ -944,4 +1127,3 @@ rc.trigger_protocol("Agent0", trigger)
 ```
 
 See `runtime/py/` for implementations and `runtime/tests/test_py_rc.py` for E2E tests.
-

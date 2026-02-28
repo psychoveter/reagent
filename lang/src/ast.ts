@@ -1,5 +1,5 @@
 /**
- * Reagent AST — v0.0.7
+ * Reagent AST — v0.0.14
  *
  * Typed node hierarchy for the full Reagent protocol language.
  * Every node carries a SourceLocation (Loc) for editor integration.
@@ -34,18 +34,65 @@ export type ProtocolDef = {
   kind: "ProtocolDef";
   name: string;
   participants: ParticipantDecl[];
-  initiator: string;
-  input: string;
+  triggers: TriggerDecl[];
   body: ProtocolItem[];
   loc: Loc;
 };
 
+// ── Trigger declarations ────────────────────────────────────────────
+
+export type TriggerKind = "invoke" | "cron" | "event";
+
+export type TriggerDecl = {
+  kind: "TriggerDecl";
+  triggerKind: TriggerKind;
+  /** Input type name after `with` keyword. Required for invoke/event; absent for cron (system CronTrigger). */
+  withType?: string;
+  /** Cron expression (for cron triggers) */
+  cronExpr?: string;
+  /** Event topic name (for event triggers) */
+  topic?: string;
+  /** Optional post-processing expression (RHS of `$ctx.input = <expr>`). Absent = use raw trigger data. */
+  inputExpr?: string;
+  /** Resolve declarations: `resolve role = pipeline` */
+  resolveDecls?: ResolveDecl[];
+  loc: Loc;
+};
+
+// ── Resolve declarations (inside trigger bodies) ────────────────────
+
+export type ResolveDecl = {
+  kind: "ResolveDecl";
+  role: string;
+  pipeline: ResolvePipelineStep[];
+  loc: Loc;
+};
+
+export type ResolvePipelineStep =
+  | { step: "all" }
+  | { step: "single" }
+  | { step: "from"; expr: string }
+  | { step: "filter"; predicate: string }
+  | { step: "roundRobin" }
+  | { step: "leastLoaded" }
+  | { step: "random" }
+  | { step: "sample"; count: number }
+  | { step: "first" }
+  | { step: "fallback"; chain: ResolvePipelineStep[] }
+  | { step: "custom"; name: string };
+
 export type LangTag = "ts" | "js" | "py" | "kt" | "*";
+
+export type ParticipantBinding = "static" | "dynamic";
+export type ParticipantCardinality = "single" | "many";
 
 export type ParticipantDecl = {
   kind: "ParticipantDecl";
   name: string;
   lang: LangTag;
+  binding?: ParticipantBinding;
+  cardinality?: ParticipantCardinality;
+  initiator?: boolean;
   loc: Loc;
 };
 
@@ -215,6 +262,7 @@ export type TryStmt = {
 
 export type InvokeStmt = {
   kind: "InvokeStmt";
+  async?: boolean;
   protocolName: string;
   input: string;
   callerRole: string;
@@ -223,14 +271,16 @@ export type InvokeStmt = {
   loc: Loc;
 };
 
-// ── Protocol-level spawn ────────────────────────────────────────────
+// ── Protocol-level spawn (role instantiation) ──────────────────────
 
 export type SpawnStmt = {
   kind: "SpawnStmt";
-  protocolName: string;
-  input: string;
   callerRole: string;
-  roleMapping?: Record<string, string>;
+  roleName: string;
+  config: string;
+  bindAs?: string;
+  resultTarget?: string;
+  persistent?: boolean;
   loc: Loc;
 };
 
@@ -251,6 +301,9 @@ export type AgentDef = {
   name: string;
   lang?: LangTag;
   runs: string;
+  tags?: string[];
+  capabilities?: string[];
+  labels?: Record<string, string>;
   loc: Loc;
 };
 

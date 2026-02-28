@@ -7,6 +7,18 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const THREAD_ID = 1;
+const SPAWN_THREAD_BASE = 100;
+
+// Variable scope reference ranges
+const SCOPE_CTX = 100;
+const SCOPE_SELF = 200;
+const SCOPE_HELD = 300;
+const SCOPE_INSTANCE = 500;
+const SCOPE_RESOLVE = 1000;
+const SCOPE_RESOLVE_CANDIDATES = 1001;
+const SCOPE_RESOLVE_SELECTED = 1002;
+const SCOPE_PARTICIPANTS = 2000;
+const SCOPE_REGISTRY = 3000;
 
 interface LaunchConfig extends vscode.DebugConfiguration {
   rgFile: string;
@@ -46,6 +58,23 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
   private stoppedDetail: Record<string, unknown> = {};
   private seq = 0;
   private isClusterAttach = false;
+
+  private nextBreakpointId = 1;
+  private breakpointMap = new Map<number, { id: number; line: number; stateId?: string; verified: boolean; source?: string }>();
+  private activeThreads = new Map<number, { name: string; instanceId?: string }>();
+
+  /** T.15: Next thread ID for spawned agents. */
+  private nextSpawnThreadId = SPAWN_THREAD_BASE;
+  /** T.15: Map from spawned agent name to DAP thread ID. */
+  private spawnedAgentThreads = new Map<string, number>();
+
+  /** T.13: Resolve-level stopped data (role, candidates, selected, pipelineSummary). */
+  private resolveDetail: {
+    role: string;
+    candidates: string[];
+    selected: string[];
+    pipelineSummary: string;
+  } | null = null;
 
   /** Pending cluster-attach RAP client, set before startDebugging(). */
   static pendingClusterRap: RapClient | null = null;
@@ -115,11 +144,13 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
           this.sendResponse(reqSeq, command);
           break;
 
-        case 'threads':
-          this.sendResponse(reqSeq, command, {
-            threads: [{ id: THREAD_ID, name: 'Reagent Protocol' }],
-          });
+        case 'threads': {
+          const threads = this.activeThreads.size > 0
+            ? Array.from(this.activeThreads.entries()).map(([id, t]) => ({ id, name: t.name }))
+            : [{ id: THREAD_ID, name: 'Reagent Protocol' }];
+          this.sendResponse(reqSeq, command, { threads });
           break;
+        }
 
         case 'stackTrace':
           this.handleStackTrace(reqSeq);
@@ -219,14 +250,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
         this.protocolStack.pop();
       }
 
-      const dapReason = this.stoppedReason === 'breakpoint' ? 'breakpoint' : 'step';
-      this.sendEvent('stopped', {
-        reason: dapReason,
-        threadId: THREAD_ID,
-        description: this.stoppedReason,
-        allThreadsStopped: true,
-      });
-      this.pushStateToSinks();
+      this.applyStoppedEvent(payload);
     }));
 
     // Listen for RunCompleted
@@ -234,7 +258,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
       this.sendEvent('terminated', {});
     }));
 
-    // Listen for TraceEvents → output channel + debug panel
+    // Listen for TraceEvents → output channel + debug panel + spawn threads
     this.disposables.push(this.rap.on('TraceEvent', (msg) => {
       const p = (msg.payload || {}) as Record<string, unknown>;
       const kind = (p.kind || 'trace') as string;
@@ -250,6 +274,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
         timestamp: Date.now(),
         detail: p,
       });
+      this.handleSpawnTraceEvent(kind, p);
     }));
 
     // Read .rg source
@@ -278,6 +303,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     });
 
     ReagentDebugSession.activeSession = this;
+    this.addThread(THREAD_ID, 'Reagent Protocol');
     this.sendResponse(reqSeq, 'launch');
   }
 
@@ -341,17 +367,10 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
         this.protocolStack.pop();
       }
 
-      const dapReason = this.stoppedReason === 'breakpoint' ? 'breakpoint' : 'step';
-      this.sendEvent('stopped', {
-        reason: dapReason,
-        threadId: THREAD_ID,
-        description: this.stoppedReason,
-        allThreadsStopped: true,
-      });
-      this.pushStateToSinks();
+      this.applyStoppedEvent(payload);
     }));
 
-    // Listen for TraceEvent with ProtocolCompleted to auto-terminate
+    // Listen for TraceEvent with ProtocolCompleted to auto-terminate + spawn threads
     this.disposables.push(this.rap.on('TraceEvent', (msg) => {
       const p = (msg.payload || {}) as Record<string, unknown>;
       const kind = (p.kind || '') as string;
@@ -368,6 +387,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
         timestamp: Date.now(),
         detail: p,
       });
+      this.handleSpawnTraceEvent(kind, p);
 
       if (kind === 'ProtocolCompleted' || kind === 'ProtocolFailed') {
         this.sendEvent('terminated', {});
@@ -375,6 +395,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     }));
 
     ReagentDebugSession.activeSession = this;
+    this.addThread(THREAD_ID, 'Reagent Protocol');
     this.sendResponse(reqSeq, 'launch');
 
     // Replay any Stopped payload that arrived before the DAP adapter was ready.
@@ -401,10 +422,51 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     }
   }
 
+  /**
+   * Shared logic for processing a Stopped payload: detects resolve-level stops,
+   * stores resolve detail, and fires the appropriate DAP stopped event.
+   */
+  private applyStoppedEvent(payload: Record<string, unknown>): void {
+    const level = payload.level as string | undefined;
+
+    if (level === 'resolve') {
+      this.resolveDetail = {
+        role: String(payload.role || ''),
+        candidates: (payload.candidates as string[]) || [],
+        selected: (payload.selected as string[]) || [],
+        pipelineSummary: String(payload.pipelineSummary || ''),
+      };
+      const desc = `Resolve: ${this.resolveDetail.role} — ${this.resolveDetail.selected.length}/${this.resolveDetail.candidates.length} selected`;
+      this.sendEvent('stopped', {
+        reason: 'resolve',
+        threadId: THREAD_ID,
+        description: desc,
+        allThreadsStopped: true,
+      });
+    } else {
+      this.resolveDetail = null;
+      const dapReason = this.stoppedReason === 'breakpoint' ? 'breakpoint' : 'step';
+      this.sendEvent('stopped', {
+        reason: dapReason,
+        threadId: THREAD_ID,
+        description: this.stoppedReason,
+        allThreadsStopped: true,
+      });
+    }
+
+    this.pushStateToSinks();
+  }
+
   private async handleSetBreakpoints(reqSeq: number, args: Record<string, unknown>): Promise<void> {
     const source = args.source as { path?: string } | undefined;
     const bpArgs = args.breakpoints as Array<{ line: number }> | undefined;
-    const breakpoints: Array<{ verified: boolean; line: number; message?: string }> = [];
+    const bpFile = source?.path || this.rgFilePath;
+    const breakpoints: Array<{ id: number; verified: boolean; line: number; message?: string }> = [];
+
+    // Remove previous breakpoints for this source file
+    for (const [id, bp] of this.breakpointMap) {
+      if (bp.source === bpFile) this.breakpointMap.delete(id);
+    }
 
     // Fallback: if source map is empty, try reading from compiled output
     if (this.sourceMap.length === 0 && this.rgFilePath) {
@@ -414,19 +476,22 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     if (this.rap?.connected && bpArgs && bpArgs.length > 0) {
       if (this.isClusterAttach) {
         const stateIds: string[] = [];
-        const bpFile = source?.path || this.rgFilePath;
         for (const bp of bpArgs) {
+          const bpId = this.nextBreakpointId++;
           const mapped = findNearestSourceMapEntry(this.sourceMap, bp.line, bpFile);
           if (mapped) {
             stateIds.push(mapped.stateId);
             const adjusted = mapped.line !== bp.line ? ` (snapped from line ${bp.line})` : '';
             breakpoints.push({
+              id: bpId,
               verified: true,
               line: mapped.line,
               message: `→ ${mapped.stateId}${adjusted}`,
             });
+            this.breakpointMap.set(bpId, { id: bpId, line: mapped.line, stateId: mapped.stateId, verified: true, source: bpFile });
           } else {
-            breakpoints.push({ verified: false, line: bp.line, message: 'No IR state near this line' });
+            breakpoints.push({ id: bpId, verified: false, line: bp.line, message: 'No IR state near this line' });
+            this.breakpointMap.set(bpId, { id: bpId, line: bp.line, verified: false, source: bpFile });
           }
         }
         if (stateIds.length > 0) {
@@ -440,21 +505,24 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
           });
         }
       } else {
-        const bpFile = source?.path || this.rgFilePath;
         const resolvedLocations: Array<{ type: 'sourceLine'; file: string; line: number }> = [];
         for (const bp of bpArgs) {
+          const bpId = this.nextBreakpointId++;
           const mapped = findNearestSourceMapEntry(this.sourceMap, bp.line, bpFile);
           if (mapped) {
             resolvedLocations.push({ type: 'sourceLine', file: bpFile, line: mapped.line });
             const adjusted = mapped.line !== bp.line ? ` (snapped from line ${bp.line})` : '';
             breakpoints.push({
+              id: bpId,
               verified: true,
               line: mapped.line,
               message: `→ ${mapped.stateId}${adjusted}`,
             });
+            this.breakpointMap.set(bpId, { id: bpId, line: mapped.line, stateId: mapped.stateId, verified: true, source: bpFile });
           } else {
             resolvedLocations.push({ type: 'sourceLine', file: bpFile, line: bp.line });
-            breakpoints.push({ verified: false, line: bp.line, message: 'No IR state near this line' });
+            breakpoints.push({ id: bpId, verified: false, line: bp.line, message: 'No IR state near this line' });
+            this.breakpointMap.set(bpId, { id: bpId, line: bp.line, verified: false, source: bpFile });
           }
         }
 
@@ -469,7 +537,9 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
       }
     } else if (bpArgs) {
       for (const bp of bpArgs) {
-        breakpoints.push({ verified: false, line: bp.line });
+        const bpId = this.nextBreakpointId++;
+        breakpoints.push({ id: bpId, verified: false, line: bp.line });
+        this.breakpointMap.set(bpId, { id: bpId, line: bp.line, verified: false, source: bpFile });
       }
     }
 
@@ -486,32 +556,48 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     }> = [];
 
     if (this.paused) {
-      const stateId = this.stoppedDetail.stateId as string | undefined;
-      const stateKind = this.stoppedDetail.stateKind as string | undefined;
-      const agentName = this.stoppedDetail.agentName as string | undefined;
-      const mapped = stateId ? this.sourceMap.find(e => e.stateId === stateId) : undefined;
+      // T.13: Synthetic resolve frame when paused at a resolve point
+      if (this.resolveDetail) {
+        const rd = this.resolveDetail;
+        const resolveDesc = `Resolve: ${rd.role} [${rd.selected.length}/${rd.candidates.length} selected] — ${rd.pipelineSummary || 'pipeline'}`;
+        frames.push({
+          id: 1,
+          name: resolveDesc,
+          source: {
+            name: path.basename(this.rgFilePath),
+            path: this.rgFilePath,
+          },
+          line: 1,
+          column: 0,
+        });
+      } else {
+        const stateId = this.stoppedDetail.stateId as string | undefined;
+        const stateKind = this.stoppedDetail.stateKind as string | undefined;
+        const agentName = this.stoppedDetail.agentName as string | undefined;
+        const mapped = stateId ? this.sourceMap.find(e => e.stateId === stateId) : undefined;
 
-      const protocolName = this.stoppedDetail.protocolName as string | undefined;
-      const role = this.stoppedDetail.role as string | undefined;
-      const prefix = protocolName && role
-        ? `${protocolName}.${role}`
-        : (agentName || 'agent');
-      let frameName = `${prefix} @ ${stateKind || 'state'} (${stateId || '?'})`;
+        const protocolName = this.stoppedDetail.protocolName as string | undefined;
+        const role = this.stoppedDetail.role as string | undefined;
+        const prefix = protocolName && role
+          ? `${protocolName}.${role}`
+          : (agentName || 'agent');
+        let frameName = `${prefix} @ ${stateKind || 'state'} (${stateId || '?'})`;
 
-      if (this.scatterBranchIndex !== null) {
-        frameName += ` [branch ${this.scatterBranchIndex}]`;
+        if (this.scatterBranchIndex !== null) {
+          frameName += ` [branch ${this.scatterBranchIndex}]`;
+        }
+
+        frames.push({
+          id: 1,
+          name: frameName,
+          source: {
+            name: path.basename(this.rgFilePath),
+            path: this.rgFilePath,
+          },
+          line: mapped?.line || 1,
+          column: mapped?.column || 0,
+        });
       }
-
-      frames.push({
-        id: 1,
-        name: frameName,
-        source: {
-          name: path.basename(this.rgFilePath),
-          path: this.rgFilePath,
-        },
-        line: mapped?.line || 1,
-        column: mapped?.column || 0,
-      });
 
       for (let i = this.protocolStack.length - 1; i >= 0; i--) {
         const parent = this.protocolStack[i];
@@ -535,15 +621,22 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     });
   }
 
-  private handleScopes(reqSeq: number, args: Record<string, unknown>): void {
-    this.sendResponse(reqSeq, 'scopes', {
-      scopes: [
-        { name: '$ctx', variablesReference: 100, expensive: false },
-        { name: '$self', variablesReference: 200, expensive: false },
-        { name: 'Instance', variablesReference: 500, expensive: false },
-        { name: 'Held Messages', variablesReference: 300, expensive: false },
-      ],
-    });
+  private handleScopes(reqSeq: number, _args: Record<string, unknown>): void {
+    const scopes: Array<{ name: string; variablesReference: number; expensive: boolean }> = [
+      { name: '$ctx', variablesReference: SCOPE_CTX, expensive: false },
+      { name: '$self', variablesReference: SCOPE_SELF, expensive: false },
+      { name: 'Instance', variablesReference: SCOPE_INSTANCE, expensive: false },
+      { name: 'Held Messages', variablesReference: SCOPE_HELD, expensive: false },
+    ];
+
+    if (this.resolveDetail) {
+      scopes.unshift({ name: 'Resolve', variablesReference: SCOPE_RESOLVE, expensive: false });
+    }
+
+    scopes.push({ name: 'Participants', variablesReference: SCOPE_PARTICIPANTS, expensive: false });
+    scopes.push({ name: 'Registry', variablesReference: SCOPE_REGISTRY, expensive: true });
+
+    this.sendResponse(reqSeq, 'scopes', { scopes });
   }
 
   private async handleVariables(reqSeq: number, args: Record<string, unknown>): Promise<void> {
@@ -551,8 +644,14 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     const variables: Array<{ name: string; value: string; variablesReference: number }> = [];
 
     if (this.paused) {
-      if (this.isClusterAttach) {
-        // For cluster-attach, use the ctx/self from the Stopped payload
+      // T.14: Resolve, participants, and registry scopes are handled uniformly
+      if (ref >= SCOPE_RESOLVE && ref < SCOPE_RESOLVE + 1000) {
+        this.extractResolveVariables(ref, variables);
+      } else if (ref >= SCOPE_PARTICIPANTS && ref < SCOPE_PARTICIPANTS + 1000) {
+        this.extractParticipantsVariables(variables);
+      } else if (ref >= SCOPE_REGISTRY && ref < SCOPE_REGISTRY + 1000) {
+        this.extractRegistryVariables(variables);
+      } else if (this.isClusterAttach) {
         this.extractVariablesFromStoppedDetail(ref, variables);
       } else if (this.rap?.connected) {
         try {
@@ -576,17 +675,17 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
             });
           });
 
-          if (ref === 100) {
+          if (ref === SCOPE_CTX) {
             const ctx = (snapshot.ctx || {}) as Record<string, unknown>;
             for (const [key, value] of Object.entries(ctx)) {
               variables.push({ name: key, value: JSON.stringify(value), variablesReference: 0 });
             }
-          } else if (ref === 200) {
+          } else if (ref === SCOPE_SELF) {
             const self = (snapshot.self || {}) as Record<string, unknown>;
             for (const [key, value] of Object.entries(self)) {
               variables.push({ name: key, value: JSON.stringify(value), variablesReference: 0 });
             }
-          } else if (ref === 500) {
+          } else if (ref === SCOPE_INSTANCE) {
             const fields: Array<[string, string]> = [
               ['instanceId', String(this.stoppedDetail.instanceId ?? '')],
               ['protocolName', String(this.stoppedDetail.protocolName ?? '')],
@@ -598,7 +697,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
             for (const [name, value] of fields) {
               if (value) variables.push({ name, value: JSON.stringify(value), variablesReference: 0 });
             }
-          } else if (ref === 300) {
+          } else if (ref === SCOPE_HELD) {
             const held = (snapshot.heldMessages || []) as Array<{ messageName?: string; from?: string; to?: string }>;
             for (let i = 0; i < held.length; i++) {
               const h = held[i];
@@ -645,6 +744,78 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
         if (value) variables.push({ name, value: JSON.stringify(value), variablesReference: 0 });
       }
     }
+  }
+
+  /** T.14: Resolve scope variables. */
+  private extractResolveVariables(
+    ref: number,
+    variables: Array<{ name: string; value: string; variablesReference: number }>,
+  ): void {
+    if (!this.resolveDetail) return;
+    const rd = this.resolveDetail;
+
+    if (ref === SCOPE_RESOLVE) {
+      variables.push({ name: 'role', value: JSON.stringify(rd.role), variablesReference: 0 });
+      variables.push({ name: 'pipelineSummary', value: JSON.stringify(rd.pipelineSummary), variablesReference: 0 });
+      variables.push({ name: 'candidateCount', value: String(rd.candidates.length), variablesReference: 0 });
+      variables.push({ name: 'selectedCount', value: String(rd.selected.length), variablesReference: 0 });
+      variables.push({ name: 'candidates', value: `Array(${rd.candidates.length})`, variablesReference: SCOPE_RESOLVE_CANDIDATES });
+      variables.push({ name: 'selected', value: `Array(${rd.selected.length})`, variablesReference: SCOPE_RESOLVE_SELECTED });
+    } else if (ref === SCOPE_RESOLVE_CANDIDATES) {
+      for (let i = 0; i < rd.candidates.length; i++) {
+        variables.push({ name: `[${i}]`, value: JSON.stringify(rd.candidates[i]), variablesReference: 0 });
+      }
+    } else if (ref === SCOPE_RESOLVE_SELECTED) {
+      for (let i = 0; i < rd.selected.length; i++) {
+        variables.push({ name: `[${i}]`, value: JSON.stringify(rd.selected[i]), variablesReference: 0 });
+      }
+    }
+  }
+
+  /** T.14: Participants scope — role-to-agent bindings from the stopped detail. */
+  private extractParticipantsVariables(
+    variables: Array<{ name: string; value: string; variablesReference: number }>,
+  ): void {
+    const roleToAgent = this.stoppedDetail.roleToAgent as Record<string, string | string[]> | undefined;
+    if (roleToAgent) {
+      for (const [role, agents] of Object.entries(roleToAgent)) {
+        const val = Array.isArray(agents) ? agents.join(', ') : String(agents);
+        variables.push({ name: role, value: val, variablesReference: 0 });
+      }
+      return;
+    }
+
+    const agentName = this.stoppedDetail.agentName as string | undefined;
+    const role = this.stoppedDetail.role as string | undefined;
+    if (agentName && role) {
+      variables.push({ name: role, value: agentName, variablesReference: 0 });
+    } else if (agentName) {
+      variables.push({ name: agentName, value: '(current agent)', variablesReference: 0 });
+    } else {
+      variables.push({ name: '(participants)', value: 'Not available in this debug mode', variablesReference: 0 });
+    }
+  }
+
+  /** T.14: Registry scope — all registered agents with metadata from stopped detail. */
+  private extractRegistryVariables(
+    variables: Array<{ name: string; value: string; variablesReference: number }>,
+  ): void {
+    const registry = this.stoppedDetail.registry as Array<Record<string, unknown>> | undefined;
+    if (registry) {
+      for (const entry of registry) {
+        const name = String(entry.agentName || entry.name || '?');
+        const parts: string[] = [];
+        if (entry.role) parts.push(`role=${entry.role}`);
+        if (entry.protocol) parts.push(`proto=${entry.protocol}`);
+        if (entry.status) parts.push(`status=${entry.status}`);
+        if (entry.tags) parts.push(`tags=${JSON.stringify(entry.tags)}`);
+        if (entry.capabilities) parts.push(`caps=${JSON.stringify(entry.capabilities)}`);
+        variables.push({ name, value: parts.join(', ') || '(registered)', variablesReference: 0 });
+      }
+      return;
+    }
+
+    variables.push({ name: '(registry)', value: 'Not available in this debug mode', variablesReference: 0 });
   }
 
   private async handleContinue(reqSeq: number): Promise<void> {
@@ -745,6 +916,50 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     this.sendResponse(reqSeq, 'stepOut');
   }
 
+  /** T.15: Handle SpawnStarted/SpawnCompleted/SpawnFailed trace events as DAP threads. */
+  private handleSpawnTraceEvent(kind: string, payload: Record<string, unknown>): void {
+    const agentName = (payload.agentName || '') as string;
+    const roleName = (payload.roleName || '') as string;
+
+    if (kind === 'SpawnStarted' && agentName) {
+      if (!this.spawnedAgentThreads.has(agentName)) {
+        const threadId = ++this.nextSpawnThreadId;
+        this.spawnedAgentThreads.set(agentName, threadId);
+        const label = roleName
+          ? `Spawned: ${agentName} (${roleName})`
+          : `Spawned: ${agentName}`;
+        this.addThread(threadId, label, payload.instanceId as string | undefined);
+      }
+    } else if (kind === 'SpawnFailed' && agentName) {
+      const threadId = this.spawnedAgentThreads.get(agentName);
+      if (threadId !== undefined) {
+        this.removeThread(threadId);
+        this.spawnedAgentThreads.delete(agentName);
+      }
+    }
+    // SpawnCompleted: thread stays active, no action needed
+  }
+
+  private addThread(threadId: number, name: string, instanceId?: string): void {
+    this.activeThreads.set(threadId, { name, instanceId });
+    this.sendEvent('thread', { reason: 'started', threadId });
+  }
+
+  private removeThread(threadId: number): void {
+    this.activeThreads.delete(threadId);
+    this.sendEvent('thread', { reason: 'exited', threadId });
+  }
+
+  private notifyBreakpointChanged(id: number, verified: boolean, message?: string): void {
+    const bp = this.breakpointMap.get(id);
+    if (bp) bp.verified = verified;
+    const body: Record<string, unknown> = {
+      reason: 'changed',
+      breakpoint: { id, verified, ...(message ? { message } : {}) },
+    };
+    this.sendEvent('breakpoint', body);
+  }
+
   private handleDisconnect(reqSeq: number): void {
     if (this.isClusterAttach && this.rap?.connected && this.sessionId) {
       this.rap.send({
@@ -752,6 +967,12 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
         payload: { sessionId: this.sessionId, command: 'stop' },
       });
     }
+    for (const id of this.activeThreads.keys()) {
+      this.removeThread(id);
+    }
+    this.breakpointMap.clear();
+    this.spawnedAgentThreads.clear();
+    this.resolveDetail = null;
     for (const d of this.disposables) d.dispose();
     this.disposables = [];
     if (!this.isClusterAttach) {

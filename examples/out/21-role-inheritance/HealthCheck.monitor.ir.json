@@ -67,7 +67,7 @@
     "end_4"
   ],
   "initiator": "monitor",
-  "version": "13.0.0",
+  "version": "19.0.0",
   "fingerprints": {
     "structureHash": "87ef2ffe47bf4c0f2e5e15320107c2eac0325a368464079bd633ce0b60ab5beb",
     "schemaHash": "4ab1b58940301b8acd55f43b1bcbbdfaccf4159a4ee2bb684afb9d11e9404018",

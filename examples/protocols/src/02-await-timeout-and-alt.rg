@@ -8,9 +8,13 @@ message Reject {}
 // Uses `where` keyword for pattern matching in alt guards.
 
 protocol AwaitTimeoutAlt {
-  participants: comma [ts], sia [*]
-  initiator: comma
-  input: SubmitIntent
+  participants:
+    comma [ts] initiator,
+    sia [*]
+  trigger on invoke with SubmitIntent {
+    resolve comma = single
+    resolve sia = single
+  }
 
   comma --> sia: SubmitIntent = {
     onSend {
@@ -32,3 +36,14 @@ protocol AwaitTimeoutAlt {
     }
   }
 }
+
+role CommaRole [ts] {
+  plays AwaitTimeoutAlt as comma
+}
+
+role SiaRole [*] {
+  plays AwaitTimeoutAlt as sia
+}
+
+agent Comma runs CommaRole
+agent Sia runs SiaRole

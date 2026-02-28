@@ -5,9 +5,12 @@ message DeployProtocolRequest {
   requestId: string
   protocolName: string
   version: string
-  fingerprints: any   // ProtocolFingerprint
-  dependencies: any   // ProtocolDependency[]
-  irGraphs: any       // Serialized IR artifacts
+  fingerprints: any        // ProtocolFingerprint
+  dependencies: any        // ProtocolDependency[]
+  irGraphs: any            // Serialized IR artifacts
+  participants?: any       // ParticipantIR[] — binding, cardinality, initiator per role
+  resolveMap?: any         // Record<string, ResolvePolicyIR> from trigger declarations
+  agentRegistrations?: any // AgentRegistrationIR[] — agent metadata for resolve policies
 }
 
 message DeployProtocolSuccess {
@@ -23,8 +26,9 @@ message DeployProtocolFailed {
 }
 
 protocol DeployProtocol {
-  participants: ros [*], rc [*]
-  initiator: ros
+  participants:
+    ros [*] initiator,
+    rc [*]
 
   ros --> rc: DeployProtocolRequest
 

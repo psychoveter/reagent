@@ -20,7 +20,9 @@ import type {
   IRTimerData,
   IRScatterData,
   IRInvokeData,
+  IRAsyncInvokeData,
   IRSpawnData,
+  TriggerIR,
 } from "./ir.js";
 
 // ── Sequence Diagram Model ─────────────────────────────────────────
@@ -29,6 +31,8 @@ export type Participant = {
   name: string;
   lang?: string;
   isInitiator: boolean;
+  binding?: "static" | "dynamic";
+  cardinality?: "single" | "many";
 };
 
 export type SeqElementKind =
@@ -43,9 +47,11 @@ export type SeqElementKind =
   | "scatter_start"
   | "scatter_end"
   | "invoke"
+  | "async_invoke"
   | "spawn"
   | "par_start"
-  | "par_end";
+  | "par_end"
+  | "trigger";
 
 export type SeqElement = {
   kind: SeqElementKind;
@@ -122,13 +128,31 @@ export function buildSequenceDiagram(
   let initiatorGraph: IRGraph | undefined;
   let version: string | undefined;
 
+  // Build a lookup of participant metadata from any graph that has the participants array
+  const participantMeta = new Map<string, { binding?: "static" | "dynamic"; cardinality?: "single" | "many"; initiator: boolean }>();
+  for (const [, graph] of graphs) {
+    if (graph.protocolName !== protocolName || !graph.participants) continue;
+    for (const p of graph.participants) {
+      if (!participantMeta.has(p.name)) {
+        participantMeta.set(p.name, { binding: p.binding, cardinality: p.cardinality, initiator: p.initiator });
+      }
+    }
+  }
+
   for (const [key, graph] of graphs) {
     if (graph.protocolName !== protocolName) continue;
     version = version ?? graph.version;
     if (!roleSet.has(graph.role)) {
       roleSet.add(graph.role);
-      const isInit = !!graph.initiator && graph.initiator === graph.role;
-      participants.push({ name: graph.role, lang: graph.lang, isInitiator: isInit });
+      const meta = participantMeta.get(graph.role);
+      const isInit = meta?.initiator === true;
+      participants.push({
+        name: graph.role,
+        lang: graph.lang,
+        isInitiator: isInit,
+        binding: meta?.binding,
+        cardinality: meta?.cardinality,
+      });
       if (isInit || !initiatorGraph) {
         initiatorRole = graph.role;
         initiatorGraph = graph;
@@ -148,6 +172,19 @@ export function buildSequenceDiagram(
   }
 
   const elements: SeqElement[] = [];
+
+  // Emit trigger entry-point annotations
+  const triggers = initiatorGraph.triggers;
+  if (triggers && triggers.length > 0) {
+    for (const t of triggers) {
+      elements.push({
+        kind: "trigger",
+        role: initiatorRole,
+        label: triggerLabel(t),
+      });
+    }
+  }
+
   const stateMap = new Map<string, IRState>();
   for (const s of initiatorGraph.states) stateMap.set(s.id, s);
   const transFrom = buildTransFromMap(initiatorGraph.transitions);
@@ -323,14 +360,25 @@ function walkForSequence(
       });
       break;
     }
+    case "async_invoke": {
+      const aid = d as IRAsyncInvokeData;
+      elements.push({
+        kind: "async_invoke",
+        role,
+        stateId: state.id,
+        label: `async invoke ${aid.protocolName}`,
+        protocolName: aid.protocolName,
+      });
+      break;
+    }
     case "spawn": {
       const sd = d as IRSpawnData;
       elements.push({
-        kind: "spawn",
+        kind: "async_invoke",
         role,
         stateId: state.id,
-        label: `spawn ${sd.protocolName}`,
-        protocolName: sd.protocolName,
+        label: `spawn ${sd.roleName}`,
+        protocolName: sd.roleName,
       });
       break;
     }
@@ -530,7 +578,8 @@ function stateLabel(state: IRState): string {
     }
     case "scatter": return `scatter(${(d as IRScatterData).itemRole})`;
     case "invoke": return `invoke ${(d as IRInvokeData).protocolName}`;
-    case "spawn": return `spawn ${(d as IRSpawnData).protocolName}`;
+    case "async_invoke": return `async invoke ${(d as IRAsyncInvokeData).protocolName}`;
+    case "spawn": return `spawn ${(d as IRSpawnData).roleName}`;
     case "fork": return "fork";
     case "join": return "join";
     case "error": return "error";
@@ -553,6 +602,14 @@ function stateShape(kind: IRStateKind): SmNodeShape {
       return "pill";
     default:
       return "rect";
+  }
+}
+
+function triggerLabel(t: TriggerIR): string {
+  switch (t.kind) {
+    case "invoke": return `trigger on invoke with ${t.withType}`;
+    case "cron":   return `trigger on cron "${t.cron}"`;
+    case "event":  return `trigger on event "${t.topic}" with ${t.withType}`;
   }
 }
 

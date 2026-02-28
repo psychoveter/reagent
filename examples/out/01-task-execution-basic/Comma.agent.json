@@ -1,0 +1,6 @@
+{
+  "agentName": "Comma",
+  "lang": "ts",
+  "roleName": "CommaRole",
+  "roleFile": "CommaRole.role.json"
+}

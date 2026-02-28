@@ -1,0 +1,17 @@
+{
+  "roleName": "Worker1Role",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "ParallelSubtasks",
+      "roleName": "worker1",
+      "protocolVersion": "0.1.1"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "9cba83332340f4c6483469adb13ba80c843e0eb66859d410388b0e671e5cde3e",
+    "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+  }
+}

@@ -6,9 +6,13 @@ message Result {}
 message Failure {}
 
 protocol TryCatchDemo {
-  participants: sender [ts], processor [ts]
-  initiator: sender
-  input: Request
+  participants:
+    sender [ts] initiator,
+    processor [ts]
+  trigger on invoke with Request {
+    resolve sender = single
+    resolve processor = single
+  }
 
   sender {
     $ctx.requestText = $ctx.input.text

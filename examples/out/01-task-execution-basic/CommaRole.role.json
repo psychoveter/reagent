@@ -1,0 +1,17 @@
+{
+  "roleName": "CommaRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "TaskExecutionBasic",
+      "roleName": "comma",
+      "protocolVersion": "0.1.1"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "13.0.0",
+  "fingerprints": {
+    "playsHash": "d967d46fee14c2393e65f2f715125aa7c436b50e775bc06660d8f389dea63c96",
+    "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+  }
+}

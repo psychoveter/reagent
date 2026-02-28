@@ -4,13 +4,14 @@
   "plays": [
     {
       "protocolName": "TaskExecutionFromEvent",
-      "roleName": "sia"
+      "roleName": "sia",
+      "protocolVersion": "0.1.1"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "0.1.0",
+  "version": "10.0.0",
   "fingerprints": {
-    "playsHash": "72a38df7df09a01c41673fff3ffe5ccd0fa04ce43a45ae345acb789489873124",
+    "playsHash": "680fe858bdadd49ab690475c63ac4e8b7de4c663c961adb9a288feb6f511c720",
     "behaviorHash": "90d1d22e125fdbed9a3af8dc227859c7d65a22e6f61a23a44c9bf8360e17026a"
   }
 }

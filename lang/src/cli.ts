@@ -4,7 +4,7 @@ import { parseProgram } from "./parser.js";
 import { emitIR, emitAgentIR, emitMessageSchema, emitRoleIR, resetIdCounter, type SourceMapEntry } from "./ir-emitter.js";
 import { validateIRGraph } from "./ir-validator.js";
 import type { AgentDef, MessageDef, ProtocolDef, RoleDef } from "./ast.js";
-import type { IRGraph, RoleIR, IRMessageSchema } from "./ir.js";
+import type { IRGraph, RoleIR, IRMessageSchema, TriggerIR } from "./ir.js";
 import {
   computeProtocolFingerprint,
   computeRoleFingerprint,
@@ -19,6 +19,35 @@ import {
   type ReagentLock,
 } from "./versioning.js";
 import { loadManifest, resolveGlobs, scaffoldProject, findProjectRoot } from "./project.js";
+
+/**
+ * Cross-protocol validation: every `invokes`/`async invokes` target
+ * must have `trigger on invoke` in the target protocol.
+ */
+function validateInvocability(
+  allGraphs: Map<string, Map<string, IRGraph>>,
+): string[] {
+  const errors: string[] = [];
+  const invocableSet = new Set<string>();
+  for (const [protoName, roleGraphs] of allGraphs) {
+    const first = roleGraphs.values().next().value;
+    if (first?.invocable) invocableSet.add(protoName);
+  }
+  for (const [protoName, roleGraphs] of allGraphs) {
+    for (const [, graph] of roleGraphs) {
+      for (const state of graph.states) {
+        const d = state.data;
+        if ((d.kind === "invoke" || d.kind === "async_invoke") && !invocableSet.has(d.protocolName)) {
+          errors.push(
+            `Protocol "${protoName}" invokes "${d.protocolName}" which has no "trigger on invoke". ` +
+            `Add "trigger on invoke as <MsgType> { ... }" to protocol "${d.protocolName}".`,
+          );
+        }
+      }
+    }
+  }
+  return errors;
+}
 
 function usage(): never {
   console.error("reagent-lang — Reagent compiler CLI\n");
@@ -493,6 +522,13 @@ function cmdBuild(projectDir?: string) {
       }
       allProtocolGraphs.set(proto.name, roleGraphs);
     }
+  }
+
+  // Cross-protocol invocability validation
+  const invocabilityErrors = validateInvocability(allProtocolGraphs);
+  if (invocabilityErrors.length > 0) {
+    for (const e of invocabilityErrors) console.error(`  ${e}`);
+    hasErrors = true;
   }
 
   for (const [protoName, roleGraphs] of allProtocolGraphs) {

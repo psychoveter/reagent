@@ -1,0 +1,17 @@
+{
+  "roleName": "CommaRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "ParallelSubtasks",
+      "roleName": "comma",
+      "protocolVersion": "0.1.1"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "16.0.0",
+  "fingerprints": {
+    "playsHash": "6ea674b04c4c2eafafb09b26b2d723740cc3f0982e20ba5523f2b89ca5a3406c",
+    "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+  }
+}

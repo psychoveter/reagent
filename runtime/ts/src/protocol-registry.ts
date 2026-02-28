@@ -5,7 +5,7 @@
  * Provides compatibility checking for protocol upgrades.
  */
 
-import type { IRGraph, ProtocolFingerprint, ProtocolDependency } from "./types.js";
+import type { IRGraph, TriggerIR, ProtocolFingerprint, ProtocolDependency } from "./types.js";
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -15,6 +15,8 @@ export interface ProtocolEntry {
   fingerprints: ProtocolFingerprint;
   dependencies: ProtocolDependency[];
   irGraphs: Map<string, IRGraph>;
+  triggers: TriggerIR[];
+  invocable: boolean;
   registeredAt: number;
 }
 

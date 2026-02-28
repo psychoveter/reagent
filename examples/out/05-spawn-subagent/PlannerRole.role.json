@@ -1,0 +1,17 @@
+{
+  "roleName": "PlannerRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "SpawnSubagent",
+      "roleName": "planner",
+      "protocolVersion": "2.0.0"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "cc5108ed1e35674abd3de7078bfd04405a12a068e51ade086cf156db5804a116",
+    "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+  }
+}

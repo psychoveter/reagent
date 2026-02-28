@@ -1,0 +1,17 @@
+{
+  "roleName": "UserRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "CommaAsksLlmAndReplies",
+      "roleName": "user",
+      "protocolVersion": "0.1.1"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "7.0.0",
+  "fingerprints": {
+    "playsHash": "e0ec837f1eec6788de4eaf13e3e35e96092e2091fce4a7637daeb7317aee000e",
+    "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+  }
+}

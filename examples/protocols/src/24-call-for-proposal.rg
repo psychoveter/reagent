@@ -13,9 +13,13 @@ message Accept {}
 message Reject {}
 
 protocol CallForProposal {
-  participants: buyer [ts], seller [ts]
-  initiator: buyer
-  input: CFPRequest
+  participants:
+    buyer [ts] initiator,
+    seller [ts]
+  trigger on invoke with CFPRequest {
+    resolve buyer = single
+    resolve seller = single
+  }
 
   buyer {
     $ctx.candidates = $ctx.input.sellerIds

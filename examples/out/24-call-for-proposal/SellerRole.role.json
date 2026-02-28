@@ -4,13 +4,14 @@
   "plays": [
     {
       "protocolName": "CallForProposal",
-      "roleName": "seller"
+      "roleName": "seller",
+      "protocolVersion": "2.0.0"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "0.1.0",
+  "version": "1.0.0",
   "fingerprints": {
-    "playsHash": "7692bee19cf887dec71a4db97d9bd5c6f6687b636d2840f3d2131a28d540f1ae",
+    "playsHash": "c8b41dc9527db5196c1b4c56f719a19b830d4c0cf93973dea5e9de17e0106cb0",
     "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
   }
 }

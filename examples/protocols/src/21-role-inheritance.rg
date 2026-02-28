@@ -7,9 +7,13 @@ message Task {}
 message TaskDone {}
 
 protocol HealthCheck {
-  participants: monitor [*], node [ts]
-  initiator: monitor
-  input: Ping
+  participants:
+    monitor [*] initiator,
+    node [ts]
+  trigger on invoke with Ping {
+    resolve monitor = single
+    resolve node = single
+  }
 
   monitor --> node: Ping = { }
   node --> monitor: Pong = {
@@ -21,9 +25,13 @@ protocol HealthCheck {
 }
 
 protocol TaskProcessing {
-  participants: dispatcher [ts], worker [ts]
-  initiator: dispatcher
-  input: Task
+  participants:
+    dispatcher [ts] initiator,
+    worker [ts]
+  trigger on invoke with Task {
+    resolve dispatcher = single
+    resolve worker = single
+  }
 
   dispatcher --> worker: Task = {
     onSend {

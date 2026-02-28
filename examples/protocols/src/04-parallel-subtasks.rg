@@ -6,9 +6,15 @@ message SubtaskDone {}
 // $ctx carries results between roles; $ctx.msg is per-branch isolated.
 
 protocol ParallelSubtasks {
-  participants: comma [ts], worker1 [ts], worker2 [ts]
-  initiator: comma
-  input: Start
+  participants:
+    comma [ts] initiator,
+    worker1 [ts],
+    worker2 [ts]
+  trigger on invoke with Start {
+    resolve comma = single
+    resolve worker1 = single
+    resolve worker2 = single
+  }
 
   comma --> worker1: Subtask = {
     onSend {
@@ -39,3 +45,19 @@ protocol ParallelSubtasks {
     $ctx.result = merge($ctx.subtaskA, $ctx.subtaskB)
   }
 }
+
+role CommaRole [ts] {
+  plays ParallelSubtasks as comma
+}
+
+role Worker1Role [ts] {
+  plays ParallelSubtasks as worker1
+}
+
+role Worker2Role [ts] {
+  plays ParallelSubtasks as worker2
+}
+
+agent Comma runs CommaRole
+agent Worker1 runs Worker1Role
+agent Worker2 runs Worker2Role

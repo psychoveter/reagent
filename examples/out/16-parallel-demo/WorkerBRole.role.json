@@ -4,7 +4,8 @@
   "plays": [
     {
       "protocolName": "ParDemo",
-      "roleName": "workerB"
+      "roleName": "workerB",
+      "protocolVersion": "0.1.1"
     }
   ],
   "initAction": {
@@ -21,9 +22,9 @@
       }
     }
   ],
-  "version": "0.1.0",
+  "version": "1.0.0",
   "fingerprints": {
-    "playsHash": "3cf948aa5cf6313b43a1986be0eaa2c0e4ece7bcc54ae39030ea4a42226ab57e",
+    "playsHash": "d607698a68a85db04e20e4c6f01bc8a4c9c819d5c49a7a48721871ba3852c38b",
     "behaviorHash": "2dedb6e4e9d2db514e5b44f18adff9db8805956e9c1b1202b7bfa8c136b8b022"
   }
 }

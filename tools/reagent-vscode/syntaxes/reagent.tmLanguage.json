@@ -35,7 +35,15 @@
       "patterns": [
         {
           "name": "keyword.control.reagent",
-          "match": "\\b(protocol|import|as|participants|initiator|input|alt|loop|par|wait|timeout|try|catch|else|and|agent|plays|init|on|message|role|extends|runs|invokes|spawns|scatter|gather|where)\\b"
+          "match": "\\b(protocol|import|as|participants|trigger|invoke|cron|event|alt|loop|par|wait|timeout|try|catch|else|and|agent|plays|init|on|message|role|extends|runs|async|invokes|spawns|scatter|gather|where|resolve|persistent|with)\\b"
+        },
+        {
+          "name": "storage.modifier.reagent",
+          "match": "\\b(static|dynamic|single|many|initiator)\\b"
+        },
+        {
+          "name": "support.function.resolve.reagent",
+          "match": "\\b(all|from|filter|roundRobin|leastLoaded|random|sample|first|fallback|custom|hasTag|hasCapability|hasLabel|isAlive)\\b"
         }
       ]
     },
@@ -189,6 +197,7 @@
           },
           "patterns": [
             { "include": "#comments" },
+            { "include": "#triggerDecl" },
             { "include": "#keywords" },
             { "include": "#langTag" },
             { "include": "#messageWithProps" },
@@ -203,8 +212,84 @@
         }
       ]
     },
+    "triggerDecl": {
+      "patterns": [
+        {
+          "name": "meta.trigger.reagent",
+          "begin": "\\b(trigger)\\s+(on)\\s+(invoke|cron|event)(?:\\s+(\"[^\"]*\"|'[^']*'))?\\s+(?:(with|as))\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(\\{)",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.reagent" },
+            "2": { "name": "keyword.control.reagent" },
+            "3": { "name": "keyword.control.reagent" },
+            "4": { "name": "string.quoted.reagent" },
+            "5": { "name": "keyword.control.reagent" },
+            "6": { "name": "entity.name.type.message.reagent" },
+            "7": { "name": "punctuation.section.block.begin.reagent" }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.block.end.reagent" }
+          },
+          "patterns": [
+            { "include": "#comments" },
+            { "include": "#resolveDecl" },
+            { "include": "#keywords" },
+            { "include": "#zoneKeywords" },
+            { "include": "#strings" },
+            { "include": "#numbers" }
+          ]
+        },
+        {
+          "name": "meta.trigger.inline.reagent",
+          "match": "\\b(trigger)\\s+(on)\\s+(invoke|cron|event)(?:\\s+(\"[^\"]*\"|'[^']*'))?\\s+(?:(with|as))\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.control.reagent" },
+            "2": { "name": "keyword.control.reagent" },
+            "3": { "name": "keyword.control.reagent" },
+            "4": { "name": "string.quoted.reagent" },
+            "5": { "name": "keyword.control.reagent" },
+            "6": { "name": "entity.name.type.message.reagent" }
+          }
+        }
+      ]
+    },
+    "resolveDecl": {
+      "patterns": [
+        {
+          "name": "meta.resolve.reagent",
+          "match": "\\b(resolve)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(=)",
+          "captures": {
+            "1": { "name": "keyword.control.reagent" },
+            "2": { "name": "variable.other.role.reagent" },
+            "3": { "name": "keyword.operator.assignment.reagent" }
+          }
+        }
+      ]
+    },
     "agentDef": {
       "patterns": [
+        {
+          "name": "meta.definition.agent.body.reagent",
+          "begin": "^\\s*(agent)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)(?:\\s*(\\[(ts|js|py|kt)\\]))?\\s+(runs)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)\\s*(\\{)",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.reagent" },
+            "2": { "name": "entity.name.type.agent.reagent" },
+            "3": { "name": "storage.type.language.reagent" },
+            "4": { "name": "keyword.control.reagent" },
+            "5": { "name": "entity.name.type.role.reagent" },
+            "6": { "name": "punctuation.section.block.begin.reagent" }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.block.end.reagent" }
+          },
+          "patterns": [
+            { "include": "#comments" },
+            { "include": "#keywords" },
+            { "include": "#strings" },
+            { "include": "#numbers" }
+          ]
+        },
         {
           "name": "meta.definition.agent.reagent",
           "match": "^\\s*(agent)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)(?:\\s*(\\[(ts|js|py|kt)\\]))?\\s+(runs)\\s+([A-Za-z_][A-Za-z0-9_\\-\\.]*)",
@@ -212,8 +297,8 @@
             "1": { "name": "keyword.control.reagent" },
             "2": { "name": "entity.name.type.agent.reagent" },
             "3": { "name": "storage.type.language.reagent" },
-            "5": { "name": "keyword.control.reagent" },
-            "6": { "name": "entity.name.type.role.reagent" }
+            "4": { "name": "keyword.control.reagent" },
+            "5": { "name": "entity.name.type.role.reagent" }
           }
         }
       ]
@@ -345,7 +430,7 @@
       "patterns": [
         {
           "name": "support.function.reagent-runtime.reagent",
-          "match": "\\breagent\\.(invoke|spawn|return|emit|break)\\b"
+          "match": "\\breagent\\.(invoke|spawn|return|emit|break|resolve|registry|stop)\\b"
         },
         {
           "name": "variable.language.reagent-module.reagent",

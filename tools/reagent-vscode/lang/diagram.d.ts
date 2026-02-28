@@ -10,8 +10,10 @@ export type Participant = {
     name: string;
     lang?: string;
     isInitiator: boolean;
+    binding?: "static" | "dynamic";
+    cardinality?: "single" | "many";
 };
-export type SeqElementKind = "message" | "action" | "timer" | "loop_start" | "loop_end" | "alt_start" | "alt_branch" | "alt_end" | "scatter_start" | "scatter_end" | "invoke" | "spawn" | "par_start" | "par_end";
+export type SeqElementKind = "message" | "action" | "timer" | "loop_start" | "loop_end" | "alt_start" | "alt_branch" | "alt_end" | "scatter_start" | "scatter_end" | "invoke" | "async_invoke" | "spawn" | "par_start" | "par_end" | "trigger";
 export type SeqElement = {
     kind: SeqElementKind;
     /** Source role this element belongs to */

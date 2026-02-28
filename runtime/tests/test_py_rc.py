@@ -6,7 +6,7 @@ stack: ReagentController → InprocTransport → AgentRunner → ProtocolInstanc
 
 T1: Inproc loopback — two agents, simple request/response
 T2: Inproc invoke — child protocol invocation
-T3: Inproc spawn — fire-and-forget child protocol
+T3: Inproc async invokes — fire-and-forget child protocol
 T4: Inproc par — parallel branches with join
 T5: $ctx and message payload — data passed via messages
 T6: IPC agent — subprocess agent via ipc_agent.py
@@ -277,7 +277,7 @@ async def test_t2_inproc_invoke() -> None:
         record("T2: Inproc invoke", False, str(e))
 
 
-# ── T3: Inproc spawn ─────────────────────────────────────────────────
+# ── T3: Inproc async invokes ──────────────────────────────────────────
 
 async def test_t3_inproc_spawn() -> None:
     """Protocol-level spawn: fire-and-forget child protocol."""
@@ -340,12 +340,12 @@ async def test_t3_inproc_spawn() -> None:
         assert oi.status == "completed", f"Orchestrator: {oi.status}"
 
         o_traces = oi.traces
-        assert any(t["kind"] == "Spawned" for t in o_traces), "Orchestrator should have Spawned trace"
+        assert any(t["kind"] == "AsyncInvokeStarted" for t in o_traces), "Orchestrator should have AsyncInvokeStarted trace"
 
         await rc.stop()
-        record("T3: Inproc spawn", True)
+        record("T3: Inproc async invokes", True)
     except Exception as e:
-        record("T3: Inproc spawn", False, str(e))
+        record("T3: Inproc async invokes", False, str(e))
 
 
 # ── T4: Inproc par ───────────────────────────────────────────────────

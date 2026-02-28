@@ -270,6 +270,24 @@ export class CustomAgentHandle implements AgentHandle {
               break;
             }
 
+            case "async_invoke":
+            case "spawn": {
+              const d = state.data as { protocolName: string; input: string };
+              let inputValue: unknown;
+              try {
+                inputValue = new Function("$ctx", "$self", `return (${d.input})`)(engine.ctx, engine.selfRef);
+              } catch { inputValue = {}; }
+              emitTrace("AsyncInvokeStarted", { stateId: state.id, protocolName: d.protocolName });
+              this.agent.handle({
+                type: "async_invoke_required",
+                stateId: state.id,
+                protocolName: d.protocolName,
+                input: inputValue,
+              } as any);
+              engine.setCurrentState(engine.followDefault());
+              break;
+            }
+
             case "guard":
             case "join":
             case "error":

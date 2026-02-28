@@ -7,9 +7,13 @@ message LlmPrompt {}
 message LlmAnswer {}
 
 protocol CallLlm {
-  participants: caller [ts], llmbroka [ts]
-  initiator: caller
-  input: LlmRequest
+  participants:
+    caller [ts] initiator,
+    llmbroka [ts]
+  trigger on invoke with LlmRequest {
+    resolve caller = single
+    resolve llmbroka = single
+  }
 
   caller {
     $ctx.req = $ctx.input

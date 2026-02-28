@@ -49,7 +49,7 @@
       "column": 3
     },
     {
-      "stateId": "spawn_10",
+      "stateId": "async_invoke_10",
       "protocolName": "SpawnSubagent",
       "role": "comma",
       "file": "examples/protocols/src/05-spawn-subagent.rg",

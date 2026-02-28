@@ -7,9 +7,13 @@ message Accept {}
 message Reject {}
 
 protocol TsDemo {
-  participants: client [ts], handler [ts]
-  initiator: client
-  input: Request
+  participants:
+    client [ts] initiator,
+    handler [ts]
+  trigger on invoke with Request {
+    resolve client = single
+    resolve handler = single
+  }
 
   client {
     $ctx.queryText = $ctx.input.text

@@ -4,15 +4,19 @@ message SubmitIntent {}
 
 // Example 01: Basic task execution (user → comma → sia)
 // Intent: user requests a task; comma acknowledges, derives DSI/BSI, submits to sia.
-// Roles: user [ts], comma [ts], sia [*]
 //
-// $ctx carries data between roles (propagated with messages).
 // $ctx is per-role isolated working memory.
 
 protocol TaskExecutionBasic {
-  participants: user [ts], comma [ts], sia [*]
-  initiator: user
-  input: TaskRequest
+  participants:
+    user [ts] initiator,
+    comma [ts],
+    sia [*]
+  trigger on invoke with TaskRequest {
+    resolve user = single
+    resolve comma = single
+    resolve sia = single
+  }
 
   user {
     $ctx.taskText = $ctx.input.text
@@ -35,3 +39,19 @@ protocol TaskExecutionBasic {
     }
   }
 }
+
+role UserRole [ts] {
+  plays TaskExecutionBasic as user
+}
+
+role CommaRole [ts] {
+  plays TaskExecutionBasic as comma
+}
+
+role SiaRole [*] {
+  plays TaskExecutionBasic as sia
+}
+
+agent User runs UserRole
+agent Comma runs CommaRole
+agent Sia runs SiaRole

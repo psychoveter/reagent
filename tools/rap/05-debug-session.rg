@@ -30,9 +30,15 @@ message Stopped {
 }
 
 protocol DebugSession {
-  participants: client [*], orchestrator [*], adapter [*]
-  initiator: client
-  input: DebugCommand
+  participants:
+    client [*] initiator,
+    orchestrator [*],
+    adapter [*]
+  trigger on invoke with DebugCommand {
+    resolve client = single
+    resolve orchestrator = single
+    resolve adapter = single
+  }
 
   // Command path: client → orchestrator (ack) → adapter (relay)
   client --> orchestrator: DebugCommand

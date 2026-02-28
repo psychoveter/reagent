@@ -8,6 +8,7 @@ message TriggerProtocol {
   protocolName: string
   input?: any
   roleToAgent?: any
+  resolveOverrides?: any  // Record<string, ResolvePolicyIR> — dev/test override for resolve pipelines
 }
 
 message TriggerAck {
@@ -22,9 +23,13 @@ message TriggerFailed {
 }
 
 protocol TriggerProtocol {
-  participants: orchestrator [*], adapter [*]
-  initiator: orchestrator
-  input: TriggerProtocol
+  participants:
+    orchestrator [*] initiator,
+    adapter [*]
+  trigger on invoke with TriggerProtocol {
+    resolve orchestrator = single
+    resolve adapter = single
+  }
 
   orchestrator --> adapter: TriggerProtocol
 

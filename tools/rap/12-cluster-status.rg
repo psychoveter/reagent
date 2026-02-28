@@ -14,8 +14,9 @@ message ClusterStatusResponse {
 }
 
 protocol ClusterStatus {
-  participants: client [*], ros [*]
-  initiator: client
+  participants:
+    client [*] initiator,
+    ros [*]
 
   client --> ros: ClusterStatusRequest
   ros --> client: ClusterStatusResponse

@@ -1,0 +1,17 @@
+{
+  "roleName": "UserRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "TaskExecution",
+      "roleName": "user",
+      "protocolVersion": "12.0.0"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "5607a23aa099364264b20323fe536e4f9195c7e029901315da036023f2c65bcc",
+    "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+  }
+}

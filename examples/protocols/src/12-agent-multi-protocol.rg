@@ -11,9 +11,15 @@ message Pong {}
 import "./lib/derive-dsi-bsi.rg" as derive
 
 protocol TaskExecution {
-  participants: user [ts], comma [ts], sia [*]
-  initiator: user
-  input: TaskRequest
+  participants:
+    user [ts] initiator,
+    comma [ts],
+    sia [*]
+  trigger on invoke with TaskRequest {
+    resolve user = single
+    resolve comma = single
+    resolve sia = single
+  }
 
   user {
     $ctx.taskText = $ctx.input.text
@@ -34,9 +40,13 @@ protocol TaskExecution {
 }
 
 protocol HealthCheck {
-  participants: monitor [*], comma [ts]
-  initiator: monitor
-  input: Ping
+  participants:
+    monitor [*] initiator,
+    comma [ts]
+  trigger on invoke with Ping {
+    resolve monitor = single
+    resolve comma = single
+  }
 
   monitor --> comma: Ping = { }
   comma --> monitor: Pong = {

@@ -26,9 +26,13 @@ message AuctionSummary {
 }
 
 protocol Auction {
-  participants: seller [py], buyer [py]
-  initiator: seller
-  input: AuctionStart
+  participants:
+    seller [py] initiator,
+    buyer [py] dynamic many
+  
+  trigger on invoke with AuctionStart {
+    resolve seller = single
+  }
 
   seller {
     $ctx.itemName = $ctx.input.itemName

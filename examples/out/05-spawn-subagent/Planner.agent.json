@@ -1,0 +1,6 @@
+{
+  "agentName": "Planner",
+  "lang": "ts",
+  "roleName": "PlannerRole",
+  "roleFile": "PlannerRole.role.json"
+}

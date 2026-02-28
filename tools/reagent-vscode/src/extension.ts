@@ -626,6 +626,31 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(
+    vscode.commands.registerCommand('reagent.lspStatus', async () => {
+      if (!languageClient) {
+        vscode.window.showWarningMessage('Reagent LSP not running');
+        return;
+      }
+      try {
+        const status = await languageClient.sendRequest('reagent/lspStatus');
+        const s = status as { parser: { state: string; error?: string }; indexedDocuments: number; uptimeSeconds: number };
+        const parserLine = s.parser.state === 'error'
+          ? `Parser: error — ${s.parser.error}`
+          : `Parser: ${s.parser.state}`;
+        const lines = [
+          parserLine,
+          `Indexed documents: ${s.indexedDocuments}`,
+          `Uptime: ${s.uptimeSeconds}s`,
+        ];
+        vscode.window.showInformationMessage(`Reagent LSP Status\n${lines.join('\n')}`);
+        outputChannel.appendLine(`[LSP Status] ${lines.join(' | ')}`);
+      } catch (err) {
+        vscode.window.showErrorMessage(`LSP Status request failed: ${err}`);
+      }
+    })
+  );
+
+  context.subscriptions.push(
     vscode.commands.registerCommand('reagent.stopDevCycle', () => {
       if (remoteNodeProcess && !remoteNodeProcess.killed) {
         remoteNodeProcess.kill('SIGTERM');

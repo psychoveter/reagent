@@ -36,6 +36,7 @@ class AgentRunner:
 
         self._advance_hook = config.get("advanceHook")
         self._extras: Optional[dict[str, Any]] = config.get("extras")
+        self._emit_bus_cb: Optional[Callable] = config.get("emitBusCallback")
         self._self: dict[str, Any] = {}
         self._instances: dict[str, ProtocolInstance] = {}
         self._completed_count = 0
@@ -209,9 +210,25 @@ class AgentRunner:
         instance.set_spawn_callback(
             lambda child_proto, child_input: self._spawn_child_protocol(instance_id, child_proto, child_input)
         )
+        instance.set_emit_callback(
+            lambda event_name, data=None: self._handle_emit(protocol_name, instance_id, event_name, data)
+        )
 
         asyncio.get_event_loop().create_task(instance.run())
         return instance
+
+    def _handle_emit(
+        self, protocol_name: str, instance_id: str,
+        event_name: str, data: Optional[dict[str, Any]] = None,
+    ) -> None:
+        for handler in self._agent_ir.get("lifecycleHandlers", []):
+            if handler["event"] == "protocolEvent" and handler.get("protocolFilter") == event_name:
+                reagent = ReagentStub()
+                extras = {"agent": self._extras} if self._extras else None
+                execute_zone(handler["action"]["body"], {"eventName": event_name, "data": data}, self._self, reagent, extras=extras)
+
+        if self._emit_bus_cb:
+            self._emit_bus_cb(event_name, data or {}, {"agent": self.agent_name, "instanceId": instance_id})
 
     async def _invoke_child_protocol(
         self, parent_instance_id: str, child_proto_name: str, child_input: Optional[dict[str, Any]] = None,

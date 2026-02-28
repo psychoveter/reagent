@@ -1,0 +1,17 @@
+{
+  "roleName": "SiaRole",
+  "lang": "*",
+  "plays": [
+    {
+      "protocolName": "TaskExecutionWithMultipartyChild",
+      "roleName": "sia",
+      "protocolVersion": "1.0.0"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "9.0.0",
+  "fingerprints": {
+    "playsHash": "fe963016f3b063acee5b27a4d63f650003546d594899f88dd0c907832250a6d0",
+    "behaviorHash": "90d1d22e125fdbed9a3af8dc227859c7d65a22e6f61a23a44c9bf8360e17026a"
+  }
+}

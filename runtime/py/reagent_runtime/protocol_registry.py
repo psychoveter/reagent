@@ -21,6 +21,8 @@ class ProtocolEntry:
     fingerprints: ProtocolFingerprint
     dependencies: list[ProtocolDependency]
     ir_graphs: dict[str, dict[str, Any]]
+    triggers: list[dict[str, Any]] = field(default_factory=list)
+    invocable: bool = False
     registered_at: float = field(default_factory=time.time)
 
 

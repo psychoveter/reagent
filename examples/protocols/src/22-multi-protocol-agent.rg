@@ -7,8 +7,9 @@ message Ping {}
 message Pong {}
 
 protocol TaskProcessing {
-  participants: client [ts], worker [ts]
-  initiator: client
+  participants:
+    client [ts] initiator,
+    worker [ts]
 
   client --> worker: TaskRequest = {
     onSend { $ctx.msg.taskId = 42 }
@@ -29,8 +30,9 @@ protocol TaskProcessing {
 }
 
 protocol HealthCheck {
-  participants: monitor [ts], worker [ts]
-  initiator: monitor
+  participants:
+    monitor [ts] initiator,
+    worker [ts]
 
   monitor --> worker: Ping = {
     onSend { $ctx.msg.ts = Date.now() }

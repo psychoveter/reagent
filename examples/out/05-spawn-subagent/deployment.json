@@ -1,5 +1,66 @@
 {
-  "agents": [],
-  "roleToAgent": {},
+  "agents": [
+    {
+      "agentName": "User",
+      "lang": "ts",
+      "roleName": "UserRole",
+      "agentIRFile": "User.agent.json",
+      "roleIRFile": "UserRole.role.json",
+      "roles": [
+        {
+          "protocolName": "SpawnSubagent",
+          "roleName": "user",
+          "irGraphFile": "SpawnSubagent.user.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "Comma",
+      "lang": "ts",
+      "roleName": "CommaRole",
+      "agentIRFile": "Comma.agent.json",
+      "roleIRFile": "CommaRole.role.json",
+      "roles": [
+        {
+          "protocolName": "SpawnSubagent",
+          "roleName": "comma",
+          "irGraphFile": "SpawnSubagent.comma.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "Planner",
+      "lang": "ts",
+      "roleName": "PlannerRole",
+      "agentIRFile": "Planner.agent.json",
+      "roleIRFile": "PlannerRole.role.json",
+      "roles": [
+        {
+          "protocolName": "SpawnSubagent",
+          "roleName": "planner",
+          "irGraphFile": "SpawnSubagent.planner.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "SpawnSubagent.user": "User",
+    "SpawnSubagent.comma": "Comma",
+    "SpawnSubagent.planner": "Planner"
+  },
+  "roles": [
+    {
+      "name": "UserRole",
+      "file": "UserRole.role.json"
+    },
+    {
+      "name": "CommaRole",
+      "file": "CommaRole.role.json"
+    },
+    {
+      "name": "PlannerRole",
+      "file": "PlannerRole.role.json"
+    }
+  ],
   "messages": "messages.json"
 }

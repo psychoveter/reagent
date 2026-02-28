@@ -9,9 +9,15 @@ message ResultB {}
 message Summary {}
 
 protocol ParDemo {
-  participants: coordinator [ts], workerA [ts], workerB [ts]
-  initiator: coordinator
-  input: Start
+  participants:
+    coordinator [ts] initiator,
+    workerA [ts],
+    workerB [ts]
+  trigger on invoke with Start {
+    resolve coordinator = single
+    resolve workerA = single
+    resolve workerB = single
+  }
 
   coordinator {
     $ctx.startedAt = Date.now()

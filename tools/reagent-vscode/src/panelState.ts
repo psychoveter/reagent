@@ -18,6 +18,14 @@ export interface MessageFieldSchema {
   fields?: MessageFieldSchema[];
 }
 
+export interface TriggerInfo {
+  kind: 'invoke' | 'cron' | 'event';
+  withType?: string;
+  cronExpr?: string;
+  topic?: string;
+  schema: MessageFieldSchema[] | null;
+}
+
 export interface CompiledData {
   protocolName: string;
   version?: string;
@@ -28,6 +36,7 @@ export interface CompiledData {
   roles: string[];
   inputMessageSchema: MessageFieldSchema[] | null;
   inputMessageName: string | null;
+  triggers: TriggerInfo[];
   /**
    * Maps any runtime stateId → the diagram element's stateId.
    * The sequence diagram only shows stateIds from the initiator's IR graph,

@@ -13,8 +13,9 @@ message ListProtocolsResponse {
 }
 
 protocol ListProtocols {
-  participants: ros [*], rc [*]
-  initiator: ros
+  participants:
+    ros [*] initiator,
+    rc [*]
 
   ros --> rc: ListProtocolsRequest
   rc --> ros: ListProtocolsResponse

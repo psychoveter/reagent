@@ -4,7 +4,8 @@
   "plays": [
     {
       "protocolName": "TsDemo",
-      "roleName": "handler"
+      "roleName": "handler",
+      "protocolVersion": "0.1.1"
     }
   ],
   "initAction": {
@@ -21,9 +22,9 @@
       }
     }
   ],
-  "version": "0.1.0",
+  "version": "1.0.0",
   "fingerprints": {
-    "playsHash": "cc68444ce3f3dbbd7941ecb8c07997420586ac4039b50d3a0e47e14fb9eaeb0a",
+    "playsHash": "1d3adbd0cbea0c240ebccf222d6d209f9fbc86977be02d4f8f017daa5f3464a7",
     "behaviorHash": "730827edea47fb29bc679948c4ee401e1bfd419681a83ec8b2258299db79c10b"
   }
 }

@@ -7,7 +7,13 @@
  */
 
 // Types mirrored from lang/src/diagram.ts (avoids ESM/CJS import issues)
-export type Participant = { name: string; lang?: string; isInitiator: boolean };
+export type Participant = {
+  name: string;
+  lang?: string;
+  isInitiator: boolean;
+  binding?: "static" | "dynamic";
+  cardinality?: "single" | "many";
+};
 export type SeqElementKind =
   | "message" | "action" | "timer"
   | "loop_start" | "loop_end"
@@ -47,6 +53,8 @@ export interface RenderOptions {
     activeStateId?: string;
     visitedStateIds?: Set<string>;
   };
+  /** Live cluster agent bindings: role → agent names bound to that role */
+  clusterBindings?: Map<string, string[]>;
 }
 
 const COLUMN_WIDTH = 200;
@@ -72,8 +80,12 @@ export function renderSequenceDiagram(data: SequenceDiagramData, opts: RenderOpt
   html += `<div class="seq-header">\n`;
   for (const p of participants) {
     html += `  <div class="seq-participant" data-participant="${esc(p.name)}">`;
-    html += `<span class="participant-name">${esc(p.name)}</span>`;
+    html += `<span class="participant-name">${esc(p.name)}${participantBadges(p)}</span>`;
     if (p.lang) html += ` <span class="participant-lang">[${esc(p.lang)}]</span>`;
+    const bound = opts.clusterBindings?.get(p.name);
+    if (bound && bound.length > 0) {
+      html += `<div class="participant-binding">${bound.map(a => esc(a)).join(', ')}</div>`;
+    }
     html += `</div>\n`;
   }
   html += `</div>\n`;
@@ -223,6 +235,14 @@ function renderElements(
   return { html, nextIdx: i };
 }
 
+function participantBadges(p: Participant): string {
+  let badges = '';
+  if (p.isInitiator) badges += ' <span class="p-badge p-badge-init" title="initiator">▶</span>';
+  if (p.binding === 'dynamic') badges += ' <span class="p-badge p-badge-dyn" title="dynamic binding">dyn</span>';
+  if (p.cardinality === 'many') badges += ' <span class="p-badge p-badge-many" title="many instances">∗</span>';
+  return badges;
+}
+
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -298,6 +318,27 @@ export const SEQUENCE_DIAGRAM_CSS = `
   }
   .seq-participant .participant-lang {
     font-size: 9px; color: var(--vscode-descriptionForeground, #888); font-weight: 400;
+  }
+
+  /* ── Participant modifier badges ── */
+  .p-badge {
+    display: inline-block;
+    font-size: 8px; font-weight: 700; line-height: 1;
+    padding: 1px 4px; margin-left: 3px;
+    border-radius: 3px; vertical-align: middle;
+    letter-spacing: 0.2px;
+  }
+  .p-badge-init { background: rgba(137, 209, 133, 0.18); color: var(--vscode-debugIcon-startForeground, #89d185); border: 1px solid rgba(137, 209, 133, 0.35); }
+  .p-badge-dyn  { background: rgba(209, 134, 22, 0.15); color: var(--vscode-charts-orange, #d18616); border: 1px solid rgba(209, 134, 22, 0.3); }
+  .p-badge-many { background: rgba(79, 193, 255, 0.15); color: var(--vscode-charts-blue, #4fc1ff); border: 1px solid rgba(79, 193, 255, 0.3); }
+
+  /* ── Live agent binding annotation ── */
+  .participant-binding {
+    font-size: 9px; font-style: italic;
+    color: var(--vscode-descriptionForeground, #888);
+    margin-top: 2px; line-height: 1.2;
+    max-width: ${COLUMN_WIDTH - 20}px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
   /* ── Body ── */

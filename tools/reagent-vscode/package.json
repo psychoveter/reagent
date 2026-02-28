@@ -2,7 +2,7 @@
   "name": "reagent-vscode",
   "displayName": "Reagent Language Support",
   "description": "Language support for Reagent protocol DSL (.rg) with embedded language intelligence in agent zones.",
-  "version": "0.0.10",
+  "version": "0.0.14",
   "publisher": "psychoveter",
   "engines": {
     "vscode": "^1.80.0"
@@ -29,7 +29,8 @@
     "onCommand:reagent.openDiagram",
     "onCommand:reagent.openProjectDiagram",
     "onCommand:reagent.devCycle",
-    "onCommand:reagent.stopDevCycle"
+    "onCommand:reagent.stopDevCycle",
+    "onCommand:reagent.lspStatus"
   ],
   "contributes": {
     "languages": [
@@ -200,6 +201,11 @@
         "icon": "$(debug-stop)"
       },
       {
+        "command": "reagent.lspStatus",
+        "title": "Reagent: LSP Status",
+        "icon": "$(info)"
+      },
+      {
         "command": "reagent.debug.continue",
         "title": "Reagent Debug: Continue",
         "icon": "$(debug-continue)"
@@ -296,6 +302,17 @@
         }
       ]
     },
+    "configuration": {
+      "title": "Reagent",
+      "properties": {
+        "reagent.logLevel": {
+          "type": "string",
+          "default": "info",
+          "enum": ["error", "warn", "info", "debug"],
+          "description": "Log level for the Reagent language server"
+        }
+      }
+    },
     "viewsWelcome": [
       {
         "view": "reagentCluster",
@@ -304,9 +321,10 @@
     ]
   },
   "scripts": {
-    "bundle-lang": "rm -rf lang && cp -r ../../lang/dist lang && echo '{\"type\":\"module\"}' > lang/package.json",
+    "bundle-lang": "cd ../../lang && npm run build && cd - && rm -rf lang && cp -r ../../lang/dist lang && echo '{\"type\":\"module\"}' > lang/package.json",
     "compile": "npm run bundle-lang && tsc -p ./ && tsc -p server/",
     "watch": "tsc -watch -p ./",
+    "test:lsp": "npm run compile && node --test out/server/test/lsp.test.js",
     "package": "npm run compile && vsce package"
   },
   "dependencies": {

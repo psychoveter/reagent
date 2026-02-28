@@ -11,8 +11,12 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Optional
 
+from typing import Callable
+
 from .agent_runner import AgentRunner
 from .protocol_instance import ProtocolInstance
+
+EmitBusCallback = Callable[..., None]
 
 
 class InprocAgentNode:
@@ -22,9 +26,11 @@ class InprocAgentNode:
         self,
         role_to_agent: dict[str, str],
         advance_hook: Optional[Any] = None,
+        emit_bus_callback: Optional[EmitBusCallback] = None,
     ) -> None:
         self._role_to_agent = role_to_agent
         self._advance_hook = advance_hook
+        self._emit_bus_cb: Optional[EmitBusCallback] = emit_bus_callback
         self._handles: list["InprocAgentHandle"] = []
 
     @property
@@ -58,6 +64,8 @@ class InprocAgentNode:
             config["advanceHook"] = self._advance_hook
         if extras is not None:
             config["extras"] = extras
+        if self._emit_bus_cb is not None:
+            config["emitBusCallback"] = self._emit_bus_cb
 
         runner = AgentRunner(config)
         handle = InprocAgentHandle(name, runner)
@@ -68,6 +76,9 @@ class InprocAgentNode:
         self._advance_hook = hook
         for h in self._handles:
             h.runner.set_advance_hook(hook)
+
+    def set_emit_bus_callback(self, cb: Optional[EmitBusCallback]) -> None:
+        self._emit_bus_cb = cb
 
     async def destroy_agent(self, handle: "InprocAgentHandle") -> None:
         await handle.stop()

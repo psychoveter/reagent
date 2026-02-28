@@ -15,9 +15,13 @@ message BreakpointsResolved {
 }
 
 protocol SetBreakpoints {
-  participants: client [*], orchestrator [*]
-  initiator: client
-  input: SetBreakpointsRequest
+  participants:
+    client [*] initiator,
+    orchestrator [*]
+  trigger on invoke with SetBreakpointsRequest {
+    resolve client = single
+    resolve orchestrator = single
+  }
 
   client --> orchestrator: SetBreakpointsRequest
   orchestrator --> client: BreakpointsResolved

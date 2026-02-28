@@ -10,6 +10,7 @@ import { DebugAdvanceHook, type DebugAdvanceHookEvent } from "./debug-advance-ho
 import type { SourceMap, SourceMapEntry } from "./session.js";
 import type { AdvanceHook } from "./protocol-instance.js";
 import type { InterceptorFn } from "./interceptor.js";
+import type { DebugResolveHookFn } from "./reagent-controller.js";
 
 export interface Breakpoint {
   type: "message" | "stateId" | "sourceLine" | "stateKind";
@@ -25,7 +26,7 @@ export interface ResolvedBreakpoint extends Breakpoint {
 }
 
 export interface DebugStoppedEvent {
-  level: "message" | "state";
+  level: "message" | "state" | "resolve";
   sessionId: string;
   agentName?: string;
   stateId?: string;
@@ -34,12 +35,28 @@ export interface DebugStoppedEvent {
   reason: string;
   ctx?: Record<string, unknown>;
   self?: Record<string, unknown>;
+  role?: string;
+  candidates?: string[];
+  selected?: string[];
+  pipelineSummary?: string;
+}
+
+interface ResolveGate {
+  promise: Promise<void>;
+  open: () => void;
+}
+
+function createResolveGate(): ResolveGate {
+  let open!: () => void;
+  const promise = new Promise<void>((resolve) => { open = resolve; });
+  return { promise, open };
 }
 
 export class DebugController {
   private interceptors = new Map<string, DebugInterceptor>();
   private advanceHooks = new Map<string, DebugAdvanceHook>();
   private sourceMaps = new Map<string, SourceMap>();
+  private resolveGates = new Map<string, ResolveGate[]>();
   private onStopped: ((event: DebugStoppedEvent) => void) | null = null;
 
   setOnStopped(cb: (event: DebugStoppedEvent) => void): void {
@@ -53,12 +70,14 @@ export class DebugController {
   createSession(sessionId: string, sourceMap?: SourceMap): {
     interceptorFn: InterceptorFn;
     advanceHook: AdvanceHook;
+    resolveHook: DebugResolveHookFn;
   } {
     if (this.interceptors.has(sessionId)) {
       if (sourceMap) this.sourceMaps.set(sessionId, sourceMap);
       return {
         interceptorFn: this.interceptors.get(sessionId)!.asInterceptorFn(),
         advanceHook: this.advanceHooks.get(sessionId)!.asAdvanceHook(),
+        resolveHook: this.createResolveHookFn(sessionId),
       };
     }
 
@@ -99,6 +118,30 @@ export class DebugController {
     return {
       interceptorFn: interceptor.asInterceptorFn(),
       advanceHook: advanceHook.asAdvanceHook(),
+      resolveHook: this.createResolveHookFn(sessionId),
+    };
+  }
+
+  private createResolveHookFn(sessionId: string): DebugResolveHookFn {
+    return async (data) => {
+      this.onStopped?.({
+        level: "resolve",
+        sessionId,
+        reason: "resolve",
+        role: data.role,
+        candidates: data.candidates,
+        selected: data.selected,
+        pipelineSummary: data.pipelineSummary,
+      });
+
+      const gate = createResolveGate();
+      let gates = this.resolveGates.get(sessionId);
+      if (!gates) {
+        gates = [];
+        this.resolveGates.set(sessionId, gates);
+      }
+      gates.push(gate);
+      await gate.promise;
     };
   }
 
@@ -225,13 +268,22 @@ export class DebugController {
   }
 
   /**
-   * Continue — release all held messages and resume execution.
+   * Continue — release all held messages, resolve gates, and resume execution.
    */
   continue(sessionId: string): void {
     const interceptor = this.interceptors.get(sessionId);
     const hook = this.advanceHooks.get(sessionId);
     interceptor?.continue();
     hook?.continue();
+    this.releaseResolveGates(sessionId);
+  }
+
+  private releaseResolveGates(sessionId: string): void {
+    const gates = this.resolveGates.get(sessionId);
+    if (gates) {
+      for (const gate of gates) gate.open();
+      this.resolveGates.delete(sessionId);
+    }
   }
 
   /**
@@ -254,6 +306,7 @@ export class DebugController {
     hook?.continue();
     this.advanceHooks.delete(sessionId);
 
+    this.releaseResolveGates(sessionId);
     this.sourceMaps.delete(sessionId);
   }
 }

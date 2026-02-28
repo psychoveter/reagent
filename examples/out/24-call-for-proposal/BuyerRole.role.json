@@ -4,7 +4,8 @@
   "plays": [
     {
       "protocolName": "CallForProposal",
-      "roleName": "buyer"
+      "roleName": "buyer",
+      "protocolVersion": "2.0.0"
     }
   ],
   "initAction": {
@@ -21,9 +22,9 @@
       }
     }
   ],
-  "version": "0.1.0",
+  "version": "1.0.0",
   "fingerprints": {
-    "playsHash": "a24865d676494bea25b52e0f2a12feb3eaaee123c31d2254efffede1e1f192ac",
+    "playsHash": "d7ceef52f1d1753793b7efdad2f83c234dc5c7491bd0f1c8bc5b6f75f576de3b",
     "behaviorHash": "578289fed3c70dc78b8e58df54735401114b83be59a9a6bf2fa46bbf003fc6d8"
   }
 }

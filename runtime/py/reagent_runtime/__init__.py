@@ -18,6 +18,13 @@ from .remote_node import RemoteNode
 from .otel_interceptor import create_otel_interceptor, create_otel_trace_hook, end_instance_span
 from .protocol_engine import ProtocolEngine, duration_to_ms
 from .agent_interface import AgentInterface, ManagedAgentAdapter
+from .local_event_bus import LocalEventBus, BusEvent
+from .cron_agent import CronAgent, parse_cron_expression, cron_matches_date
+from .trigger_matcher import TriggerMatcher, TriggerEntry
+from .trigger_policy import TriggerPolicy, TriggerPolicyState, evaluate_policy, DEFAULT_TRIGGER_POLICY
+from .state_store import StateStore, InMemoryStateStore, StoreEntry, WatchEvent, Disposable, Lease
+from .state_store_agent_registry import AgentRegistration, StateStoreAgentRegistry
+from .resolve_policy_evaluator import ResolvePolicyEvaluator, ResolveContext
 
 __all__ = [
     "AgentRunner",
@@ -41,4 +48,25 @@ __all__ = [
     "duration_to_ms",
     "AgentInterface",
     "ManagedAgentAdapter",
+    "LocalEventBus",
+    "BusEvent",
+    "CronAgent",
+    "parse_cron_expression",
+    "cron_matches_date",
+    "TriggerMatcher",
+    "TriggerEntry",
+    "TriggerPolicy",
+    "TriggerPolicyState",
+    "evaluate_policy",
+    "DEFAULT_TRIGGER_POLICY",
+    "StateStore",
+    "InMemoryStateStore",
+    "StoreEntry",
+    "WatchEvent",
+    "Disposable",
+    "Lease",
+    "AgentRegistration",
+    "StateStoreAgentRegistry",
+    "ResolvePolicyEvaluator",
+    "ResolveContext",
 ]

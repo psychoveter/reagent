@@ -82,6 +82,9 @@ export class ReagentOrchestratorServer {
   /** Internal RC for system protocols (self-hosting). */
   private systemRC: ReagentController | null = null;
 
+  /** Instance tree for DAP thread display: tracks parent/child relationships between protocol instances. */
+  private instanceTree = new Map<string, { parentId?: string; childIds: Set<string>; protocolName: string; agentName: string }>();
+
   constructor(config: ROSConfig) {
     this.config = config;
     this.sessions = new SessionManager();
@@ -255,6 +258,9 @@ export class ReagentOrchestratorServer {
       case "GetDeployedIR":
         this.handleGetDeployedIR(ws, msg);
         break;
+      case "ListAgents":
+        this.handleListAgents(ws, msg);
+        break;
       default:
         break;
     }
@@ -410,18 +416,22 @@ export class ReagentOrchestratorServer {
     let debugAdvanceHook: AdvanceHook | undefined;
     const interceptors: any[] = [];
 
+    let debugResolveHook: ((data: { role: string; candidates: string[]; selected: string[]; pipelineSummary: string; triggerId?: string; instanceId?: string }) => Promise<void>) | undefined;
+
     if (isDebugMode) {
       const debugInstruments = this.debugController.createSession(
         session.sessionId,
         compiled.sourceMap,
       );
       debugAdvanceHook = debugInstruments.advanceHook;
+      debugResolveHook = debugInstruments.resolveHook;
       interceptors.push(debugInstruments.interceptorFn);
     }
 
     const traceHook: TraceHook = (event: TraceEvent) => {
       session.pushTrace(event);
       this.sendRap(ws, "TraceEvent", undefined, event as unknown as Record<string, unknown>);
+      this.updateInstanceTree(event);
     };
 
     const roleToAgent = deployment.roleToAgent;
@@ -435,6 +445,7 @@ export class ReagentOrchestratorServer {
       nodeId: `ros-${session.sessionId.slice(0, 8)}`,
       agentNodes: { ts: tsNode, "*": tsNode },
       interceptors,
+      debugResolveHook,
     });
     session.rc = rc;
     session.setStatus("running");
@@ -546,6 +557,55 @@ export class ReagentOrchestratorServer {
     });
   }
 
+  // ── Instance tree tracking ────────────────────────────────────────
+
+  private updateInstanceTree(event: TraceEvent): void {
+    switch (event.kind) {
+      case "ProtocolStarted": {
+        const existing = this.instanceTree.get(event.instanceId);
+        if (!existing) {
+          this.instanceTree.set(event.instanceId, {
+            childIds: new Set(),
+            protocolName: event.protocolName ?? event.data?.protocolName as string ?? "unknown",
+            agentName: event.agent,
+          });
+        }
+        break;
+      }
+      case "SpawnStarted": {
+        const parentInstanceId = event.data?.parentInstanceId as string | undefined;
+        if (parentInstanceId) {
+          const parentEntry = this.instanceTree.get(parentInstanceId);
+          if (parentEntry) {
+            parentEntry.childIds.add(event.instanceId);
+          }
+          const childEntry = this.instanceTree.get(event.instanceId);
+          if (childEntry) {
+            childEntry.parentId = parentInstanceId;
+          } else {
+            this.instanceTree.set(event.instanceId, {
+              parentId: parentInstanceId,
+              childIds: new Set(),
+              protocolName: event.protocolName ?? "unknown",
+              agentName: event.agent,
+            });
+          }
+        }
+        break;
+      }
+      case "ProtocolCompleted":
+      case "ProtocolFailed":
+        // Entry stays in the tree for DAP display; no removal needed.
+        break;
+    }
+  }
+
+  getInstanceTree(instanceId: string): { parentId?: string; children: string[] } | undefined {
+    const entry = this.instanceTree.get(instanceId);
+    if (!entry) return undefined;
+    return { parentId: entry.parentId, children: [...entry.childIds] };
+  }
+
   // ── Debug handlers ────────────────────────────────────────────────
 
   private handleSetBreakpoints(ws: WebSocket, msg: RAPMessage): void {
@@ -655,6 +715,44 @@ export class ReagentOrchestratorServer {
       to: h.envelope.to,
     }));
 
+    const agentView = this.currentView.agents.find(a => a.agentName === agentName);
+    const protoName = agentView?.protocolName;
+    let resolveBindings: Record<string, unknown> | undefined;
+    let participants: unknown[] | undefined;
+
+    if (protoName && session.rc) {
+      const protoEntry = session.rc.listProtocols().find(p => p.name === protoName);
+      if (protoEntry) {
+        for (const graph of protoEntry.irGraphs.values()) {
+          if (graph.protocolName === protoName && graph.participants) {
+            participants = graph.participants;
+            break;
+          }
+        }
+        for (const trigger of protoEntry.triggers) {
+          if (trigger.resolveMap) {
+            resolveBindings = {};
+            for (const [role, policy] of Object.entries(trigger.resolveMap)) {
+              const agents = session.rc.listProtocols()
+                .find(p => p.name === protoName)
+                ?.irGraphs.values();
+              const boundAgentNames: string[] = [];
+              for (const av of this.currentView.agents) {
+                if (av.protocolName === protoName && av.roleName === role) {
+                  boundAgentNames.push(av.agentName);
+                }
+              }
+              (resolveBindings as Record<string, unknown>)[role] = {
+                policy,
+                boundAgents: boundAgentNames,
+              };
+            }
+            break;
+          }
+        }
+      }
+    }
+
     this.sendRap(ws, "StateSnapshot", msg.id, {
       requestId,
       agentName,
@@ -662,6 +760,8 @@ export class ReagentOrchestratorServer {
       self: handle.getSelf(),
       recentTraces: session.traces.slice(-20),
       heldMessages,
+      resolveBindings,
+      participants,
     });
   }
 
@@ -736,12 +836,16 @@ export class ReagentOrchestratorServer {
       if (!existing.roleName && payload.roleName) existing.roleName = payload.roleName as string;
       if (!existing.protocolName && payload.protocolName) existing.protocolName = payload.protocolName as string;
     } else {
+      const regMeta = this.deployedAgentRegistrations[agentName];
       this.currentView.agents.push({
         agentName,
         roleName: (payload.roleName as string) ?? "",
         protocolName: (payload.protocolName as string) ?? "",
         nodeId,
         status: "running",
+        tags: regMeta?.tags,
+        capabilities: regMeta?.capabilities,
+        labels: regMeta?.labels,
       });
     }
 
@@ -845,6 +949,7 @@ export class ReagentOrchestratorServer {
       protocolName: string;
       input?: Record<string, unknown>;
       roleToAgent?: Record<string, string>;
+      resolveOverrides?: Record<string, unknown>;
       mode?: string;
       sessionId?: string;
       breakpoints?: string[];
@@ -860,6 +965,7 @@ export class ReagentOrchestratorServer {
       input: trigger.input,
       roleToAgent: trigger.roleToAgent,
     };
+    if (trigger.resolveOverrides) payload.resolveOverrides = trigger.resolveOverrides;
     if (trigger.mode) payload.mode = trigger.mode;
     if (trigger.sessionId) payload.sessionId = trigger.sessionId;
     if (trigger.breakpoints?.length) payload.breakpoints = trigger.breakpoints;
@@ -878,6 +984,7 @@ export class ReagentOrchestratorServer {
   private lastPlan: ReconciliationPlan | null = null;
   private deployedIRGraphs: Record<string, any> = {};
   private deployedRoleIRs: Record<string, any> = {};
+  private deployedAgentRegistrations: Record<string, { tags?: string[]; capabilities?: string[]; labels?: Record<string, string> }> = {};
 
   private handleListProtocols(ws: WebSocket, msg: RAPMessage): void {
     const session = this.sessions.getLatest();
@@ -961,6 +1068,8 @@ export class ReagentOrchestratorServer {
           fingerprints: payload.fingerprints as any ?? { structureHash: "", schemaHash: "", implHash: "" },
           dependencies: (payload.dependencies as any) ?? [],
           irGraphs: graphMap,
+          triggers: [],
+          invocable: false,
           registeredAt: Date.now(),
         });
 
@@ -997,6 +1106,67 @@ export class ReagentOrchestratorServer {
       agents: this.currentView.agents,
       timestamp: Date.now(),
     });
+  }
+
+  private handleListAgents(ws: WebSocket, msg: RAPMessage): void {
+    const payload = msg.payload ?? {};
+    const role = payload.role as string | undefined;
+    const protocolName = payload.protocolName as string | undefined;
+    const status = payload.status as string | undefined;
+    const filterExpr = payload.filter as string | undefined;
+    const limit = Math.min((payload.limit as number) ?? 100, 1000);
+    const offset = (payload.offset as number) ?? 0;
+
+    let agents = [...this.currentView.agents];
+
+    if (role) agents = agents.filter(a => a.roleName === role);
+    if (protocolName) agents = agents.filter(a => a.protocolName === protocolName);
+    if (status) agents = agents.filter(a => a.status === status);
+
+    if (filterExpr) {
+      agents = agents.filter(a => {
+        try {
+          return this.evaluateAgentFilter(filterExpr, a);
+        } catch {
+          return false;
+        }
+      });
+    }
+
+    const total = agents.length;
+    const paged = agents.slice(offset, offset + limit);
+
+    this.sendRap(ws, "ListAgentsResponse", msg.id, {
+      requestId: payload.requestId ?? msg.id,
+      agents: paged,
+      total,
+    });
+  }
+
+  private evaluateAgentFilter(expr: string, agent: RegistryAgentEntry): boolean {
+    const lower = expr.trim().toLowerCase();
+
+    const containsMatch = lower.match(/^agent\.tags\s+contains\s+'([^']+)'$/);
+    if (containsMatch) {
+      return agent.tags?.includes(containsMatch[1]) ?? false;
+    }
+
+    const capMatch = lower.match(/^agent\.capabilities\s+contains\s+'([^']+)'$/);
+    if (capMatch) {
+      return agent.capabilities?.includes(capMatch[1]) ?? false;
+    }
+
+    const labelMatch = lower.match(/^agent\.labels\.(\w+)\s*==\s*'([^']+)'$/);
+    if (labelMatch) {
+      return agent.labels?.[labelMatch[1]] === labelMatch[2];
+    }
+
+    const nameMatch = lower.match(/^agent\.name\s*==\s*'([^']+)'$/);
+    if (nameMatch) {
+      return agent.agentName === nameMatch[1];
+    }
+
+    return true;
   }
 
   private handleSubmitDeploySpec(ws: WebSocket, msg: RAPMessage): void {
@@ -1097,6 +1267,9 @@ export class ReagentOrchestratorServer {
     this.deployedIRGraphs = irGraphs;
     this.deployedRoleIRs = roleIRs;
 
+    const agentRegs = (payload.agentRegistrations ?? {}) as Record<string, { tags?: string[]; capabilities?: string[]; labels?: Record<string, string> }>;
+    Object.assign(this.deployedAgentRegistrations, agentRegs);
+
     const adapterList = [...this.adapters.values()].filter(a => a.ws.readyState === WebSocket.OPEN);
     if (adapterList.length === 0) {
       this.sendRap(ws, "DeployProjectFailed", msg.id, {
@@ -1170,11 +1343,13 @@ export class ReagentOrchestratorServer {
             roleName,
             protocolName: firstRole?.protocolName ?? "",
             protocolVersion: resolvedVersion,
+            agentRegistrations: agentRegs,
           },
         }));
         this.agentToNode.set(agentDef.agentName, adapter.nodeId);
 
         // Pre-populate agent in cluster view (Deployed ack may lack protocol info)
+        const regMeta = this.deployedAgentRegistrations[agentDef.agentName];
         for (const binding of agentDef.roles) {
           const existing = this.currentView.agents.find(
             a => a.agentName === agentDef.agentName && a.nodeId === adapter.nodeId
@@ -1186,6 +1361,9 @@ export class ReagentOrchestratorServer {
               protocolName: binding.protocolName,
               nodeId: adapter.nodeId,
               status: "deploying",
+              tags: regMeta?.tags,
+              capabilities: regMeta?.capabilities,
+              labels: regMeta?.labels,
             });
           }
         }
@@ -1231,6 +1409,7 @@ export class ReagentOrchestratorServer {
     const mode = (payload.mode as string) ?? "run";
     const sessionId = mode === "debug" ? ((payload.sessionId as string) ?? randomUUID()) : undefined;
     const breakpoints = (payload.breakpoints as string[]) ?? [];
+    const resolveOverrides = payload.resolveOverrides as Record<string, unknown> | undefined;
 
     if (!agentName || !protocolName) {
       this.sendRap(ws, "TriggerFailed", msg.id, {
@@ -1273,6 +1452,7 @@ export class ReagentOrchestratorServer {
       protocolName,
       input,
       roleToAgent: globalRoleToAgent,
+      resolveOverrides,
       mode,
       sessionId,
       breakpoints,
@@ -1295,6 +1475,7 @@ export class ReagentOrchestratorServer {
               protocolName,
               input,
               roleToAgent: globalRoleToAgent,
+              resolveOverrides,
               mode,
               sessionId,
               breakpoints,

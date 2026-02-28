@@ -5,7 +5,7 @@
       "protocolName": "DeriveDsiBsi",
       "role": "comma",
       "file": "examples/protocols/src/07-child-protocol-invoke.rg",
-      "line": 13,
+      "line": 12,
       "column": 3
     },
     {
@@ -13,7 +13,7 @@
       "protocolName": "TaskExecutionWithChild",
       "role": "user",
       "file": "examples/protocols/src/07-child-protocol-invoke.rg",
-      "line": 24,
+      "line": 23,
       "column": 3
     },
     {
@@ -21,7 +21,7 @@
       "protocolName": "TaskExecutionWithChild",
       "role": "user",
       "file": "examples/protocols/src/07-child-protocol-invoke.rg",
-      "line": 27,
+      "line": 26,
       "column": 3
     },
     {
@@ -29,7 +29,7 @@
       "protocolName": "TaskExecutionWithChild",
       "role": "comma",
       "file": "examples/protocols/src/07-child-protocol-invoke.rg",
-      "line": 27,
+      "line": 26,
       "column": 3
     },
     {
@@ -37,7 +37,7 @@
       "protocolName": "TaskExecutionWithChild",
       "role": "comma",
       "file": "examples/protocols/src/07-child-protocol-invoke.rg",
-      "line": 29,
+      "line": 28,
       "column": 3
     },
     {
@@ -45,7 +45,7 @@
       "protocolName": "TaskExecutionWithChild",
       "role": "comma",
       "file": "examples/protocols/src/07-child-protocol-invoke.rg",
-      "line": 31,
+      "line": 30,
       "column": 3
     },
     {
@@ -53,7 +53,7 @@
       "protocolName": "TaskExecutionWithChild",
       "role": "sia",
       "file": "examples/protocols/src/07-child-protocol-invoke.rg",
-      "line": 31,
+      "line": 30,
       "column": 3
     }
   ]

@@ -1,0 +1,17 @@
+{
+  "roleName": "SiaRole",
+  "lang": "*",
+  "plays": [
+    {
+      "protocolName": "AwaitTimeoutAlt",
+      "roleName": "sia",
+      "protocolVersion": "0.1.1"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "4.0.0",
+  "fingerprints": {
+    "playsHash": "af2b0496b9d7e494b0b79f19bd064dc8e3b8ea1860b8c0e7897bf24ea3afe906",
+    "behaviorHash": "90d1d22e125fdbed9a3af8dc227859c7d65a22e6f61a23a44c9bf8360e17026a"
+  }
+}

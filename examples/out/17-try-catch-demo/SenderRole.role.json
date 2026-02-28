@@ -4,7 +4,8 @@
   "plays": [
     {
       "protocolName": "TryCatchDemo",
-      "roleName": "sender"
+      "roleName": "sender",
+      "protocolVersion": "0.1.1"
     }
   ],
   "initAction": {
@@ -21,9 +22,9 @@
       }
     }
   ],
-  "version": "0.1.0",
+  "version": "1.0.0",
   "fingerprints": {
-    "playsHash": "3361a2c04f60901572c10bbeda66db860ceec56385beef34fbba39ce24f418c3",
+    "playsHash": "6de880cfb0b11bfa26dd0245f6a8731018eca8defafa7a70fd80d5fc72ecadc3",
     "behaviorHash": "f7154e029490bf5da3b6c2934eb6bcd1e5283bb0d22b0e131362aaabbbda98c0"
   }
 }

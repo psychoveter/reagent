@@ -25,9 +25,13 @@ message RunFailed {
 }
 
 protocol RunProtocol {
-  participants: orchestrator [*], adapter [*]
-  initiator: orchestrator
-  input: RunStart
+  participants:
+    orchestrator [*] initiator,
+    adapter [*]
+  trigger on invoke with RunStart {
+    resolve orchestrator = single
+    resolve adapter = single
+  }
 
   orchestrator --> adapter: RunStart
 

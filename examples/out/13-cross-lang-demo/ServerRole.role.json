@@ -4,7 +4,8 @@
   "plays": [
     {
       "protocolName": "CrossLangDemo",
-      "roleName": "server"
+      "roleName": "server",
+      "protocolVersion": "0.1.1"
     }
   ],
   "initAction": {
@@ -21,9 +22,9 @@
       }
     }
   ],
-  "version": "0.1.0",
+  "version": "1.0.0",
   "fingerprints": {
-    "playsHash": "ffae5e4eb427281db1647e580311fe44a7a036dbd1fd20b04a5fb5bf29c38c00",
+    "playsHash": "a19b92e62754fb6f108691b49cfde5a2648dba5178a7dae21a068ac9ca40c5c7",
     "behaviorHash": "755d69279f7cc97360f317ce0d189cb20b39ffab1f60d3252f985094a44c16a2"
   }
 }

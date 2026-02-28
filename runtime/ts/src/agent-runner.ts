@@ -14,6 +14,8 @@ import { executeZone, createReagentStub } from "./zone-executor.js";
 import type { ReagentTransport } from "./transport.js";
 import type { TraceHook } from "./interceptor.js";
 
+export type EmitBusCallback = (topic: string, payload: Record<string, unknown>, source: { agent: string; instanceId: string }) => void;
+
 export type AgentRunnerConfig = {
   agentIR: AgentIR;
   graphs: Map<string, IRGraph>;
@@ -22,6 +24,7 @@ export type AgentRunnerConfig = {
   traceHook?: TraceHook;
   advanceHook?: AdvanceHook;
   extras?: Record<string, unknown>;
+  emitBusCallback?: EmitBusCallback;
 };
 
 export class AgentRunner {
@@ -35,6 +38,7 @@ export class AgentRunner {
 
   private advanceHook?: AdvanceHook;
   private extras?: Record<string, unknown>;
+  private emitBusCb?: EmitBusCallback;
   private self: Record<string, unknown> = {};
   private instances: Map<string, ProtocolInstance> = new Map();
   private completedCount = 0;
@@ -49,6 +53,7 @@ export class AgentRunner {
     this.traceHook = config.traceHook;
     this.advanceHook = config.advanceHook;
     this.extras = config.extras;
+    this.emitBusCb = config.emitBusCallback;
   }
 
   setAdvanceHook(hook: AdvanceHook | undefined): void {
@@ -193,7 +198,7 @@ export class AgentRunner {
 
   private handleEmit(
     protocolName: string,
-    _instanceId: string,
+    instanceId: string,
     eventName: string,
     data?: Record<string, unknown>,
   ): void {
@@ -202,6 +207,11 @@ export class AgentRunner {
         const reagent = createReagentStub();
         executeZone(handler.action.body, { eventName, data }, this.self, reagent, this.extras ? { $agent: this.extras } : undefined);
       }
+    }
+
+    // Propagate to event bus for trigger matching
+    if (this.emitBusCb) {
+      this.emitBusCb(eventName, data ?? {}, { agent: this.agentName, instanceId });
     }
   }
 

@@ -1,0 +1,17 @@
+{
+  "roleName": "UserRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "SpawnSubagent",
+      "roleName": "user",
+      "protocolVersion": "2.0.0"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "2.0.0",
+  "fingerprints": {
+    "playsHash": "b060617c9b62e3586a8fcb5fd5c598bb227140139028c3c59eeeedc1aabd8c21",
+    "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+  }
+}

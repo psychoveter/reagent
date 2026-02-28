@@ -8,9 +8,15 @@ message Failed {}
 import "./lib/validate-intent-with-sia.rg" as v
 
 protocol TaskExecutionWithMultipartyChild {
-  participants: user [ts], comma [ts], sia [*]
-  initiator: user
-  input: TaskRequest
+  participants:
+    user [ts] initiator,
+    comma [ts],
+    sia [*]
+  trigger on invoke with TaskRequest {
+    resolve user = single
+    resolve comma = single
+    resolve sia = single
+  }
 
   user {
     $ctx.taskText = $ctx.input.text
@@ -31,3 +37,19 @@ protocol TaskExecutionWithMultipartyChild {
     comma --> user: Failed = { }
   }
 }
+
+role UserRole [ts] {
+  plays TaskExecutionWithMultipartyChild as user
+}
+
+role CommaRole [ts] {
+  plays TaskExecutionWithMultipartyChild as comma
+}
+
+role SiaRole [*] {
+  plays TaskExecutionWithMultipartyChild as sia
+}
+
+agent User runs UserRole
+agent Comma runs CommaRole
+agent Sia runs SiaRole

@@ -1,0 +1,17 @@
+{
+  "roleName": "SiaRole",
+  "lang": "*",
+  "plays": [
+    {
+      "protocolName": "TaskExecutionBasic",
+      "roleName": "sia",
+      "protocolVersion": "0.1.1"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "3.0.0",
+  "fingerprints": {
+    "playsHash": "1335d532f340f71dcc6ff48b3075d8efbf5a537dabc582102c32fab81f717db0",
+    "behaviorHash": "90d1d22e125fdbed9a3af8dc227859c7d65a22e6f61a23a44c9bf8360e17026a"
+  }
+}

@@ -13,6 +13,7 @@ import type {
   IRMessageSchema,
   IRFieldSchema,
   RoleIR,
+  TriggerIR,
   ProtocolFingerprint,
   RoleFingerprint,
   ProtocolDependency,
@@ -104,8 +105,13 @@ function canonicalizeState(state: IRState): string {
     case "invoke":
       parts.push(d.protocolName, d.input);
       break;
-    case "spawn":
+    case "async_invoke":
       parts.push(d.protocolName, d.input);
+      break;
+    case "spawn":
+      parts.push(d.roleName, d.config);
+      if (d.bindAs) parts.push(d.bindAs);
+      if (d.persistent) parts.push("persistent");
       break;
     case "scatter":
       parts.push(d.collection, d.itemRole, String(d.branchStartIds.length));
@@ -135,9 +141,40 @@ function canonicalizeTransitionLabel(label: IRTransition["label"]): string {
  * Computes the structure hash — captures choreography topology.
  * Roles sorted alphabetically, state IDs replaced with BFS indices.
  */
+function canonicalizeTrigger(t: TriggerIR): string {
+  let base: string;
+  switch (t.kind) {
+    case "invoke": base = `trigger:invoke:${t.withType}`; break;
+    case "cron":   base = `trigger:cron:${t.cron}:CronTrigger`; break;
+    case "event":  base = `trigger:event:${t.topic}:${t.withType}`; break;
+  }
+  if (t.resolveMap) {
+    const keys = Object.keys(t.resolveMap).sort();
+    for (const k of keys) {
+      const steps = t.resolveMap[k].map(s => s.step).join("|");
+      base += `:resolve:${k}=${steps}`;
+    }
+  }
+  return base;
+}
+
 export function computeStructureHash(graphs: Map<string, IRGraph>): string {
   const roles = [...graphs.keys()].sort();
   const parts: string[] = [];
+
+  const firstGraph = graphs.values().next().value;
+
+  if (firstGraph?.participants) {
+    for (const p of firstGraph.participants) {
+      parts.push(`participant:${p.name}:${p.binding}:${p.cardinality}:${p.initiator}`);
+    }
+  }
+
+  if (firstGraph?.triggers) {
+    for (const t of firstGraph.triggers) {
+      parts.push(canonicalizeTrigger(t));
+    }
+  }
 
   for (const role of roles) {
     const graph = graphs.get(role)!;
@@ -260,7 +297,7 @@ export function extractDependencies(graphs: Map<string, IRGraph>): ProtocolDepen
 
   for (const graph of graphs.values()) {
     for (const state of graph.states) {
-      if (state.data.kind === "invoke" || state.data.kind === "spawn") {
+      if (state.data.kind === "invoke" || state.data.kind === "async_invoke") {
         const name = state.data.protocolName;
         if (!seen.has(name)) {
           seen.add(name);

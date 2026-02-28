@@ -31,10 +31,10 @@
       }
     },
     {
-      "id": "spawn_10",
-      "kind": "spawn",
+      "id": "async_invoke_10",
+      "kind": "async_invoke",
       "data": {
-        "kind": "spawn",
+        "kind": "async_invoke",
         "protocolName": "Subagent",
         "input": "{ text: $ctx.taskText }",
         "roleMapping": {
@@ -90,13 +90,13 @@
     },
     {
       "from": "send_9",
-      "to": "spawn_10",
+      "to": "async_invoke_10",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "spawn_10",
+      "from": "async_invoke_10",
       "to": "recv_11",
       "label": {
         "kind": "default"
@@ -122,9 +122,9 @@
     "end_13"
   ],
   "initiator": "user",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "fingerprints": {
-    "structureHash": "6b14995e4a59492fd314d347ab33dfbbcfd7ae98909509d54377aa895e50f896",
+    "structureHash": "d80d1f4b82bf563b0f076153576f387731bd84665fed5b192e691863c1cc34b9",
     "schemaHash": "ca75649d048071f4cb9be62fd6dfcb215a27c49372760d1a8f687d15aa1f8401",
     "implHash": "3e6ba96b27946a1dd56f79350e6d5bf33253f491c53be0b50a77f2025635bf3b"
   },

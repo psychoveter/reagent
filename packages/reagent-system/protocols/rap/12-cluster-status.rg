@@ -9,13 +9,14 @@ message ClusterStatusResponse {
   requestId: string
   nodes: any       // RegistryNodeInfo[]
   protocols: any   // RegistryProtocolEntry[]
-  agents: any      // RegistryAgentEntry[]
+  agents: any      // RegistryAgentEntry[] — includes tags, capabilities, labels, spawnedBy
   timestamp: number
 }
 
 protocol ClusterStatus {
-  participants: client [*], ros [*]
-  initiator: client
+  participants:
+    client [*] initiator,
+    ros [*]
 
   client --> ros: ClusterStatusRequest
   ros --> client: ClusterStatusResponse

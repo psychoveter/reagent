@@ -20,9 +20,13 @@ message DeployFailed {
 }
 
 protocol DeployAgent {
-  participants: orchestrator [*], adapter [*]
-  initiator: orchestrator
-  input: Deploy
+  participants:
+    orchestrator [*] initiator,
+    adapter [*]
+  trigger on invoke with Deploy {
+    resolve orchestrator = single
+    resolve adapter = single
+  }
 
   orchestrator --> adapter: Deploy
 

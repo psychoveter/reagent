@@ -5,8 +5,9 @@ message Greeting {}
 message Reply {}
 
 protocol CrossLangE2E {
-  participants: tsRole [ts], pyRole [py]
-  initiator: tsRole
+  participants:
+    tsRole [ts] initiator,
+    pyRole [py]
 
   tsRole {
     $ctx.greeting = "hello from ts"

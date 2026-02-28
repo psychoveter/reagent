@@ -7,9 +7,13 @@ message ValidationOk {}
 message ValidationError {}
 
 protocol ValidateIntentWithSia {
-  participants: comma [ts], sia [*]
-  initiator: comma
-  input: ValidateIntent
+  participants:
+    comma [ts] initiator,
+    sia [*]
+  trigger on invoke with ValidateIntent {
+    resolve comma = single
+    resolve sia = single
+  }
 
   comma --> sia: ValidateIntent = {
     onSend {

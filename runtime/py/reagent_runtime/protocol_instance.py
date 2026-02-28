@@ -217,6 +217,9 @@ class ProtocolInstance:
                 elif kind == "invoke":
                     await self._handle_invoke(state)
                     self._current_state_id = self._follow_default()
+                elif kind == "async_invoke":
+                    await self._handle_async_invoke_state(state)
+                    self._current_state_id = self._follow_default()
                 elif kind == "spawn":
                     await self._handle_spawn_state(state)
                     self._current_state_id = self._follow_default()
@@ -586,9 +589,27 @@ class ProtocolInstance:
             self._assign_target(data["resultTarget"], result)
         self._emit_trace("InvokeCompleted", {"stateId": state["id"], "protocolName": data["protocolName"]})
 
-    async def _handle_spawn_state(self, state: dict[str, Any]) -> None:
+    async def _handle_async_invoke_state(self, state: dict[str, Any]) -> None:
         data = state["data"]
-        self._emit_trace("Spawned", {"stateId": state["id"], "protocolName": data["protocolName"]})
+        self._emit_trace("AsyncInvokeStarted", {"stateId": state["id"], "protocolName": data["protocolName"]})
+        if not self._spawn_callback:
+            return
+        import re
+        input_expr = data.get("input", "{}")
+        translated = re.sub(r'\$ctx\b', 'ctx', input_expr)
+        translated = re.sub(r'\$self\b', 'self_state', translated)
+        try:
+            input_value = eval(translated, {"__builtins__": {}}, {
+                "ctx": self._ctx, "self_state": self._self_ref,
+            })
+        except Exception:
+            input_value = {}
+        self._spawn_callback(data["protocolName"], input_value)
+
+    async def _handle_spawn_state(self, state: dict[str, Any]) -> None:
+        """Legacy handler for 'spawn' IR states — routes through async_invoke."""
+        data = state["data"]
+        self._emit_trace("AsyncInvokeStarted", {"stateId": state["id"], "protocolName": data["protocolName"]})
         if not self._spawn_callback:
             return
         import re

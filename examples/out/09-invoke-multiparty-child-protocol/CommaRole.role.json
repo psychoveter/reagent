@@ -1,0 +1,17 @@
+{
+  "roleName": "CommaRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "TaskExecutionWithMultipartyChild",
+      "roleName": "comma",
+      "protocolVersion": "1.0.0"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "21.0.0",
+  "fingerprints": {
+    "playsHash": "3fddff56c864e0668ef53a5c935575463710fab0de8f9232d7b9e1ffeb0fc522",
+    "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+  }
+}

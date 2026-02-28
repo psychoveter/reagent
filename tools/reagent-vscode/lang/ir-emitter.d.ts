@@ -1,13 +1,13 @@
 /**
- * Reagent IR Emitter — v0.0.11
+ * Reagent IR Emitter — v0.0.14
  *
  * Transforms AST nodes into IR:
  * - ProtocolDef → set of IRGraphs (one per role)
  * - RoleDef → RoleIR (rich behavioral contract with lifecycle)
- * - AgentDef → AgentIR (thin deployment binding referencing a role)
+ * - AgentDef → AgentIR (deployment binding referencing a role, with metadata)
  */
 import type { AgentDef, MessageDef, ProtocolDef, RoleDef } from "./ast.js";
-import type { AgentIR, IRGraph, IRMessageSchema, RoleIR } from "./ir.js";
+import type { AgentIR, AgentRegistrationIR, IRGraph, IRMessageSchema, RoleIR } from "./ir.js";
 export type SourceMapEntry = {
     stateId: string;
     protocolName: string;
@@ -44,6 +44,7 @@ export type AgentEmitResult = {
  * Validates the role exists and lang tags are compatible.
  */
 export declare function emitAgentIR(agent: AgentDef, roleMap: Map<string, RoleDef>): AgentEmitResult;
+export declare function emitAgentRegistrationIR(agent: AgentDef): AgentRegistrationIR;
 export declare function emitMessageSchema(msg: MessageDef): IRMessageSchema;
 /**
  * Reset the global ID counter (useful for deterministic tests).

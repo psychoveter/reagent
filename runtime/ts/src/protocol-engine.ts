@@ -32,6 +32,7 @@ export type ProtocolEvent =
   | { type: "scatter_required"; stateId: string; items: unknown[]; branchStartId: string; joinId: string | null }
   | { type: "fork_required"; stateId: string; branchStartIds: string[]; joinId: string | null }
   | { type: "invoke_required"; stateId: string; protocolName: string; input: unknown }
+  | { type: "async_invoke_required"; stateId: string; protocolName: string; input: unknown }
   | { type: "spawn_required"; stateId: string; protocolName: string; input: unknown }
   | { type: "advance_hook"; stateId: string; stateKind: string }
   | { type: "state_entered"; stateId: string; stateKind: string };

@@ -10,9 +10,13 @@ message Subtask {}
 message SubtaskDone {}
 
 protocol ScatterGather {
-  participants: coordinator [ts], worker [ts]
-  initiator: coordinator
-  input: Start
+  participants:
+    coordinator [ts] initiator,
+    worker [ts]
+  trigger on invoke with Start {
+    resolve coordinator = single
+    resolve worker = single
+  }
 
   coordinator {
     $ctx.workers = $ctx.input.workerIds

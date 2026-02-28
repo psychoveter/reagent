@@ -3,9 +3,13 @@
 message SubmitIntent {}
 
 protocol TaskExecutionFromEvent {
-  participants: comma [ts], sia [*]
-  initiator: comma
-  input: TaskRequested
+  participants:
+    comma [ts] initiator,
+    sia [*]
+  trigger on invoke with TaskRequested {
+    resolve comma = single
+    resolve sia = single
+  }
 
   comma {
     $ctx.taskText = $ctx.input.text

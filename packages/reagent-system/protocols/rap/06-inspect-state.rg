@@ -16,6 +16,8 @@ message StateSnapshot {
   recentTraces: any[]
   heldMessages?: any[]
   instanceStatuses?: any
+  resolveBindings?: any   // Record<role, { policy: ResolvePolicyIR; boundAgents: string[] }>
+  participants?: any      // ParticipantIR[] — current participant metadata for this instance
 }
 
 message InspectError {
@@ -24,9 +26,15 @@ message InspectError {
 }
 
 protocol InspectState {
-  participants: client [*], orchestrator [*], adapter [*]
-  initiator: client
-  input: GetState
+  participants:
+    client [*] initiator,
+    orchestrator [*],
+    adapter [*]
+  trigger on invoke with GetState {
+    resolve client = single
+    resolve orchestrator = single
+    resolve adapter = single
+  }
 
   client --> orchestrator: GetState
   orchestrator --> adapter: GetState

@@ -1,5 +1,66 @@
 {
-  "agents": [],
-  "roleToAgent": {},
+  "agents": [
+    {
+      "agentName": "User",
+      "lang": "ts",
+      "roleName": "UserRole",
+      "agentIRFile": "User.agent.json",
+      "roleIRFile": "UserRole.role.json",
+      "roles": [
+        {
+          "protocolName": "ExceptionAbortCompensate",
+          "roleName": "user",
+          "irGraphFile": "ExceptionAbortCompensate.user.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "Comma",
+      "lang": "ts",
+      "roleName": "CommaRole",
+      "agentIRFile": "Comma.agent.json",
+      "roleIRFile": "CommaRole.role.json",
+      "roles": [
+        {
+          "protocolName": "ExceptionAbortCompensate",
+          "roleName": "comma",
+          "irGraphFile": "ExceptionAbortCompensate.comma.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "Sia",
+      "lang": "*",
+      "roleName": "SiaRole",
+      "agentIRFile": "Sia.agent.json",
+      "roleIRFile": "SiaRole.role.json",
+      "roles": [
+        {
+          "protocolName": "ExceptionAbortCompensate",
+          "roleName": "sia",
+          "irGraphFile": "ExceptionAbortCompensate.sia.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "ExceptionAbortCompensate.user": "User",
+    "ExceptionAbortCompensate.comma": "Comma",
+    "ExceptionAbortCompensate.sia": "Sia"
+  },
+  "roles": [
+    {
+      "name": "UserRole",
+      "file": "UserRole.role.json"
+    },
+    {
+      "name": "CommaRole",
+      "file": "CommaRole.role.json"
+    },
+    {
+      "name": "SiaRole",
+      "file": "SiaRole.role.json"
+    }
+  ],
   "messages": "messages.json"
 }

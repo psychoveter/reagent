@@ -4,7 +4,8 @@
   "plays": [
     {
       "protocolName": "CrossLangE2E",
-      "roleName": "pyRole"
+      "roleName": "pyRole",
+      "protocolVersion": "0.1.1"
     }
   ],
   "initAction": {
@@ -21,9 +22,9 @@
       }
     }
   ],
-  "version": "0.1.0",
+  "version": "1.0.0",
   "fingerprints": {
-    "playsHash": "5fd08edda8d615b8f1adc31388d1b15a5bb4ce8fc1cc0c1ee1800aa0d4734b5d",
+    "playsHash": "b00be28a6382279d50d6e2984ea2fb5d242b40b82309c0f417bcb83c0320c022",
     "behaviorHash": "3738b034a36a3bee10469f1d5d40bd0c1d3d2f868ee600043518215d15a3087e"
   }
 }

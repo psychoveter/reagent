@@ -5,9 +5,11 @@ message ComputeRequest {}
 message ComputeResult {}
 
 protocol ComputeSquare {
-  participants: worker [ts]
-  initiator: worker
-  input: ComputeRequest
+  participants:
+    worker [ts] initiator
+  trigger on invoke with ComputeRequest {
+    resolve worker = single
+  }
 
   worker {
     $ctx.result = $ctx.input.value * $ctx.input.value
@@ -16,8 +18,9 @@ protocol ComputeSquare {
 }
 
 protocol InvokeDemo {
-  participants: caller [ts], responder [ts]
-  initiator: caller
+  participants:
+    caller [ts] initiator,
+    responder [ts]
 
   caller {
     $ctx.value = 7

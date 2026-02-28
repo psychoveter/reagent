@@ -4,17 +4,19 @@
   "plays": [
     {
       "protocolName": "InvokeDemo",
-      "roleName": "responder"
+      "roleName": "responder",
+      "protocolVersion": "0.1.1"
     },
     {
       "protocolName": "ComputeSquare",
-      "roleName": "worker"
+      "roleName": "worker",
+      "protocolVersion": "0.1.0"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "9.0.0",
+  "version": "13.0.0",
   "fingerprints": {
-    "playsHash": "a510b51c13195b0bac9860cc7e98443422e6fa788519adf2ec959b6cc11fbd0c",
+    "playsHash": "396dabb622a091c2bf600903087c42bfc8d5048fec575c498a39b9acb66d483a",
     "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
   }
 }

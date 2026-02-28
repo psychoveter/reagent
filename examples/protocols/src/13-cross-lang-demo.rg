@@ -6,9 +6,13 @@ message Accept {}
 message Reject {}
 
 protocol CrossLangDemo {
-  participants: browser [ts], server [py]
-  initiator: browser
-  input: UserQuery
+  participants:
+    browser [ts] initiator,
+    server [py]
+  trigger on invoke with UserQuery {
+    resolve browser = single
+    resolve server = single
+  }
 
   browser {
     $ctx.queryText = $ctx.input.text

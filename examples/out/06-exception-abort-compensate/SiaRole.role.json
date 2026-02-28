@@ -1,0 +1,17 @@
+{
+  "roleName": "SiaRole",
+  "lang": "*",
+  "plays": [
+    {
+      "protocolName": "ExceptionAbortCompensate",
+      "roleName": "sia",
+      "protocolVersion": "0.1.1"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "6.0.0",
+  "fingerprints": {
+    "playsHash": "3bc332e609041ace1ab27b21ad4bedb8842c8b856e0291b0fff14f7279ad6288",
+    "behaviorHash": "90d1d22e125fdbed9a3af8dc227859c7d65a22e6f61a23a44c9bf8360e17026a"
+  }
+}

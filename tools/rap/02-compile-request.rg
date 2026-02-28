@@ -21,9 +21,13 @@ message CompileError {
 }
 
 protocol CompileRequest {
-  participants: client [*], orchestrator [*]
-  initiator: client
-  input: Compile
+  participants:
+    client [*] initiator,
+    orchestrator [*]
+  trigger on invoke with Compile {
+    resolve client = single
+    resolve orchestrator = single
+  }
 
   client --> orchestrator: Compile
 

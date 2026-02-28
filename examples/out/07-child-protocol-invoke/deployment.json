@@ -1,5 +1,72 @@
 {
-  "agents": [],
-  "roleToAgent": {},
+  "agents": [
+    {
+      "agentName": "User",
+      "lang": "ts",
+      "roleName": "UserRole",
+      "agentIRFile": "User.agent.json",
+      "roleIRFile": "UserRole.role.json",
+      "roles": [
+        {
+          "protocolName": "TaskExecutionWithChild",
+          "roleName": "user",
+          "irGraphFile": "TaskExecutionWithChild.user.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "Comma",
+      "lang": "ts",
+      "roleName": "CommaRole",
+      "agentIRFile": "Comma.agent.json",
+      "roleIRFile": "CommaRole.role.json",
+      "roles": [
+        {
+          "protocolName": "TaskExecutionWithChild",
+          "roleName": "comma",
+          "irGraphFile": "TaskExecutionWithChild.comma.ir.json"
+        },
+        {
+          "protocolName": "DeriveDsiBsi",
+          "roleName": "comma",
+          "irGraphFile": "DeriveDsiBsi.comma.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "Sia",
+      "lang": "*",
+      "roleName": "SiaRole",
+      "agentIRFile": "Sia.agent.json",
+      "roleIRFile": "SiaRole.role.json",
+      "roles": [
+        {
+          "protocolName": "TaskExecutionWithChild",
+          "roleName": "sia",
+          "irGraphFile": "TaskExecutionWithChild.sia.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "TaskExecutionWithChild.user": "User",
+    "TaskExecutionWithChild.comma": "Comma",
+    "DeriveDsiBsi.comma": "Comma",
+    "TaskExecutionWithChild.sia": "Sia"
+  },
+  "roles": [
+    {
+      "name": "UserRole",
+      "file": "UserRole.role.json"
+    },
+    {
+      "name": "CommaRole",
+      "file": "CommaRole.role.json"
+    },
+    {
+      "name": "SiaRole",
+      "file": "SiaRole.role.json"
+    }
+  ],
   "messages": "messages.json"
 }

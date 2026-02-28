@@ -4,7 +4,7 @@
  * T28: $flow propagation (write on A, message to B, read on B)
  * T29: $ctx isolation (write on A, message to B, B cannot read A's $ctx)
  * T30: Protocol-level invoke
- * T31: Protocol-level spawn
+ * T31: Protocol-level async invokes (was: spawn)
  * T32: scatter / gather (dynamic multicast) — IR validation
  * T33: CFP pattern via scatter — IR validation
  * T34: $ctx.msg isolation in par
@@ -193,7 +193,7 @@ test("M5-LANG tests (v0.0.11)", async () => {
     recordResult("T30: Protocol-level invoke", false, e.message);
   }
 
-  // ── T31: Protocol-level spawn ────────────────────────────────────
+  // ── T31: Protocol-level async invokes ───────────────────────────
   try {
     const dir = join(EXAMPLES_OUT, "19-spawn-emit-demo");
     const { rc, deployment } = createSingleNodeSetup(dir, [
@@ -223,12 +223,12 @@ test("M5-LANG tests (v0.0.11)", async () => {
     assert.equal(orchI.getStatus(), "completed", "Orchestrator should complete");
 
     const oTraces = orchI.getTraces();
-    assert.ok(oTraces.some(t => t.kind === "Spawned"), "Orchestrator should have Spawned trace");
+    assert.ok(oTraces.some(t => t.kind === "AsyncInvokeStarted"), "Orchestrator should have AsyncInvokeStarted trace");
 
     await rc.stop();
-    recordResult("T31: Protocol-level spawn", true);
+    recordResult("T31: Protocol-level async invokes", true);
   } catch (e: any) {
-    recordResult("T31: Protocol-level spawn", false, e.message);
+    recordResult("T31: Protocol-level async invokes", false, e.message);
   }
 
   // ── T32: scatter / gather (IR validation) ────────────────────────

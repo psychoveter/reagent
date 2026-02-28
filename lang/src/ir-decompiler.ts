@@ -10,7 +10,7 @@
 
 import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, basename, dirname, extname } from "node:path";
-import type { IRGraph, IRState, IRTransition, IRStateKind, IRTransitionLabel } from "./ir.js";
+import type { IRGraph, IRState, IRTransition, IRStateKind, IRTransitionLabel, TriggerIR, ParticipantIR, ResolvePolicyIR, ResolvePipelineStepIR } from "./ir.js";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -96,20 +96,40 @@ export function decompileMultiRole(graphs: IRGraph[]): string {
   const protoName = graphs[0].protocolName;
   const lines: string[] = [];
 
-  const participants = graphs.map(g => {
-    const langTag = g.lang && g.lang !== "*" ? ` [${g.lang}]` : "";
-    return `  ${g.role}${langTag}`;
-  });
-
-  const initiator = graphs[0].initiator ?? graphs[0].role;
+  const participantIRs = graphs[0].participants;
+  const participantLines: string[] = [];
+  if (participantIRs) {
+    for (const p of participantIRs) {
+      const langTag = p.lang && p.lang !== "*" ? ` [${p.lang}]` : "";
+      const mods: string[] = [];
+      if (p.binding !== "static") mods.push(p.binding);
+      if (p.cardinality !== "single") mods.push(p.cardinality);
+      if (p.initiator) mods.push("initiator");
+      const modStr = mods.length > 0 ? " " + mods.join(" ") : "";
+      participantLines.push(`    ${p.name}${langTag}${modStr}`);
+    }
+  } else {
+    for (const g of graphs) {
+      const langTag = g.lang && g.lang !== "*" ? ` [${g.lang}]` : "";
+      participantLines.push(`    ${g.role}${langTag}`);
+    }
+  }
 
   lines.push(`protocol ${protoName} {`);
   lines.push(`  participants:`);
-  lines.push(...participants.map(p => p + ","));
-  lines.push("");
-  lines.push(`  initiator: ${initiator}`);
+  lines.push(...participantLines.map(p => p + ","));
+
+  const triggers = graphs[0].triggers;
+  if (triggers && triggers.length > 0) {
+    lines.push("");
+    for (const t of triggers) {
+      lines.push(...decompileTrigger(t).map(l => `  ${l}`));
+    }
+  }
+
   lines.push("");
 
+  const initiator = participantIRs?.find(p => p.initiator)?.name ?? graphs[0].role;
   const sendReceivePairs = buildSendReceivePairs(graphs);
   const initiatorGraph = graphs.find(g => g.role === initiator) ?? graphs[0];
   const ctx = createContext(initiatorGraph);
@@ -235,10 +255,21 @@ function decompileFromState(ctx: DecompileContext, stateId: string, indent: numb
         break;
       }
 
-      case "spawn": {
+      case "async_invoke": {
         const d = state.data;
         const argsStr = d.input ? `(${d.input})` : "";
-        lines.push(`${pad}${ctx.graph.role} spawns ${d.protocolName}${argsStr}`);
+        lines.push(`${pad}${ctx.graph.role} async invokes ${d.protocolName}${argsStr}`);
+        currentId = followDefault(transitions);
+        break;
+      }
+
+      case "spawn": {
+        const d = state.data;
+        const argsStr = d.config ? `(${d.config})` : "()";
+        const bindStr = d.bindAs ? ` as ${d.bindAs}` : "";
+        const persistStr = d.persistent ? " persistent" : "";
+        const resultStr = d.resultTarget ? ` -> ${d.resultTarget}` : "";
+        lines.push(`${pad}${ctx.graph.role} spawns ${d.roleName}${argsStr}${bindStr}${persistStr}${resultStr}`);
         currentId = followDefault(transitions);
         break;
       }
@@ -412,6 +443,54 @@ function findJoinAfterFork(ctx: DecompileContext, branchStartIds: string[]): str
     if (state.data.kind === "join") return state.id;
   }
   return null;
+}
+
+function decompileTrigger(t: TriggerIR): string[] {
+  const lines: string[] = [];
+  let header: string;
+  switch (t.kind) {
+    case "invoke": header = `trigger on invoke with ${t.withType}`; break;
+    case "cron":   header = `trigger on cron "${t.cron}"`; break;
+    case "event":  header = `trigger on event "${t.topic}" with ${t.withType}`; break;
+  }
+
+  const hasBody = t.inputExpr != null || (t.resolveMap != null && Object.keys(t.resolveMap).length > 0);
+  if (!hasBody) {
+    lines.push(header);
+    return lines;
+  }
+
+  lines.push(`${header} {`);
+  if (t.inputExpr != null) {
+    lines.push(`    $ctx.input = ${t.inputExpr}`);
+  }
+  if (t.resolveMap) {
+    for (const [role, pipeline] of Object.entries(t.resolveMap)) {
+      lines.push(`    resolve ${role} = ${decompileResolvePipeline(pipeline)}`);
+    }
+  }
+  lines.push(`  }`);
+  return lines;
+}
+
+function decompileResolvePipeline(pipeline: ResolvePolicyIR): string {
+  return pipeline.map(decompileResolveStep).join(" | ");
+}
+
+function decompileResolveStep(step: ResolvePipelineStepIR): string {
+  switch (step.step) {
+    case "all":         return "all";
+    case "single":      return "single";
+    case "from":        return `from(${step.expr})`;
+    case "filter":      return `filter(${step.predicate})`;
+    case "roundRobin":  return "roundRobin";
+    case "leastLoaded": return "leastLoaded";
+    case "random":      return "random";
+    case "sample":      return `sample(${step.count})`;
+    case "first":       return "first";
+    case "fallback":    return `fallback(${decompileResolvePipeline(step.chain)})`;
+    case "custom":      return `custom("${step.name}")`;
+  }
 }
 
 function buildSendReceivePairs(graphs: IRGraph[]): Map<string, { sender: string; receiver: string }> {

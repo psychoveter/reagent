@@ -83,7 +83,7 @@
     "end_5"
   ],
   "initiator": "user",
-  "version": "8.0.0",
+  "version": "12.0.0",
   "fingerprints": {
     "structureHash": "01911d35016f64476a575e146f41948fa59adc9a34017698af0ca82ae289281f",
     "schemaHash": "21b81feb8eddceb596f9a7440f752f4c88125168661be87c564d13c0cdcb6031",

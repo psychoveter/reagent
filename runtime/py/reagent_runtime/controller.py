@@ -32,6 +32,10 @@ from .inproc_transport import InprocTransport
 from .protocol_registry import ProtocolRegistry, ProtocolEntry
 from .ir_fingerprint import read_protocol_fingerprint, read_protocol_version, read_protocol_dependencies
 from .agent_manifest import load_agent_manifest, load_agent_module
+from .local_event_bus import LocalEventBus
+from .cron_agent import CronAgent
+from .trigger_matcher import TriggerMatcher
+from .trigger_policy import TriggerPolicy
 
 log = logging.getLogger(__name__)
 
@@ -59,6 +63,9 @@ class ReagentController:
         agent_node: Optional[AgentNode] = None,
         agent_nodes: Optional[dict[str, AgentNode]] = None,
         interceptors: Optional[list[InterceptorFn]] = None,
+        trigger_policies: Optional[dict[str, TriggerPolicy]] = None,
+        trace_callback: Optional[Callable[[dict[str, Any]], None]] = None,
+        cron_interval_s: float = 15.0,
     ) -> None:
         self.node_id = node_id
 
@@ -75,6 +82,30 @@ class ReagentController:
         self._agents: dict[str, AgentHandle] = {}
         self._agent_owners: dict[str, AgentNode] = {}
         self._routing_table: dict[str, str] = {}  # agent_name → "local"
+
+        self.event_bus = LocalEventBus()
+        self.cron_agent = CronAgent(self.event_bus)
+        self._cron_interval_s = cron_interval_s
+
+        self.trigger_matcher = TriggerMatcher(
+            registry=self.registry,
+            bus=self.event_bus,
+            cron=self.cron_agent,
+            trigger_callback=lambda agent_name, trigger: self.trigger_protocol(agent_name, trigger),
+            trace_callback=trace_callback,
+            resolve_initiator=self._resolve_initiator_agent,
+            resolve_role_to_agent=self._resolve_role_to_agent_map,
+        )
+
+        if trigger_policies:
+            self.trigger_matcher.set_policies(trigger_policies)
+
+        def _bus_cb(topic: str, payload: dict[str, Any], source: dict[str, str]) -> None:
+            self.emit_event(topic, payload, source)
+
+        for node in self._agent_nodes.values():
+            if hasattr(node, "set_emit_bus_callback"):
+                node.set_emit_bus_callback(_bus_cb)
 
     # ── Agent node management ─────────────────────────────────────
 
@@ -115,14 +146,22 @@ class ReagentController:
             proto_graphs = {k: g for k, g in graphs.items() if g.get("protocolName") == proto_name}
             fp = read_protocol_fingerprint(graph)
             version = protocol_version or read_protocol_version(graph) or "0.0.0"
+            triggers = graph.get("triggers", [])
             self.registry.register(ProtocolEntry(
                 name=proto_name,
                 version=version,
                 fingerprints=fp or {"structureHash": "", "schemaHash": "", "implHash": ""},
                 dependencies=read_protocol_dependencies(graph),
                 ir_graphs=proto_graphs,
+                triggers=triggers,
+                invocable=graph.get("invocable", False) or any(t.get("kind") == "invoke" for t in triggers),
             ))
             self.registry.bind_agent(proto_name, agent_name)
+
+        for proto_name in registered_protos:
+            proto_entry = self.registry.get(proto_name)
+            if proto_entry and proto_entry.triggers:
+                self.trigger_matcher.register_protocol_triggers(proto_entry)
 
     def load(self, ir_dir: str) -> dict[str, str]:
         """Load all agents from a compiled IR directory.
@@ -297,8 +336,12 @@ class ReagentController:
     async def start(self) -> None:
         for handle in self._agents.values():
             await handle.start()
+        if self._cron_interval_s > 0:
+            self.cron_agent.start(self._cron_interval_s)
 
     async def stop(self) -> None:
+        self.trigger_matcher.destroy()
+        self.event_bus.clear()
         for handle in self._agents.values():
             await handle.stop()
 
@@ -316,6 +359,69 @@ class ReagentController:
             log.warning("[RC %s] triggerProtocol: no local agent %s", self.node_id, agent_name)
             return
         handle.trigger_protocol(trigger)
+
+    # ── Event publishing ──────────────────────────────────────────
+
+    def emit_event(
+        self, topic: str, payload: dict[str, Any],
+        source: Optional[dict[str, str]] = None,
+    ) -> None:
+        from .local_event_bus import BusEvent
+        self.event_bus.publish(topic, BusEvent(
+            topic=topic, payload=payload, source=source,
+        ))
+
+    # ── Initiator resolution ─────────────────────────────────────
+
+    def _resolve_initiator_agent(self, protocol_name: str) -> Optional[str]:
+        proto_entry = self.registry.get(protocol_name)
+        if not proto_entry:
+            return None
+        initiator_role: Optional[str] = None
+        for graph in proto_entry.ir_graphs.values():
+            if graph.get("initiator"):
+                initiator_role = graph["initiator"]
+                break
+        agents = self.registry.agents_for_protocol(protocol_name)
+        if not agents:
+            return None
+        if initiator_role:
+            for agent_name in agents:
+                if agent_name not in self._agents:
+                    continue
+                handle = self._agents[agent_name]
+                runner = getattr(handle, "_runner", None)
+                if runner:
+                    ir = getattr(runner, "_agent_ir", {})
+                    for p in ir.get("plays", []):
+                        if p.get("protocolName") == protocol_name and p.get("roleName") == initiator_role:
+                            return agent_name
+        for agent_name in agents:
+            if agent_name in self._agents:
+                return agent_name
+        return None
+
+    def _resolve_role_to_agent_map(self, protocol_name: str) -> dict[str, str]:
+        result: dict[str, str] = {}
+        proto_entry = self.registry.get(protocol_name)
+        if not proto_entry:
+            return result
+        agents = self.registry.agents_for_protocol(protocol_name)
+        for graph in proto_entry.ir_graphs.values():
+            if graph.get("protocolName") != protocol_name:
+                continue
+            role = graph.get("role", "")
+            for agent_name in agents:
+                handle = self._agents.get(agent_name)
+                if not handle:
+                    continue
+                runner = getattr(handle, "_runner", None)
+                if runner:
+                    ir = getattr(runner, "_agent_ir", {})
+                    for p in ir.get("plays", []):
+                        if p.get("protocolName") == protocol_name and p.get("roleName") == role:
+                            result[role] = agent_name
+        return result
 
     # ── Transport factory ─────────────────────────────────────────
 

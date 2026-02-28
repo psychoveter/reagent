@@ -4,7 +4,8 @@
   "plays": [
     {
       "protocolName": "CrossLangDemo",
-      "roleName": "browser"
+      "roleName": "browser",
+      "protocolVersion": "0.1.1"
     }
   ],
   "initAction": {
@@ -21,9 +22,9 @@
       }
     }
   ],
-  "version": "0.1.0",
+  "version": "1.0.0",
   "fingerprints": {
-    "playsHash": "364697cca901b3e5495397d4392aeb599a892842445a4c896294a0af84b622c1",
+    "playsHash": "5a0745f2a4273b6de6dc9313cd22f36473301d45e4509a1c52ffa3f678912ad8",
     "behaviorHash": "7351d94cc4999ec93355245432dd7df7da23c97bd99c8ca3144d5127aa8fe434"
   }
 }

@@ -21,8 +21,9 @@ message SubmitDeploySpecRejected {
 }
 
 protocol SubmitDeploySpec {
-  participants: client [*], ros [*]
-  initiator: client
+  participants:
+    client [*] initiator,
+    ros [*]
 
   client --> ros: SubmitDeploySpecRequest
 

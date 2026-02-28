@@ -8,9 +8,15 @@ message LlmPlan {}
 import "./lib/call-llm.rg" as llm
 
 protocol CommaAsksLlmAndReplies {
-  participants: user [ts], comma [ts], llmbroka [*]
-  initiator: user
-  input: TaskRequest
+  participants:
+    user [ts] initiator,
+    comma [ts],
+    llmbroka [*]
+  trigger on invoke with TaskRequest {
+    resolve user = single
+    resolve comma = single
+    resolve llmbroka = single
+  }
 
   user {
     $ctx.taskText = $ctx.input.text
@@ -38,3 +44,19 @@ protocol CommaAsksLlmAndReplies {
     }
   }
 }
+
+role UserRole [ts] {
+  plays CommaAsksLlmAndReplies as user
+}
+
+role CommaRole [ts] {
+  plays CommaAsksLlmAndReplies as comma
+}
+
+role LlmbrokaRole [*] {
+  plays CommaAsksLlmAndReplies as llmbroka
+}
+
+agent User runs UserRole
+agent Comma runs CommaRole
+agent Llmbroka runs LlmbrokaRole

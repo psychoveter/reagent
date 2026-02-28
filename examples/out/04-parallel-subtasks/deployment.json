@@ -1,5 +1,66 @@
 {
-  "agents": [],
-  "roleToAgent": {},
+  "agents": [
+    {
+      "agentName": "Comma",
+      "lang": "ts",
+      "roleName": "CommaRole",
+      "agentIRFile": "Comma.agent.json",
+      "roleIRFile": "CommaRole.role.json",
+      "roles": [
+        {
+          "protocolName": "ParallelSubtasks",
+          "roleName": "comma",
+          "irGraphFile": "ParallelSubtasks.comma.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "Worker1",
+      "lang": "ts",
+      "roleName": "Worker1Role",
+      "agentIRFile": "Worker1.agent.json",
+      "roleIRFile": "Worker1Role.role.json",
+      "roles": [
+        {
+          "protocolName": "ParallelSubtasks",
+          "roleName": "worker1",
+          "irGraphFile": "ParallelSubtasks.worker1.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "Worker2",
+      "lang": "ts",
+      "roleName": "Worker2Role",
+      "agentIRFile": "Worker2.agent.json",
+      "roleIRFile": "Worker2Role.role.json",
+      "roles": [
+        {
+          "protocolName": "ParallelSubtasks",
+          "roleName": "worker2",
+          "irGraphFile": "ParallelSubtasks.worker2.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "ParallelSubtasks.comma": "Comma",
+    "ParallelSubtasks.worker1": "Worker1",
+    "ParallelSubtasks.worker2": "Worker2"
+  },
+  "roles": [
+    {
+      "name": "CommaRole",
+      "file": "CommaRole.role.json"
+    },
+    {
+      "name": "Worker1Role",
+      "file": "Worker1Role.role.json"
+    },
+    {
+      "name": "Worker2Role",
+      "file": "Worker2Role.role.json"
+    }
+  ],
   "messages": "messages.json"
 }

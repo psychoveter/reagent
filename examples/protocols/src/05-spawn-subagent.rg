@@ -3,14 +3,20 @@ message Greeting {}
 message PlanReady {}
 message Done {}
 
-// Example 05: spawn subagent (subprotocol / agent creation)
-// Intent: comma spawns a subagent to do planning, then continues with result.
-// Uses protocol-level `spawns` instead of zone-level reagent.spawn().
+// Example 05: async invokes (fire-and-forget sub-protocol with role mapping)
+// Intent: comma launches a background sub-protocol for planning, then continues.
+// Uses protocol-level `async invokes` for non-blocking sub-protocol call.
 
 protocol SpawnSubagent {
-  participants: user [ts], comma [ts], planner [ts]
-  initiator: user
-  input: TaskRequest
+  participants:
+    user [ts] initiator,
+    comma [ts],
+    planner [ts]
+  trigger on invoke with TaskRequest {
+    resolve user = single
+    resolve comma = single
+    resolve planner = single
+  }
 
   user {
     $ctx.taskText = $ctx.input.text
@@ -19,7 +25,7 @@ protocol SpawnSubagent {
 
   comma --> user: Greeting = { }
 
-  comma spawns Subagent({ text: $ctx.taskText }) {
+  comma async invokes Subagent({ text: $ctx.taskText }) {
     planner: planner
   }
 
@@ -36,3 +42,19 @@ protocol SpawnSubagent {
     }
   }
 }
+
+role UserRole [ts] {
+  plays SpawnSubagent as user
+}
+
+role CommaRole [ts] {
+  plays SpawnSubagent as comma
+}
+
+role PlannerRole [ts] {
+  plays SpawnSubagent as planner
+}
+
+agent User runs UserRole
+agent Comma runs CommaRole
+agent Planner runs PlannerRole

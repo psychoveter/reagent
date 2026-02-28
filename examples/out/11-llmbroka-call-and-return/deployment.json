@@ -1,5 +1,66 @@
 {
-  "agents": [],
-  "roleToAgent": {},
+  "agents": [
+    {
+      "agentName": "User",
+      "lang": "ts",
+      "roleName": "UserRole",
+      "agentIRFile": "User.agent.json",
+      "roleIRFile": "UserRole.role.json",
+      "roles": [
+        {
+          "protocolName": "CommaAsksLlmAndReplies",
+          "roleName": "user",
+          "irGraphFile": "CommaAsksLlmAndReplies.user.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "Comma",
+      "lang": "ts",
+      "roleName": "CommaRole",
+      "agentIRFile": "Comma.agent.json",
+      "roleIRFile": "CommaRole.role.json",
+      "roles": [
+        {
+          "protocolName": "CommaAsksLlmAndReplies",
+          "roleName": "comma",
+          "irGraphFile": "CommaAsksLlmAndReplies.comma.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "Llmbroka",
+      "lang": "*",
+      "roleName": "LlmbrokaRole",
+      "agentIRFile": "Llmbroka.agent.json",
+      "roleIRFile": "LlmbrokaRole.role.json",
+      "roles": [
+        {
+          "protocolName": "CommaAsksLlmAndReplies",
+          "roleName": "llmbroka",
+          "irGraphFile": "CommaAsksLlmAndReplies.llmbroka.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "CommaAsksLlmAndReplies.user": "User",
+    "CommaAsksLlmAndReplies.comma": "Comma",
+    "CommaAsksLlmAndReplies.llmbroka": "Llmbroka"
+  },
+  "roles": [
+    {
+      "name": "UserRole",
+      "file": "UserRole.role.json"
+    },
+    {
+      "name": "CommaRole",
+      "file": "CommaRole.role.json"
+    },
+    {
+      "name": "LlmbrokaRole",
+      "file": "LlmbrokaRole.role.json"
+    }
+  ],
   "messages": "messages.json"
 }

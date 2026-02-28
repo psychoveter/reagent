@@ -8,9 +8,15 @@ message Failed {}
 // Intent: comma submits intent to sia; if downstream fails, run compensation and notify user.
 
 protocol ExceptionAbortCompensate {
-  participants: user [ts], comma [ts], sia [*]
-  initiator: user
-  input: TaskRequest
+  participants:
+    user [ts] initiator,
+    comma [ts],
+    sia [*]
+  trigger on invoke with TaskRequest {
+    resolve user = single
+    resolve comma = single
+    resolve sia = single
+  }
 
   user {
     $ctx.taskText = $ctx.input.text
@@ -32,3 +38,19 @@ protocol ExceptionAbortCompensate {
     }
   }
 }
+
+role UserRole [ts] {
+  plays ExceptionAbortCompensate as user
+}
+
+role CommaRole [ts] {
+  plays ExceptionAbortCompensate as comma
+}
+
+role SiaRole [*] {
+  plays ExceptionAbortCompensate as sia
+}
+
+agent User runs UserRole
+agent Comma runs CommaRole
+agent Sia runs SiaRole

@@ -5,9 +5,15 @@ message Greeting {}
 message SubmitIntent {}
 
 protocol TaskExecutionLegacy {
-  participants: user [ts], comma [ts], sia [ts]
-  initiator: user
-  input: TaskRequest
+  participants:
+    user [ts] initiator,
+    comma [ts],
+    sia [ts]
+  trigger on invoke with TaskRequest {
+    resolve user = single
+    resolve comma = single
+    resolve sia = single
+  }
 
   user {
     $ctx.taskText = $ctx.input.text

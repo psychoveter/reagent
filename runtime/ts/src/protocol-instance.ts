@@ -310,6 +310,11 @@ export class ProtocolInstance {
             this.currentStateId = this.followDefault();
             break;
 
+          case "async_invoke":
+            await this.handleAsyncInvoke(state);
+            this.currentStateId = this.followDefault();
+            break;
+
           case "spawn":
             await this.handleSpawn(state);
             this.currentStateId = this.followDefault();
@@ -776,12 +781,32 @@ export class ProtocolInstance {
     this.emitTrace("InvokeCompleted", { stateId: state.id, protocolName: data.protocolName });
   }
 
-  private async handleSpawn(state: IRState): Promise<void> {
-    const data = state.data as { kind: "spawn"; protocolName: string; input: string; roleMapping?: Record<string, string> };
-    this.emitTrace("Spawned", { stateId: state.id, protocolName: data.protocolName });
+  private async handleAsyncInvoke(state: IRState): Promise<void> {
+    const data = state.data as { kind: "async_invoke"; protocolName: string; input: string; roleMapping?: Record<string, string> };
+    this.emitTrace("AsyncInvokeStarted", { stateId: state.id, protocolName: data.protocolName });
 
     if (!this.spawnCallback) {
-      console.warn(`reagent.spawn() for protocol "${data.protocolName}" but no spawnCallback set`);
+      console.warn(`async invokes for protocol "${data.protocolName}" but no spawnCallback set`);
+      return;
+    }
+
+    let inputValue: Record<string, unknown> | undefined;
+    try {
+      inputValue = new Function("$ctx", "$self", `return (${data.input})`)(this.ctx, this.selfRef) as Record<string, unknown>;
+    } catch {
+      inputValue = {};
+    }
+
+    this.spawnCallback(data.protocolName, inputValue);
+  }
+
+  /** @deprecated — handles legacy "spawn" IR states; new code emits "async_invoke" */
+  private async handleSpawn(state: IRState): Promise<void> {
+    const data = state.data as { kind: "spawn"; protocolName: string; input: string; roleMapping?: Record<string, string> };
+    this.emitTrace("AsyncInvokeStarted", { stateId: state.id, protocolName: data.protocolName });
+
+    if (!this.spawnCallback) {
+      console.warn(`async invokes for protocol "${data.protocolName}" but no spawnCallback set`);
       return;
     }
 

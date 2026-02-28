@@ -23,8 +23,9 @@ message DeployProtocolFailed {
 }
 
 protocol DeployProtocol {
-  participants: ros [*], rc [*]
-  initiator: ros
+  participants:
+    ros [*] initiator,
+    rc [*]
 
   ros --> rc: DeployProtocolRequest
 

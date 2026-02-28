@@ -39,6 +39,55 @@ export type ProtocolDependency = {
   version: string;
 };
 
+// ── From lang/src/ast.ts — Participant modifiers ─────────────────────
+
+export type ParticipantBinding = "static" | "dynamic";
+export type ParticipantCardinality = "single" | "many";
+
+// ── From lang/src/ir.ts — Participant IR ─────────────────────────────
+
+export type ParticipantIR = {
+  name: string;
+  lang: LangTag;
+  binding: ParticipantBinding;
+  cardinality: ParticipantCardinality;
+  initiator: boolean;
+};
+
+// ── From lang/src/ir.ts — Resolve Policy IR ──────────────────────────
+
+export type ResolvePolicyIR = ResolvePipelineStepIR[];
+
+export type ResolvePipelineStepIR =
+  | { step: "all" }
+  | { step: "single" }
+  | { step: "from"; expr: string }
+  | { step: "filter"; predicate: string }
+  | { step: "roundRobin" }
+  | { step: "leastLoaded" }
+  | { step: "random" }
+  | { step: "sample"; count: number }
+  | { step: "first" }
+  | { step: "fallback"; chain: ResolvePipelineStepIR[] }
+  | { step: "custom"; name: string };
+
+// ── From lang/src/ir.ts — Trigger IR ─────────────────────────────────
+
+export type TriggerIR =
+  | { kind: "invoke";  withType: string; inputExpr?: string; resolveMap?: Record<string, ResolvePolicyIR> }
+  | { kind: "cron";    cron: string; inputExpr?: string; resolveMap?: Record<string, ResolvePolicyIR> }
+  | { kind: "event";   topic: string; withType: string; inputExpr?: string; resolveMap?: Record<string, ResolvePolicyIR> };
+
+// ── From lang/src/ir.ts — Agent Registration IR ──────────────────────
+
+export type AgentRegistrationIR = {
+  agentName: string;
+  roleName: string;
+  tags?: string[];
+  capabilities?: string[];
+  labels?: Record<string, string>;
+};
+
 // ── From lang/src/ir.ts — Protocol IR ───────────────────────────────
 
 export type IRGraph = {
@@ -48,7 +97,9 @@ export type IRGraph = {
   version?: string;
   fingerprints?: ProtocolFingerprint;
   dependencies?: ProtocolDependency[];
-  initiator?: string;
+  participants?: ParticipantIR[];
+  triggers?: TriggerIR[];
+  invocable?: boolean;
   states: IRState[];
   transitions: IRTransition[];
   initialStateId: string;
@@ -58,7 +109,7 @@ export type IRGraph = {
 export type IRStateKind =
   | "initial" | "send" | "receive" | "action" | "guard"
   | "fork" | "join" | "timer" | "terminal" | "error"
-  | "invoke" | "spawn" | "scatter";
+  | "invoke" | "async_invoke" | "spawn" | "scatter";
 
 export type IRState = {
   id: string;
@@ -78,7 +129,8 @@ export type IRStateData =
   | { kind: "terminal"; status: "completed" | "error" }
   | { kind: "error"; label: string }
   | { kind: "invoke"; protocolName: string; input: string; roleMapping?: Record<string, string>; resultTarget?: string }
-  | { kind: "spawn"; protocolName: string; input: string; roleMapping?: Record<string, string> }
+  | { kind: "async_invoke"; protocolName: string; input: string; roleMapping?: Record<string, string> }
+  | { kind: "spawn"; roleName: string; config: string; bindAs?: string; resultTarget?: string; persistent: boolean }
   | { kind: "scatter"; collection: string; itemRole: string; branchStartIds: string[] };
 
 export type IRTransition = {
@@ -116,6 +168,9 @@ export type ThinAgentIR = {
   lang: LangTag;
   roleName: string;
   roleFile: string;
+  tags?: string[];
+  capabilities?: string[];
+  labels?: Record<string, string>;
 };
 
 // ── Resolved Agent IR (what the runtime works with) ─────────────────
@@ -188,10 +243,19 @@ export type TraceEventKind =
   | "ErrorCaught"
   | "InvokeStarted"
   | "InvokeCompleted"
+  | "AsyncInvokeStarted"
   | "Spawned"
   | "ScatterStarted"
   | "ScatterCompleted"
-  | "EventEmitted";
+  | "EventEmitted"
+  | "TriggerMatched"
+  | "TriggerSuppressed"
+  | "TriggerDedupSkipped"
+  | "CronTick"
+  | "ResolveCompleted"
+  | "SpawnStarted"
+  | "SpawnCompleted"
+  | "SpawnFailed";
 
 export type TraceEvent = {
   instanceId: string;

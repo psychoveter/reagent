@@ -313,13 +313,25 @@ export class ReagentDiagramPanel {
         stateMachines.set(sm.role, sm);
       }
 
-      const inputTypeName = proto.input ?? null;
-      let inputMessageSchema: MessageFieldSchema[] | null = null;
-      if (inputTypeName) {
-        const messageDefs = items.filter((i: any) => i.kind === 'MessageDef');
-        const inputDef = messageDefs.find((m: any) => m.name === inputTypeName);
-        if (inputDef) inputMessageSchema = extractFieldSchemas(inputDef.fields ?? []);
+      const messageDefs = items.filter((i: any) => i.kind === 'MessageDef');
+      const triggers: import('./panelState').TriggerInfo[] = [];
+      for (const t of proto.triggers ?? []) {
+        let schema: MessageFieldSchema[] | null = null;
+        if (t.withType) {
+          const msgDef = messageDefs.find((m: any) => m.name === t.withType);
+          if (msgDef) schema = extractFieldSchemas(msgDef.fields ?? []);
+        }
+        triggers.push({
+          kind: t.triggerKind,
+          withType: t.withType,
+          cronExpr: t.cronExpr,
+          topic: t.topic,
+          schema,
+        });
       }
+      const firstWithType = triggers.find(t => t.withType);
+      const inputTypeName = firstWithType?.withType ?? null;
+      const inputMessageSchema = firstWithType?.schema ?? null;
 
       const projectVersion = seqDiagram.version || findProjectVersion(document.uri.fsPath);
 
@@ -337,6 +349,7 @@ export class ReagentDiagramPanel {
         roles,
         inputMessageSchema,
         inputMessageName: inputTypeName,
+        triggers,
         stateIdAlias,
       };
 
@@ -569,6 +582,45 @@ export class ReagentDiagramPanel {
     return agents.map(a => ({ name: a.agentName, role: a.roleName, node: a.nodeId }));
   }
 
+  /**
+   * Build a role → agent-name[] map from cluster state for all roles
+   * (not just initiators). Used by the renderer for live binding annotations.
+   */
+  private buildClusterBindings(): Map<string, string[]> | undefined {
+    if (!this.clusterPanel) return undefined;
+    const connected = !!this.state.cluster?.connected;
+    if (!connected) return undefined;
+
+    const compiledData = getCompiledData(this.state.context);
+    if (!compiledData) return undefined;
+
+    const clusterState = this.clusterPanel.getState();
+    const protoName = compiledData.protocolName;
+    const diagramRoles = new Set(compiledData.roles);
+
+    let agents = clusterState.agents.filter(a => a.protocolName === protoName);
+    if (agents.length === 0) {
+      const proto = clusterState.protocols.find(p => p.name === protoName);
+      if (proto && proto.boundAgents.length > 0) {
+        const bound = new Set(proto.boundAgents);
+        agents = clusterState.agents.filter(a => bound.has(a.agentName));
+      }
+    }
+    if (agents.length === 0) {
+      agents = clusterState.agents.filter(a => diagramRoles.has(a.roleName));
+    }
+
+    if (agents.length === 0) return undefined;
+
+    const bindings = new Map<string, string[]>();
+    for (const a of agents) {
+      const list = bindings.get(a.roleName) ?? [];
+      list.push(a.agentName);
+      bindings.set(a.roleName, list);
+    }
+    return bindings;
+  }
+
   // ── RAP event listeners ─────────────────────────────────────────
 
   private listenForStoppedEvents(): void {
@@ -702,6 +754,7 @@ export class ReagentDiagramPanel {
       protoName,
       inputSchema: compiledData?.inputMessageSchema ?? null,
       inputMessageName: compiledData?.inputMessageName ?? null,
+      triggers: compiledData?.triggers ?? [],
     });
   }
 
@@ -808,10 +861,12 @@ export class ReagentDiagramPanel {
       diagramHtml = '<div class="idle-placeholder">Open a <code>.rg</code> file to see the protocol diagram</div>';
     } else {
       const debugOpts = getDebugRenderOpts(ctx);
+      const clusterBindings = this.buildClusterBindings();
       const renderOpts = {
         sourceFile: compiledData?.sourceFile ?? '',
         sourceMap: compiledData?.sourceMap,
         debug: debugOpts,
+        clusterBindings,
       };
 
       if (!compiledData) {
@@ -832,6 +887,7 @@ export class ReagentDiagramPanel {
     const agentsJson = JSON.stringify(clusterAgents);
     const inputSchemaJson = JSON.stringify(compiledData?.inputMessageSchema ?? null);
     const inputMsgName = compiledData?.inputMessageName ?? null;
+    const triggersJson = JSON.stringify(compiledData?.triggers ?? []);
 
     // Mode badge
     const modeBadge = this.getModeBadgeHtml(mode);
@@ -875,7 +931,7 @@ ${STATE_MACHINE_CSS}
   </div>
   <div class="diagram-tooltip" id="diagram-tooltip"></div>
   <script>
-    ${this.getWebviewScript(mode, protoName, agentsJson, inputSchemaJson, inputMsgName, compiledData?.stateIdAlias)}
+    ${this.getWebviewScript(mode, protoName, agentsJson, inputSchemaJson, inputMsgName, triggersJson, compiledData?.stateIdAlias)}
   </script>
   <script>${SEQUENCE_DIAGRAM_SCRIPT}</script>
 </body>
@@ -991,8 +1047,24 @@ ${STATE_MACHINE_CSS}
       .join('');
 
     const compiledData = getCompiledData(this.state.context);
-    const msgLabel = compiledData?.inputMessageName
-      ? `Input: ${esc(compiledData.inputMessageName)}`
+    const triggersList = compiledData?.triggers ?? [];
+    const hasTriggers = triggersList.length > 0;
+    const showTriggerSelect = triggersList.length > 1;
+
+    const triggerOptions = triggersList
+      .map((t, i) => {
+        const label = t.kind === 'invoke'
+          ? `on invoke${t.withType ? ` with ${t.withType}` : ''}`
+          : t.kind === 'cron'
+            ? `on cron (${t.cronExpr ?? '...'})`
+            : `on event${t.topic ? ` "${t.topic}"` : ''}${t.withType ? ` with ${t.withType}` : ''}`;
+        return `<option value="${i}">${esc(label)}</option>`;
+      })
+      .join('');
+
+    const firstTrigger = triggersList[0];
+    const msgLabel = firstTrigger?.withType
+      ? `Input: ${esc(firstTrigger.withType)}`
       : 'Input';
 
     return `<div class="trigger-bar">
@@ -1005,6 +1077,10 @@ ${STATE_MACHINE_CSS}
           <label for="trigger-agent">Agent</label>
           <select id="trigger-agent" class="trigger-select">${agentOptions}</select>
         </div>
+        ${showTriggerSelect ? `<div class="trigger-row">
+          <label for="trigger-kind">Trigger</label>
+          <select id="trigger-kind" class="trigger-select">${triggerOptions}</select>
+        </div>` : ''}
         <div class="trigger-section-label" id="trigger-msg-label">${msgLabel}</div>
         <div id="trigger-fields" class="trigger-fields"></div>
         <div class="trigger-actions">
@@ -1023,6 +1099,7 @@ ${STATE_MACHINE_CSS}
     agentsJson: string,
     inputSchemaJson: string,
     inputMsgName: string | null,
+    triggersJson: string,
     aliasMap?: Map<string, string>,
   ): string {
     // Serialize alias map for the webview
@@ -1038,6 +1115,8 @@ ${STATE_MACHINE_CSS}
     var protoName = ${JSON.stringify(protoName)};
     var currentInputSchema = ${inputSchemaJson};
     var currentInputMsgName = ${JSON.stringify(inputMsgName)};
+    var protocolTriggers = ${triggersJson};
+    var selectedTriggerIdx = 0;
     var stateIdAlias = ${JSON.stringify(aliasObj)};
 
     // Resolve a runtime stateId to the diagram's canonical stateId
@@ -1192,8 +1271,35 @@ ${STATE_MACHINE_CSS}
       return JSON.stringify(obj);
     }
 
-    var formContainer = document.getElementById('trigger-fields');
-    if (formContainer) buildInputForm(currentInputSchema, formContainer);
+    function selectTrigger(idx) {
+      selectedTriggerIdx = idx;
+      var t = protocolTriggers[idx];
+      if (t) {
+        currentInputSchema = t.schema;
+        currentInputMsgName = t.withType || null;
+      } else {
+        currentInputSchema = null;
+        currentInputMsgName = null;
+      }
+      var fc = document.getElementById('trigger-fields');
+      if (fc) buildInputForm(currentInputSchema, fc);
+      var msgLabel = document.getElementById('trigger-msg-label');
+      if (msgLabel) msgLabel.textContent = currentInputMsgName ? 'Input: ' + currentInputMsgName : 'Input';
+    }
+
+    if (protocolTriggers.length > 0) {
+      selectTrigger(0);
+    } else {
+      var formContainer = document.getElementById('trigger-fields');
+      if (formContainer) buildInputForm(currentInputSchema, formContainer);
+    }
+
+    var triggerKindSel = document.getElementById('trigger-kind');
+    if (triggerKindSel) {
+      triggerKindSel.addEventListener('change', function() {
+        selectTrigger(parseInt(triggerKindSel.value, 10));
+      });
+    }
 
     document.getElementById('trigger-btn')?.addEventListener('click', function() {
       var agentSel = document.getElementById('trigger-agent');
@@ -1307,7 +1413,10 @@ ${STATE_MACHINE_CSS}
     window.addEventListener('message', function(event) {
       var msg = event.data;
       if (msg.type === 'triggerBarUpdate') {
-        if (msg.inputSchema !== undefined) {
+        if (msg.triggers && msg.triggers.length > 0) {
+          protocolTriggers = msg.triggers;
+          selectTrigger(selectedTriggerIdx < protocolTriggers.length ? selectedTriggerIdx : 0);
+        } else if (msg.inputSchema !== undefined) {
           var schemaChanged = JSON.stringify(msg.inputSchema) !== JSON.stringify(currentInputSchema);
           currentInputMsgName = msg.inputMessageName || null;
           if (schemaChanged) {

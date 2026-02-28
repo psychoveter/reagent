@@ -9,7 +9,7 @@ import type { RoleIR, IRGraph, MessageEnvelope, ProtocolTrigger } from "./types.
 import { resolveAgentIR, type AgentIR } from "./types.js";
 import type { ReagentTransport } from "./transport.js";
 import type { AgentNode, AgentHandle } from "./agent-node.js";
-import { AgentRunner } from "./agent-runner.js";
+import { AgentRunner, type EmitBusCallback } from "./agent-runner.js";
 import type { TraceHook } from "./interceptor.js";
 import type { AdvanceHook } from "./protocol-instance.js";
 
@@ -17,6 +17,7 @@ export interface NativeAgentNodeConfig {
   roleToAgent: Record<string, string>;
   traceHook?: TraceHook;
   advanceHook?: AdvanceHook;
+  emitBusCallback?: EmitBusCallback;
 }
 
 export class NativeAgentNode implements AgentNode {
@@ -24,12 +25,14 @@ export class NativeAgentNode implements AgentNode {
   private roleToAgent: Record<string, string>;
   private traceHook?: TraceHook;
   private advanceHook?: AdvanceHook;
+  private emitBusCb?: EmitBusCallback;
   private handles: NativeAgentHandle[] = [];
 
   constructor(config: NativeAgentNodeConfig) {
     this.roleToAgent = config.roleToAgent;
     this.traceHook = config.traceHook;
     this.advanceHook = config.advanceHook;
+    this.emitBusCb = config.emitBusCallback;
   }
 
   createAgent(
@@ -56,6 +59,7 @@ export class NativeAgentNode implements AgentNode {
       traceHook: this.traceHook,
       advanceHook: this.advanceHook,
       extras,
+      emitBusCallback: this.emitBusCb,
     });
 
     const handle = new NativeAgentHandle(agentName, runner);
@@ -68,6 +72,10 @@ export class NativeAgentNode implements AgentNode {
     for (const h of this.handles) {
       h.getRunner().setAdvanceHook(hook);
     }
+  }
+
+  setEmitBusCallback(cb: EmitBusCallback | undefined): void {
+    this.emitBusCb = cb;
   }
 
   async destroyAgent(handle: AgentHandle): Promise<void> {

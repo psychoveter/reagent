@@ -2,13 +2,14 @@ message TaskRequest {}
 message SubmitIntent {}
 
 // Example 07: child protocol invocation
-// Uses protocol-level `invokes` instead of zone-level reagent.invoke().
-// invokes = synchronous call to child protocol (blocks until return).
+// Uses protocol-level `invokes` — synchronous call to child protocol (blocks until return).
 
 protocol DeriveDsiBsi {
-  participants: comma [ts]
-  initiator: comma
-  input: DeriveRequest
+  participants:
+    comma [ts] initiator
+  trigger on invoke with DeriveRequest {
+    resolve comma = single
+  }
 
   comma {
     $ctx.dsiBsi = taskToDsiBsi($ctx.input.taskText)
@@ -17,9 +18,15 @@ protocol DeriveDsiBsi {
 }
 
 protocol TaskExecutionWithChild {
-  participants: user [ts], comma [ts], sia [*]
-  initiator: user
-  input: TaskRequest
+  participants:
+    user [ts] initiator,
+    comma [ts],
+    sia [*]
+  trigger on invoke with TaskRequest {
+    resolve user = single
+    resolve comma = single
+    resolve sia = single
+  }
 
   user {
     $ctx.taskText = $ctx.input.text
@@ -34,3 +41,20 @@ protocol TaskExecutionWithChild {
     }
   }
 }
+
+role UserRole [ts] {
+  plays TaskExecutionWithChild as user
+}
+
+role CommaRole [ts] {
+  plays TaskExecutionWithChild as comma
+  plays DeriveDsiBsi as comma
+}
+
+role SiaRole [*] {
+  plays TaskExecutionWithChild as sia
+}
+
+agent User runs UserRole
+agent Comma runs CommaRole
+agent Sia runs SiaRole

@@ -20,10 +20,10 @@
       }
     },
     {
-      "id": "spawn_3",
-      "kind": "spawn",
+      "id": "async_invoke_3",
+      "kind": "async_invoke",
       "data": {
-        "kind": "spawn",
+        "kind": "async_invoke",
         "protocolName": "BackgroundTask",
         "input": "{ taskName: $ctx.taskName }"
       }
@@ -78,13 +78,13 @@
     },
     {
       "from": "act_2",
-      "to": "spawn_3",
+      "to": "async_invoke_3",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "spawn_3",
+      "from": "async_invoke_3",
       "to": "act_4",
       "label": {
         "kind": "default"
@@ -117,9 +117,9 @@
     "end_7"
   ],
   "initiator": "orchestrator",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "fingerprints": {
-    "structureHash": "ad5738fcf15bf4729881cd95cb007215b03b1ba5308efa8707ca5d7669da38d6",
+    "structureHash": "eccfd5a72152ee4f5e213b2a60edaf35c4ec4162359702ce4654ecab0b7330a6",
     "schemaHash": "9697e5f70fda03c84bdca3be81d2820c296901e4625f462fe3d238731765b440",
     "implHash": "8c52cc8e925e02a180cf7a0f372872be685b61281be42e080ff726119bbc8615"
   },

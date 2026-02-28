@@ -17,7 +17,7 @@
       "column": 3
     },
     {
-      "stateId": "spawn_3",
+      "stateId": "async_invoke_3",
       "protocolName": "SpawnEmitDemo",
       "role": "orchestrator",
       "file": "examples/protocols/src/19-spawn-emit-demo.rg",

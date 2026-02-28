@@ -4,7 +4,8 @@
   "plays": [
     {
       "protocolName": "TaskProcessing",
-      "roleName": "dispatcher"
+      "roleName": "dispatcher",
+      "protocolVersion": "12.0.0"
     }
   ],
   "initAction": {
@@ -12,9 +13,9 @@
     "lang": "ts"
   },
   "lifecycleHandlers": [],
-  "version": "0.1.0",
+  "version": "2.0.0",
   "fingerprints": {
-    "playsHash": "d498c2ba655ad7e5d93767b8a53d1dcb8373a97c25a99bafab65d4f1970a3e63",
+    "playsHash": "90e4e45de59df75c336bc69ee6144132b6688719f7ab83a730d431f63cb16adb",
     "behaviorHash": "b896f9a93934f0972ca028c3432607ba47ddcffd23f8f3213378b63ef017df85"
   }
 }

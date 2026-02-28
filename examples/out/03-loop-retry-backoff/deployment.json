@@ -1,5 +1,47 @@
 {
-  "agents": [],
-  "roleToAgent": {},
+  "agents": [
+    {
+      "agentName": "Comma",
+      "lang": "ts",
+      "roleName": "CommaRole",
+      "agentIRFile": "Comma.agent.json",
+      "roleIRFile": "CommaRole.role.json",
+      "roles": [
+        {
+          "protocolName": "LoopRetryBackoff",
+          "roleName": "comma",
+          "irGraphFile": "LoopRetryBackoff.comma.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "Sia",
+      "lang": "*",
+      "roleName": "SiaRole",
+      "agentIRFile": "Sia.agent.json",
+      "roleIRFile": "SiaRole.role.json",
+      "roles": [
+        {
+          "protocolName": "LoopRetryBackoff",
+          "roleName": "sia",
+          "irGraphFile": "LoopRetryBackoff.sia.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "LoopRetryBackoff.comma": "Comma",
+    "LoopRetryBackoff.sia": "Sia"
+  },
+  "roles": [
+    {
+      "name": "CommaRole",
+      "file": "CommaRole.role.json"
+    },
+    {
+      "name": "SiaRole",
+      "file": "SiaRole.role.json"
+    }
+  ],
   "messages": "messages.json"
 }

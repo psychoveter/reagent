@@ -19,8 +19,10 @@ message SessionStatus {
 }
 
 protocol TraceStream {
-  participants: adapter [*], orchestrator [*], client [*]
-  initiator: adapter
+  participants:
+    adapter [*] initiator,
+    orchestrator [*],
+    client [*]
 
   adapter --> orchestrator: TraceEvent
   orchestrator --> client: TraceEvent

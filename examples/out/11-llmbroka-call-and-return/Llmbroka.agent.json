@@ -1,0 +1,6 @@
+{
+  "agentName": "Llmbroka",
+  "lang": "*",
+  "roleName": "LlmbrokaRole",
+  "roleFile": "LlmbrokaRole.role.json"
+}

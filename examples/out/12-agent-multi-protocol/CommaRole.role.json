@@ -4,11 +4,13 @@
   "plays": [
     {
       "protocolName": "TaskExecution",
-      "roleName": "comma"
+      "roleName": "comma",
+      "protocolVersion": "13.0.0"
     },
     {
       "protocolName": "HealthCheck",
-      "roleName": "comma"
+      "roleName": "comma",
+      "protocolVersion": "18.0.0"
     }
   ],
   "initAction": {
@@ -41,9 +43,9 @@
       }
     }
   ],
-  "version": "9.0.0",
+  "version": "24.0.0",
   "fingerprints": {
-    "playsHash": "c1ebfa09d085bb379a098f050b87cf4193b64714849da7c36480462d18cdc6da",
+    "playsHash": "330fdf49fd7daccc353cafee5e520072f651a887495574011c3109da13185bfb",
     "behaviorHash": "6c9a6242fca2132097085defabab7de2d62f526f498be33d020ef4d1c8ea4c4a"
   }
 }

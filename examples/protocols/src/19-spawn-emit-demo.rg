@@ -1,13 +1,15 @@
-// Example 19: protocol-level spawns (fire-and-forget) + reagent.emit (event broadcasting)
-// Uses protocol-level spawns instead of zone-level reagent.spawn().
+// Example 19: async invokes (fire-and-forget protocol call) + reagent.emit (event broadcasting)
+// Uses protocol-level `async invokes` for non-blocking sub-protocol launch.
 
 message WorkRequest {}
 message WorkResult {}
 
 protocol BackgroundTask {
-  participants: worker [ts]
-  initiator: worker
-  input: TaskInput
+  participants:
+    worker [ts] initiator
+  trigger on invoke with TaskInput {
+    resolve worker = single
+  }
 
   worker {
     $ctx.result = "bg-done:" + $ctx.input.taskName
@@ -16,14 +18,15 @@ protocol BackgroundTask {
 }
 
 protocol SpawnEmitDemo {
-  participants: orchestrator [ts], helper [ts]
-  initiator: orchestrator
+  participants:
+    orchestrator [ts] initiator,
+    helper [ts]
 
   orchestrator {
     $ctx.taskName = "compute"
   }
 
-  orchestrator spawns BackgroundTask({ taskName: $ctx.taskName })
+  orchestrator async invokes BackgroundTask({ taskName: $ctx.taskName })
 
   orchestrator {
     $self.spawned = ($self.spawned || 0) + 1

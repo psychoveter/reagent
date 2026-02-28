@@ -18,9 +18,13 @@ message Rejected {
 }
 
 protocol AdapterHandshake {
-  participants: adapter [*], orchestrator [*]
-  initiator: adapter
-  input: Register
+  participants:
+    adapter [*] initiator,
+    orchestrator [*]
+  trigger on invoke with Register {
+    resolve adapter = single
+    resolve orchestrator = single
+  }
 
   adapter --> orchestrator: Register
 

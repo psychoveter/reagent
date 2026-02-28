@@ -1,7 +1,7 @@
 /**
- * Reagent IR — v0.0.11
+ * Reagent IR — v0.0.14
  *
- * Three levels of IR:
+ * Four levels of IR:
  *
  * 1. Protocol IR (IRGraph) — per-role state machine representation.
  *    Each role in a protocol gets its own IRGraph — the local view of the global choreography.
@@ -10,10 +10,12 @@
  * 2. Role IR (RoleIR) — per-role behavioral contract with lifecycle.
  *    Rich representation of the role: plays, init, handlers, inheritance chain.
  *
- * 3. Agent IR (AgentIR) — thin per-agent deployment binding.
+ * 3. Agent IR (AgentIR) — per-agent deployment binding with optional metadata.
  *    References the role it runs; the runtime resolves behavioral details from RoleIR.
+ *
+ * 4. Agent Registration IR (AgentRegistrationIR) — agent metadata for resolve policies.
  */
-import type { RoleEventKind, ArrowKind, Duration, LangTag, TypeExpr } from "./ast.js";
+import type { RoleEventKind, ArrowKind, Duration, LangTag, TypeExpr, ParticipantBinding, ParticipantCardinality } from "./ast.js";
 export type ProtocolFingerprint = {
     structureHash: string;
     schemaHash: string;
@@ -28,6 +30,59 @@ export type ProtocolDependency = {
     structureHash: string;
     version: string;
 };
+export type ParticipantIR = {
+    name: string;
+    lang: LangTag;
+    binding: ParticipantBinding;
+    cardinality: ParticipantCardinality;
+    initiator: boolean;
+};
+export type ResolvePolicyIR = ResolvePipelineStepIR[];
+export type ResolvePipelineStepIR = {
+    step: "all";
+} | {
+    step: "single";
+} | {
+    step: "from";
+    expr: string;
+} | {
+    step: "filter";
+    predicate: string;
+} | {
+    step: "roundRobin";
+} | {
+    step: "leastLoaded";
+} | {
+    step: "random";
+} | {
+    step: "sample";
+    count: number;
+} | {
+    step: "first";
+} | {
+    step: "fallback";
+    chain: ResolvePipelineStepIR[];
+} | {
+    step: "custom";
+    name: string;
+};
+export type TriggerIR = {
+    kind: "invoke";
+    withType: string;
+    inputExpr?: string;
+    resolveMap?: Record<string, ResolvePolicyIR>;
+} | {
+    kind: "cron";
+    cron: string;
+    inputExpr?: string;
+    resolveMap?: Record<string, ResolvePolicyIR>;
+} | {
+    kind: "event";
+    topic: string;
+    withType: string;
+    inputExpr?: string;
+    resolveMap?: Record<string, ResolvePolicyIR>;
+};
 export type IRGraph = {
     protocolName: string;
     role: string;
@@ -35,19 +90,21 @@ export type IRGraph = {
     version?: string;
     fingerprints?: ProtocolFingerprint;
     dependencies?: ProtocolDependency[];
-    initiator?: string;
+    participants?: ParticipantIR[];
+    triggers?: TriggerIR[];
+    invocable?: boolean;
     states: IRState[];
     transitions: IRTransition[];
     initialStateId: string;
     terminalStateIds: string[];
 };
-export type IRStateKind = "initial" | "send" | "receive" | "action" | "guard" | "fork" | "join" | "timer" | "terminal" | "error" | "invoke" | "spawn" | "scatter";
+export type IRStateKind = "initial" | "send" | "receive" | "action" | "guard" | "fork" | "join" | "timer" | "terminal" | "error" | "invoke" | "async_invoke" | "spawn" | "scatter";
 export type IRState = {
     id: string;
     kind: IRStateKind;
     data: IRStateData;
 };
-export type IRStateData = IRInitialData | IRSendData | IRReceiveData | IRActionData | IRGuardData | IRForkData | IRJoinData | IRTimerData | IRTerminalData | IRErrorData | IRInvokeData | IRSpawnData | IRScatterData;
+export type IRStateData = IRInitialData | IRSendData | IRReceiveData | IRActionData | IRGuardData | IRForkData | IRJoinData | IRTimerData | IRTerminalData | IRErrorData | IRInvokeData | IRAsyncInvokeData | IRSpawnData | IRScatterData;
 export type IRInitialData = {
     kind: "initial";
 };
@@ -117,11 +174,19 @@ export type IRInvokeData = {
     roleMapping?: Record<string, string>;
     resultTarget?: string;
 };
-export type IRSpawnData = {
-    kind: "spawn";
+export type IRAsyncInvokeData = {
+    kind: "async_invoke";
     protocolName: string;
     input: string;
     roleMapping?: Record<string, string>;
+};
+export type IRSpawnData = {
+    kind: "spawn";
+    roleName: string;
+    config: string;
+    bindAs?: string;
+    resultTarget?: string;
+    persistent: boolean;
 };
 export type IRScatterData = {
     kind: "scatter";
@@ -169,6 +234,16 @@ export type AgentIR = {
     lang: LangTag;
     roleName: string;
     roleFile: string;
+    tags?: string[];
+    capabilities?: string[];
+    labels?: Record<string, string>;
+};
+export type AgentRegistrationIR = {
+    agentName: string;
+    roleName: string;
+    tags?: string[];
+    capabilities?: string[];
+    labels?: Record<string, string>;
 };
 export type AgentPlaysBinding = {
     protocolName: string;
