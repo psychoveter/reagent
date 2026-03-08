@@ -1,0 +1,8 @@
+{
+  "name": "autoscience",
+  "version": "0.1.0",
+  "description": "Automated research process: theorist (human), systematizer (LLM consultant), experimenter (LLM researcher). Demonstrates MCP Gate integration with Claude Code agents.",
+  "protocols": [
+    "protocols/*.rg"
+  ]
+}

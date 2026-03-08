@@ -602,7 +602,7 @@ AKG работает не только с кодом. Он может опери
 
 RFC: [`mcp-gate-rfc.md`](mcp-gate-rfc.md)
 
-RC выставляет MCP-сервер, через который LLM-агенты (Claude Code, Cursor, OpenClaw) становятся полноценными участниками Reagent-протоколов. `McpGateTransport` — четвёртый транспорт в Gate, рядом с WS/stdio/HTTP. Ключевая проблема — доставка входящих событий (push) агентам в pull-модели MCP — решается тремя стратегиями: AgentLauncher (спавн сессии на каждый event), MCP SSE notifications (когда клиенты начнут поддерживать), polling (fallback). Развивает идею "акторной сети с LLM-агентами" (выше) до конкретной реализации.
+RC выставляет MCP-сервер, через который LLM-агенты (Claude Code, Cursor, OpenClaw) становятся полноценными участниками Reagent-протоколов. `McpGateTransport` — четвёртый транспорт в Gate, рядом с WS/stdio/HTTP. Основная модель — **persistent agent session**: Claude Code подключается, регистрируется (появляется в discovery), и получает события через long-poll тул `reagent/wait_for_events()` — блокирующий MCP tool call, который держит ответ до появления события. Агент крутит event loop: wait → process → respond → wait. Участвует в нескольких инстансах/протоколах одновременно. Fallback: AgentLauncher (спавн сессии на каждый event) для stateless-сценариев. Развивает идею "акторной сети с LLM-агентами" (выше) до конкретной реализации.
 
 ---
 
