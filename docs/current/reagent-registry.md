@@ -81,6 +81,7 @@ The `docs/` folder is split by temporal relevance:
 |---|---|---|
 | **Scatter / Gather** | [scatter-gather-semantics.md](scatter-gather-semantics.md) | Detailed semantics for parallel fan-out, branch isolation, and collection. |
 | **NMMO** | [nmmo-reagent-support.md](nmmo-reagent-support.md) | Feature gaps and requirements for the Neural MMO multi-agent use case. |
+| **Test Spec** | [test-spec.md](test-spec.md) | Test suite overview, file locations, and full test registry (~310 tests). |
 
 ### Future & Backlog
 | Area | Document | Description |
