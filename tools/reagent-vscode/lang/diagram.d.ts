@@ -1,11 +1,13 @@
 /**
- * diagram.ts — IR to diagram data model.
+ * diagram.ts — IR/AST to diagram data model.
  *
- * Converts compiled IRGraphs (per-role state machines) into a unified
- * diagram model suitable for sequence diagram and state machine rendering.
+ * Converts compiled IRGraphs (per-role state machines) or parsed ASTs
+ * into a unified diagram model suitable for sequence diagram and
+ * state machine rendering.
  * Shared between VSCode extension and CLI.
  */
 import type { IRGraph, IRStateKind } from "./ir.js";
+import type { ProtocolDef } from "./ast.js";
 export type Participant = {
     name: string;
     lang?: string;
@@ -41,6 +43,8 @@ export type SeqElement = {
     };
     /** Whether zone is async */
     async?: boolean;
+    /** Source line from AST loc (1-based). Used for click-to-source when stateId is absent. */
+    sourceLine?: number;
 };
 export type SequenceDiagram = {
     protocolName: string;
@@ -73,6 +77,19 @@ export type StateMachineDiagram = {
  * other roles for receive-side information.
  */
 export declare function buildSequenceDiagram(graphs: Map<string, IRGraph>, protocolName: string): SequenceDiagram;
+/**
+ * Build a sequence diagram by walking the protocol AST directly.
+ *
+ * Unlike `buildSequenceDiagram` (which walks the initiator's IR graph and
+ * therefore only sees messages involving the initiator), this function walks
+ * the protocol body — the global choreography — so it emits elements for
+ * **all** inter-role messages, actions, and control structures.
+ *
+ * Preferred when the parsed AST is available (always the case in the VSCode
+ * extension). Falls back to `buildSequenceDiagram` when only IR is available
+ * (e.g. decompiling deployed IR from a running cluster).
+ */
+export declare function buildSequenceDiagramFromAST(protocol: ProtocolDef, version?: string): SequenceDiagram;
 /**
  * Build a state machine diagram for a single role's IRGraph.
  */

@@ -1,8 +1,9 @@
 /**
- * diagram.ts — IR to diagram data model.
+ * diagram.ts — IR/AST to diagram data model.
  *
- * Converts compiled IRGraphs (per-role state machines) into a unified
- * diagram model suitable for sequence diagram and state machine rendering.
+ * Converts compiled IRGraphs (per-role state machines) or parsed ASTs
+ * into a unified diagram model suitable for sequence diagram and
+ * state machine rendering.
  * Shared between VSCode extension and CLI.
  */
 
@@ -24,6 +25,13 @@ import type {
   IRSpawnData,
   TriggerIR,
 } from "./ir.js";
+
+import type {
+  ProtocolDef,
+  ProtocolItem,
+  ParticipantDecl,
+  TriggerDecl,
+} from "./ast.js";
 
 // ── Sequence Diagram Model ─────────────────────────────────────────
 
@@ -77,6 +85,8 @@ export type SeqElement = {
   duration?: { value: number; unit: string };
   /** Whether zone is async */
   async?: boolean;
+  /** Source line from AST loc (1-based). Used for click-to-source when stateId is absent. */
+  sourceLine?: number;
 };
 
 export type SequenceDiagram = {
@@ -192,6 +202,201 @@ export function buildSequenceDiagram(
   walkForSequence(initiatorGraph.initialStateId, stateMap, transFrom, initiatorRole, elements, new Set());
 
   return { protocolName, version, participants, elements };
+}
+
+// ── Build Sequence Diagram from AST ───────────────────────────────
+
+/**
+ * Build a sequence diagram by walking the protocol AST directly.
+ *
+ * Unlike `buildSequenceDiagram` (which walks the initiator's IR graph and
+ * therefore only sees messages involving the initiator), this function walks
+ * the protocol body — the global choreography — so it emits elements for
+ * **all** inter-role messages, actions, and control structures.
+ *
+ * Preferred when the parsed AST is available (always the case in the VSCode
+ * extension). Falls back to `buildSequenceDiagram` when only IR is available
+ * (e.g. decompiling deployed IR from a running cluster).
+ */
+export function buildSequenceDiagramFromAST(
+  protocol: ProtocolDef,
+  version?: string,
+): SequenceDiagram {
+  const participants: Participant[] = protocol.participants.map(p => ({
+    name: p.name,
+    lang: p.lang === "*" ? undefined : p.lang,
+    isInitiator: p.initiator === true,
+    binding: p.binding,
+    cardinality: p.cardinality,
+  }));
+
+  const initiator = participants.find(p => p.isInitiator)?.name
+    ?? participants[0]?.name
+    ?? "";
+
+  const elements: SeqElement[] = [];
+
+  // Emit trigger annotations
+  for (const t of protocol.triggers ?? []) {
+    elements.push({
+      kind: "trigger",
+      role: initiator,
+      label: astTriggerLabel(t),
+    });
+  }
+
+  walkASTBody(protocol.body, elements);
+
+  return { protocolName: protocol.name, version, participants, elements };
+}
+
+function walkASTBody(body: ProtocolItem[], elements: SeqElement[]): void {
+  for (const item of body) {
+    switch (item.kind) {
+      case "MessageStmt": {
+        const isAsync = item.props?.hooks.some(h =>
+          /\bawait\b/.test(h.body)
+        ) ?? false;
+        elements.push({
+          kind: "message",
+          role: item.from,
+          from: item.from,
+          to: item.to,
+          label: item.messageName,
+          async: isAsync || undefined,
+          sourceLine: item.loc.start.line,
+        });
+        break;
+      }
+      case "AgentZone": {
+        const isAsync = /\bawait\b/.test(item.body);
+        elements.push({
+          kind: "action",
+          role: item.agent,
+          label: summarizeZone(item.body),
+          async: isAsync || undefined,
+          sourceLine: item.loc.start.line,
+        });
+        break;
+      }
+      case "LoopStmt": {
+        elements.push({
+          kind: "loop_start",
+          role: "",
+          label: "loop",
+          condition: item.guard,
+          sourceLine: item.loc.start.line,
+        });
+        walkASTBody(item.body, elements);
+        elements.push({ kind: "loop_end", role: "", label: "end loop" });
+        break;
+      }
+      case "AltStmt": {
+        elements.push({ kind: "alt_start", role: "", label: "alt", sourceLine: item.loc.start.line });
+        for (let i = 0; i < item.branches.length; i++) {
+          const branch = item.branches[i];
+          const cond = altGuardLabel(branch.guard);
+          if (i === 0) {
+            elements.push({ kind: "alt_branch", role: "", label: "when", condition: cond, sourceLine: branch.loc.start.line });
+          } else {
+            elements.push({ kind: "alt_branch", role: "", label: "else", condition: cond, sourceLine: branch.loc.start.line });
+          }
+
+          if (branch.guard.kind === "AltMessageGuard") {
+            elements.push({
+              kind: "message",
+              role: branch.guard.from,
+              from: branch.guard.from,
+              to: branch.guard.to,
+              label: branch.guard.messageName,
+              sourceLine: branch.guard.loc.start.line,
+            });
+          }
+
+          walkASTBody(branch.body, elements);
+        }
+        elements.push({ kind: "alt_end", role: "", label: "end alt" });
+        break;
+      }
+      case "ScatterStmt": {
+        elements.push({
+          kind: "scatter_start",
+          role: "",
+          label: "scatter",
+          collection: item.collection,
+          itemRole: item.itemRole,
+          sourceLine: item.loc.start.line,
+        });
+        walkASTBody(item.body, elements);
+        elements.push({ kind: "scatter_end", role: "", label: "end scatter" });
+        break;
+      }
+      case "ParStmt": {
+        elements.push({ kind: "par_start", role: "", label: "par", sourceLine: item.loc.start.line });
+        for (const branch of item.branches) {
+          walkASTBody(branch.body, elements);
+        }
+        elements.push({ kind: "par_end", role: "", label: "end par" });
+        break;
+      }
+      case "InvokeStmt": {
+        elements.push({
+          kind: item.async ? "async_invoke" : "invoke",
+          role: item.callerRole,
+          label: `${item.async ? "async " : ""}invoke ${item.protocolName}`,
+          protocolName: item.protocolName,
+          sourceLine: item.loc.start.line,
+        });
+        break;
+      }
+      case "SpawnStmt": {
+        elements.push({
+          kind: "spawn",
+          role: item.callerRole,
+          label: `spawn ${item.roleName}`,
+          protocolName: item.roleName,
+          sourceLine: item.loc.start.line,
+        });
+        break;
+      }
+      case "WaitStmt": {
+        elements.push({
+          kind: "timer",
+          role: "",
+          label: `wait ${item.duration.value}${item.duration.unit}`,
+          duration: item.duration,
+          sourceLine: item.loc.start.line,
+        });
+        break;
+      }
+      case "TryStmt": {
+        elements.push({ kind: "alt_start", role: "", label: "try", sourceLine: item.loc.start.line });
+        elements.push({ kind: "alt_branch", role: "", label: "try", condition: "success" });
+        walkASTBody(item.tryBody, elements);
+        elements.push({ kind: "alt_branch", role: "", label: "catch", condition: item.catchLabel });
+        walkASTBody(item.catchBody, elements);
+        elements.push({ kind: "alt_end", role: "", label: "end try" });
+        break;
+      }
+    }
+  }
+}
+
+function altGuardLabel(guard: import("./ast.js").AltGuard): string {
+  switch (guard.kind) {
+    case "AltExprGuard": return guard.expr;
+    case "AltMessageGuard": return guard.messageName;
+    case "AltTimeoutGuard": return `${guard.duration.value}${guard.duration.unit}`;
+    case "AltElseGuard": return "otherwise";
+  }
+}
+
+function astTriggerLabel(t: TriggerDecl): string {
+  switch (t.triggerKind) {
+    case "invoke": return `trigger on invoke${t.withType ? ` with ${t.withType}` : ""}`;
+    case "cron":   return `trigger on cron "${t.cronExpr ?? "..."}"`;
+    case "event":  return `trigger on event "${t.topic ?? ""}"${t.withType ? ` with ${t.withType}` : ""}`;
+  }
 }
 
 function walkForSequence(

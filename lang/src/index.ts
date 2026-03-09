@@ -35,6 +35,7 @@ export type { ReagentManifest, ResolvedImport } from "./project.js";
 export { decompileSingleRole, decompileMultiRole, cmdDecompile } from "./ir-decompiler.js";
 export {
   buildSequenceDiagram,
+  buildSequenceDiagramFromAST,
   buildStateMachineDiagram,
 } from "./diagram.js";
 export type {

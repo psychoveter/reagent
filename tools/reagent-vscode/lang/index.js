@@ -7,4 +7,4 @@ export { computeStructureHash, computeSchemaHash, computeImplHash, computeProtoc
 export { readLock, writeLock, bumpVersion, classifyProtocolChange, classifyRoleChange, computeProtocolVersion, computeRoleVersion, } from "./versioning.js";
 export { loadManifest, resolveGlobs, resolveImport, scaffoldProject, } from "./project.js";
 export { decompileSingleRole, decompileMultiRole, cmdDecompile } from "./ir-decompiler.js";
-export { buildSequenceDiagram, buildStateMachineDiagram, } from "./diagram.js";
+export { buildSequenceDiagram, buildSequenceDiagramFromAST, buildStateMachineDiagram, } from "./diagram.js";

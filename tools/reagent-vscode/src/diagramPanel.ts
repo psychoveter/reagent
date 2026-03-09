@@ -36,6 +36,7 @@ interface DiagramCompiler {
   emitIR: (proto: any) => any;
   resetIdCounter: () => void;
   buildSequenceDiagram: (graphs: Map<string, any>, name: string) => SequenceDiagramData;
+  buildSequenceDiagramFromAST: (protocol: any, version?: string) => SequenceDiagramData;
   buildStateMachineDiagram: (graph: any) => StateMachineDiagramData;
 }
 
@@ -52,6 +53,7 @@ async function getDiagramCompiler(extensionPath: string): Promise<DiagramCompile
     emitIR: emitter.emitIR,
     resetIdCounter: emitter.resetIdCounter,
     buildSequenceDiagram: diagram.buildSequenceDiagram,
+    buildSequenceDiagramFromAST: diagram.buildSequenceDiagramFromAST,
     buildStateMachineDiagram: diagram.buildStateMachineDiagram,
   };
   return _diagramCompiler;
@@ -306,7 +308,8 @@ export class ReagentDiagramPanel {
         if (entry.line != null) sourceMap.set(entry.stateId, entry.line);
       }
 
-      const seqDiagram = compiler.buildSequenceDiagram(graphs, proto.name);
+      const projectVersion = findProjectVersion(document.uri.fsPath);
+      const seqDiagram = compiler.buildSequenceDiagramFromAST(proto, projectVersion);
       const stateMachines = new Map<string, StateMachineDiagramData>();
       for (const [, graph] of graphs) {
         const sm = compiler.buildStateMachineDiagram(graph);
@@ -332,8 +335,6 @@ export class ReagentDiagramPanel {
       const firstWithType = triggers.find(t => t.withType);
       const inputTypeName = firstWithType?.withType ?? null;
       const inputMessageSchema = firstWithType?.schema ?? null;
-
-      const projectVersion = seqDiagram.version || findProjectVersion(document.uri.fsPath);
 
       // Build stateId alias map: maps runtime stateIds from all roles
       // to the diagram element's stateId (which comes from the initiator's graph).
@@ -1137,13 +1138,12 @@ ${STATE_MACHINE_CSS}
     var breakpointStates = new Set();
 
     // ── Diagram element click (source nav + breakpoint toggle) ──
-    document.querySelectorAll('[data-state-id]').forEach(function(el) {
+    document.querySelectorAll('[data-state-id], [data-src-line]').forEach(function(el) {
       el.style.cursor = 'pointer';
       el.addEventListener('click', function(e) {
         var stateId = el.getAttribute('data-state-id');
-        if (!stateId) return;
 
-        if (e.shiftKey || e.altKey) {
+        if (stateId && (e.shiftKey || e.altKey)) {
           if (breakpointStates.has(stateId)) {
             breakpointStates.delete(stateId);
             el.classList.remove('debug-breakpoint');
@@ -1164,13 +1164,14 @@ ${STATE_MACHINE_CSS}
 
     // ── Tooltip ──
     var tooltip = document.getElementById('diagram-tooltip');
-    document.querySelectorAll('[data-state-id]').forEach(function(el) {
+    document.querySelectorAll('[data-state-id], [data-src-line]').forEach(function(el) {
       el.addEventListener('mouseenter', function() {
         var stateId = el.getAttribute('data-state-id');
         var kind = el.getAttribute('data-state-kind') || '';
         var label = el.getAttribute('data-state-label') || '';
-        if (!stateId || !tooltip) return;
-        var html = '<span class="tt-state-id">' + stateId + '</span>';
+        if (!tooltip) return;
+        if (!stateId && !kind && !label) return;
+        var html = stateId ? '<span class="tt-state-id">' + stateId + '</span>' : '';
         if (kind) html += '<span class="tt-kind">' + kind + '</span>';
         if (label) html += '<span class="tt-label">' + label + '</span>';
         tooltip.innerHTML = html;

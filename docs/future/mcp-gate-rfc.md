@@ -1,9 +1,10 @@
 # RFC: Reagent as MCP Server (MCP Gate)
 
-**Date:** 2026-03-08
-**Status:** RFC draft
+**Date:** 2026-03-08 (updated 2026-03-09)
+**Status:** RFC draft v2
 **Area:** runtime/ts, integration
-**Depends on:** Message Gate (done), R1 (Py Gate — for Py RC parity)
+**Depends on:** Message Gate (done), CustomAgentNode (done), ROS (done),
+  RemoteNode (done)
 
 ---
 
@@ -29,6 +30,45 @@ bridges the two worlds without requiring changes on the client side.
 
 ## Design
 
+### Execution model: CustomAgentNode-style
+
+**Decision: the ProtocolEngine runs on the RC side (inside RemoteNode), not
+on the MCP client.** The engine handles send/receive routing, timers, guards,
+invokes, and all FSM transitions automatically. The MCP agent only sees
+**zone events** — the points where the protocol needs the agent to make a
+decision or produce data.
+
+This is the same model as `CustomAgentNode`: the engine calls
+`AgentInterface.handle(event)` only for `action`, `pre_send_action`, and
+`post_receive_action` events. The MCP Gate translates these into MCP tool
+interactions.
+
+```
+What the agent sees via wait_for_events:
+  ✓ action                — zone code, agent must compute and respond
+  ✓ pre_send_action       — onSend hook, agent prepares message payload
+  ✓ post_receive_action   — onReceive hook, agent processes received message
+  ✓ protocol_started      — informational notification
+  ✓ protocol_completed    — informational notification
+  ✓ protocol_failed       — informational notification
+
+What the engine handles automatically (invisible to agent):
+  ✗ send                  — engine builds envelope, routes via transport
+  ✗ receive               — engine waits for message, delivers to ctx
+  ✗ timer                 — engine handles timeout
+  ✗ guard / join          — engine evaluates, follows transition
+  ✗ invoke / spawn        — engine delegates to RC
+```
+
+**Why this model?**
+- Simpler agent: doesn't need to understand routing, addressing, FSM
+- Correct by construction: engine enforces protocol choreography
+- Same contract as in-process agents: protocol behavior is identical
+  regardless of transport
+- Smaller tool surface: agent only needs `respond` with `ctx_update`
+- Human-friendly: zone code describes what to do, agent (or human) provides
+  the answer
+
 ### Primary model: persistent agent session
 
 The central design is a **long-lived MCP session** where a Claude Code (or any
@@ -38,13 +78,13 @@ participate in multiple protocol instances simultaneously, and receives
 incoming events via a **long-poll tool call**.
 
 ```
-Claude Code session lifecycle:
+Agent session lifecycle:
 
-  1. Connect to Reagent MCP server (stdio or Streamable HTTP)
+  1. Connect to Reagent MCP server (Streamable HTTP)
   2. reagent/register(agentName, roles[])     → agent appears in discovery
   3. reagent/wait_for_events(timeout?)        → BLOCKS until event arrives
-  4.   ← returns [{instanceId, event}]
-  5. reagent/respond(instanceId, response)    → RC advances FSM
+  4.   ← returns [{instanceId, event}]        (only zone/lifecycle events)
+  5. reagent/respond(instanceId, response)    → engine processes, advances FSM
   6. goto 3 (loop)
   ...
   N. reagent/unregister()                     → agent leaves discovery
@@ -52,54 +92,44 @@ Claude Code session lifecycle:
 
 The key insight: **`reagent/wait_for_events` is a blocking MCP tool call**.
 The MCP server holds the JSON-RPC response until an event is available (or
-timeout expires). From Claude Code's perspective, it calls a tool and waits —
+timeout expires). From the agent's perspective, it calls a tool and waits —
 the same way it would call any slow tool (e.g. a build or test runner).
-When the tool returns, Claude Code sees the event, reasons about it, responds
+When the tool returns, the agent sees the event, reasons about it, responds
 via `reagent/respond`, then calls `wait_for_events` again.
 
-This creates a **cooperative event loop** driven by the agent:
-
 ```
-Claude Code                          Reagent RC (MCP server)
+MCP Client                           RemoteNode (MCP server)
     │                                        │
     │  tool: reagent/register("claude-1",    │
     │         roles: ["reviewer"])            │
     │ ──────────────────────────────────────► │  → agent registered
-    │                                        │  → appears in discovery
     │  ◄──────────────────────────────────── │  {ok, agentId}
     │                                        │
     │  tool: reagent/wait_for_events()       │
     │ ──────────────────────────────────────► │
-    │                    ...                  │  (holding response)
-    │                    ...                  │
-    │              (protocol starts,          │
-    │               event for this agent)     │
+    │                    ...                  │  (engine runs, reaches zone)
     │                                        │
     │  ◄──────────────────────────────────── │  [{instanceId: "rev-42",
-    │                                        │    event: {type: "receive",
-    │                                        │     message: "PullRequest",
-    │                                        │     payload: {diff: "..."}}}]
+    │                                        │    event: {type: "action",
+    │                                        │     body: "$ctx.feedback = ...",
+    │                                        │     ctx: {msg: {diff: "..."}}}}]
     │                                        │
-    │  (Claude reasons about the PR)         │
+    │  (agent reasons about the code)        │
     │                                        │
     │  tool: reagent/respond("rev-42",       │
-    │    {ctx: {verdict: "approve"}})         │
-    │ ──────────────────────────────────────► │  → FSM advances
-    │  ◄──────────────────────────────────── │  {ok, nextState}
+    │    {ctx: {feedback: {verdict: "ok"}}}) │
+    │ ──────────────────────────────────────► │  → engine continues
+    │  ◄──────────────────────────────────── │  {ok}
     │                                        │
     │  tool: reagent/wait_for_events()       │
-    │ ──────────────────────────────────────► │  (blocks again, waiting
-    │                    ...                  │   for next event across
-    │                    ...                  │   any protocol instance)
+    │ ──────────────────────────────────────► │  (blocks again)
 ```
 
 ### Properties of the persistent session model
 
 **Agent identity.** The MCP session is bound to a named agent (`agentName`).
 This agent registers its roles with RC, appears in the agent registry and
-discovery (gossip/etcd), and is addressable by name — exactly like an
-in-process or subprocess agent. Other agents can send messages to it.
-Trigger resolve policies can match it.
+discovery, and is addressable by name — exactly like an in-process agent.
 
 **Multi-instance participation.** One agent session handles events from
 multiple protocol instances. `wait_for_events` returns events from any
@@ -109,12 +139,11 @@ instance where this agent participates. The agent multiplexes by `instanceId`.
 at registration time. RC can assign it to any matching protocol via triggers
 or explicit instantiation.
 
-**Natural backpressure.** The agent processes events at its own pace. It calls
-`wait_for_events`, gets an event, processes it, responds, then asks for more.
+**Natural backpressure.** The agent processes events at its own pace.
 RC queues events for this agent until it's ready. No event is lost.
 
-**Graceful disconnect.** If the MCP connection drops (agent crashes, user
-closes Claude Code), RC detects the transport close and either:
+**Graceful disconnect.** If the MCP connection drops, RC detects the
+transport close and either:
 - Marks the agent as unavailable in discovery (protocol instances wait/timeout)
 - Fires a `system.agent.disconnected` event for supervision protocols
 
@@ -141,18 +170,24 @@ reagent/unregister()
 reagent/wait_for_events(timeout_ms?, max_events?)
   → [{instanceId, protocolName, role, event: ProtocolEvent}]
   Long-poll: blocks until at least one event is available for this agent,
-  or timeout expires (returns [] on timeout). Events span all protocol
-  instances where this agent participates.
+  or timeout expires (returns [] on timeout). Only returns zone events
+  (action, pre_send_action, post_receive_action) and lifecycle events
+  (protocol_started, protocol_completed, protocol_failed).
 
 ── Protocol interaction ──
 
 reagent/respond(instanceId, response: AgentResponse)
   → {ok, nextState?}
-  Submit response for a specific protocol instance event.
+  Submit response for a specific protocol instance event. Typically
+  {type: "ctx_update", ctx: {...}} for zone events.
 
-reagent/send_message(instanceId, messageName, payload)
-  → {ok}
-  Shorthand for responding with a send payload.
+── Protocol initiation ──
+
+reagent/invoke(protocolName, input, roleBindings?)
+  → {instanceId}
+  Creates a new protocol instance. The calling agent is bound as the
+  initiator. Other roles are resolved via the standard resolve pipeline.
+  On a RemoteNode, relayed through ROS for cross-node instantiation.
 
 ── Introspection ──
 
@@ -163,7 +198,7 @@ reagent/list_instances()
   → [{instanceId, protocolName, status, myRole, pendingEvents}]
 
 reagent/get_state(instanceId)
-  → {expecting, awaiting, protocolStatus, ctx}
+  → {currentState, protocolStatus, ctx}
 
 reagent/get_pending_events(instanceId?)
   → [ProtocolEvent, ...]
@@ -172,19 +207,20 @@ reagent/get_pending_events(instanceId?)
 
 ### `wait_for_events` semantics
 
-This is the core mechanism that makes pull-model MCP work for push-style
-protocol events.
-
 **Long-poll behavior:**
 - RC holds the JSON-RPC response open until an event arrives or timeout
 - Default timeout: 30s (configurable). On timeout, returns `[]`
 - Agent calls again immediately after processing — creating a continuous loop
-- `max_events` limits batch size (default: 1 for LLM agents that want to
-  process one thing at a time; higher for programmatic agents)
+- `max_events` limits batch size (default: 1 for LLM agents)
+
+**Event filtering:**
+- Only zone events and lifecycle events are surfaced
+- Send/receive/timer/guard transitions happen inside the engine silently
+- The agent never sees routing details or FSM internals
 
 **Event ordering:**
 - Events are delivered in protocol-causal order per instance
-- Across instances, events are ordered by arrival time at RC
+- Across instances, events are ordered by arrival time
 - Each event has a monotonic sequence number for dedup on reconnect
 
 **At-least-once delivery:**
@@ -195,37 +231,66 @@ protocol events.
 **Timeout tuning for LLM agents:**
 - Claude Code has tool-call timeouts (typically 60–120s)
 - `wait_for_events(timeout_ms: 25000)` stays well under the limit
-- Agent calls in a loop: `while(active) { events = wait(25s); process(events); }`
 
 ---
 
 ## Architecture
 
-### Transport layer: `McpGateTransport`
+### Integration with ROS and RemoteNode
+
+MCP Gate runs on **RemoteNode**, not on ROS. Each RemoteNode serves one
+agent and exposes an MCP server for that agent to connect to.
 
 ```
-GateTransport
-  ├── WsGateTransport
-  ├── StdioGateTransport
-  ├── HttpGateTransport
-  └── McpGateTransport        ← NEW
+                         ┌──────────────────────────┐
+                         │           ROS             │
+                         │   Compile .rg             │
+                         │   Deploy IR → RemoteNodes │
+                         │   Route MessageEnvelopes  │
+                         │   WS server :7400         │
+                         └───┬──────┬──────┬─────────┘
+                             │      │      │
+              RAP/WS         │      │      │         RAP/WS
+           ┌─────────────────┘      │      └─────────────────┐
+           │                        │                        │
+           ▼                        ▼                        ▼
+  ┌─────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+  │ RemoteNode       │    │ RemoteNode       │    │ RemoteNode       │
+  │ (node-human)     │    │ (node-consultant)│    │ (node-researcher)│
+  │                  │    │                  │    │                  │
+  │ RC               │    │ RC               │    │ RC               │
+  │ ProtocolEngine   │    │ ProtocolEngine   │    │ ProtocolEngine   │
+  │ McpAgentAdapter  │    │ McpAgentAdapter  │    │ McpAgentAdapter  │
+  │ MCP server :9201 │    │ MCP server :9202 │    │ MCP server :9203 │
+  └────────┬─────────┘    └────────┬─────────┘    └────────┬─────────┘
+           │                       │                       │
+           ▼                       ▼                       ▼
+  ┌────────────────┐    ┌────────────────┐    ┌────────────────┐
+  │ Cursor (human) │    │ Claude Code    │    │ Claude Code    │
+  │ MCP client     │    │ MCP client     │    │ MCP client     │
+  └────────────────┘    └────────────────┘    └────────────────┘
 ```
 
-`McpGateTransport` differs from other transports: it is **not per-session**
-but **per-agent**. One MCP connection serves all protocol instances for that
-agent. Internally, `McpGateTransport` manages a map of `instanceId → GateSession`
-and routes events/responses accordingly.
+### McpAgentAdapter (replaces McpGateTransport)
+
+Since MCP Gate follows the CustomAgentNode model (engine runs on RC side),
+the adapter is **not a `GateTransport` implementation**. It is an
+`AgentInterface` adapter that bridges `handle()` calls to MCP tool
+interactions via an event queue.
 
 ```typescript
-class McpGateTransport implements GateTransport {
-  private sessions: Map<string, GateSession> = new Map();
+class McpAgentAdapter implements AgentInterface {
   private eventQueue: AsyncQueue<QueuedEvent> = new AsyncQueue();
-  private agentName: string;
+  private pendingResolve: ((response: AgentResponse) => void) | null = null;
 
-  // Called by GateSession when RC has an event for this agent
-  send(event: ProtocolEvent): void {
-    this.eventQueue.push({ instanceId, event });
-    // Unblocks any pending wait_for_events call
+  async handle(event: ProtocolEvent): Promise<AgentResponse> {
+    // Push event to queue (unblocks wait_for_events)
+    this.eventQueue.push({ instanceId: this.currentInstanceId, event });
+
+    // Wait for agent to call reagent/respond
+    return new Promise((resolve) => {
+      this.pendingResolve = resolve;
+    });
   }
 
   // Called by MCP tool handler for wait_for_events
@@ -235,132 +300,113 @@ class McpGateTransport implements GateTransport {
 
   // Called by MCP tool handler for respond
   deliverResponse(instanceId: string, response: AgentResponse): void {
-    this.sessions.get(instanceId)?.deliverResponse(response);
+    if (this.pendingResolve) {
+      const resolve = this.pendingResolve;
+      this.pendingResolve = null;
+      resolve(response);
+    }
   }
 }
 ```
 
-### System diagram
+Key difference from the v1 RFC: **no `GateTransport`, no `GateSession`, no
+`MessageGateNode`**. The MCP adapter sits at the `AgentInterface` level,
+same as `ManagedAgentAdapter` (which executes zone code in-process). The
+engine loop in `CustomAgentHandle.runEngine()` calls `handle()` for zones
+and handles everything else internally.
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         Reagent RC                                  │
-│                                                                     │
-│  ┌────────────────┐  ┌────────────────┐  ┌──────────────────────┐  │
-│  │  Agent Registry │  │ Protocol       │  │  Discovery           │  │
-│  │  & Discovery    │  │ Instances      │  │  (gossip/etcd)       │  │
-│  └───────┬────────┘  └───────┬────────┘  └──────────┬───────────┘  │
-│          │                   │                      │              │
-│  ┌───────▼───────────────────▼──────────────────────▼───────────┐  │
-│  │                    MessageGateNode                            │  │
-│  │                                                               │  │
-│  │  ┌─────────────┐  ┌──────────────┐  ┌─────────────────────┐  │  │
-│  │  │ GateSession │  │ GateSession  │  │  GateSession        │  │  │
-│  │  │ (instance A)│  │ (instance B) │  │  (instance C)       │  │  │
-│  │  └──────┬──────┘  └──────┬───────┘  └───────┬─────────────┘  │  │
-│  │         └────────────────┼──────────────────┘                │  │
-│  │                          │ all sessions for one agent        │  │
-│  │                   ┌──────▼──────────┐                        │  │
-│  │                   │ McpGateTransport│                        │  │
-│  │                   │                 │                        │  │
-│  │                   │  event queue    │                        │  │
-│  │                   │  ┌───────────┐  │                        │  │
-│  │                   │  │ evt evt.. │  │                        │  │
-│  │                   │  └───────────┘  │                        │  │
-│  │                   └──────┬──────────┘                        │  │
-│  └──────────────────────────┼───────────────────────────────────┘  │
-│                             │ MCP server (stdio / Streamable HTTP) │
-└─────────────────────────────┼─────────────────────────────────────┘
-                              │
-                    ┌─────────▼──────────┐
-                    │   Claude Code      │
-                    │   (MCP client)     │
-                    │                    │
-                    │   register()       │
-                    │   wait_for_events()│  ← blocks
-                    │   respond()        │
-                    │   wait_for_events()│  ← blocks again
-                    │   ...              │
-                    └────────────────────┘
+### RemoteNode MCP mode
+
+`RemoteNode` needs a new mode where it uses `McpAgentAdapter` instead of
+`NativeAgentNode`:
+
+```typescript
+// Existing: NativeAgentNode (executes zones in-process)
+const tsNode = new NativeAgentNode({ roleToAgent, traceHook });
+
+// New: CustomAgentNode with McpAgentAdapter (zones via MCP)
+const mcpAdapter = new McpAgentAdapter();
+const mcpNode = new CustomAgentNode({
+  roleToAgent,
+  agentFactory: () => mcpAdapter,
+});
 ```
 
-### Agent lifecycle and discovery integration
+When ROS sends `Deploy`, the RemoteNode registers the agent with the
+`CustomAgentNode` backed by `McpAgentAdapter`. The engine loop starts
+but blocks on the first zone event until the MCP client calls
+`reagent/register` and `reagent/wait_for_events`.
+
+### Envelope routing: RemoteNode → ROS → RemoteNode
+
+When the engine sends a message to a remote agent, the `MessageEnvelope`
+must reach the target RemoteNode via ROS.
+
+Current gap: `RemoteNode` dispatches envelopes locally via
+`rc.getAgent(msg.to.agent)?.dispatchMessage()`. If the agent isn't local,
+the envelope is dropped.
+
+Fix: the RemoteNode's RC needs a route for remote agents that forwards
+envelopes to ROS. This is set up during `Deploy` via the `roleToAgent`
+mapping — agents not deployed locally get a `NodeRef` pointing to ROS
+(via the RAP/WS connection).
+
+---
+
+## Human-in-the-loop via Cursor
+
+The MCP Gate is not only for LLM agents. A human using Cursor can
+participate in protocols through the same mechanism.
+
+### Hybrid model
+
+Cursor is an MCP client that bridges you (the human) with the Reagent
+protocol. Unlike an LLM agent that auto-loops, Cursor operates in a
+**human-driven hybrid mode**:
+
+1. **Cursor calls `wait_for_events`** — blocks until the protocol has
+   something for you
+2. **Event arrives** — Cursor shows you the zone code context:
+   "The protocol wants you to formalize this intuition. Here's the current
+   context: [shows ctx fields]"
+3. **You do work** — read files, search the web, analyze code, think.
+   Cursor executes your requests using its other tools.
+4. **You dictate the response** — "respond with this formalization..."
+5. **Cursor calls `reagent/respond`** with your input
+6. **Cursor automatically calls `wait_for_events` again** — the loop
+   continues without you having to say "wait for next event"
+
+### System prompt for Cursor (`.cursorrules`)
 
 ```
-register("claude-reviewer", roles: ["CodeReview.reviewer", "DesignReview.reviewer"])
-  │
-  ▼
-RC AgentRegistry
-  ├─ Creates agent entry: {name: "claude-reviewer", roles: [...], transport: "mcp"}
-  ├─ Publishes to discovery (gossip/etcd): other RC nodes learn about this agent
-  └─ Agent is now eligible for:
-       • Explicit assignment: rc.instantiate({..., roleToAgent: {reviewer: "claude-reviewer"}})
-       • Trigger resolve: resolve policy matches by role → selects this agent
-       • Spawn: dynamically bound at runtime
+You are connected to a Reagent protocol network via the "reagent" MCP server.
 
-unregister() or disconnect
-  │
-  ▼
-RC AgentRegistry
-  ├─ Marks agent unavailable
-  ├─ Publishes removal to discovery
-  └─ Running instances receive agent-disconnected event
-       (supervision policy decides: wait, reassign, abort)
-```
+Workflow:
+1. On user request, call reagent/register with the given agent name and roles.
+2. Call reagent/wait_for_events to start receiving events.
+3. When an event arrives, show the user:
+   - Event type (action / pre_send / post_receive / lifecycle)
+   - Zone body (what the protocol expects)
+   - Relevant ctx fields
+   - Ask what they want to do
+4. User may ask you to perform tasks before responding (read files, search,
+   analyze). Do those first.
+5. When ready, call reagent/respond with their input as ctx_update.
+6. After responding, immediately call reagent/wait_for_events again.
+7. On protocol_completed/failed, notify and stop the loop.
+8. On empty wait (timeout), call wait_for_events again silently.
 
-### Event loop detail
-
-```
-┌────────────────────────────────────────────────────────────────────┐
-│  Claude Code                                                       │
-│                                                                    │
-│  System prompt:                                                    │
-│    "You are claude-reviewer. You participate in Reagent protocols.  │
-│     Your workflow:                                                  │
-│     1. Call reagent/register to join the network                    │
-│     2. Call reagent/wait_for_events in a loop                      │
-│     3. For each event, reason and call reagent/respond              │
-│     4. Repeat until done"                                          │
-│                                                                    │
-│  Agent behavior:                                                   │
-│                                                                    │
-│    reagent/register("claude-reviewer", ["CodeReview.reviewer"])     │
-│    │                                                               │
-│    loop {                                                          │
-│      events = reagent/wait_for_events(timeout: 25000)              │
-│      │                                                             │
-│      if events is empty:                                           │
-│        continue  // timeout, try again                             │
-│      │                                                             │
-│      for event in events:                                          │
-│        match event.type:                                           │
-│          "receive" + "PullRequest":                                │
-│            review the diff, form opinion                           │
-│            reagent/respond(event.instanceId,                       │
-│              {ctx: {verdict: "approve", comments: [...]}})         │
-│          "send_required" + "ReviewFeedback":                       │
-│            reagent/respond(event.instanceId,                       │
-│              {payload: {comments: ..., verdict: ...}})             │
-│          "protocol_completed":                                     │
-│            note completion                                         │
-│    }                                                               │
-│    reagent/unregister()                                            │
-└────────────────────────────────────────────────────────────────────┘
+Never auto-respond to events. Always show the user and wait for their input.
 ```
 
 ---
 
 ## Alternative push strategies (supplementary)
 
-The persistent session with long-poll is the primary model. These alternatives
-exist for specific scenarios:
-
 ### AgentLauncher (stateless, per-event)
 
-For cases where a persistent session is impractical (serverless, one-shot tasks),
-RC can spawn a fresh agent session per event. The launcher builds a prompt with
-the event context and Reagent MCP tools, spawns a Claude Code CLI or API call,
-waits for the `reagent/respond` tool call, and returns.
+For cases where a persistent session is impractical (serverless, one-shot
+tasks), RC can spawn a fresh agent session per event.
 
 ```typescript
 interface AgentLauncher {
@@ -369,47 +415,38 @@ interface AgentLauncher {
 ```
 
 Built-in launchers:
-- `ClaudeCodeLauncher` — spawns `claude` CLI with `--mcp-server`
+- `ClaudeCodeLauncher` — spawns `claude` CLI with MCP server configured
 - `AnthropicApiLauncher` — calls Messages API with tools
 - `GenericCliLauncher` — spawns any MCP-aware CLI agent
 
-This is a **fallback** for environments that can't hold a persistent MCP session.
-It does not register in discovery — RC manages the launcher directly.
+This is a **fallback**. It does not register in discovery.
 
 ### MCP Notifications + SSE (future)
 
-When MCP clients support reactive notification handling (server notification →
-triggers new reasoning chain), RC can push events via SSE instead of long-poll.
-The agent would not need to call `wait_for_events` — events arrive as
-notifications. This is the most elegant model but depends on client support.
+When MCP clients support reactive notifications (server notification →
+triggers new reasoning chain), RC can push events instead of long-poll.
+This is the most elegant model but depends on client support.
 
 ---
 
 ## Interaction with existing architecture
 
-### Fits into Gate cleanly
+### Fits alongside CustomAgentNode
 
-`McpGateTransport` implements `GateTransport`. `GateSession` handles FSM
-validation identically — invalid tool calls (sending a message out of turn)
-are rejected with a structured error.
-
-The key difference from other transports: `McpGateTransport` is per-agent
-(one transport → many sessions), while WS/stdio/HTTP transports are
-per-session. This is because an MCP connection is bound to the agent process,
-not to a protocol instance.
+`McpAgentAdapter` implements `AgentInterface`, same as `ManagedAgentAdapter`.
+It plugs into `CustomAgentNode` which wraps it with `CustomAgentHandle` +
+`ProtocolEngine`. No changes to the engine or the agent node abstractions.
 
 ### No language changes
 
 Purely a runtime/transport feature. No changes to `.rg` syntax, IR, or
-compiler. A protocol doesn't know whether its participants are in-process,
-subprocess, WebSocket, or MCP.
+compiler. A protocol doesn't know whether its participants are in-process
+or MCP-connected.
 
 ### Agent configuration
 
 Agents connecting via MCP are self-describing — they register their roles
-at connect time. No static configuration needed in `deployment.json`.
-
-For pre-configured agents (RC knows to expect an MCP agent):
+at connect time. For pre-configured agents (RC knows to expect an MCP agent):
 
 ```json
 {
@@ -427,124 +464,25 @@ For pre-configured agents (RC knows to expect an MCP agent):
 }
 ```
 
-For launcher-mode (RC spawns the agent):
-
-```json
-{
-  "agents": {
-    "claude-reviewer": {
-      "role": "CodeReview.reviewer",
-      "transport": "mcp",
-      "mcp": {
-        "mode": "launcher",
-        "launcher": "claude-code",
-        "model": "claude-sonnet-4-20250514",
-        "systemPrompt": "You are a code reviewer..."
-      }
-    }
-  }
-}
-```
-
 ### Relationship to A2A
 
 MCP Gate: Reagent RC is the authority; agent participates via tools.
 A2A: Reagent RC peers with another agent system; mutual protocol.
-
-Complementary. A future `A2aGateTransport` would bridge A2A-capable agents
-similarly to how `McpGateTransport` bridges MCP clients.
+Complementary.
 
 ---
 
-## Example: Code review protocol with persistent Claude Code agent
+## Example: simple.rg with Cursor + two Claude Code agents
 
-### Protocol
+See: `examples/projects/autoscience/RFC-simple-run.md` for full walkthrough.
 
-```
-protocol CodeReview {
-  participants: author [py], reviewer [*], ci [ts]
-  initiator: author
-  input: ReviewRequest
-
-  author --> reviewer: PullRequest = {
-    onSend { $ctx.msg = { diff: $ctx.input.diff, description: $ctx.input.description } }
-  }
-
-  reviewer {
-    $ctx.feedback = await $agent.review($ctx.msg)
-  }
-
-  reviewer --> author: ReviewFeedback = {
-    onSend { $ctx.msg = { comments: $ctx.feedback.comments, verdict: $ctx.feedback.verdict } }
-  }
-
-  alt ($ctx.msg.verdict == "approve") {
-    author --> ci: MergeTrigger = {
-      onSend { $ctx.msg = { branch: $ctx.input.branch } }
-    }
-    ci --> author: MergeResult = {
-      onReceive { $ctx.result = $ctx.msg }
-    }
-  } else {
-    author {
-      $ctx.result = { status: "changes_requested", feedback: $ctx.feedback }
-    }
-  }
-}
-```
-
-### Claude Code session (reviewer role)
-
-Claude Code is started with Reagent as an MCP server. Its system prompt
-instructs it to register and participate:
-
-```
-You are a persistent code review agent connected to a Reagent protocol network.
-
-Available MCP tools (from reagent server):
-  reagent/register, reagent/wait_for_events, reagent/respond, etc.
-
-Your workflow:
-1. Register as "claude-reviewer" with role "CodeReview.reviewer"
-2. Wait for events in a loop
-3. When you receive a PullRequest, review the code and respond with your verdict
-4. Continue waiting for more events
-```
-
-Claude Code execution:
-
-```
-→ reagent/register("claude-reviewer", ["CodeReview.reviewer"])
-  ← {agentId: "cr-1", registeredRoles: ["CodeReview.reviewer"]}
-
-→ reagent/wait_for_events(timeout: 25000)
-  ... (waits) ...
-  ← [{instanceId: "rev-42", protocolName: "CodeReview", role: "reviewer",
-      event: {type: "receive", message: "PullRequest",
-              payload: {diff: "...", description: "Add caching layer"}}}]
-
-  (Claude reviews the diff, analyzes the changes)
-
-→ reagent/respond("rev-42",
-    {ctx: {feedback: {comments: ["Good approach, consider TTL config"],
-                      verdict: "approve"}}})
-  ← {ok: true}
-
-→ reagent/wait_for_events(timeout: 25000)
-  ← [{instanceId: "rev-42", event: {type: "send_required",
-      message: "ReviewFeedback"}}]
-
-→ reagent/respond("rev-42",
-    {payload: {comments: ["Good approach, consider TTL config"],
-               verdict: "approve"}})
-  ← {ok: true}
-
-→ reagent/wait_for_events(timeout: 25000)
-  ← [{instanceId: "rev-42", event: {type: "protocol_completed"}}]
-
-→ reagent/wait_for_events(timeout: 25000)
-  ... (waits for next review) ...
-```
+Summary:
+- ROS compiles `simple.rg`, deploys to 3 RemoteNodes
+- Each RemoteNode runs in MCP mode with `McpAgentAdapter`
+- Human (Cursor) connects to node-human's MCP server
+- Claude Code agents (Docker) connect to their respective nodes
+- Messages between agents route: RemoteNode → ROS → RemoteNode
+- All agents see only zone events via `wait_for_events`
 
 ---
 
@@ -552,12 +490,13 @@ Claude Code execution:
 
 | Phase | What | Notes |
 |-------|------|-------|
-| P1 | MCP server skeleton + `register` / `unregister` / `wait_for_events` / `respond` | Core event loop. Stdio transport. |
-| P2 | Discovery integration (agent registry, resolve policy matching) | MCP agents appear alongside local/subprocess agents. |
-| P3 | Streamable HTTP transport (remote MCP connections) | Enables remote agents, not just local stdio. |
-| P4 | `AgentLauncher` (stateless fallback) | For serverless / one-shot scenarios. |
-| P5 | Reconnection, session resumption, pending event replay | Production resilience. |
-| P6 | Multi-node: MCP agent on node A, protocol on node B | Requires cross-node routing (existing NodeLink). |
+| P1 | `McpAgentAdapter` implementing `AgentInterface` + event queue + MCP server skeleton | Core adapter. `register` / `wait_for_events` / `respond` tools. |
+| P2 | RemoteNode MCP mode: CLI flag `--mcp-port`, uses `CustomAgentNode` + `McpAgentAdapter` | Deploy via ROS, engine runs on node, agent connects via MCP. |
+| P3 | Envelope routing fix: RemoteNode forwards undeliverable envelopes to ROS | Cross-node message routing for multi-agent protocols. |
+| P4 | `reagent/invoke` tool + trigger relay through ROS | Agents can initiate protocols from MCP. |
+| P5 | Streamable HTTP transport for MCP server | Currently stdio; HTTP enables Docker/remote agents. |
+| P6 | Reconnection, session resumption, pending event replay | Production resilience. |
+| P7 | `AgentLauncher` (stateless fallback) | For serverless / one-shot scenarios. |
 
 ---
 
@@ -566,42 +505,45 @@ Claude Code execution:
 1. **Claude Code tool-call timeout.** If `wait_for_events` blocks for 25s
    and no event arrives, it returns `[]`. Claude Code must call again. Will
    Claude Code reliably loop on empty results, or will it decide "nothing to
-   do" and stop? May need explicit prompt engineering: "always call
-   wait_for_events again even if the result is empty."
+   do" and stop? May need explicit prompt engineering.
 
-2. **Context window growth.** In a long-lived session, repeated
-   `wait_for_events` → `respond` cycles accumulate in Claude Code's context.
-   Eventually the context window fills. Mitigation options:
+2. **Context window growth.** Repeated `wait_for_events` → `respond` cycles
+   accumulate in Claude Code's context. Mitigation:
    - Claude Code's built-in context management (summarization)
-   - Explicit `reagent/get_context_summary(instanceId)` tool that returns
-     a compressed protocol state instead of raw event history
+   - `reagent/get_state(instanceId)` for compressed state reconstruction
 
-3. **Concurrent events.** If multiple events arrive while the agent is
-   processing one, they queue. `max_events` parameter on `wait_for_events`
-   controls batch size. LLM agents should use `max_events: 1` to avoid
-   overwhelming the reasoning. Programmatic MCP clients can use higher values.
+3. **Concurrent events.** Multiple events queue; `max_events` controls batch
+   size. LLM agents should use `max_events: 1`.
 
-4. **Authentication.** Stdio transport is inherently local (same machine).
-   Streamable HTTP (P3) needs token-based auth. RC could issue a registration
-   token that the MCP client presents at connect time.
+4. **Authentication.** Streamable HTTP needs token-based auth. RC could issue
+   a registration token.
 
-5. **Multiple Claude Code sessions.** Can two Claude Code sessions register
-   as the same agent? Options:
-   - Reject (one session per agentName)
-   - Load-balance (round-robin event delivery)
-   - Failover (second session is standby)
+5. **Multiple sessions per agent.** Can two MCP clients register as the same
+   agent? Options: reject, load-balance, failover.
 
-6. **Cost control.** A persistent Claude Code session holding a long-poll
-   costs API tokens per interaction (not per wait). But if the LLM "thinks"
-   about whether to continue waiting, that's wasted tokens. The prompt should
-   make the loop mechanical: "call wait_for_events, process result, repeat."
+6. **Cost control.** Prompt should make the loop mechanical to avoid wasted
+   tokens on "should I keep waiting?" reasoning.
+
+7. **Zone code interpretation.** LLM agents receive zone `body` as a string
+   (e.g., `$ctx.formalClaim = await $agent.formalize($ctx.msg)`). They must
+   interpret it as a task description. Consider adding a `description` field
+   to zone IR for human-readable intent.
+
+8. **Cursor long-poll UX.** When Cursor calls `wait_for_events`, can the user
+   still type in the chat? Does Cursor show a waiting indicator? Needs testing.
 
 ---
 
 ## References
 
-- Message Gate architecture: `docs/current/connectivity.md` Appendix C
-- Gate transport implementations: `runtime/ts/src/gate-transport.ts`
+- CustomAgentNode: `runtime/ts/src/custom-agent-node.ts`
+- AgentInterface: `runtime/ts/src/agent-interface.ts`
+- ProtocolEngine: `runtime/ts/src/protocol-engine.ts`
+- RemoteNode: `runtime/ts/src/remote-node.ts`
+- ROS: `runtime/ts/src/ros.ts`
+- WsNodeLink: `runtime/ts/src/ws-node-link.ts`
+- Gate transports: `runtime/ts/src/gate-transport.ts`
 - GateSession: `runtime/ts/src/gate-session.ts`
 - MCP specification: https://modelcontextprotocol.io/specification
-- Backlog-far idea "AKG → Reagent: акторная сеть с LLM-агентами": `backlog-far.md`
+- Autoscience simple.rg run plan: `examples/projects/autoscience/RFC-simple-run.md`
+- Telebot agent RFC: `runtime/agents/telebot/RFC.md`

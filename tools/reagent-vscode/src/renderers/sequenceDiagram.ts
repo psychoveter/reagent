@@ -36,6 +36,7 @@ export type SeqElement = {
   duration?: { value: number; unit: string };
   async?: boolean;
   propagateFlow?: boolean;
+  sourceLine?: number;
 };
 
 export interface SequenceDiagramData {
@@ -120,7 +121,7 @@ function renderElements(
     if (stopKinds && stopKinds.has(el.kind)) break;
 
     const debug = debugClass(el.stateId, opts);
-    const srcAttr = sourceAttr(el.stateId, sourceFile, opts.sourceMap, el.kind, el.label);
+    const srcAttr = sourceAttr(el.stateId, sourceFile, opts.sourceMap, el.kind, el.label, el.sourceLine);
 
     switch (el.kind) {
       case "message": {
@@ -261,7 +262,7 @@ function debugClass(stateId: string | undefined, opts: RenderOptions): string {
   return "future";
 }
 
-function sourceAttr(stateId: string | undefined, file: string, sourceMap?: Map<string, number>, kind?: string, label?: string): string {
+function sourceAttr(stateId: string | undefined, file: string, sourceMap?: Map<string, number>, kind?: string, label?: string, sourceLine?: number): string {
   let attr = stateId ? `data-state-id="${esc(stateId)}"` : "";
   if (kind) attr += ` data-state-kind="${esc(kind)}"`;
   if (label) attr += ` data-state-label="${esc(label)}"`;
@@ -270,6 +271,8 @@ function sourceAttr(stateId: string | undefined, file: string, sourceMap?: Map<s
     if (line != null) {
       attr += ` data-src-line="${line}" data-src-file="${esc(file)}"`;
     }
+  } else if (sourceLine != null && file) {
+    attr += ` data-src-line="${sourceLine}" data-src-file="${esc(file)}"`;
   }
   return attr;
 }
