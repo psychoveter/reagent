@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "reagent": {
+      "command": "node",
+      "args": [
+        "../../runtime/ts/dist/mcp-gate.js",
+        "--ros-url", "ws://localhost:18789",
+        "--nats-url", "nats://localhost:4222",
+        "--etcd-hosts", "http://127.0.0.1:2379",
+        "--node-id", "human-gate",
+        "--agents", "HumanAgent"
+      ]
+    }
+  }
+}

@@ -10,6 +10,8 @@ Milestone: M7-DX
 
 This milestone turns Reagent from a language with test-driven runtimes into a **human-usable tool** — with interactive visualization, one-click execution, and a visual debugger.
 
+TODO: We shall revise this document due to introduction of messagegate / mcpgate, embedded etcd cluster and other features. 
+
 ### What exists today
 
 | Component | Status |

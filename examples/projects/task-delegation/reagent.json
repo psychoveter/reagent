@@ -1,0 +1,8 @@
+{
+  "name": "task-delegation",
+  "version": "0.1.0",
+  "description": "Minimal task delegation: human (Cursor) sends task to worker (Claude Code) via MCP Gate + NATS + etcd.",
+  "protocols": [
+    "protocols/*.rg"
+  ]
+}

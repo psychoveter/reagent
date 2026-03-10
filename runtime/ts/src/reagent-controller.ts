@@ -18,12 +18,14 @@ import type { AdvanceHook } from "./protocol-instance.js";
 import { ProtocolRegistry, type ProtocolEntry, type CompatibilityReport } from "./protocol-registry.js";
 import { LocalEventBus } from "./local-event-bus.js";
 import { CronAgent } from "./cron-agent.js";
+import type { LeaderElection } from "./leader-election.js";
 import { TriggerMatcher } from "./trigger-matcher.js";
 import type { TriggerPolicy } from "./trigger-policy.js";
 import type { StateStore } from "./state-store.js";
 import { InMemoryStateStore } from "./state-store.js";
 import { StateStoreAgentRegistry, type AgentRegistration } from "./state-store-agent-registry.js";
 import { ResolvePolicyEvaluator } from "./resolve-policy-evaluator.js";
+import { EtcdMembership } from "./etcd-membership.js";
 
 // ── Configuration ───────────────────────────────────────────────────
 
@@ -51,6 +53,8 @@ export interface ReagentControllerConfig {
   cronIntervalMs?: number;
   /** External StateStore (default: InMemoryStateStore). */
   stateStore?: StateStore;
+  /** Leader election for CronAgent (cluster mode). When provided, only the leader runs cron ticks. */
+  cronLeaderElection?: LeaderElection;
   /** Debug hook that fires after resolve pipeline evaluation, before protocol instantiation. */
   debugResolveHook?: DebugResolveHookFn;
 }
@@ -86,6 +90,7 @@ export class ReagentController {
   private nodeRefs = new Map<string, NodeRef>();
   /** NodeLinks managed by this controller */
   private links: NodeLink[] = [];
+  private membership: EtcdMembership | null = null;
 
   private loopbackRef: NodeRef;
 
@@ -118,7 +123,7 @@ export class ReagentController {
     };
 
     this.eventBus = new LocalEventBus();
-    this.cronAgent = new CronAgent(this.eventBus);
+    this.cronAgent = new CronAgent(this.eventBus, config.cronLeaderElection);
     this.cronIntervalMs = config.cronIntervalMs ?? 15_000;
 
     this.triggerMatcher = new TriggerMatcher({
@@ -130,6 +135,8 @@ export class ReagentController {
       resolveInitiator: (protoName) => this.resolveInitiatorAgent(protoName),
       resolveRoleToAgent: (protoName) => this.resolveRoleToAgentMap(protoName),
       resolvePolicyEvaluator: this.resolvePolicyEvaluator,
+      stateStore: this.stateStore,
+      nodeId: this.nodeId,
     });
 
     if (config.triggerPolicies) {
@@ -205,10 +212,10 @@ export class ReagentController {
       }
     }
 
-    // Write to state store agent registry
     const registration: AgentRegistration = {
       name: agentName,
       role: roleIR.roleName,
+      nodeId: this.nodeId,
       tags: (extras?.tags as string[]) ?? [],
       capabilities: (extras?.capabilities as string[]) ?? [],
       labels: (extras?.labels as Record<string, string>) ?? {},
@@ -250,6 +257,10 @@ export class ReagentController {
 
   getAgent(agentName: string): AgentHandle | undefined {
     return this.agents.get(agentName);
+  }
+
+  getRegisteredAgents(): Map<string, AgentHandle> {
+    return this.agents;
   }
 
   // ── Protocol registry convenience ──────────────────────────────
@@ -385,6 +396,30 @@ export class ReagentController {
     }
   }
 
+  // ── Membership ─────────────────────────────────────────────────
+
+  /**
+   * Start etcd-based membership: registers this node, watches for remote agents,
+   * and auto-populates the routing table when agents appear on other nodes.
+   */
+  async startMembership(opts?: { leaseTtlSeconds?: number }): Promise<void> {
+    this.membership = new EtcdMembership({
+      stateStore: this.stateStore,
+      nodeId: this.nodeId,
+      leaseTtlSeconds: opts?.leaseTtlSeconds,
+      onRemoteAgent: (agentName, remoteNodeId) => {
+        const nodeRef = this.nodeRefs.get(remoteNodeId);
+        if (nodeRef) {
+          this.routingTable.set(agentName, nodeRef);
+        }
+      },
+      onRemoteAgentRemoved: (agentName) => {
+        this.routingTable.delete(agentName);
+      },
+    });
+    await this.membership.start();
+  }
+
   // ── Lifecycle ───────────────────────────────────────────────────
 
   async start(): Promise<void> {
@@ -395,13 +430,18 @@ export class ReagentController {
       await handle.start();
     }
     if (this.cronIntervalMs > 0) {
-      this.cronAgent.start(this.cronIntervalMs);
+      await this.cronAgent.start(this.cronIntervalMs);
     }
   }
 
   async stop(): Promise<void> {
     this.triggerMatcher.destroy();
     this.eventBus.clear();
+    await this.cronAgent.stop();
+    if (this.membership) {
+      await this.membership.stop();
+      this.membership = null;
+    }
     for (const handle of this.agents.values()) {
       await handle.stop();
     }
@@ -657,6 +697,7 @@ export class ReagentController {
     const registration: AgentRegistration = {
       name: spawnedName,
       role: roleName,
+      nodeId: this.nodeId,
       tags: (config.tags as string[]) ?? [],
       capabilities: (config.capabilities as string[]) ?? [],
       labels: (config.labels as Record<string, string>) ?? {},

@@ -1,6 +1,6 @@
 # ReagentController (RC) Specification
 
-**Status:** Draft v1
+**Status:** Implemented (v1)
 
 The ReagentController is the routing, registry, and interception core of a Reagent node.
 One RC runs per node process. It connects agents to each other via local loopback or
@@ -101,9 +101,9 @@ Factory: `createMessageEnvelope(instanceId, protocolName, fromAgent, fromRole, t
 
 ---
 
-## 4. Three Integration Modes
+## 4. Four Integration Modes
 
-All three modes produce `AgentHandle` objects that the RC manages uniformly.
+All four modes produce `AgentHandle` objects that the RC manages uniformly.
 The RC does not know which mode an agent uses — it only sees the `AgentHandle` interface.
 
 ### 4.1 Managed Mode (default)
@@ -185,6 +185,48 @@ Three transport implementations are provided:
 | `WsGateTransport` | WebSocket frames |
 | `StdioGateTransport` | Line-delimited JSON on stdin/stdout |
 | `HttpGateTransport` | POST request per event, response body = `AgentResponse` |
+
+### 4.4 MCP Gate Mode
+
+**Components:** `CustomAgentNode` → `CustomAgentHandle` → `McpAgentAdapter` → `ReagentMcpServer` (stdio)
+
+The agent runs externally as an MCP client (e.g., Claude Code, Cursor). It connects to a
+`mcp-gate` subprocess over stdio JSON-RPC. Unlike Message Gate (push model where the RC
+initiates), MCP Gate uses a pull model: the agent actively requests events.
+
+`McpAgentAdapter` implements `AgentInterface`. When the protocol engine calls `handle()`,
+the adapter queues the event into an `AsyncQueue` and blocks. The MCP client pulls events
+via `reagent/wait_for_events` (long-poll) and submits responses via `reagent/respond`.
+
+```typescript
+interface McpAgentAdapter implements AgentInterface {
+  handle(event: ProtocolEvent): Promise<AgentResponse>;  // queues event, blocks
+  waitForEvents(timeoutMs?, maxEvents?): Promise<QueuedEvent[]>;  // MCP client pulls
+  deliverResponse(instanceId, response): boolean;  // MCP client responds
+  register(roles): { agentId, registeredRoles };
+  unregister(): void;
+}
+```
+
+MCP tools exposed by `ReagentMcpServer`:
+
+| Tool | Description |
+|------|-------------|
+| `reagent/register` | Register agent identity and roles |
+| `reagent/unregister` | Leave discovery |
+| `reagent/wait_for_events` | Long-poll for protocol events (blocks until event arrives) |
+| `reagent/respond` | Submit response for a protocol event |
+| `reagent/invoke` | Start a new protocol instance |
+| `reagent/list_protocols` | List available protocols |
+| `reagent/list_instances` | List active protocol instances |
+| `reagent/get_state` | Get instance state |
+
+Entry point: `mcp-gate.ts` — a standalone subprocess that creates its own `ReagentController`,
+`CustomAgentNode`, `McpAgentAdapter`, connects to ROS for deploy/trigger, and serves MCP tools
+over stdio.
+
+**When to use**: LLM agents, MCP-compatible clients, or any agent that prefers a pull-based
+event model (asynchronous reasoning between events).
 
 ---
 
@@ -278,7 +320,8 @@ interface NodeLink {
 |----------------|----------|
 | `InMemoryNodeLink` | Testing, single-process multi-node. Created in pairs via `createInMemoryLinkPair(nodeAId, nodeBId)`. Direct function-call delivery, no serialization. |
 | `WsNodeLink` | Production cross-node. Client/server modes. Handshake: first message is `{ nodeId: "..." }`. `WsNodeLinkServer` accepts incoming connections and produces `WsNodeLink` instances. |
-| `NatsCompatTransport` | Legacy bridge — wraps `NatsTransport` as `ReagentTransport`. Being retired in favor of `InMemoryNodeLink` / `WsNodeLink`. |
+| `NatsNodeLink` | Production cross-node via NATS. Single subject per node-pair (`reagent.node.{nodeId}`). Each link owns its own NATS connection. |
+| `NatsCompatTransport` | Legacy shim — wraps `NatsTransport` as `ReagentTransport` (not a `NodeLink`). Used by older E2E tests. Being replaced by `ReagentController` + `InMemoryNodeLink` / `NatsNodeLink`. |
 
 **Link lifecycle:**
 
@@ -495,11 +538,45 @@ RC                          Agent HTTP Server
 - Stateless — each event is an independent request.
 - `HttpGateTransport` uses `fetch()` internally.
 
+### 9.4 MCP Gate
+
+```
+Agent (MCP client)              mcp-gate subprocess (MCP server, stdio)
+ │                                        │
+ │  tool: reagent/register("claude-1",    │
+ │         roles: ["reviewer"])            │
+ │ ──── stdin JSON-RPC ─────────────────► │  → agent registered
+ │  ◄── stdout JSON-RPC ──────────────── │  {ok, agentId}
+ │                                        │
+ │  tool: reagent/wait_for_events()       │
+ │ ──── stdin ──────────────────────────► │
+ │                    ...                  │  (engine runs, reaches zone)
+ │  ◄── stdout ─────────────────────────  │  [{instanceId, event}]
+ │                                        │
+ │  (agent reasons about the event)       │
+ │                                        │
+ │  tool: reagent/respond("inst-42",      │
+ │    {type: "ctx_update", ctx: {...}})   │
+ │ ──── stdin ──────────────────────────► │  → engine continues
+ │  ◄── stdout ─────────────────────────  │  {ok}
+ │                                        │
+ │  tool: reagent/wait_for_events()       │
+ │ ──── stdin ──────────────────────────► │  (blocks again)
+```
+
+- Agent starts `mcp-gate` as a subprocess (stdio MCP server).
+- Communication is MCP JSON-RPC over stdin/stdout — not line-delimited JSON like Stdio Gate.
+- The pull model means the agent controls the pace. `wait_for_events` blocks (long-poll)
+  until the protocol engine reaches a zone that requires agent input.
+- Only zone events (`action`, `pre_send_action`, `post_receive_action`) and lifecycle
+  notifications (`protocol_started`, `protocol_completed`, `protocol_failed`) are surfaced.
+  Send/receive/timer/guard states are handled automatically by the engine inside `mcp-gate`.
+
 ---
 
 ## 10. Conformance Requirements
 
-1. **Behavioral equivalence.** All three integration modes (Managed, Custom, Message Gate)
+1. **Behavioral equivalence.** All four integration modes (Managed, Custom, Message Gate, MCP Gate)
    must produce identical trace event sequences for the same protocol IR and input.
    Trace events are compared by `kind`, `agent`, `role`, `protocolName`, and `data` —
    timestamps and event IDs are excluded from comparison.
@@ -540,6 +617,9 @@ single-node deployments. Cross-node event routing (via EventHubAgent) is future 
 System agent with a 5-field cron expression parser (plus aliases like `@daily`,
 `@hourly`). Started via `RC.start()` with a configurable tick interval (default 15s).
 Emits `cron.tick.<protocolName>` events to the LocalEventBus.
+
+Accepts an optional `LeaderElection` instance (`leader-election.ts`). When provided,
+only the leader node fires cron ticks — non-leaders skip silently. See §8.8.
 
 ### 8.3 TriggerMatcher
 
@@ -589,23 +669,40 @@ For external triggers (event, cron), the TriggerMatcher resolves the initiator a
 
 ```typescript
 interface ReagentControllerConfig {
-  // ... existing fields ...
+  nodeId: string;
+  agentNode?: AgentNode;
+  agentNodes?: Record<string, AgentNode>;
+  interceptors?: InterceptorFn[];
   triggerPolicies?: Record<string, TriggerPolicy>;
   traceCallback?: (event: TraceEvent) => void;
   cronIntervalMs?: number;  // default 15000, 0 to disable
+  stateStore?: StateStore;  // default: InMemoryStateStore
+  cronLeaderElection?: LeaderElection;  // cluster mode: only leader runs cron
+  debugResolveHook?: DebugResolveHookFn;
 }
 ```
 
-Access via `rc.eventBus`, `rc.cronAgent`, `rc.triggerMatcher`.
+Access via `rc.eventBus`, `rc.cronAgent`, `rc.triggerMatcher`, `rc.stateStore`, `rc.agentRegistry`.
+
+`rc.startMembership()` enables etcd-based node presence and agent routing (watches
+`/nodes/` and `/agents/` prefixes in the StateStore, auto-populates the routing table
+for remote agents).
 
 ### 8.8 Cron Singleton Policy
 
-Cron triggers fire **once per cluster** by default, not per-node. CronAgent is a cluster
-singleton (leader-elected). This is configurable:
+Cron triggers fire **once per cluster** by default, not per-node. CronAgent uses
+`LeaderElection` (`leader-election.ts`), which acquires a lease-based lock at
+`/cron/leader` via `StateStore.putIfAbsent()`. Only the leader node runs cron ticks;
+on leader crash (lease expiry), another node acquires leadership automatically.
 
-```json
-{ "trigger.cron.mode": "singleton" | "per-node" }
-```
+The leader election is wired via `ReagentControllerConfig.cronLeaderElection`.
+In single-node mode (no etcd), `cronLeaderElection` is omitted and CronAgent fires
+unconditionally.
+
+Additionally, `TriggerMatcher` performs distributed trigger dedup: before firing any
+trigger, it CAS-locks `/triggers/locks/{triggerId}/{hash}` in the `StateStore`.
+If another node already locked the key, the trigger is skipped with a
+`TriggerDedupSkipped` trace event (reason: `cluster-dedup`).
 
 ### 8.9 Future: Cross-Node Event Routing
 

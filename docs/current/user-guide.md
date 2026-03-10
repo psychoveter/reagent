@@ -256,10 +256,10 @@ python run.py
 
 ---
 
-## 6. Three Integration Modes
+## 6. Four Integration Modes
 
-Reagent supports three ways to connect agent logic to a protocol.
-All three produce `AgentHandle` objects that the RC manages uniformly.
+Reagent supports four ways to connect agent logic to a protocol.
+All four produce `AgentHandle` objects that the RC manages uniformly.
 
 ### 6.1 Managed Mode (default)
 
@@ -343,7 +343,40 @@ Three transport implementations:
 
 **Components**: `MessageGateNode` → `MessageGateHandle` → `GateSession` → `GateTransport`
 
-**When to use**: Polyglot environments, microservice architectures, or when agents must run in isolated processes/containers.
+**When to use**: Polyglot environments, microservice architectures, or when agents must run in isolated processes/containers. Push model — RC initiates communication.
+
+### 6.4 MCP Gate Mode
+
+The agent connects as an MCP client to a `mcp-gate` subprocess. Unlike Message Gate (push), MCP Gate uses a pull model: the agent actively requests protocol events.
+
+The `mcp-gate` process is started as a subprocess by the agent (Claude Code, Cursor, or any MCP client):
+
+```json
+{
+  "mcpServers": {
+    "reagent": {
+      "command": "node",
+      "args": ["mcp-gate.js", "--ros-url", "ws://localhost:7400", "--node-id", "my-agent"]
+    }
+  }
+}
+```
+
+The agent interacts with the protocol via MCP tools:
+
+| Tool | Description |
+|------|-------------|
+| `reagent/register` | Register agent identity and declare roles |
+| `reagent/wait_for_events` | Long-poll for protocol events (blocks until event) |
+| `reagent/respond` | Submit `AgentResponse` for a protocol event |
+| `reagent/invoke` | Start a new protocol instance |
+| `reagent/list_protocols` | List available protocols |
+| `reagent/list_instances` | List active protocol instances |
+| `reagent/get_state` | Get instance state |
+
+**Components**: `CustomAgentNode` → `CustomAgentHandle` → `McpAgentAdapter` → `ReagentMcpServer` (stdio)
+
+**When to use**: LLM agents (Claude Code, Cursor), any MCP-compatible client. Pull model suits agents that reason asynchronously between protocol steps.
 
 ---
 
@@ -532,32 +565,46 @@ No recompile needed — just run again.
 
 ---
 
-## 13. Gossip Discovery
+## 13. Cluster Discovery (etcd)
 
-For multi-node deployments, Reagent supports SWIM-like gossip discovery instead of static routing:
+For multi-node deployments, Reagent uses embedded etcd for node membership and agent discovery. Each node registers itself with a lease-based key in etcd; agent registrations include the hosting `nodeId`. Other nodes watch these keys and auto-populate their routing tables.
 
 ```typescript
-import { DiscoveryAgent } from "@reagent/runtime";
+import { bootstrapCluster, ReagentController, NativeAgentNode } from "@reagent/runtime";
 
-const discovery = new DiscoveryAgent({
-  nodeId: "my-node",
-  seeds: ["node-1", "node-2"],
-  probeIntervalMs: 1000,
-  probeTimeoutMs: 500,
-  send: (targetNodeId, message) => {
-    // Route via your transport layer
-  },
+// Start embedded etcd (single-node or multi-member)
+const cluster = await bootstrapCluster({
+  nodeId: "node-1",
+  // For multi-node: peers: ["node-1=http://host1:2380", "node-2=http://host2:2380"],
 });
 
-discovery.setLocalAgents(["BuyerAgent", "SellerAgent"]);
-discovery.start();
+const rc = new ReagentController({
+  nodeId: "node-1",
+  stateStore: cluster.stateStore,
+  cronLeaderElection: cluster.cronLeaderElection,
+  agentNode: new NativeAgentNode({ roleToAgent: {} }),
+});
 
-// Query routing table
-const routes = discovery.getRoutingTable();
-// Map<string, string>: agentName → nodeId
+// Register this node and watch for remote agents
+await rc.startMembership();
+
+// ... deploy agents, run protocols ...
+
+await rc.stop();
+await cluster.shutdown();
 ```
 
-The gossip protocols (`Ping`, `IndirectPing`, `MembershipUpdate`) are defined in `packages/reagent-system/protocols/discovery/gossip.rg`. Membership changes are piggybacked on all gossip messages for protocol-free dissemination.
+Key components:
+
+| Component | File | Purpose |
+|---|---|---|
+| `EtcdManager` | `etcd-manager.ts` | Download, cache, start/stop etcd binary as child process |
+| `EtcdStateStore` | `etcd-state-store.ts` | `StateStore` implementation via `etcd3` npm client |
+| `EtcdMembership` | `etcd-membership.ts` | Node presence (`/nodes/{nodeId}`) + agent routing (`/agents/`) via watch |
+| `LeaderElection` | `leader-election.ts` | Lease-based leader lock (used by CronAgent) |
+| `bootstrapCluster` | `cluster-bootstrap.ts` | Ties EtcdManager + EtcdStateStore + LeaderElection |
+
+CronAgent uses `LeaderElection` to ensure only one node fires cron ticks across the cluster. Trigger dedup uses `putIfAbsent` CAS locks in the StateStore to prevent duplicate trigger fires across nodes.
 
 ## 14. Scatter Scaling
 

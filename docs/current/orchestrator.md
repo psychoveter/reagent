@@ -1,8 +1,8 @@
 # Reagent Orchestrator Service (ROS)
 
-Version: draft-1
-Depends on: Connectivity layer (done)
-Milestone: M6-RT (done), extended by M8 (reconciler)
+Version: 1.0
+Depends on: Connectivity layer
+Status: Implemented (M6-RT), extended by M8 (reconciler)
 
 ---
 
@@ -623,7 +623,7 @@ The `@reagent/system` package (`packages/reagent-system/`) declares:
 | `ROS` | `OrchestratorRole` | AdapterHandshake, CompileRequest, DeployProtocol, RunProtocol, DebugSession, InspectState, ShutdownNode, TraceStream, TriggerProtocol |
 | `DebugAgent` | `DebugRole` | DebugSession, InspectState |
 | `ReconcilerAgent` | `ReconcilerRole` | DeployProtocol |
-| `DiscoveryAgent` | `DiscoveryRole` | *(gossip-based discovery, Wave 3.2)* |
+| ~~`DiscoveryAgent`~~ | — | Removed. Node/agent discovery is now handled by `EtcdMembership` via etcd watches. |
 
 Over time, RAP message handlers in `ros.ts` will be refactored into zone code of system agents or custom `AgentInterface` implementations, making infrastructure operations observable, debuggable, and traceable via the same tools used for user protocols.
 

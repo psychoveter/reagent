@@ -38,8 +38,15 @@ interface NodeInspectData {
   agentNodes: string[];
 }
 
+export interface InfraHealth {
+  nats: 'up' | 'down' | 'unknown';
+  etcd: 'up' | 'down' | 'unknown';
+  ros: 'up' | 'down' | 'unknown';
+}
+
 type TreeElement =
-  | { type: 'category'; label: string; category: 'nodes' | 'protocols' }
+  | { type: 'category'; label: string; category: 'nodes' | 'protocols' | 'infra' }
+  | { type: 'infraItem'; service: string; status: 'up' | 'down' | 'unknown' }
   | { type: 'node'; node: NodeInfo; agents: AgentInfo[] }
   | { type: 'nodeSection'; nodeId: string; section: 'agents' | 'protocols' | 'routing' }
   | { type: 'nodeAgent'; nodeId: string; agent: { name: string; lang: string; route: string } }
@@ -64,8 +71,18 @@ export class ClusterPanelProvider implements vscode.TreeDataProvider<TreeElement
 
   private nodeInspectCache = new Map<string, { data: NodeInspectData; fetchedAt: number }>();
   private nodeInspectPending = new Set<string>();
+  private _infraHealth: InfraHealth = { nats: 'unknown', etcd: 'unknown', ros: 'unknown' };
 
   constructor(private readonly rosManager: RosManager) {}
+
+  setInfraHealth(health: InfraHealth): void {
+    this._infraHealth = health;
+    this._onDidChangeTreeData.fire();
+  }
+
+  getInfraHealth(): InfraHealth {
+    return { ...this._infraHealth };
+  }
 
   setTraceChannel(channel: import('vscode').OutputChannel): void {
     this._traceChannel = channel;
@@ -228,8 +245,20 @@ export class ClusterPanelProvider implements vscode.TreeDataProvider<TreeElement
         item.contextValue = `category-${element.category}`;
         return item;
       }
+      case 'infraItem': {
+        const icons: Record<string, string> = { up: 'pass', down: 'error', unknown: 'question' };
+        const labels: Record<string, string> = { up: 'healthy', down: 'down', unknown: '?' };
+        const item = new vscode.TreeItem(
+          element.service,
+          vscode.TreeItemCollapsibleState.None,
+        );
+        item.iconPath = new vscode.ThemeIcon(icons[element.status]);
+        item.description = labels[element.status];
+        item.contextValue = 'infraItem';
+        return item;
+      }
       case 'node': {
-        const statusIcon = element.node.status === 'connected' ? '$(vm-active)' : '$(vm-outline)';
+        const statusIcon = element.node.status === 'connected' ? '$(server-process)' : '$(server)';
         const agentCount = element.agents.length;
         const item = new vscode.TreeItem(
           `${statusIcon} ${element.node.nodeId}`,
@@ -343,16 +372,32 @@ export class ClusterPanelProvider implements vscode.TreeDataProvider<TreeElement
 
   getChildren(element?: TreeElement): TreeElement[] {
     if (!element) {
-      if (!this.rap?.connected) {
-        return [{ type: 'empty', label: 'Not connected to ROS' }];
+      const items: TreeElement[] = [];
+      const h = this._infraHealth;
+      const hasInfraData = h.nats !== 'unknown' || h.etcd !== 'unknown' || h.ros !== 'unknown';
+      if (hasInfraData) {
+        items.push({ type: 'category', label: 'Infrastructure', category: 'infra' });
       }
-      return [
+      if (!this.rap?.connected) {
+        items.push({ type: 'empty', label: 'Not connected to ROS' });
+        return items;
+      }
+      items.push(
         { type: 'category', label: `Nodes (${this.state.nodes.length})`, category: 'nodes' },
         { type: 'category', label: `Protocols (${this.state.protocols.length})`, category: 'protocols' },
-      ];
+      );
+      return items;
     }
 
     if (element.type === 'category') {
+      if (element.category === 'infra') {
+        const h = this._infraHealth;
+        return [
+          { type: 'infraItem', service: 'NATS', status: h.nats },
+          { type: 'infraItem', service: 'etcd', status: h.etcd },
+          { type: 'infraItem', service: 'ROS', status: h.ros },
+        ];
+      }
       if (element.category === 'nodes') {
         if (this.state.nodes.length === 0) {
           return [{ type: 'empty', label: 'No nodes connected' }];

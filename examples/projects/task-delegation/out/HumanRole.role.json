@@ -1,0 +1,17 @@
+{
+  "roleName": "HumanRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "TaskDelegation",
+      "roleName": "human",
+      "protocolVersion": "0.1.0"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "e306d9ec265bc968f55979524758537ef99e99121874fb240ec0812f3821dce7",
+    "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+  }
+}

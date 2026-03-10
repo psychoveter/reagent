@@ -1,0 +1,36 @@
+{
+  "entries": [
+    {
+      "stateId": "send_2",
+      "protocolName": "TaskDelegation",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/task-delegation/protocols/task.rg",
+      "line": 33,
+      "column": 3
+    },
+    {
+      "stateId": "recv_3",
+      "protocolName": "TaskDelegation",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/task-delegation/protocols/task.rg",
+      "line": 40,
+      "column": 3
+    },
+    {
+      "stateId": "recv_6",
+      "protocolName": "TaskDelegation",
+      "role": "worker",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/task-delegation/protocols/task.rg",
+      "line": 33,
+      "column": 3
+    },
+    {
+      "stateId": "send_7",
+      "protocolName": "TaskDelegation",
+      "role": "worker",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/task-delegation/protocols/task.rg",
+      "line": 40,
+      "column": 3
+    }
+  ]
+}

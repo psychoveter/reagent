@@ -1,7 +1,7 @@
 # RFC: Reagent as MCP Server (MCP Gate)
 
 **Date:** 2026-03-08 (updated 2026-03-09)
-**Status:** RFC draft v2
+**Status:** Implementation started (P1 done)
 **Area:** runtime/ts, integration
 **Depends on:** Message Gate (done), CustomAgentNode (done), ROS (done),
   RemoteNode (done)
@@ -80,7 +80,7 @@ incoming events via a **long-poll tool call**.
 ```
 Agent session lifecycle:
 
-  1. Connect to Reagent MCP server (Streamable HTTP)
+  1. Agent starts mcp-gate as subprocess (stdio MCP server)
   2. reagent/register(agentName, roles[])     → agent appears in discovery
   3. reagent/wait_for_events(timeout?)        → BLOCKS until event arrives
   4.   ← returns [{instanceId, event}]        (only zone/lifecycle events)
@@ -98,31 +98,31 @@ When the tool returns, the agent sees the event, reasons about it, responds
 via `reagent/respond`, then calls `wait_for_events` again.
 
 ```
-MCP Client                           RemoteNode (MCP server)
+MCP Client (agent)                   mcp-gate subprocess (MCP server, stdio)
     │                                        │
     │  tool: reagent/register("claude-1",    │
     │         roles: ["reviewer"])            │
-    │ ──────────────────────────────────────► │  → agent registered
-    │  ◄──────────────────────────────────── │  {ok, agentId}
+    │ ──── stdin JSON-RPC ─────────────────► │  → agent registered
+    │  ◄── stdout JSON-RPC ──────────────── │  {ok, agentId}
     │                                        │
     │  tool: reagent/wait_for_events()       │
-    │ ──────────────────────────────────────► │
+    │ ──── stdin ──────────────────────────► │
     │                    ...                  │  (engine runs, reaches zone)
     │                                        │
-    │  ◄──────────────────────────────────── │  [{instanceId: "rev-42",
+    │  ◄── stdout ─────────────────────────  │  [{instanceId: "rev-42",
     │                                        │    event: {type: "action",
     │                                        │     body: "$ctx.feedback = ...",
     │                                        │     ctx: {msg: {diff: "..."}}}}]
     │                                        │
-    │  (agent reasons about the code)        │
+    │  (agent reasons about the event)       │
     │                                        │
     │  tool: reagent/respond("rev-42",       │
     │    {ctx: {feedback: {verdict: "ok"}}}) │
-    │ ──────────────────────────────────────► │  → engine continues
-    │  ◄──────────────────────────────────── │  {ok}
+    │ ──── stdin ──────────────────────────► │  → engine continues
+    │  ◄── stdout ─────────────────────────  │  {ok}
     │                                        │
     │  tool: reagent/wait_for_events()       │
-    │ ──────────────────────────────────────► │  (blocks again)
+    │ ──── stdin ──────────────────────────► │  (blocks again)
 ```
 
 ### Properties of the persistent session model
@@ -236,39 +236,55 @@ reagent/get_pending_events(instanceId?)
 
 ## Architecture
 
-### Integration with ROS and RemoteNode
+### Transport: stdio subprocess
 
-MCP Gate runs on **RemoteNode**, not on ROS. Each RemoteNode serves one
-agent and exposes an MCP server for that agent to connect to.
+MCP Gate uses **stdio transport** (stdin/stdout JSON-RPC). The agent
+(Claude Code, Cursor) starts `mcp-gate` as a subprocess. This is the
+standard MCP pattern — no HTTP ports, no network configuration.
+
+Agent configuration (e.g. Claude Code `.mcp.json` or Cursor `.cursorrules`):
+```json
+{
+  "reagent": {
+    "command": "node",
+    "args": ["path/to/mcp-gate.js", "--ros-url", "ws://localhost:7400", "--node-id", "claude-1"]
+  }
+}
+```
+
+### Inter-RC communication
+
+Message routing between RCs uses **NATS** or **NodeLink** (peer-to-peer
+or via NAT). **ROS is not a message router** — it only handles compile,
+deploy, debug, and monitoring. Envelopes travel directly between RC
+instances through the configured transport layer.
 
 ```
-                         ┌──────────────────────────┐
-                         │           ROS             │
-                         │   Compile .rg             │
-                         │   Deploy IR → RemoteNodes │
-                         │   Route MessageEnvelopes  │
-                         │   WS server :7400         │
-                         └───┬──────┬──────┬─────────┘
-                             │      │      │
-              RAP/WS         │      │      │         RAP/WS
-           ┌─────────────────┘      │      └─────────────────┐
-           │                        │                        │
-           ▼                        ▼                        ▼
-  ┌─────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-  │ RemoteNode       │    │ RemoteNode       │    │ RemoteNode       │
-  │ (node-human)     │    │ (node-consultant)│    │ (node-researcher)│
-  │                  │    │                  │    │                  │
-  │ RC               │    │ RC               │    │ RC               │
-  │ ProtocolEngine   │    │ ProtocolEngine   │    │ ProtocolEngine   │
-  │ McpAgentAdapter  │    │ McpAgentAdapter  │    │ McpAgentAdapter  │
-  │ MCP server :9201 │    │ MCP server :9202 │    │ MCP server :9203 │
-  └────────┬─────────┘    └────────┬─────────┘    └────────┬─────────┘
-           │                       │                       │
-           ▼                       ▼                       ▼
-  ┌────────────────┐    ┌────────────────┐    ┌────────────────┐
-  │ Cursor (human) │    │ Claude Code    │    │ Claude Code    │
-  │ MCP client     │    │ MCP client     │    │ MCP client     │
-  └────────────────┘    └────────────────┘    └────────────────┘
+  ┌──────────────────────────────────────────────────────────────────┐
+  │                           NATS / NodeLink                        │
+  │              (inter-RC envelope transport, peer-to-peer)         │
+  └──────┬──────────────────────┬──────────────────────┬─────────────┘
+         │                      │                      │
+         ▼                      ▼                      ▼
+  ┌────────────────┐   ┌────────────────┐   ┌────────────────┐
+  │ mcp-gate       │   │ mcp-gate       │   │ mcp-gate       │
+  │ (node-human)   │   │ (node-consult) │   │ (node-research)│
+  │                │   │                │   │                │
+  │ RC             │   │ RC             │   │ RC             │
+  │ ProtocolEngine │   │ ProtocolEngine │   │ ProtocolEngine │
+  │ McpAgentAdapter│   │ McpAgentAdapter│   │ McpAgentAdapter│
+  │ MCP stdio ↕    │   │ MCP stdio ↕    │   │ MCP stdio ↕    │
+  └───────┬────────┘   └───────┬────────┘   └───────┬────────┘
+          │ stdin/stdout        │ stdin/stdout        │ stdin/stdout
+          ▼                     ▼                     ▼
+  ┌────────────────┐   ┌────────────────┐   ┌────────────────┐
+  │ Cursor (human) │   │ Claude Code    │   │ Claude Code    │
+  │ MCP client     │   │ MCP client     │   │ MCP client     │
+  └────────────────┘   └────────────────┘   └────────────────┘
+
+  ┌──────────────────────────────────────────────────────────────────┐
+  │  ROS (compile, deploy, debug, monitor)  — NOT a message router   │
+  └──────────────────────────────────────────────────────────────────┘
 ```
 
 ### McpAgentAdapter (replaces McpGateTransport)
@@ -315,41 +331,37 @@ same as `ManagedAgentAdapter` (which executes zone code in-process). The
 engine loop in `CustomAgentHandle.runEngine()` calls `handle()` for zones
 and handles everything else internally.
 
-### RemoteNode MCP mode
+### mcp-gate: standalone subprocess
 
-`RemoteNode` needs a new mode where it uses `McpAgentAdapter` instead of
-`NativeAgentNode`:
+Instead of modifying RemoteNode, MCP Gate is a **separate entry-point**
+(`mcp-gate.ts`) that creates its own RC + CustomAgentNode + McpAgentAdapter.
+It connects to ROS for deploy/trigger commands, and uses NATS/NodeLink
+for inter-RC message routing — same as any other RC node.
 
 ```typescript
-// Existing: NativeAgentNode (executes zones in-process)
-const tsNode = new NativeAgentNode({ roleToAgent, traceHook });
-
-// New: CustomAgentNode with McpAgentAdapter (zones via MCP)
-const mcpAdapter = new McpAgentAdapter();
+// mcp-gate.ts creates:
+const adapter = new McpAgentAdapter(nodeId);
 const mcpNode = new CustomAgentNode({
   roleToAgent,
-  agentFactory: () => mcpAdapter,
+  agentFactory: () => adapter,
 });
+const rc = new ReagentController({ nodeId, agentNodes: { ts: mcpNode } });
+
+// Connects to ROS for deploy/trigger, starts MCP stdio server
+const mcpServer = new ReagentMcpServer({ adapter });
+await mcpServer.startStdio();
 ```
 
-When ROS sends `Deploy`, the RemoteNode registers the agent with the
-`CustomAgentNode` backed by `McpAgentAdapter`. The engine loop starts
-but blocks on the first zone event until the MCP client calls
-`reagent/register` and `reagent/wait_for_events`.
+When ROS sends `Deploy`, the mcp-gate process registers the agent with
+its local RC using `CustomAgentNode` backed by `McpAgentAdapter`. The
+engine loop starts but blocks on the first zone event until the MCP
+client calls `reagent/register` and `reagent/wait_for_events`.
 
-### Envelope routing: RemoteNode → ROS → RemoteNode
+### Envelope routing
 
-When the engine sends a message to a remote agent, the `MessageEnvelope`
-must reach the target RemoteNode via ROS.
-
-Current gap: `RemoteNode` dispatches envelopes locally via
-`rc.getAgent(msg.to.agent)?.dispatchMessage()`. If the agent isn't local,
-the envelope is dropped.
-
-Fix: the RemoteNode's RC needs a route for remote agents that forwards
-envelopes to ROS. This is set up during `Deploy` via the `roleToAgent`
-mapping — agents not deployed locally get a `NodeRef` pointing to ROS
-(via the RAP/WS connection).
+Inter-RC message routing uses NATS or NodeLink — the standard Reagent
+transport layer. **ROS is not involved in message routing.** Each mcp-gate
+process configures its RC with the same transport as any other node.
 
 ---
 
@@ -488,15 +500,16 @@ Summary:
 
 ## Phasing
 
-| Phase | What | Notes |
-|-------|------|-------|
-| P1 | `McpAgentAdapter` implementing `AgentInterface` + event queue + MCP server skeleton | Core adapter. `register` / `wait_for_events` / `respond` tools. |
-| P2 | RemoteNode MCP mode: CLI flag `--mcp-port`, uses `CustomAgentNode` + `McpAgentAdapter` | Deploy via ROS, engine runs on node, agent connects via MCP. |
-| P3 | Envelope routing fix: RemoteNode forwards undeliverable envelopes to ROS | Cross-node message routing for multi-agent protocols. |
-| P4 | `reagent/invoke` tool + trigger relay through ROS | Agents can initiate protocols from MCP. |
-| P5 | Streamable HTTP transport for MCP server | Currently stdio; HTTP enables Docker/remote agents. |
-| P6 | Reconnection, session resumption, pending event replay | Production resilience. |
-| P7 | `AgentLauncher` (stateless fallback) | For serverless / one-shot scenarios. |
+| Phase | What | Status | Notes |
+|-------|------|--------|-------|
+| P1 | `AsyncQueue` + `McpAgentAdapter` implementing `AgentInterface` | **DONE** | `async-queue.ts`, `mcp-agent-adapter.ts` |
+| P1 | `ReagentMcpServer` with stdio transport + all MCP tools | **DONE** | `mcp-server.ts` — register/wait/respond/invoke/list/state |
+| P2 | `mcp-gate.ts` entry-point: RC + CustomAgentNode + McpAgentAdapter + MCP stdio | **DONE** | Standalone subprocess, connects to ROS for deploy/trigger |
+| P3 | E2E test: mcp-gate + ROS + Claude Code (Docker) | TODO | First real agent integration |
+| P4 | `reagent/invoke` tool + trigger relay through ROS | TODO | Agents can initiate protocols from MCP |
+| P5 | Streamable HTTP transport option for MCP server | TODO | For Docker/remote agents (supplement stdio) |
+| P6 | Reconnection, session resumption, pending event replay | TODO | Production resilience |
+| P7 | `AgentLauncher` (stateless fallback) | TODO | For serverless / one-shot scenarios |
 
 ---
 
@@ -536,14 +549,23 @@ Summary:
 
 ## References
 
-- CustomAgentNode: `runtime/ts/src/custom-agent-node.ts`
-- AgentInterface: `runtime/ts/src/agent-interface.ts`
-- ProtocolEngine: `runtime/ts/src/protocol-engine.ts`
-- RemoteNode: `runtime/ts/src/remote-node.ts`
-- ROS: `runtime/ts/src/ros.ts`
-- WsNodeLink: `runtime/ts/src/ws-node-link.ts`
-- Gate transports: `runtime/ts/src/gate-transport.ts`
-- GateSession: `runtime/ts/src/gate-session.ts`
-- MCP specification: https://modelcontextprotocol.io/specification
-- Autoscience simple.rg run plan: `examples/projects/autoscience/RFC-simple-run.md`
-- Telebot agent RFC: `runtime/agents/telebot/RFC.md`
+- **MCP Gate implementation:**
+  - `runtime/ts/src/async-queue.ts` — AsyncQueue with timeout drain
+  - `runtime/ts/src/mcp-agent-adapter.ts` — McpAgentAdapter (AgentInterface → MCP)
+  - `runtime/ts/src/mcp-server.ts` — ReagentMcpServer (MCP tools, stdio transport)
+  - `runtime/ts/src/mcp-gate.ts` — Entry-point subprocess (RC + MCP stdio)
+  - `runtime/ts/test/mcp-adapter.test.ts` — Smoke tests
+- **Core abstractions:**
+  - CustomAgentNode: `runtime/ts/src/custom-agent-node.ts`
+  - AgentInterface: `runtime/ts/src/agent-interface.ts`
+  - ProtocolEngine: `runtime/ts/src/protocol-engine.ts`
+  - Transport: `runtime/ts/src/transport.ts`
+- **Infrastructure:**
+  - RemoteNode: `runtime/ts/src/remote-node.ts`
+  - ROS: `runtime/ts/src/ros.ts`
+  - WsNodeLink: `runtime/ts/src/ws-node-link.ts`
+  - Gate transports: `runtime/ts/src/gate-transport.ts`
+- **Specs and plans:**
+  - MCP specification: https://modelcontextprotocol.io/specification
+  - Autoscience simple.rg run plan: `examples/projects/autoscience/RFC-simple-run.md`
+  - Telebot agent RFC: `runtime/agents/telebot/RFC.md`

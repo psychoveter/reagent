@@ -34,7 +34,9 @@ This file lists only **upcoming work**.
 | StateStore + AgentRegistry | Done | Done | M11-STATE |
 | ResolvePolicyEvaluator | Done | Done | M11-STATE |
 | TriggerMatcher + CronAgent + EventBus | Done | Done | M10 Phase 3 |
-| Gossip discovery (SWIM) | Done | — | TS only |
+| ~~Gossip discovery (SWIM)~~ | Removed | — | Replaced by etcd membership (E.5/E.8) |
+| EtcdStateStore + EtcdManager + EtcdMembership | Done | — | TS only; cluster infrastructure |
+| LeaderElection + Trigger dedup | Done | — | TS only; CronAgent + TriggerMatcher cluster safety |
 | ScatterCoordinator | Done | — | TS only |
 | ROS + RAP (15 sub-protocols) + Debug | Done | — | TS only |
 | VSCode extension (diagrams, LSP, DAP, cluster panel) | Done | — | M12-DX |
@@ -81,14 +83,11 @@ See `./backlog-far.md` for the full formal foundations roadmap (F1–F8).
 
 ---
 
-## Cluster infrastructure (backlog-far)
+## Cluster infrastructure (implemented)
 
-Cluster support is deferred. When needed, `EtcdStateStore` plugs into the existing
-`StateStore` interface with no changes to resolve/spawn/trigger code.
+Embedded etcd cluster infrastructure. Raft consensus for multi-node consistency.
 
-### EtcdStateStore
-
-Embedded etcd inside every RC node. Raft consensus for multi-node consistency.
+### Architecture
 
 ```
 ┌──────────────────────────────┐
@@ -110,28 +109,28 @@ Embedded etcd inside every RC node. Raft consensus for multi-node consistency.
 ```
 
 Single-node: etcd starts as single-member, zero config.
-Cluster: `--peers node-1,node-2,node-3`.
+Cluster: `--peers node-1=http://host1:2380,node-2=http://host2:2380`.
 
-| # | Task | Area | Depends on |
-|---|------|------|------------|
-| E.1 | etcd binary management: bundle/download, start/stop as child process | runtime/ts | — |
-| E.2 | `EtcdStateStore` implementing `StateStore` interface via gRPC client | runtime/ts | E.1, M11 S.1 |
-| E.3 | CronAgent: lease-based leader election (single cron scheduler in cluster) | runtime/ts | E.2 |
-| E.4 | Trigger dedup: CAS lock via `putIfAbsent` on trigger fire | runtime/ts | E.2 |
-| E.5 | Node membership: lease-based join/leave, replaces gossip DiscoveryAgent | runtime/ts | E.2 |
-| E.6 | Cluster mode: `--peers` flag, automatic member join/leave | runtime/ts | E.5 |
-| E.7 | Py runtime: `EtcdStateStore` (connect to existing etcd, not embed) | runtime/py | E.2 |
-| E.8 | Remove gossip `DiscoveryAgent` (replaced by etcd membership) | runtime/ts | E.5 |
-| E.9 | Tests: cluster consistency, leader election, trigger dedup, membership | tests | E.6 |
+### Implementation status
 
-### What etcd replaces
+| # | Task | Status | Files |
+|---|------|--------|-------|
+| E.1 | etcd binary management | ✅ Done | `etcd-manager.ts` |
+| E.2 | `EtcdStateStore` via `etcd3` npm client | ✅ Done | `etcd-state-store.ts` |
+| E.3 | CronAgent leader election | ✅ Done | `leader-election.ts`, `cron-agent.ts` |
+| E.4 | Trigger dedup (CAS locks) | ✅ Done | `trigger-matcher.ts` |
+| E.5 | Node membership (lease-based) | ✅ Done | `etcd-membership.ts`, `state-store-agent-registry.ts` |
+| E.6 | Cluster mode (`--peers`, bootstrap) | ✅ Done | `cluster-bootstrap.ts` |
+| E.7 | Py runtime `EtcdStateStore` | Not started | — |
+| E.8 | Remove gossip `DiscoveryAgent` | ✅ Done | Deleted `discovery-agent.ts` |
+| E.9 | Integration tests | ✅ Done | `test/etcd-state-store.test.ts`, `test/etcd-cluster.test.ts` |
 
-| Was | Becomes |
+### What etcd replaced
+
+| Was | Became |
 |---|---|
-| Gossip (SWIM) for agent-to-node routing | etcd `/agents/*` + watch |
+| Gossip (SWIM) for agent-to-node routing | etcd `/agents/*` + watch via `EtcdMembership` |
 | In-memory agent registry per RC | StateStore-backed registry with local cache + watch |
-| Ad hoc CronAgent per-node | Lease-based leader election → single CronAgent |
-| No trigger dedup across nodes | `putIfAbsent` CAS locks |
-| AddressPage (static discovery) | etcd `/nodes/*` + leases |
-
-This section moves to the active backlog when cluster support becomes a priority.
+| Ad hoc CronAgent per-node | Lease-based leader election (`LeaderElection`) → single CronAgent |
+| No trigger dedup across nodes | `putIfAbsent` CAS locks in `TriggerMatcher` |
+| AddressPage (static discovery) | etcd `/nodes/*` + leases via `EtcdMembership` |

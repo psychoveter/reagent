@@ -1022,8 +1022,8 @@ bodies differ.
 | Pod spec                         | Agent manifest (agent.json)          |
 | Deployment (desired state)       | DeploySpec                           |
 | kubelet (node agent)             | ReagentController (with registry)    |
-| etcd (cluster state)             | RC protocol registries (distributed) |
+| etcd (cluster state)             | EtcdStateStore (embedded etcd via EtcdManager) |
 | API server + controller manager  | ROS reconciler                       |
 | kubectl apply                    | `reagent deploy`                     |
-| Service (discovery)              | AddressPage / routing table          |
+| Service (discovery)              | EtcdMembership / routing table       |
 | Container registry               | Reagent package registry (future)    |

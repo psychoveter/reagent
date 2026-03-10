@@ -70,8 +70,9 @@ The `docs/` folder is split by temporal relevance:
 ### Architecture Deep Dives
 | Area | Document | Description |
 |---|---|---|
-| **Connectivity** | [connectivity.md](connectivity.md) | Routing, `AgentNode`, interceptors, `NodeLink`, scatter scaling, and gossip discovery. |
+| **Connectivity** | [connectivity.md](connectivity.md) | Routing, `AgentNode`, interceptors, `NodeLink`, scatter scaling, and etcd-based discovery. |
 | **Orchestrator** | [orchestrator.md](orchestrator.md) | ROS architecture, RAP sub-protocols, debugging model (message + state level). |
+| **ROS ↔ RC Interaction** | [ros-rc-interaction.md](ros-rc-interaction.md) | Current-state note on how ROS, RC, `RemoteNode`, and `mcp-gate` interact across control-plane and data-plane paths. |
 | **Versioning** | [protocol-versioning.md](protocol-versioning.md) | Protocol identity, AST fingerprints, auto-semver, and the reconciler. |
 | **Tooling & DX** | [dx-tooling.md](dx-tooling.md) | Visualizations, diagrams, cluster panel, visual debugger, and OTel integration. |
 | **LSP** | [lsp.md](lsp.md) | Language Server Protocol architecture and features. |
@@ -132,7 +133,8 @@ graph LR
         WsNL["WsNodeLink"]
         IMNL["InMemoryNodeLink"]
         OTel["OTel interceptor + trace hook"]
-        Disc["DiscoveryAgent (SWIM)"]
+        EtcdM["EtcdMembership"]
+        LE["LeaderElection"]
         SC["ScatterCoordinator"]
         
         RC --> NAN

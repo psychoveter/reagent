@@ -7,6 +7,7 @@
  */
 
 import { LocalEventBus } from "./local-event-bus.js";
+import type { LeaderElection } from "./leader-election.js";
 
 // ── Cron expression parser ──────────────────────────────────────────
 
@@ -110,9 +111,11 @@ export class CronAgent {
   private timer: ReturnType<typeof setInterval> | null = null;
   private lastTickMinute = -1;
   private bus: LocalEventBus;
+  private leaderElection: LeaderElection | null = null;
 
-  constructor(bus: LocalEventBus) {
+  constructor(bus: LocalEventBus, leaderElection?: LeaderElection) {
     this.bus = bus;
+    this.leaderElection = leaderElection ?? null;
   }
 
   addSchedule(protocolName: string, cronExpr: string): string {
@@ -127,16 +130,22 @@ export class CronAgent {
     this.schedules = this.schedules.filter(s => s.id !== id);
   }
 
-  start(intervalMs = 15_000): void {
+  async start(intervalMs = 15_000): Promise<void> {
     if (this.timer) return;
+    if (this.leaderElection) {
+      await this.leaderElection.start();
+    }
     this.timer = setInterval(() => this.tick(), intervalMs);
     this.tick();
   }
 
-  stop(): void {
+  async stop(): Promise<void> {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
+    }
+    if (this.leaderElection) {
+      await this.leaderElection.stop();
     }
   }
 
@@ -144,8 +153,11 @@ export class CronAgent {
     return [...this.schedules];
   }
 
-  /** Called every tick interval; fires events only once per matched minute. */
+  /** Called every tick interval; fires events only once per matched minute.
+   *  When leader election is configured, only the leader fires events. */
   tick(now?: Date): void {
+    if (this.leaderElection && !this.leaderElection.isLeader) return;
+
     const date = now ?? new Date();
     const minuteKey = Math.floor(date.getTime() / 60_000);
     if (minuteKey === this.lastTickMinute) return;

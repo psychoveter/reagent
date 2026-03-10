@@ -1,0 +1,40 @@
+services:
+  nats:
+    image: nats:alpine
+    container_name: reagent-nats
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: ["--http_port", "8222"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8222/healthz || exit 1"]
+      interval: 3s
+      timeout: 2s
+      retries: 5
+      start_period: 2s
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.17
+    container_name: reagent-etcd
+    ports:
+      - "2379:2379"
+    command:
+      - etcd
+      - --advertise-client-urls=http://0.0.0.0:2379
+      - --listen-client-urls=http://0.0.0.0:2379
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 3s
+      timeout: 2s
+      retries: 5
+
+  etcd-viewer:
+    image: rustyx/etcdv3-browser
+    container_name: reagent-etcd-viewer
+    ports:
+      - "8000:8081"
+    environment:
+      - ETCD_ADDR=etcd:2379
+    depends_on:
+      etcd:
+        condition: service_healthy

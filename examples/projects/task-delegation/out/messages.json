@@ -1,0 +1,42 @@
+[
+  {
+    "name": "TaskRequest",
+    "fields": [
+      {
+        "name": "description",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      },
+      {
+        "name": "context",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "TaskResult",
+    "fields": [
+      {
+        "name": "result",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "summary",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      }
+    ]
+  }
+]

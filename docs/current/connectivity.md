@@ -1,25 +1,16 @@
 # Reagent Connectivity Layer
 
-Version: draft-3
-Date: 2026-02-18
-Milestone: M5-CTRL (done)
+Version: 3.0
+Date: 2026-03-08
+Status: Implemented (M5-CTRL)
 
 ---
 
-## 1. Overview and motivation
+## 1. Overview
 
-The current Reagent runtime has a flat, NATS-coupled architecture:
+The Reagent connectivity layer decouples the runtime from any specific transport, enables multi-agent nodes, local routing, and a pluggable interceptor chain.
 
-- `AgentRunner` hard-codes `new NatsTransport(natsUrl)` in its constructor.
-- `ProtocolInstance` accepts a `NatsTransport` concrete type, not an interface.
-- Every agent is a separate OS process with its own NATS connection.
-- There is no concept of a **node** hosting multiple agents — each `AgentRunner` is standalone.
-- Co-located agents (same process) still send messages through NATS, paying serialization and network cost for no reason.
-- There is no interception layer — debug, telemetry, and tracing cannot observe or control message flow without being baked into each component.
-
-This design introduces core abstractions that decouple the runtime from any specific transport, enable multi-agent nodes, local routing, and a pluggable interceptor chain — without reinventing a second messaging system under Reagent.
-
-### Design goals
+### Design principles
 
 1. **No separate messaging layer**: agents communicate via `AgentRef` — the single addressing primitive everywhere. There is no pub/sub transport underneath; inter-node communication uses thin `NodeLink` pipes that carry envelopes. Reagent is the messaging system.
 2. **Multi-agent nodes**: a single process hosts multiple named agents. Agents can be created statically at startup or dynamically during protocol execution (spawn).
@@ -29,60 +20,31 @@ This design introduces core abstractions that decouple the runtime from any spec
 6. **Platform abstraction**: the `ReagentController` delegates agent creation to an opaque `AgentNode` that knows how to map IR to its hidden agent runtime. The RC knows nothing about agent internals.
 7. **Self-describing infrastructure**: Reagent's own infrastructure (tracing, debug, orchestration) can be described as Reagent protocols with dedicated agents, not as a separate hidden system.
 
-### Definition of Done
+### Implementation status
 
-M5-CTRL is **done** when all of the following hold:
+All M5-CTRL targets are implemented:
 
-**Interfaces and types**:
-- [ ] `NodeRef`, `AgentRef`, `ReagentTransport`, `NodeLink` interfaces defined in `transport.ts`.
-- [ ] `AgentNode`, `AgentHandle` interfaces defined in `agent-node.ts`.
-- [ ] `InterceptorFn`, `InterceptorContext` defined in `interceptor.ts`.
-- [ ] `AddressPage` type defined.
+**Interfaces and types**: `NodeRef`, `AgentRef`, `ReagentTransport`, `NodeLink` in `transport.ts`; `AgentNode`, `AgentHandle` in `agent-node.ts`; `InterceptorFn`, `InterceptorContext` in `interceptor.ts`; `AddressPage` type defined.
 
-**Core components implemented**:
-- [ ] `ReagentController` implements agent registry, routing table, `NodeRef`/`AgentRef` factory, interceptor chain, `NodeLink` management, `createTransport()`, `triggerProtocol()`, `applyAddressPage()`.
-- [ ] `NativeAgentNode` wraps `AgentRunner` as `AgentHandle`. `createAgent()` takes `ReagentTransport`, returns working `AgentHandle`.
-- [ ] `InMemoryNodeLink` implements `NodeLink` for in-process envelope dispatch (tests).
+**Core components**: `ReagentController` (agent registry, routing table, `NodeRef`/`AgentRef` factory, interceptor chain, `NodeLink` management, `createTransport()`, `triggerProtocol()`, `applyAddressPage()`, `startMembership()`); `NativeAgentNode` wrapping `AgentRunner` as `AgentHandle`; `InMemoryNodeLink` for in-process envelope dispatch; `NatsNodeLink` for inter-node NATS transport.
 
-**Refactored runtime**:
-- [ ] `ProtocolInstance` uses `ReagentTransport` (not `NatsTransport`). Sends via `ref.send(messageName, payload)`. No subject construction. No direct trace publishing — trace emission via `TraceHook` callback.
-- [ ] `AgentRunner` accepts `ReagentTransport` in config (not `natsUrl`). Demuxes inbound messages by `instanceId`.
-- [ ] `roleToAgent` is loaded by `AgentRunner`, not passed through the RC.
+**Runtime**: `ProtocolInstance` uses `ReagentTransport`; `AgentRunner` accepts `ReagentTransport` in config; `roleToAgent` loaded by `AgentRunner`.
 
-**Single-node mode working**:
-- [ ] All 20 existing E2E tests (T1–T20) pass using `ReagentController` + `NativeAgentNode` + loopback (no NATS, no `NodeLink`). This is the primary validation: the new architecture reproduces all existing behavior.
-- [ ] Single-node startup from `deployment.json` (no `nodes` section) works — backward compatible.
+**Single-node mode**: all E2E tests pass using `ReagentController` + `NativeAgentNode` + loopback (no NATS, no `NodeLink`). Single-node startup from `deployment.json` (no `nodes` section) is backward compatible.
 
-**Multi-node mode working**:
-- [ ] Routing table populated from static `AddressPage`.
+**Multi-node mode**: routing table populated via etcd-based membership (`EtcdMembership`) or static `AddressPage`.
 
-**Orchestrator updated**:
-- [ ] `orchestrator.ts` creates `ReagentController` + `NativeAgentNode` in single-node mode.
-- [ ] `main.ts` uses the new startup flow.
+**Multi-AgentNode per RC**: both TS and Python RCs support multiple `AgentNode` backends keyed by language.
 
-**Functional E2E tests** (new tests validating M5-CTRL-specific behavior):
+**Cluster infrastructure**: `EtcdManager`, `EtcdStateStore`, `EtcdMembership`, `LeaderElection`, `bootstrapCluster()` — etcd-based node presence, agent discovery, cron leader election, and trigger deduplication.
 
-| Test | What it validates |
-|---|---|
-| C1: Single-node loopback | Two agents on one node, message round-trip via loopback. No `NodeLink`. Verifies `AgentRef` → RC → loopback `NodeRef` → `dispatchMessage` path. |
-| C2: Multi-node via InMemoryNodeLink | Two agents on **separate** nodes connected via `InMemoryNodeLink`. Message sent from node-1 agent, received by node-2 agent. Verifies remote `NodeRef` → `NodeLink` → remote RC → dispatch path. |
-| C3: Message-level interceptor | Single-node, two agents. A spy interceptor records all envelopes. After protocol completes, assert the spy captured the expected messages (correct `from`, `to`, `messageName`, `direction`). |
-| C4: Interceptor drops message | A conditional interceptor that does **not** call `next()` for a specific `messageName`. Verify the target agent never receives the dropped message (timeout or protocol stalls as expected). |
-| C5: TraceHook fires | Single-node protocol run. A `TraceHook` spy records all `TraceEvent`s. Assert it captured `ProtocolStarted`, `MessageSent`, `MessageReceived`, `ActionStarted`, `ActionFinished`, `ProtocolCompleted` in the expected order. |
-| C6: AgentRef.send convenience | Verify that `ref.send(messageName, payload)` constructs a valid `MessageEnvelope` with correct `from.agent`, `to.agent`, `instanceId`, `ts`, `idempotencyKey` — fields populated automatically, not by the caller. |
-| C7: Routing table from AddressPage | Two nodes. Node-1 receives an `AddressPage` mapping agent "B" to node-2. Node-1 agent sends to "B" — verify it routes through the `NodeLink` to node-2 (not local dispatch). |
-| C8: Dynamic agent spawn | Agent A runs a protocol that calls `rc.spawnAgent()`. Verify the new agent is registered, reachable via loopback `AgentRef`, and can receive messages. |
-| C9: External trigger via RC API | Call `rc.triggerProtocol("AgentName", trigger)`. Verify the agent's protocol instance starts and runs to completion. |
-| C10: Multi-protocol on single node | Two different protocols running concurrently on the same node. Messages for each protocol route to the correct `ProtocolInstance` by `instanceId`. No cross-talk. |
-| C11: Agent in multiple protocols | One agent plays roles in **two different protocols** concurrently (e.g., `WorkerAgent` plays `TaskProcessing.worker` and `HealthCheck.node`). Both protocols trigger, run, and complete. Verify: messages for each protocol reach the correct `ProtocolInstance` inside the same `AgentRunner`; `$self` state is shared across both; lifecycle handlers (`protocolCompleted`) fire for each. Requires a dedicated `.rg` example (e.g., `22-multi-protocol-agent.rg`). |
+**E2E test coverage**: C1–C11 (connectivity), GT.1–GT.8 (Message Gate), etcd-state-store (14 tests), etcd-cluster (8 tests).
 
-**Not required for Done (deferred)**:
-- `NatsNodeLink` (can be a fast follow — existing NATS tests keep working via the compatibility shim until then).
-- Multi-`AgentNode` per RC (multi-language on one node).
+**Remaining deferred items**:
 - Delivery guarantees / retries.
-- P2P gossip / dynamic discovery.
 - Cross-agent spawn (case b in §6.3).
-- Debug/telemetry/RAP interceptors (only test spy required).
+- Debug/telemetry/RAP interceptors (only test spy implemented).
+- Cross-node event routing (EventHubAgent).
 
 ---
 
@@ -168,12 +130,12 @@ interface NodeLink {
 
 Implementations are physical transports:
 
-| Implementation | Backing |
-|---|---|
-| `NatsNodeLink` | NATS connection between two node RCs |
-| `WsNodeLink` | WebSocket connection |
-| `TcpNodeLink` | Raw TCP socket |
-| `InMemoryNodeLink` | In-process (for tests, single-process multi-node) |
+| Implementation | Backing | Status |
+|---|---|---|
+| `NatsNodeLink` | NATS — single subject per node-pair (`reagent.node.{nodeId}`) | Implemented |
+| `WsNodeLink` | WebSocket (client/server modes) | Implemented |
+| `TcpNodeLink` | Raw TCP socket | Planned |
+| `InMemoryNodeLink` | In-process (for tests, single-process multi-node) | Implemented |
 
 The RC wraps each `NodeLink` into a `NodeRef`. When a remote `AgentRef.send()` fires, the envelope flows through the RC's interceptor chain and then through the `NodeRef` (which delegates to the `NodeLink`). On the receiving end, the remote RC's `link.onEnvelope()` fires, it runs inbound interceptors, and dispatches to the local agent.
 
@@ -743,69 +705,18 @@ For M5-CTRL, option 1 (direct API) is sufficient. Options 2 and 3 are elaborated
 
 ---
 
-## 7. Migration path from current runtime
+## 7. Implementation history
 
-The migration is designed to be incremental. Each step produces a working system.
+The connectivity layer was built incrementally. Each step produced a working system:
 
-### Step 1a: Define interfaces
-
-- Define `NodeRef`, `AgentRef`, `ReagentTransport`, `NodeLink`, `InterceptorFn`, `InterceptorContext` in `runtime/ts/src/transport.ts`.
-- Define `AgentNode`, `AgentHandle` in `runtime/ts/src/agent-node.ts`.
-- Pure additions — no existing code changes.
-
-**Files changed**: `transport.ts` (new), `agent-node.ts` (new), `interceptor.ts` (new).
-
-### Step 1b: Refactor ProtocolInstance and AgentRunner to use interfaces
-
-- `ProtocolInstance` changes from `transport: NatsTransport` to `transport: ReagentTransport`. Its `handleSend()` uses `transport.ref(toAgent)` and calls `ref.send(messageName, payload)` instead of constructing envelopes manually and calling `transport.publish(msgSubject(...), envelope)`.
-- Trace emission stays in `ProtocolInstance` as a `TraceHook` callback (not removed — only message-level concerns move to interceptors).
-- `AgentRunner` changes `transport` field type to `ReagentTransport`. Its config replaces `natsUrl: string` with `transport: ReagentTransport`.
-- E2E tests: a thin compatibility shim wraps `NatsTransport` as `ReagentTransport` (its `ref()` returns a ref that publishes to the NATS subject).
-
-**Files changed**: `protocol-instance.ts`, `agent-runner.ts`, `types.ts`, `main.ts`, `e2e.test.ts`.
-
-### Step 2: Implement InMemoryNodeLink
-
-- `InMemoryNodeLink`: implements `NodeLink` with in-process envelope dispatch. No external dependencies. For tests and single-process multi-node setups.
-
-**Files changed**: `inmemory-node-link.ts` (new).
-
-### Step 3: Build ReagentController
-
-- Implement the RC with agent registry, routing table, per-agent `ReagentTransport` factory, interceptor chain, and `NodeLink` management.
-- The transport's `ref(agentName)` returns an `AgentRef` backed by the correct `NodeRef`.
-- The transport's `onMessage(handler)` registers the agent for inbound delivery.
-- The RC listens on each `NodeLink.onEnvelope()` for inbound messages.
-
-**Files changed**: `reagent-controller.ts` (new).
-
-### Step 4: Build NativeAgentNode
-
-- Wraps `AgentRunner` creation. `createAgent()` instantiates an `AgentRunner` with the `ReagentTransport` from the RC.
-- `AgentHandle` wraps `AgentRunner` methods.
-
-**Files changed**: `native-agent-node.ts` (new).
-
-### Step 5: Wire it together
-
-- Node startup code: reads deployment plan, creates `NativeAgentNode`, creates `ReagentController`, creates `NodeLink`s, registers agents, starts.
-- `main.ts` updated to use the new startup flow.
-- `orchestrator.ts` updated to create `ReagentController` + `NativeAgentNode` in-process (single-node mode) or launch node processes (multi-node mode).
-
-**Files changed**: `main.ts`, `orchestrator.ts`.
-
-### Step 6: Implement NatsNodeLink
-
-- `NatsNodeLink`: wraps a NATS connection to carry envelopes between two node RCs. Uses a single subject per node-pair.
-- Existing `NatsTransport` is retired.
-
-**Files changed**: `nats-node-link.ts` (new), `nats-transport.ts` (retired).
-
-### Step 7: Update E2E tests
-
-- Tests can use `InMemoryNodeLink` for fast, NATS-free testing.
-- Integration tests use `NatsNodeLink` for full-stack validation.
-- Test helpers updated to create `ReagentController` + `NativeAgentNode` instances.
+1. **Interfaces**: `NodeRef`, `AgentRef`, `ReagentTransport`, `NodeLink` (`transport.ts`); `AgentNode`, `AgentHandle` (`agent-node.ts`); `InterceptorFn`, `InterceptorContext` (`interceptor.ts`).
+2. **ProtocolInstance + AgentRunner refactor**: both now use `ReagentTransport` instead of `NatsTransport`. Trace emission via `TraceHook` callback.
+3. **InMemoryNodeLink**: in-process envelope dispatch for tests and single-process multi-node setups (`inmemory-node-link.ts`).
+4. **ReagentController**: agent registry, routing table, per-agent `ReagentTransport` factory, interceptor chain, `NodeLink` management (`reagent-controller.ts`).
+5. **NativeAgentNode**: wraps `AgentRunner` as `AgentHandle` (`native-agent-node.ts`).
+6. **NatsNodeLink**: wraps a NATS connection to carry envelopes between two node RCs (`nats-node-link.ts`). `NatsTransport` is retired.
+7. **E2E tests**: use `InMemoryNodeLink` for fast, NATS-free testing; integration tests use `NatsNodeLink` for full-stack validation.
+8. **Etcd cluster**: `EtcdManager`, `EtcdStateStore`, `EtcdMembership`, `LeaderElection`, `bootstrapCluster()` for node presence, agent discovery, cron singleton, and trigger dedup.
 
 ---
 
@@ -931,29 +842,23 @@ When TS and Python agents are on the same node (different OS processes), loopbac
 
 ## 10. Orchestrator and node connectivity
 
-### 10.1 Current orchestrator
+### 10.1 Orchestrator role
 
-The current `orchestrator.ts` compiles `.rg` files, launches one OS process per agent (via `main.ts`), sends `ProtocolTrigger` messages over NATS, and collects traces from NATS subjects. It is tightly coupled to the one-process-per-agent NATS model.
+The orchestrator (`orchestrator.ts`, exposed as the Reagent Orchestrator Server / ROS) is a **node launcher and coordinator**:
 
-### 10.2 Orchestrator in the new architecture
-
-The orchestrator evolves into a **node launcher and coordinator**:
-
-1. **Compile**: compiles `.rg` → IR artifacts (unchanged).
+1. **Compile**: compiles `.rg` → IR artifacts.
 2. **Plan**: reads the `nodes` section of `deployment.json` to determine which agents run on which nodes.
-3. **Launch nodes**: for each node in the plan, the orchestrator either:
-   - Starts a local node process (for dev/test — all nodes on localhost).
-   - SSHs into a remote host and starts the node process there (for distributed deployments).
-   - Connects to an already-running node via `NodeLink`.
-4. **Distribute address pages**: once all nodes are launched, the orchestrator sends each node an `AddressPage` containing the full agent→node mapping. Nodes update their routing tables via `rc.applyAddressPage(page)`.
-5. **Inject triggers**: the orchestrator calls `rc.triggerProtocol()` on the initiator's node (either via direct API if in-process, or via a `NodeLink` if remote).
-6. **Collect results**: trace events flow to the orchestrator via trace hooks → `TraceCollector` agent → `NodeLink`.
+3. **Launch nodes**: starts local node processes (dev/test) or connects to already-running nodes via `NodeLink`.
+4. **Inject triggers**: calls `rc.triggerProtocol()` on the initiator's node (direct API or via `NodeLink`).
+5. **Collect results**: trace events flow to the orchestrator via trace hooks → `TraceCollector` agent → `NodeLink`.
 
-### 10.3 Address pages (static discovery)
+### 10.2 Node discovery
 
-For M5-CTRL, node discovery is **static**: the deployment plan lists all nodes and their agents. The orchestrator distributes this information as `AddressPage` objects.
+Two discovery mechanisms are available:
 
-An `AddressPage` is a snapshot of routing information:
+**Etcd-based discovery (primary)**: nodes register in etcd via `EtcdMembership` and discover each other through watches on `/nodes/` and `/agents/` prefixes. Agent registrations include `nodeId`, so routing tables are auto-populated. See "Etcd-based Node Discovery" section for details.
+
+**Static `AddressPage` (fallback)**: the orchestrator distributes an `AddressPage` containing the full agent→node mapping. Each node calls `rc.applyAddressPage(page)` to populate its routing table. Used for simple scripted deployments.
 
 ```typescript
 interface AddressPage {
@@ -964,35 +869,21 @@ interface AddressPage {
 }
 ```
 
-Flow:
-1. Orchestrator reads `deployment.json`, builds the full address page.
-2. Orchestrator sends the page to each node (via `NodeLink` or startup config).
-3. Each node's RC calls `applyAddressPage(page)` to populate its routing table.
-4. New nodes joining later receive the current page from the orchestrator.
+### 10.3 How RCs connect to each other
 
-### 10.4 Future: P2P gossip
-
-In future milestones, nodes can exchange address pages directly (peer-to-peer) without a central orchestrator. Each node periodically shares its known address page with its `NodeLink` peers. This converges to a consistent view of the cluster.
-
-For M5-CTRL, this is deferred. The orchestrator is the single source of truth for routing.
-
-### 10.5 Orchestrator as a Reagent node
-
-Long-term, the orchestrator itself becomes a Reagent node — it runs its own RC, hosts infrastructure agents (trace collector, debug controller, deployment manager), and connects to other nodes via `NodeLink`s. Orchestration commands become Reagent protocol messages.
-
-This is the endgame of "self-describing infrastructure." For M5-CTRL, the orchestrator remains a special-purpose process that uses the RC API but is not itself a full Reagent node.
-
-### 10.6 How RCs connect to each other (M5-CTRL plan)
-
-For M5-CTRL, the connectivity model is simple:
+The connectivity model is **hub-free, link-based**:
 
 1. Each node is started with a `NodeConfig` that lists its `links`.
 2. Each link specifies a `remoteNodeId` and connection details (`type`, `url`).
 3. At startup, the RC creates a `NodeLink` for each entry and calls `connect()`.
-4. The orchestrator provides the initial `AddressPage` so each RC knows the full agent→node mapping.
-5. All inter-node traffic flows through `NodeLink`s — there is no global bus or broker (NATS is demoted to a link implementation detail).
+4. Discovery populates the routing table (via etcd membership or `AddressPage`).
+5. All inter-node traffic flows through `NodeLink`s — NATS is a link implementation detail, not a global bus.
 
-This is a **hub-free, link-based** topology. Nodes connect directly to the nodes they need to talk to. For small deployments (2–5 nodes), full mesh is fine. For larger deployments, the orchestrator can determine optimal link topology.
+For small deployments (2–5 nodes), full mesh is typical. For larger deployments, the orchestrator determines optimal link topology.
+
+### 10.4 Future: Orchestrator as a Reagent node
+
+Long-term, the orchestrator itself becomes a Reagent node — it runs its own RC, hosts infrastructure agents (trace collector, debug controller, deployment manager), and connects to other nodes via `NodeLink`s. Currently, the orchestrator remains a special-purpose process that uses the RC API but is not itself a full Reagent node.
 
 ---
 
@@ -1076,7 +967,7 @@ During Python RC development, several core runtime components were enhanced:
 
 | Current code | New role |
 |---|---|
-| `NatsTransport` class | Retired. Replaced by `NatsNodeLink` (thin envelope pipe) |
+| `NatsTransport` class | Low-level NATS wrapper, still used by `NatsCompatTransport` shim. `NatsNodeLink` is the target `NodeLink` implementation for inter-node NATS transport. |
 | `AgentRunner` class | Internal to `NativeAgentNode`, wrapped as `AgentHandle` |
 | `AgentRunnerConfig.natsUrl` | Replaced by `transport: ReagentTransport` |
 | `ProtocolInstance` constructor `transport: NatsTransport` | Changes to `transport: ReagentTransport` (uses `ref` + `ref.send`) |
@@ -1100,6 +991,10 @@ During Python RC development, several core runtime components were enhanced:
 | `runtime/ts/src/reagent-controller.ts` | `ReagentController` implementation (routing, refs, interceptors) |
 | `runtime/ts/src/inmemory-node-link.ts` | `InMemoryNodeLink` for tests |
 | `runtime/ts/src/nats-node-link.ts` | `NatsNodeLink` for inter-node communication over NATS |
+| `runtime/ts/src/mcp-agent-adapter.ts` | `McpAgentAdapter` — pull-based `AgentInterface` for MCP clients |
+| `runtime/ts/src/mcp-server.ts` | `ReagentMcpServer` — MCP tool server (stdio transport) |
+| `runtime/ts/src/mcp-gate.ts` | Standalone subprocess entry point for MCP Gate mode |
+| `runtime/ts/src/async-queue.ts` | `AsyncQueue` — promise-based queue for event buffering |
 | `runtime/py/reagent_runtime/controller.py` | Python `ReagentController` implementation |
 | `runtime/py/reagent_runtime/agent_node.py` | Python `AgentHandle`, `AgentNode` protocol types |
 | `runtime/py/reagent_runtime/inproc_agent_node.py` | `InprocAgentNode` — in-process Python agents |
@@ -1314,84 +1209,59 @@ All three modes implement the same `AgentNode`/`AgentHandle` contract. The RC do
 
 ---
 
-## Gossip-based Node Discovery
+## Etcd-based Node Discovery
 
 ### Overview
 
-Starting with Wave 3.2, Reagent supports SWIM-like gossip discovery as an alternative to static `AddressPage` configuration. The `DiscoveryAgent` maintains a membership list of known nodes and their agent inventories through periodic probing and membership delta piggybacking.
+Node and agent discovery uses embedded etcd (replacing the previous SWIM gossip `DiscoveryAgent`).
+Each node registers itself at `/nodes/{nodeId}` with a lease, and agents register at `/agents/{name}`
+with their `nodeId`. The `EtcdMembership` class watches both prefixes and auto-populates the RC
+routing table when remote agents appear or disappear.
 
-### Gossip protocols
+### Components
 
-Defined in `packages/reagent-system/protocols/discovery/gossip.rg`:
-
-| Protocol | Roles | Purpose |
+| Component | File | Purpose |
 |---|---|---|
-| `Ping` | Prober → Target | Direct health check with membership digest |
-| `IndirectPing` | Requester → Relay → Suspect | Indirect probe via k relays when direct ping fails |
-| `MembershipUpdate` | Source → Peer | Explicit membership change notification |
-
-### Node lifecycle
-
-```
-1. Node starts DiscoveryAgent with seed peers
-2. Periodic probe round: ping random alive peer
-3. Ack received → mark alive, reset miss counter
-4. Timeout → increment miss counter
-5. miss >= suspectRounds → mark suspect, issue indirect pings
-6. miss >= deadRounds → mark dead
-7. Membership deltas piggybacked on all gossip messages
-```
+| `EtcdManager` | `etcd-manager.ts` | Download, cache, start/stop etcd binary as child process |
+| `EtcdStateStore` | `etcd-state-store.ts` | `StateStore` implementation via `etcd3` npm client |
+| `EtcdMembership` | `etcd-membership.ts` | Node presence + agent routing via StateStore watch |
+| `LeaderElection` | `leader-election.ts` | Lease-based leader lock (used by CronAgent) |
+| `bootstrapCluster` | `cluster-bootstrap.ts` | Ties EtcdManager + EtcdStateStore + LeaderElection |
 
 ### Configuration
 
 ```typescript
-import { DiscoveryAgent } from "@reagent/runtime";
+import { bootstrapCluster, ReagentController, NativeAgentNode } from "@reagent/runtime";
 
-const discovery = new DiscoveryAgent({
-  nodeId: "my-node",
-  seeds: ["node-1", "node-2"],
-  probeIntervalMs: 1000,
-  probeTimeoutMs: 500,
-  indirectRelays: 3,
-  suspectRounds: 3,
-  deadRounds: 5,
-  send: (targetNodeId, message) => {
-    // Route via NodeLink, WebSocket, or other transport
-  },
+// Bootstrap etcd cluster
+const cluster = await bootstrapCluster({
+  nodeId: "node-1",
+  peers: ["node-1=http://host1:2380", "node-2=http://host2:2380"],
 });
 
-discovery.setLocalAgents(["BuyerAgent", "SellerAgent"]);
-discovery.start();
-
-// Query routing table for agent-to-node mapping
-const routingTable = discovery.getRoutingTable();
-// Map<string, string>: "BuyerAgent" → "node-1", etc.
-```
-
-### Membership dissemination
-
-All gossip messages carry piggybacked membership deltas for protocol-free dissemination. When no pending deltas exist, full membership is piggybacked to ensure transitive discovery (node A learns about node C through node B even if A never directly contacts C).
-
-### Integration with RC routing
-
-The `DiscoveryAgent`'s routing table replaces static `AddressPage` configuration:
-
-```typescript
-const discovery = new DiscoveryAgent({ nodeId: "my-node", seeds: [...] });
-discovery.start();
-
-// Use gossip-populated routing instead of static AddressPage
+// Create RC with etcd-backed StateStore
 const rc = new ReagentController({
-  nodeId: "my-node",
+  nodeId: "node-1",
+  stateStore: cluster.stateStore,
+  cronLeaderElection: cluster.cronLeaderElection,
   agentNode: new NativeAgentNode({ roleToAgent: {} }),
 });
 
-// Periodically update RC routing from discovery
-setInterval(() => {
-  const table = discovery.getRoutingTable();
-  // Update RC's address resolution with gossip-discovered agents
-}, 5000);
+// Start membership (auto-populates routing table from etcd watches)
+await rc.startMembership();
+
+// Shutdown
+await rc.stop();
+await cluster.shutdown();
 ```
+
+### Node lifecycle
+
+1. Node calls `bootstrapCluster()` — starts embedded etcd (or connects to external)
+2. RC uses `EtcdStateStore` — all state operations go through etcd
+3. `rc.startMembership()` — registers node at `/nodes/{nodeId}` with lease, watches for remote agents
+4. Agent registration includes `nodeId` — other nodes detect and route via watch callbacks
+5. On shutdown: lease expires, node and agent keys are auto-deleted
 
 ### Scatter Scaling
 
@@ -1427,3 +1297,81 @@ const results = await partitionedScatter(
 );
 // Automatically creates 20 partitions, executes in parallel
 ```
+
+---
+
+## Appendix E: MCP Gate
+
+The **MCP Gate** is an integration mode for LLM agents and MCP-compatible clients. Unlike Message Gate (push — RC sends events to the agent), MCP Gate uses a pull model: the agent actively requests events via MCP tool calls.
+
+### Architecture
+
+```
+Agent (MCP client: Claude Code / Cursor)
+  │
+  │  stdin/stdout JSON-RPC (MCP protocol)
+  │
+  └── mcp-gate subprocess
+        ├── ReagentMcpServer (MCP tool server)
+        ├── McpAgentAdapter (AgentInterface — event queue + response bridge)
+        ├── CustomAgentNode → CustomAgentHandle → ProtocolEngine
+        └── ReagentController (routing, NodeLinks, interceptors)
+              └── NatsNodeLink / WsNodeLink (inter-node transport)
+```
+
+### Relationship to other modes
+
+MCP Gate builds on Custom Agent mode. The `McpAgentAdapter` implements `AgentInterface` (same as any user-provided class in Custom Agent mode), but instead of executing logic directly, it:
+
+1. Queues `ProtocolEvent`s into an `AsyncQueue`
+2. Blocks the engine loop (returns a pending `Promise<AgentResponse>`)
+3. Waits for the MCP client to pull events and submit responses
+
+This lets the agent reason asynchronously between protocol steps — essential for LLM agents that need to inspect context, call tools, and formulate responses.
+
+### Key difference from Message Gate
+
+| Aspect | Message Gate | MCP Gate |
+|--------|-------------|----------|
+| **Direction** | Push (RC → agent) | Pull (agent → RC) |
+| **Transport** | `GateTransport` (WS/stdio/HTTP) | MCP JSON-RPC over stdio |
+| **AgentNode** | `MessageGateNode` | `CustomAgentNode` |
+| **AgentInterface** | N/A (GateSession handles framing) | `McpAgentAdapter` |
+| **Use case** | Simple external processes, polyglot | LLM agents, MCP clients |
+
+### Components
+
+- `mcp-gate.ts` — standalone subprocess entry point
+- `mcp-server.ts` — `ReagentMcpServer` wrapping `@modelcontextprotocol/sdk`
+- `mcp-agent-adapter.ts` — `McpAgentAdapter` implementing `AgentInterface`
+- `async-queue.ts` — `AsyncQueue<T>` for bridging push (engine) to pull (MCP client)
+
+### MCP tools
+
+| Tool | Description |
+|------|-------------|
+| `reagent/register` | Register agent identity and declare roles |
+| `reagent/unregister` | Leave discovery |
+| `reagent/wait_for_events` | Long-poll for protocol events |
+| `reagent/respond` | Submit `AgentResponse` for a protocol event |
+| `reagent/invoke` | Start a new protocol instance |
+| `reagent/list_protocols` | List available protocols |
+| `reagent/list_instances` | List active protocol instances |
+| `reagent/get_state` | Get instance state |
+
+### Configuration
+
+The agent starts `mcp-gate` as a subprocess. Example MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "reagent": {
+      "command": "node",
+      "args": ["mcp-gate.js", "--ros-url", "ws://localhost:7400", "--node-id", "my-agent"]
+    }
+  }
+}
+```
+
+The `mcp-gate` process creates its own `ReagentController`, connects to ROS for deploy/trigger commands, and serves MCP tools on stdio. Inter-node envelope transport uses `NatsNodeLink` or `WsNodeLink`.

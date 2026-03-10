@@ -68,6 +68,7 @@ interface AdapterInfo {
   ws: WebSocket;
   supportedLangs: string[];
   deployedAgents: string[];
+  requestedAgents: string[];
 }
 
 export class ReagentOrchestratorServer {
@@ -774,6 +775,7 @@ export class ReagentOrchestratorServer {
     const payload = msg.payload ?? {};
     const nodeId = payload.nodeId as string;
     const supportedLangs = (payload.supportedLangs as string[]) ?? ["ts"];
+    const requestedAgents = (payload.requestedAgents as string[]) ?? [];
 
     if (!nodeId) {
       this.sendRap(ws, "Rejected", msg.id, { reason: "Missing nodeId" });
@@ -785,6 +787,7 @@ export class ReagentOrchestratorServer {
       ws,
       supportedLangs,
       deployedAgents: [],
+      requestedAgents,
     };
     this.adapters.set(nodeId, adapter);
 
@@ -816,6 +819,62 @@ export class ReagentOrchestratorServer {
     });
 
     this.sendRap(ws, "Accepted", msg.id, { nodeId });
+    this.broadcastClusterUpdate();
+
+    this.deployUnassignedAgentsToNode(nodeId);
+  }
+
+  /**
+   * Deploy agents from the last deployment to a newly joined node.
+   * If the node declared requestedAgents, only deploy those.
+   * Agents already confirmed on another node are skipped unless
+   * this node explicitly requests them (agent migration).
+   */
+  private deployUnassignedAgentsToNode(nodeId: string): void {
+    if (!this.lastDeployment) return;
+    const adapter = this.adapters.get(nodeId);
+    if (!adapter || adapter.ws.readyState !== WebSocket.OPEN) return;
+
+    const confirmedAgents = new Set<string>();
+    for (const a of this.adapters.values()) {
+      for (const name of a.deployedAgents) confirmedAgents.add(name);
+    }
+
+    for (const agentDef of this.lastDeployment.agents) {
+      const wantsThisAgent = adapter.requestedAgents.length === 0 ||
+        adapter.requestedAgents.includes(agentDef.agentName);
+      if (!wantsThisAgent) continue;
+      if (confirmedAgents.has(agentDef.agentName)) continue;
+
+      const roleName = agentDef.roleName;
+      const roleIR = this.deployedRoleIRs[roleName] ?? this.deployedRoleIRs[`${roleName}.role`] ?? {};
+      const agentGraphs: Record<string, any> = {};
+      for (const binding of agentDef.roles) {
+        const key = `${binding.protocolName}.${binding.roleName}`;
+        if (this.deployedIRGraphs[key]) agentGraphs[key] = this.deployedIRGraphs[key];
+      }
+
+      try {
+        const firstRole = agentDef.roles[0];
+        adapter.ws.send(JSON.stringify({
+          rap: "Deploy",
+          payload: {
+            agentName: agentDef.agentName,
+            roleIR,
+            graphs: agentGraphs,
+            roleToAgent: this.lastDeployment.roleToAgent,
+            roleName,
+            protocolName: firstRole?.protocolName ?? "",
+            agentRegistrations: this.deployedAgentRegistrations,
+          },
+        }));
+        this.agentToNode.set(agentDef.agentName, nodeId);
+        console.log(`[ROS] Auto-deployed ${agentDef.agentName} to late-joining node ${nodeId}`);
+      } catch (err) {
+        console.error(`[ROS] Failed to auto-deploy ${agentDef.agentName} to ${nodeId}:`, err);
+      }
+    }
+
     this.broadcastClusterUpdate();
   }
 
@@ -985,6 +1044,10 @@ export class ReagentOrchestratorServer {
   private deployedIRGraphs: Record<string, any> = {};
   private deployedRoleIRs: Record<string, any> = {};
   private deployedAgentRegistrations: Record<string, { tags?: string[]; capabilities?: string[]; labels?: Record<string, string> }> = {};
+  private lastDeployment: {
+    agents: Array<{ agentName: string; lang: string; roleName: string; roles: Array<{ protocolName: string; roleName: string }> }>;
+    roleToAgent: Record<string, string>;
+  } | null = null;
 
   private handleListProtocols(ws: WebSocket, msg: RAPMessage): void {
     const session = this.sessions.getLatest();
@@ -1266,6 +1329,7 @@ export class ReagentOrchestratorServer {
 
     this.deployedIRGraphs = irGraphs;
     this.deployedRoleIRs = roleIRs;
+    this.lastDeployment = deployment as any;
 
     const agentRegs = (payload.agentRegistrations ?? {}) as Record<string, { tags?: string[]; capabilities?: string[]; labels?: Record<string, string> }>;
     Object.assign(this.deployedAgentRegistrations, agentRegs);
@@ -1314,13 +1378,17 @@ export class ReagentOrchestratorServer {
       }
     }
 
-    // Round-robin distribution: assign each agent to an adapter
+    // Agent-to-adapter routing: prefer adapters that requested specific agents,
+    // fall back to round-robin for unmatched agents.
     let adapterIdx = 0;
     const deployedCount = { success: 0, total: deployment.agents.length };
 
     for (const agentDef of deployment.agents) {
-      const adapter = adapterList[adapterIdx % adapterList.length];
-      adapterIdx++;
+      const preferred = adapterList.find(a =>
+        a.requestedAgents.length > 0 && a.requestedAgents.includes(agentDef.agentName)
+      );
+      const adapter = preferred ?? adapterList[adapterIdx % adapterList.length];
+      if (!preferred) adapterIdx++;
 
       const roleName = agentDef.roleName;
       const roleIR = roleIRs[roleName] ?? roleIRs[`${roleName}.role`] ?? {};

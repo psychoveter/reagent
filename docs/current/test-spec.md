@@ -29,7 +29,9 @@ This document is the single source of truth for the Reagent test suite — struc
 | TLA+ generation | `wave1-tla.test.ts` | TLA1–TLA5 (5) | Stable |
 | Custom agent model | `wave2-custom.test.ts` | CA1–CA4 (4) | Stable |
 | Scatter async | `m9-scatter-async.test.ts` | 4 | Stable |
-| Gossip discovery | `wave3-gossip.test.ts` | 2 | Stable (vitest) |
+| ~~Gossip discovery~~ | ~~`wave3-gossip.test.ts`~~ | ~~2~~ | Removed (replaced by etcd) |
+| Etcd StateStore | `etcd-state-store.test.ts` | 14 | Stable (integration, requires etcd) |
+| Etcd cluster (leader, membership, dedup) | `etcd-cluster.test.ts` | 8 | Stable (integration, requires etcd) |
 | Scatter E2E | `wave3-scatter.test.ts` | 2 | Stable (vitest) |
 | Self-host | `wave3-selfhost.test.ts` | 2 | Stable (vitest) |
 | Registry | `m8a-registry.test.ts` | 5 | Stable (vitest) |
@@ -75,7 +77,9 @@ runtime/
 │   ├── wave1-otel.test.ts       # OTel interceptor
 │   ├── wave1-tla.test.ts        # TLA+ generation
 │   ├── wave2-custom.test.ts     # Custom agent (CA1–CA4)
-│   ├── wave3-gossip.test.ts     # SWIM gossip
+│   ├── wave3-gossip.test.ts     # (removed — SWIM gossip replaced by etcd)
+│   ├── etcd-state-store.test.ts # EtcdStateStore integration (requires etcd)
+│   ├── etcd-cluster.test.ts     # LeaderElection, EtcdMembership, trigger dedup
 │   ├── wave3-scatter.test.ts    # Scatter E2E
 │   ├── wave3-selfhost.test.ts   # Self-hosting
 │   ├── phase3-triggers.test.ts  # Triggers, CronAgent, EventBus
@@ -221,9 +225,13 @@ Tests weakened during M13 to get the suite green. Each is a concrete follow-up.
 | OTel | — | `wave1-otel.test.ts` | OTel interceptor + trace hooks |
 | TLA+ | TLA1–TLA5 | `wave1-tla.test.ts` | TLA+ spec generation |
 | Scatter | — | `wave3-scatter.test.ts`, `m9-scatter-async.test.ts` | Scatter coordination |
-| Gossip | — | `wave3-gossip.test.ts` | SWIM discovery |
+| ~~Gossip~~ | — | ~~`wave3-gossip.test.ts`~~ | Removed (replaced by etcd) |
+| Etcd StateStore | — | `etcd-state-store.test.ts` | EtcdStateStore CRUD, CAS, watch, lease |
+| Etcd cluster | — | `etcd-cluster.test.ts` | LeaderElection, EtcdMembership, trigger dedup |
 | Triggers | — | `phase3-triggers.test.ts` | EventBus, CronAgent, TriggerMatcher |
 | StateStore | — | `m11-state-resolve.test.ts` | InMemoryStateStore, AgentRegistry, ResolvePolicyEvaluator |
+| EtcdStateStore | — | `etcd-state-store.test.ts` | EtcdStateStore (etcd3 client, integration) |
+| Etcd cluster | — | `etcd-cluster.test.ts` | LeaderElection, EtcdMembership, trigger dedup |
 | Lang: triggers | — | `trigger.test.ts` | Trigger parsing/IR/validation |
 | Lang: M10 | — | `m10-phase4a.test.ts` | Participant modifiers, resolve, spawn |
 | LSP smoke | — | `lsp.test.ts` | LSP capabilities, parse, keywords |

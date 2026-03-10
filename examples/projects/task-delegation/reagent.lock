@@ -1,0 +1,28 @@
+{
+  "protocols": {
+    "TaskDelegation": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "structureHash": "a8e480508d62a8a40bb6b1dfe57338ae46402cfdbbba73e5668975b9e1ede6a6",
+        "schemaHash": "fad2d2fbb6bf5cbeb6f6684de46972d3f0ebbea1ea95a50065279b84a75a92de",
+        "implHash": "b093372b601614b32ffe2ca8ae4889749a9c3b756dce5ecb22648037ebeb7854"
+      }
+    }
+  },
+  "roles": {
+    "HumanRole": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "playsHash": "e306d9ec265bc968f55979524758537ef99e99121874fb240ec0812f3821dce7",
+        "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+      }
+    },
+    "WorkerRole": {
+      "version": "0.1.0",
+      "fingerprints": {
+        "playsHash": "84c6c3e6032f17978042f753ae0dbe9a1a2be84c539d654d99c5d8938e90548f",
+        "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+      }
+    }
+  }
+}

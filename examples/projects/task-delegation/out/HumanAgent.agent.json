@@ -1,0 +1,6 @@
+{
+  "agentName": "HumanAgent",
+  "lang": "ts",
+  "roleName": "HumanRole",
+  "roleFile": "HumanRole.role.json"
+}

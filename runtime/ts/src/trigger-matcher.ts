@@ -24,6 +24,7 @@ import {
   type SuppressionReason,
 } from "./trigger-policy.js";
 import { ResolvePolicyEvaluator, type ResolveContext } from "./resolve-policy-evaluator.js";
+import type { StateStore } from "./state-store.js";
 
 // ── Match table entry ───────────────────────────────────────────────
 
@@ -73,6 +74,8 @@ export class TriggerMatcher {
   private resolveInitiator: (protocolName: string) => string | null;
   private resolveRoleToAgent: (protocolName: string) => Record<string, string>;
   private resolvePolicyEvaluator: ResolvePolicyEvaluator | null = null;
+  private stateStore: StateStore | null = null;
+  private nodeId: string | null = null;
 
   constructor(opts: {
     registry: ProtocolRegistry;
@@ -83,6 +86,10 @@ export class TriggerMatcher {
     resolveInitiator: (protocolName: string) => string | null;
     resolveRoleToAgent: (protocolName: string) => Record<string, string>;
     resolvePolicyEvaluator?: ResolvePolicyEvaluator;
+    /** When provided, trigger dedup uses CAS locks in StateStore across nodes. */
+    stateStore?: StateStore;
+    /** Node identity for dedup locks. Required if stateStore is set. */
+    nodeId?: string;
   }) {
     this.registry = opts.registry;
     this.bus = opts.bus;
@@ -92,6 +99,8 @@ export class TriggerMatcher {
     this.resolveInitiator = opts.resolveInitiator;
     this.resolveRoleToAgent = opts.resolveRoleToAgent;
     this.resolvePolicyEvaluator = opts.resolvePolicyEvaluator ?? null;
+    this.stateStore = opts.stateStore ?? null;
+    this.nodeId = opts.nodeId ?? null;
   }
 
   setResolvePolicyEvaluator(evaluator: ResolvePolicyEvaluator): void {
@@ -244,6 +253,21 @@ export class TriggerMatcher {
         payload: input,
       });
       return false;
+    }
+
+    // Distributed dedup: CAS lock in StateStore (cluster mode)
+    if (this.stateStore && this.nodeId) {
+      const lockKey = `/triggers/locks/${entry.id}/${hash}`;
+      const acquired = await this.stateStore.putIfAbsent(lockKey, this.nodeId);
+      if (!acquired) {
+        this.emitTrace(entry.protocolName, "TriggerDedupSkipped", {
+          triggerId: entry.id,
+          reason: "cluster-dedup",
+          triggerKind: entry.trigger.kind,
+          payload: input,
+        });
+        return false;
+      }
     }
 
     recordTriggerFired(entry.policyState, hash, now);

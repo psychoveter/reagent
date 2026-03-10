@@ -31,6 +31,7 @@ import { ClusterPanelProvider } from './clusterPanel';
 import { ReagentTracePanelProvider } from './tracePanel';
 import { deployProject } from './deployController';
 import { ProjectCodeLensProvider } from './projectCodeLens';
+import { McpDevCycle } from './mcpDevCycle';
 import { ChildProcess, spawn, execSync } from 'child_process';
 import * as fs from 'fs';
 
@@ -623,6 +624,31 @@ export function activate(context: vscode.ExtensionContext): void {
       ReagentDiagramPanel.createOrShow(context.extensionUri, clusterPanel);
       devChannel.appendLine('[DevCycle] Ready — use the trigger bar to run the protocol');
     })
+  );
+
+  // ── MCP Dev Cycle: NATS + etcd + ROS + compile + deploy ─────────
+  const mcpDevCycle = new McpDevCycle(
+    rosManager,
+    clusterPanel,
+    () => context.asAbsolutePath(path.join('lang', 'cli.js')),
+  );
+  context.subscriptions.push(mcpDevCycle);
+
+  mcpDevCycle.onStatusChange((health) => {
+    clusterPanel.setInfraHealth(health);
+  });
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('reagent.mcpDevCycle', () => mcpDevCycle.start())
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('reagent.stopMcpDevCycle', () => mcpDevCycle.stop())
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('reagent.teardownMcpDevCycle', () => mcpDevCycle.stop(true))
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('reagent.mcpRedeploy', () => mcpDevCycle.recompileAndRedeploy())
   );
 
   context.subscriptions.push(

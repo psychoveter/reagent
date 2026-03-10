@@ -206,9 +206,6 @@ export class RemoteNode {
       }
     });
 
-    // If breakpoints are pre-set, run until a breakpoint is hit.
-    // Otherwise step through every state so the DAP session can
-    // provide breakpoints after initialization.
     if (breakpoints.length > 0) {
       hook.setStepMode("none");
     } else {

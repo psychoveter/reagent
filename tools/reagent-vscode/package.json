@@ -30,6 +30,10 @@
     "onCommand:reagent.openProjectDiagram",
     "onCommand:reagent.devCycle",
     "onCommand:reagent.stopDevCycle",
+    "onCommand:reagent.mcpDevCycle",
+    "onCommand:reagent.stopMcpDevCycle",
+    "onCommand:reagent.teardownMcpDevCycle",
+    "onCommand:reagent.mcpRedeploy",
     "onCommand:reagent.lspStatus"
   ],
   "contributes": {
@@ -199,6 +203,26 @@
         "command": "reagent.stopDevCycle",
         "title": "Reagent: Stop Dev Cycle",
         "icon": "$(debug-stop)"
+      },
+      {
+        "command": "reagent.mcpDevCycle",
+        "title": "Reagent: MCP Dev Cycle (NATS + etcd + ROS)",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "reagent.stopMcpDevCycle",
+        "title": "Reagent: Stop MCP Dev Cycle (keep infra)",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "reagent.teardownMcpDevCycle",
+        "title": "Reagent: Teardown MCP Dev Cycle (stop all)",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "reagent.mcpRedeploy",
+        "title": "Reagent: Recompile & Redeploy (MCP)",
+        "icon": "$(sync)"
       },
       {
         "command": "reagent.lspStatus",

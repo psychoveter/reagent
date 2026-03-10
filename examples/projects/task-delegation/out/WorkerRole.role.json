@@ -1,0 +1,17 @@
+{
+  "roleName": "WorkerRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "TaskDelegation",
+      "roleName": "worker",
+      "protocolVersion": "0.1.0"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "84c6c3e6032f17978042f753ae0dbe9a1a2be84c539d654d99c5d8938e90548f",
+    "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+  }
+}

@@ -179,6 +179,9 @@ export class CustomAgentHandle implements AgentHandle {
 
             case "action": {
               emitTrace("ActionStarted", { stateId: state.id });
+              if (typeof (this.agent as any).setCurrentInstance === "function") {
+                (this.agent as any).setCurrentInstance(engine.instanceId, engine.protocolName, engine.roleName);
+              }
               const resp = await this.agent.handle({
                 type: "action",
                 stateId: state.id,
@@ -210,6 +213,9 @@ export class CustomAgentHandle implements AgentHandle {
               engine.ctx.msg = {};
               if (data.preSendZone) {
                 emitTrace("ActionStarted", { stateId: state.id, zone: "preSend" });
+                if (typeof (this.agent as any).setCurrentInstance === "function") {
+                  (this.agent as any).setCurrentInstance(engine.instanceId, engine.protocolName, engine.roleName);
+                }
                 const resp = await this.agent.handle({
                   type: "pre_send_action",
                   stateId: state.id,
@@ -245,6 +251,9 @@ export class CustomAgentHandle implements AgentHandle {
               engine.ctx.msg = env.payload;
               if (data.postReceiveZone) {
                 emitTrace("ActionStarted", { stateId: state.id, zone: "postReceive" });
+                if (typeof (this.agent as any).setCurrentInstance === "function") {
+                  (this.agent as any).setCurrentInstance(engine.instanceId, engine.protocolName, engine.roleName);
+                }
                 const resp = await this.agent.handle({
                   type: "post_receive_action",
                   stateId: state.id,

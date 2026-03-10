@@ -1,0 +1,111 @@
+{
+  "protocolName": "TaskDelegation",
+  "role": "human",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "send_2",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "worker",
+        "arrow": "-->",
+        "messageName": "TaskRequest",
+        "preSendZone": "\r\n      $ctx.msg.description = $ctx.input.description || \"No description\"\r\n      $ctx.msg.context = $ctx.input.context || {}\r\n    "
+      }
+    },
+    {
+      "id": "recv_3",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "worker",
+        "arrow": "-->",
+        "messageName": "TaskResult"
+      }
+    },
+    {
+      "id": "end_4",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "send_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_2",
+      "to": "recv_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_3",
+      "to": "end_4",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_4"
+  ],
+  "participants": [
+    {
+      "name": "human",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "worker",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "triggers": [
+    {
+      "kind": "invoke",
+      "withType": "TaskRequest",
+      "resolveMap": {
+        "human": [
+          {
+            "step": "single"
+          }
+        ],
+        "worker": [
+          {
+            "step": "single"
+          }
+        ]
+      }
+    }
+  ],
+  "invocable": true,
+  "version": "0.1.0",
+  "fingerprints": {
+    "structureHash": "a8e480508d62a8a40bb6b1dfe57338ae46402cfdbbba73e5668975b9e1ede6a6",
+    "schemaHash": "fad2d2fbb6bf5cbeb6f6684de46972d3f0ebbea1ea95a50065279b84a75a92de",
+    "implHash": "b093372b601614b32ffe2ca8ae4889749a9c3b756dce5ecb22648037ebeb7854"
+  }
+}

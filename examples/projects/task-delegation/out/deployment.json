@@ -1,0 +1,47 @@
+{
+  "agents": [
+    {
+      "agentName": "HumanAgent",
+      "lang": "ts",
+      "roleName": "HumanRole",
+      "agentIRFile": "HumanAgent.agent.json",
+      "roleIRFile": "HumanRole.role.json",
+      "roles": [
+        {
+          "protocolName": "TaskDelegation",
+          "roleName": "human",
+          "irGraphFile": "TaskDelegation.human.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "WorkerAgent",
+      "lang": "ts",
+      "roleName": "WorkerRole",
+      "agentIRFile": "WorkerAgent.agent.json",
+      "roleIRFile": "WorkerRole.role.json",
+      "roles": [
+        {
+          "protocolName": "TaskDelegation",
+          "roleName": "worker",
+          "irGraphFile": "TaskDelegation.worker.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "TaskDelegation.human": "HumanAgent",
+    "TaskDelegation.worker": "WorkerAgent"
+  },
+  "roles": [
+    {
+      "name": "HumanRole",
+      "file": "HumanRole.role.json"
+    },
+    {
+      "name": "WorkerRole",
+      "file": "WorkerRole.role.json"
+    }
+  ],
+  "messages": "messages.json"
+}

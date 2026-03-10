@@ -10,6 +10,8 @@ import type { StateStore, Disposable, WatchEvent } from "./state-store.js";
 export type AgentRegistration = {
   name: string;
   role: string;
+  /** Node ID where this agent is hosted. */
+  nodeId?: string;
   tags: string[];
   capabilities: string[];
   labels: Record<string, string>;
