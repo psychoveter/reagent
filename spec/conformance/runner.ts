@@ -10,15 +10,15 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
-import { ReagentController } from "../../runtime/ts/src/reagent-controller.js";
-import { NativeAgentNode, NativeAgentHandle } from "../../runtime/ts/src/native-agent-node.js";
-import { CustomAgentNode, CustomAgentHandle } from "../../runtime/ts/src/custom-agent-node.js";
-import { ManagedAgentAdapter } from "../../runtime/ts/src/agent-interface.js";
-import type { AgentInterface } from "../../runtime/ts/src/agent-interface.js";
-import type { ProtocolEvent, AgentResponse } from "../../runtime/ts/src/protocol-engine.js";
-import type { IRGraph, ThinAgentIR, RoleIR, TraceEvent } from "../../runtime/ts/src/types.js";
-import { resolveAgentIR } from "../../runtime/ts/src/types.js";
-import type { TraceHook } from "../../runtime/ts/src/interceptor.js";
+import { ReagentController } from "../../runtime/ts/src/controller/reagent-controller.js";
+import { NativeAgentNode, NativeAgentHandle } from "../../runtime/ts/src/nodes/native-agent-node.js";
+import { CustomAgentNode, CustomAgentHandle } from "../../runtime/ts/src/nodes/custom-agent-node.js";
+import { ManagedAgentAdapter } from "../../runtime/ts/src/core/agent-interface.js";
+import type { AgentInterface } from "../../runtime/ts/src/core/agent-interface.js";
+import type { ProtocolEvent, AgentResponse } from "../../runtime/ts/src/core/protocol-engine.js";
+import type { IRGraph, ThinAgentIR, RoleIR, TraceEvent } from "../../runtime/ts/src/contracts/types.js";
+import { resolveAgentIR } from "../../runtime/ts/src/contracts/types.js";
+import type { TraceHook } from "../../runtime/ts/src/contracts/interceptor.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = join(__dirname, "fixtures");

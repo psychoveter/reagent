@@ -4,35 +4,45 @@
   "lang": "ts",
   "states": [
     {
-      "id": "init_5",
+      "id": "init_6",
       "kind": "initial",
       "data": {
         "kind": "initial"
       }
     },
     {
-      "id": "recv_6",
+      "id": "recv_7",
       "kind": "receive",
       "data": {
         "kind": "receive",
         "from": "human",
         "arrow": "-->",
-        "messageName": "TaskRequest"
+        "messageName": "TaskRequest",
+        "postReceiveZone": "\r\n      // Store the inbound task request on the worker side.\r\n      // Set $ctx.receivedTask = {\r\n      //   description: $ctx.msg.description,\r\n      //   context: $ctx.msg.context,\r\n      //   requestedBy: $ctx.msg.requestedBy,\r\n      //   successCriteria: $ctx.msg.successCriteria\r\n      // }\r\n    "
       }
     },
     {
-      "id": "send_7",
+      "id": "act_8",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\r\n    // Complete the delegated task.\r\n    // Read the task from $ctx.receivedTask.\r\n    // Produce:\r\n    // - $ctx.workResult = {\r\n    //     deliverable: concise but useful answer to the task,\r\n    //     rationale: short explanation of how you solved it\r\n    //   }\r\n    // - $ctx.workSummary = one short sentence summarizing the outcome\r\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_9",
       "kind": "send",
       "data": {
         "kind": "send",
         "to": "human",
         "arrow": "-->",
         "messageName": "TaskResult",
-        "preSendZone": "\r\n      $ctx.msg.result = $ctx.input.result || \"processed\"\r\n      $ctx.msg.summary = $ctx.input.summary || \"Task completed\"\r\n    "
+        "preSendZone": "\r\n      // Send the finished work back to the human.\r\n      // Set:\r\n      // - $ctx.msg.result = $ctx.workResult\r\n      // - $ctx.msg.summary = $ctx.workSummary\r\n    "
       }
     },
     {
-      "id": "end_8",
+      "id": "end_10",
       "kind": "terminal",
       "data": {
         "kind": "terminal",
@@ -42,30 +52,37 @@
   ],
   "transitions": [
     {
-      "from": "init_5",
-      "to": "recv_6",
+      "from": "init_6",
+      "to": "recv_7",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "recv_6",
-      "to": "send_7",
+      "from": "recv_7",
+      "to": "act_8",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "send_7",
-      "to": "end_8",
+      "from": "act_8",
+      "to": "send_9",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_9",
+      "to": "end_10",
       "label": {
         "kind": "default"
       }
     }
   ],
-  "initialStateId": "init_5",
+  "initialStateId": "init_6",
   "terminalStateIds": [
-    "end_8"
+    "end_10"
   ],
   "participants": [
     {
@@ -102,10 +119,10 @@
     }
   ],
   "invocable": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "fingerprints": {
-    "structureHash": "a8e480508d62a8a40bb6b1dfe57338ae46402cfdbbba73e5668975b9e1ede6a6",
+    "structureHash": "162060defe520c9399dc4ed55d78d7659b71994ab16e70db775ab9629e64bae1",
     "schemaHash": "fad2d2fbb6bf5cbeb6f6684de46972d3f0ebbea1ea95a50065279b84a75a92de",
-    "implHash": "b093372b601614b32ffe2ca8ae4889749a9c3b756dce5ecb22648037ebeb7854"
+    "implHash": "732e4d7df6e8da578405d47110baeba0c4753e83da9fc571f99c037818745446"
   }
 }

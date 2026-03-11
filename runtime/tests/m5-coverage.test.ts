@@ -22,11 +22,11 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
-import { ReagentController } from "../ts/src/reagent-controller.js";
-import { NativeAgentNode, NativeAgentHandle } from "../ts/src/native-agent-node.js";
-import type { IRGraph, ThinAgentIR, RoleIR, AgentIR, TraceEvent } from "../ts/src/types.js";
-import { resolveAgentIR } from "../ts/src/types.js";
-import type { TraceHook } from "../ts/src/interceptor.js";
+import { ReagentController } from "../ts/src/controller/reagent-controller.js";
+import { NativeAgentNode, NativeAgentHandle } from "../ts/src/nodes/native-agent-node.js";
+import type { IRGraph, ThinAgentIR, RoleIR, AgentIR, TraceEvent } from "../ts/src/contracts/types.js";
+import { resolveAgentIR } from "../ts/src/contracts/types.js";
+import type { TraceHook } from "../ts/src/contracts/interceptor.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const EXAMPLES_OUT = join(__dirname, "..", "..", "examples", "out");
@@ -933,6 +933,74 @@ async function testC22(): Promise<TestResult> {
   }
 }
 
+// ── C23: direct send to many fails loudly ────────────────────────────
+
+async function testC23(): Promise<TestResult> {
+  const name = "C23: direct send to multi-bound many fails loudly";
+
+  try {
+    const senderGraph = makeGraph("ManySendProto", "sender", [
+      sInitial("init"),
+      sSend("snd1", "worker", "Task"),
+      sTerminal("end"),
+    ], [tr("init", "snd1"), tr("snd1", "end")]);
+
+    const workerGraph = makeGraph("ManySendProto", "worker", [
+      sInitial("init"),
+      sRecv("rcv1", "sender", "Task"),
+      sTerminal("end"),
+    ], [tr("init", "rcv1"), tr("rcv1", "end")]);
+
+    const roleIRSender: RoleIR = {
+      roleName: "SenderRole",
+      lang: "ts",
+      plays: [{ protocolName: "ManySendProto", roleName: "sender" }],
+      lifecycleHandlers: [],
+    } as RoleIR;
+    const roleIRWorker: RoleIR = {
+      roleName: "WorkerRole",
+      lang: "ts",
+      plays: [{ protocolName: "ManySendProto", roleName: "worker" }],
+      lifecycleHandlers: [],
+    } as RoleIR;
+
+    const rta = {
+      "ManySendProto.sender": { cardinality: "single", agents: ["SenderAgent"] },
+      "ManySendProto.worker": { cardinality: "many", agents: ["WorkerA", "WorkerB"] },
+    };
+
+    const { rc } = createInlineSetup(rta as any, [
+      { name: "SenderAgent", roleIR: roleIRSender, graphs: new Map([["ManySendProto.sender", senderGraph]]) },
+      { name: "WorkerA", roleIR: roleIRWorker, graphs: new Map([["ManySendProto.worker", workerGraph]]) },
+      { name: "WorkerB", roleIR: roleIRWorker, graphs: new Map([["ManySendProto.worker", workerGraph]]) },
+    ]);
+
+    await rc.start();
+    const instanceId = randomUUID();
+    rc.triggerProtocol("SenderAgent", { instanceId, protocolName: "ManySendProto", input: {}, roleToAgent: rta as any });
+
+    await new Promise(r => setTimeout(r, 300));
+
+    const sender = getHandle(rc, "SenderAgent");
+    const instance = sender.getInstances().get(instanceId)!;
+    if (instance.getStatus() !== "failed") {
+      return { name, passed: false, error: `Expected sender status=failed, got ${instance.getStatus()}` };
+    }
+
+    const failedTrace = instance.getTraces().find(t =>
+      t.kind === "ProtocolFailed" && String(t.data?.error ?? "").includes("resolved to many agents"),
+    );
+    if (!failedTrace) {
+      return { name, passed: false, error: "Expected ProtocolFailed trace mentioning many agents" };
+    }
+
+    await rc.stop();
+    return { name, passed: true };
+  } catch (e) {
+    return { name, passed: false, error: String(e) };
+  }
+}
+
 // ── Python parity tests: inline IR with Python zones ────────────────
 // These are in the separate test_py_rc_coverage.py file
 
@@ -941,7 +1009,7 @@ async function testC22(): Promise<TestResult> {
 async function runAllTests(): Promise<void> {
   console.log("=== M5-COVERAGE E2E Tests (lang-spec gap coverage) ===\n");
 
-  const tests = [testC13, testC14, testC15, testC16, testC17, testC18, testC19, testC20, testC21, testC22];
+  const tests = [testC13, testC14, testC15, testC16, testC17, testC18, testC19, testC20, testC21, testC22, testC23];
   const results: TestResult[] = [];
 
   for (const test of tests) {

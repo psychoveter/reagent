@@ -15,8 +15,8 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { ProtocolEngine, durationToMs } from "../ts/src/protocol-engine.js";
-import type { IRGraph } from "../ts/src/types.js";
+import { ProtocolEngine, durationToMs } from "../ts/src/core/protocol-engine.js";
+import type { IRGraph } from "../ts/src/contracts/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(__dirname, "..", "..", "examples", "out");

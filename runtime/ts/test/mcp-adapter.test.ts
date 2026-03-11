@@ -5,9 +5,9 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { AsyncQueue } from "../src/async-queue.js";
-import { McpAgentAdapter } from "../src/mcp-agent-adapter.js";
-import type { ProtocolEvent, AgentResponse } from "../src/protocol-engine.js";
+import { AsyncQueue } from "../src/gate/async-queue.js";
+import { McpAgentAdapter } from "../src/mcp/mcp-agent-adapter.js";
+import type { ProtocolEvent, AgentResponse } from "../src/core/protocol-engine.js";
 
 describe("AsyncQueue", () => {
   it("push + drain returns items immediately when buffer non-empty", async () => {
@@ -49,7 +49,7 @@ describe("McpAgentAdapter", () => {
     const adapter = new McpAgentAdapter("test-agent");
     assert.strictEqual(adapter.isRegistered(), false);
 
-    const result = adapter.register(["reviewer", "researcher"]);
+    const result = adapter.register("test-agent", ["reviewer", "researcher"]);
     assert.strictEqual(result.agentId, "test-agent");
     assert.deepStrictEqual(result.registeredRoles, ["reviewer", "researcher"]);
     assert.strictEqual(adapter.isRegistered(), true);

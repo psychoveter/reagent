@@ -8,10 +8,11 @@
  */
 
 import { readFileSync } from "node:fs";
-import { AgentRunner, type AgentRunnerConfig } from "./agent-runner.js";
-import type { AgentIR, IRGraph, DeploymentPlan, ProtocolTrigger } from "./types.js";
-import { NatsTransport } from "./nats-transport.js";
-import { NatsCompatTransport } from "./nats-compat-transport.js";
+import { AgentRunner, type AgentRunnerConfig } from "./core/agent-runner.js";
+import type { AgentIR, IRGraph, DeploymentPlan, ProtocolTrigger } from "./contracts/types.js";
+import { NatsTransport } from "./network/nats-transport.js";
+import { NatsCompatTransport } from "./network/nats-compat-transport.js";
+import { normalizeRoleBindingMap } from "./controller/role-bindings.js";
 
 function parseArgs(): {
   agentFile: string;
@@ -74,7 +75,7 @@ async function main() {
     agentIR,
     graphs,
     transport,
-    roleToAgent: deployment.roleToAgent,
+    roleToAgent: normalizeRoleBindingMap(deployment.roleToAgent),
   };
 
   const runner = new AgentRunner(config);

@@ -21,11 +21,11 @@ import { emitIR, emitRoleIR, emitAgentIR, resetIdCounter } from "../../lang/src/
 import type { ProtocolDef, RoleDef, AgentDef } from "../../lang/src/ast.js";
 import type { IRGraph, RoleIR } from "../../lang/src/ir.js";
 
-import { ReagentController } from "../../runtime/ts/src/reagent-controller.js";
-import { NativeAgentNode } from "../../runtime/ts/src/native-agent-node.js";
-import { executeZone, createReagentStub } from "../../runtime/ts/src/zone-executor.js";
-import { executeZoneAsync } from "../../runtime/ts/src/zone-executor.js";
-import { loadAgentManifest, type AgentManifest } from "../../runtime/ts/src/agent-manifest.js";
+import { ReagentController } from "../../runtime/ts/src/controller/reagent-controller.js";
+import { NativeAgentNode } from "../../runtime/ts/src/nodes/native-agent-node.js";
+import { executeZone, createReagentStub } from "../../runtime/ts/src/core/zone-executor.js";
+import { executeZoneAsync } from "../../runtime/ts/src/core/zone-executor.js";
+import { loadAgentManifest, type AgentManifest } from "../../runtime/ts/src/support/agent-manifest.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TMP_DIR = join(__dirname, "..", "..", ".tmp-test-m8b");
@@ -232,7 +232,7 @@ export default { compute: (x) => x * 2 };
   assert.equal(manifest.role, "WorkerRole");
   assert.equal(manifest.module, "./impl.js");
 
-  const { loadAgentModule } = await import("../../runtime/ts/src/agent-manifest.js");
+  const { loadAgentModule } = await import("../../runtime/ts/src/support/agent-manifest.js");
   const agentMod = await loadAgentModule(join(TMP_DIR, "agent.json"), manifest);
 
   assert.ok(agentMod, "Module should be loaded");

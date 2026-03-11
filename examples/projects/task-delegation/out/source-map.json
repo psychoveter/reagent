@@ -1,35 +1,51 @@
 {
   "entries": [
     {
-      "stateId": "send_2",
+      "stateId": "act_2",
       "protocolName": "TaskDelegation",
       "role": "human",
       "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/task-delegation/protocols/task.rg",
-      "line": 33,
+      "line": 35,
       "column": 3
     },
     {
-      "stateId": "recv_3",
+      "stateId": "send_3",
       "protocolName": "TaskDelegation",
       "role": "human",
       "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/task-delegation/protocols/task.rg",
-      "line": 40,
+      "line": 46,
       "column": 3
     },
     {
-      "stateId": "recv_6",
+      "stateId": "recv_4",
       "protocolName": "TaskDelegation",
-      "role": "worker",
+      "role": "human",
       "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/task-delegation/protocols/task.rg",
-      "line": 33,
+      "line": 77,
       "column": 3
     },
     {
-      "stateId": "send_7",
+      "stateId": "recv_7",
       "protocolName": "TaskDelegation",
       "role": "worker",
       "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/task-delegation/protocols/task.rg",
-      "line": 40,
+      "line": 46,
+      "column": 3
+    },
+    {
+      "stateId": "act_8",
+      "protocolName": "TaskDelegation",
+      "role": "worker",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/task-delegation/protocols/task.rg",
+      "line": 66,
+      "column": 3
+    },
+    {
+      "stateId": "send_9",
+      "protocolName": "TaskDelegation",
+      "role": "worker",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/task-delegation/protocols/task.rg",
+      "line": 77,
       "column": 3
     }
   ]

@@ -1,7 +1,7 @@
 """
 ResolvePolicyEvaluator — evaluates resolve pipelines against the agent registry.
 
-Python mirror of runtime/ts/src/resolve-policy-evaluator.ts.
+Python mirror of runtime/ts/src/triggers/resolve-policy-evaluator.ts.
 """
 
 from __future__ import annotations

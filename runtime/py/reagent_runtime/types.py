@@ -13,6 +13,49 @@ import uuid
 import time
 
 
+def normalize_role_binding_value(value: Any, preferred_cardinality: Optional[str] = None) -> dict[str, Any]:
+    if isinstance(value, dict) and "cardinality" in value and "agents" in value:
+        agents = list(dict.fromkeys([a for a in value.get("agents", []) if a]))
+        return {"cardinality": value["cardinality"], "agents": agents}
+    if isinstance(value, str):
+        return {
+            "cardinality": preferred_cardinality or "single",
+            "agents": [value] if value else [],
+        }
+    if isinstance(value, list):
+        agents = list(dict.fromkeys([a for a in value if isinstance(a, str) and a]))
+        return {
+            "cardinality": preferred_cardinality or ("single" if len(agents) <= 1 else "many"),
+            "agents": agents,
+        }
+    return {"cardinality": preferred_cardinality or "single", "agents": []}
+
+
+def normalize_role_bindings(source: Optional[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    normalized: dict[str, dict[str, Any]] = {}
+    if not source:
+        return normalized
+    for key, value in source.items():
+        if value is None:
+            continue
+        normalized[key] = normalize_role_binding_value(value)
+    return normalized
+
+
+def resolve_role_binding(source: dict[str, dict[str, Any]], protocol_name: str, role_name: str) -> Optional[dict[str, Any]]:
+    return source.get(f"{protocol_name}.{role_name}")
+
+
+def resolve_single_role_binding(source: dict[str, dict[str, Any]], protocol_name: str, role_name: str) -> Optional[str]:
+    binding = resolve_role_binding(source, protocol_name, role_name)
+    if not binding:
+        return None
+    if binding.get("cardinality") == "many":
+        return None
+    agents = binding.get("agents") or []
+    return agents[0] if agents else None
+
+
 # ── Subject helpers ──────────────────────────────────────────────────
 
 def msg_subject(instance_id: str, to_agent: str, message_name: str) -> str:

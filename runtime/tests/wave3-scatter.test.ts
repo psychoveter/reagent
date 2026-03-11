@@ -9,8 +9,8 @@ import {
   streamingScatter,
   partitionBranches,
   partitionedScatter,
-} from "../ts/src/scatter-coordinator.js";
-import type { ScatterResult, ScatterBranch } from "../ts/src/scatter-coordinator.js";
+} from "../ts/src/core/scatter-coordinator.js";
+import type { ScatterResult, ScatterBranch } from "../ts/src/core/scatter-coordinator.js";
 
 const results: Array<{ name: string; pass: boolean; error?: string }> = [];
 

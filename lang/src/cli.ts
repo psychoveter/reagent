@@ -376,7 +376,7 @@ function cmdCompile(file: string, outDir: string) {
     }>;
   };
 
-  const roleToAgent: Record<string, string> = {};
+  const roleToAgent: Record<string, string | string[]> = {};
   const deploymentAgents: DeploymentAgent[] = [];
 
   for (const agent of agents) {
@@ -400,7 +400,14 @@ function cmdCompile(file: string, outDir: string) {
         roleName: p.roleName,
         irGraphFile: `${key}.ir.json`,
       });
-      roleToAgent[key] = agent.name;
+      const existing = roleToAgent[key];
+      if (existing === undefined) {
+        roleToAgent[key] = agent.name;
+      } else if (Array.isArray(existing)) {
+        if (!existing.includes(agent.name)) existing.push(agent.name);
+      } else if (existing !== agent.name) {
+        roleToAgent[key] = [existing, agent.name];
+      }
     }
     deploymentAgents.push(da);
   }
@@ -596,7 +603,7 @@ function cmdBuild(projectDir?: string) {
     roles: Array<{ protocolName: string; roleName: string; irGraphFile: string }>;
   };
 
-  const roleToAgent: Record<string, string> = {};
+  const roleToAgent: Record<string, string | string[]> = {};
   const deploymentAgents: DeploymentAgent[] = [];
 
   for (const agent of allAgents) {
@@ -624,7 +631,14 @@ function cmdBuild(projectDir?: string) {
     for (const p of plays) {
       const key = `${p.protocolName}.${p.roleName}`;
       da.roles.push({ protocolName: p.protocolName, roleName: p.roleName, irGraphFile: `${key}.ir.json` });
-      roleToAgent[key] = agent.name;
+      const existing = roleToAgent[key];
+      if (existing === undefined) {
+        roleToAgent[key] = agent.name;
+      } else if (Array.isArray(existing)) {
+        if (!existing.includes(agent.name)) existing.push(agent.name);
+      } else if (existing !== agent.name) {
+        roleToAgent[key] = [existing, agent.name];
+      }
     }
     deploymentAgents.push(da);
   }

@@ -12,12 +12,12 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
-import { ReagentController } from "../ts/src/reagent-controller.js";
-import { NativeAgentNode, NativeAgentHandle } from "../ts/src/native-agent-node.js";
-import type { AgentIR, IRGraph, ThinAgentIR, RoleIR } from "../ts/src/types.js";
-import { resolveAgentIR } from "../ts/src/types.js";
-import { createOTelInterceptor, endInstanceSpan } from "../ts/src/otel-interceptor.js";
-import { createOTelTraceHook } from "../ts/src/otel-trace-hook.js";
+import { ReagentController } from "../ts/src/controller/reagent-controller.js";
+import { NativeAgentNode, NativeAgentHandle } from "../ts/src/nodes/native-agent-node.js";
+import type { AgentIR, IRGraph, ThinAgentIR, RoleIR } from "../ts/src/contracts/types.js";
+import { resolveAgentIR } from "../ts/src/contracts/types.js";
+import { createOTelInterceptor, endInstanceSpan } from "../ts/src/observability/otel-interceptor.js";
+import { createOTelTraceHook } from "../ts/src/observability/otel-trace-hook.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = join(__dirname, "..", "..", "examples", "out", "14-ts-only-demo");

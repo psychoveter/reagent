@@ -4,7 +4,7 @@ CLI entry point for running a Python RemoteNode.
 Usage::
 
     python -m reagent_runtime.remote_node_cli \\
-        --ros-url ws://127.0.0.1:18789 \\
+        --admin-url ws://127.0.0.1:18789 \\
         --node-id node-py-1 \\
         --agents-dir ./agents
 """
@@ -18,12 +18,12 @@ import sys
 
 async def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Start a Python Reagent remote node connected to ROS",
+        description="Start a Python Reagent remote node connected to the admin host",
     )
     parser.add_argument(
-        "--ros-url",
+        "--admin-url",
         default="ws://127.0.0.1:18789",
-        help="WebSocket URL of the Reagent Orchestrator Service (default: ws://127.0.0.1:18789)",
+        help="WebSocket URL of the Reagent admin host (default: ws://127.0.0.1:18789)",
     )
     parser.add_argument(
         "--node-id",
@@ -56,17 +56,17 @@ async def main() -> None:
 
     node = RemoteNode(
         node_id=args.node_id,
-        ros_url=args.ros_url,
+        admin_url=args.admin_url,
         agents_dir=args.agents_dir,
     )
 
     try:
         await node.connect()
     except Exception as exc:
-        print(f"Failed to connect to ROS at {args.ros_url}: {exc}", file=sys.stderr)
+        print(f"Failed to connect to admin host at {args.admin_url}: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"[RemoteNode] {args.node_id} connected to {args.ros_url}")
+    print(f"[RemoteNode] {args.node_id} connected to {args.admin_url}")
     if args.agents_dir:
         print(f"[RemoteNode] Agents dir: {args.agents_dir}")
 

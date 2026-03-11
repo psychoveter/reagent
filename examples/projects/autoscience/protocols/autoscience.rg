@@ -117,7 +117,7 @@ message Summary {
 protocol ResearchCycle {
   participants:
     human [ts] initiator,
-    lead [ts],
+    lead [ts] static single,
     consultant [ts] dynamic many,
     researcher [ts] dynamic many
 

@@ -769,7 +769,7 @@ role BuyerRole [ts] {
 - Parallel branches mutate shared nested objects (`$ctx.results.push(...)` in scatter) — fragile.
 - Makes formal reasoning about state impossible.
 
-**Current state.** Zone executor (`runtime/ts/src/zone-executor.ts`) passes `$ctx` by reference. ~15 call sites in `protocol-instance.ts` rely on mutation. `Object.create(this.ctx)` used for par/scatter branch isolation (prototype-chain trick).
+**Current state.** Zone executor (`runtime/ts/src/core/zone-executor.ts`) passes `$ctx` by reference. ~15 call sites in `protocol-instance.ts` rely on mutation. `Object.create(this.ctx)` used for par/scatter branch isolation (prototype-chain trick).
 
 **Proposal (two phases):**
 

@@ -27,13 +27,13 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
-import { ReagentController, type ReagentControllerConfig } from "../ts/src/reagent-controller.js";
-import { NativeAgentNode, NativeAgentHandle, type NativeAgentNodeConfig } from "../ts/src/native-agent-node.js";
-import { PythonAgentNode, PythonAgentHandle } from "../ts/src/python-agent-node.js";
-import { createInMemoryLinkPair } from "../ts/src/inmemory-node-link.js";
-import type { AgentIR, IRGraph, ThinAgentIR, RoleIR, TraceEvent, MessageEnvelope } from "../ts/src/types.js";
-import { resolveAgentIR } from "../ts/src/types.js";
-import type { InterceptorFn, InterceptorContext, TraceHook } from "../ts/src/interceptor.js";
+import { ReagentController, type ReagentControllerConfig } from "../ts/src/controller/reagent-controller.js";
+import { NativeAgentNode, NativeAgentHandle, type NativeAgentNodeConfig } from "../ts/src/nodes/native-agent-node.js";
+import { PythonAgentNode, PythonAgentHandle } from "../ts/src/nodes/python-agent-node.js";
+import { createInMemoryLinkPair } from "../ts/src/network/inmemory-node-link.js";
+import type { AgentIR, IRGraph, ThinAgentIR, RoleIR, TraceEvent, MessageEnvelope } from "../ts/src/contracts/types.js";
+import { resolveAgentIR } from "../ts/src/contracts/types.js";
+import type { InterceptorFn, InterceptorContext, TraceHook } from "../ts/src/contracts/interceptor.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = join(__dirname, "..", "..", "examples", "out", "14-ts-only-demo");
@@ -390,7 +390,7 @@ async function testC6(): Promise<TestResult> {
     const sRef = senderTransport.ref("Receiver");
 
     // Use sendEnvelope with a manually built envelope
-    const { createMessageEnvelope } = await import("../ts/src/types.js");
+    const { createMessageEnvelope } = await import("../ts/src/contracts/types.js");
     const env = createMessageEnvelope("inst-1", "TestProto", "Sender", "roleA", "Receiver", "roleB", "TestMsg", { val: 42 });
     sRef.sendEnvelope(env);
 

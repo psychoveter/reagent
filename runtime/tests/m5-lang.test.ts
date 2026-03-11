@@ -19,10 +19,10 @@ import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { ReagentController } from "../ts/src/reagent-controller.js";
-import { NativeAgentNode } from "../ts/src/native-agent-node.js";
-import type { IRGraph, ThinAgentIR, RoleIR } from "../ts/src/types.js";
-import { resolveAgentIR } from "../ts/src/types.js";
+import { ReagentController } from "../ts/src/controller/reagent-controller.js";
+import { NativeAgentNode } from "../ts/src/nodes/native-agent-node.js";
+import type { IRGraph, ThinAgentIR, RoleIR } from "../ts/src/contracts/types.js";
+import { resolveAgentIR } from "../ts/src/contracts/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const EXAMPLES_OUT = join(__dirname, "..", "..", "examples", "out");
@@ -63,7 +63,7 @@ function createSingleNodeSetup(
 }
 
 function getHandle(rc: ReagentController, name: string) {
-  return rc.getAgent(name) as import("../ts/src/native-agent-node.js").NativeAgentHandle;
+  return rc.getAgent(name) as import("../ts/src/nodes/native-agent-node.js").NativeAgentHandle;
 }
 
 type TestResult = { name: string; passed: boolean; error?: string };

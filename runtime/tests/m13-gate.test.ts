@@ -16,10 +16,10 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { PassThrough } from "node:stream";
 
-import { GateSession, GateValidationError } from "../ts/src/gate-session.js";
-import { StdioGateTransport } from "../ts/src/gate-transport.js";
-import type { GateTransport } from "../ts/src/gate-transport.js";
-import type { ProtocolEvent, AgentResponse } from "../ts/src/protocol-engine.js";
+import { GateSession, GateValidationError } from "../ts/src/gate/gate-session.js";
+import { StdioGateTransport } from "../ts/src/gate/gate-transport.js";
+import type { GateTransport } from "../ts/src/gate/gate-transport.js";
+import type { ProtocolEvent, AgentResponse } from "../ts/src/core/protocol-engine.js";
 
 class MockTransport implements GateTransport {
   sent: ProtocolEvent[] = [];

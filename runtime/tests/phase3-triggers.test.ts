@@ -14,9 +14,9 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { LocalEventBus } from "../ts/src/local-event-bus.js";
-import type { BusEvent } from "../ts/src/local-event-bus.js";
-import { CronAgent, parseCronExpression, cronMatchesDate, parseCronField } from "../ts/src/cron-agent.js";
+import { LocalEventBus } from "../ts/src/controller/local-event-bus.js";
+import type { BusEvent } from "../ts/src/controller/local-event-bus.js";
+import { CronAgent, parseCronExpression, cronMatchesDate, parseCronField } from "../ts/src/triggers/cron-agent.js";
 import {
   evaluatePolicy,
   recordTriggerFired,
@@ -25,10 +25,10 @@ import {
   DEFAULT_TRIGGER_POLICY,
   type TriggerPolicy,
   type TriggerPolicyState,
-} from "../ts/src/trigger-policy.js";
-import { TriggerMatcher } from "../ts/src/trigger-matcher.js";
-import { ProtocolRegistry, type ProtocolEntry } from "../ts/src/protocol-registry.js";
-import type { TriggerIR, TraceEvent } from "../ts/src/types.js";
+} from "../ts/src/triggers/trigger-policy.js";
+import { TriggerMatcher } from "../ts/src/triggers/trigger-matcher.js";
+import { ProtocolRegistry, type ProtocolEntry } from "../ts/src/controller/protocol-registry.js";
+import type { TriggerIR, TraceEvent } from "../ts/src/contracts/types.js";
 
 // ── T1: LocalEventBus ──────────────────────────────────────────────
 
@@ -311,7 +311,7 @@ describe("TriggerMatcher", () => {
     assert.equal(fired[0].trigger.protocolName, "CronProto");
   });
 
-  test("policy suppression emits TriggerSuppressed trace", () => {
+  test("policy suppression emits TriggerSuppressed trace", async () => {
     const registry = new ProtocolRegistry();
     const bus = new LocalEventBus();
     const cron = new CronAgent(bus);
@@ -335,7 +335,7 @@ describe("TriggerMatcher", () => {
     registry.bindAgent("DisabledProto", "AgentD");
     matcher.registerProtocolTriggers(entry);
 
-    const matched = matcher.matchInvokeTrigger("DisabledProto");
+    const matched = await matcher.matchInvokeTrigger("DisabledProto");
     assert.ok(!matched);
     assert.equal(fired.length, 0);
 
@@ -344,7 +344,7 @@ describe("TriggerMatcher", () => {
     assert.equal(suppressedTrace.data?.reason, "disabled");
   });
 
-  test("no initiator → trigger not registered, TriggerSuppressed trace emitted", () => {
+  test("no initiator → trigger not registered, TriggerSuppressed trace emitted", async () => {
     const registry = new ProtocolRegistry();
     const bus = new LocalEventBus();
     const cron = new CronAgent(bus);
@@ -364,8 +364,57 @@ describe("TriggerMatcher", () => {
     registry.register(entry);
     matcher.registerProtocolTriggers(entry);
 
-    assert.ok(!matcher.matchInvokeTrigger("NoInitProto"));
+    assert.ok(!(await matcher.matchInvokeTrigger("NoInitProto")));
     const suppressed = traces.find(t => t.kind === "TriggerSuppressed" && (t.data as any)?.reason === "no_initiator");
     assert.ok(suppressed);
+  });
+
+  test("resolve many preserves full selected set in roleToAgent", async () => {
+    const registry = new ProtocolRegistry();
+    const bus = new LocalEventBus();
+    const cron = new CronAgent(bus);
+    const fired: Array<{ agent: string; trigger: any }> = [];
+
+    const matcher = new TriggerMatcher({
+      registry,
+      bus,
+      cron,
+      triggerCallback: (agent, trigger) => fired.push({ agent, trigger }),
+      resolveInitiator: () => "CoordinatorAgent",
+      resolveRoleToAgent: () => ({ "FanoutProto.coordinator": { cardinality: "single", agents: ["CoordinatorAgent"] } } as any),
+      resolvePolicyEvaluator: {
+        evaluate: async (pipeline: any, role: string) => {
+          if (role === "worker") {
+            return [
+              { name: "WorkerA", roleName: "worker", nodeId: "n1", tags: [], capabilities: [], labels: {}, metadata: {} },
+              { name: "WorkerB", roleName: "worker", nodeId: "n2", tags: [], capabilities: [], labels: {}, metadata: {} },
+            ];
+          }
+          return [
+            { name: "CoordinatorAgent", roleName: role, nodeId: "n0", tags: [], capabilities: [], labels: {}, metadata: {} },
+          ];
+        },
+      } as any,
+    });
+
+    const entry = makeProtoEntry("FanoutProto", [{
+      kind: "invoke",
+      withType: "start",
+      resolveMap: {
+        coordinator: [{ step: "single" }],
+        worker: [{ step: "all" }],
+      },
+    }]);
+    registry.register(entry);
+    registry.bindAgent("FanoutProto", "CoordinatorAgent");
+    matcher.registerProtocolTriggers(entry);
+
+    const matched = await matcher.matchInvokeTrigger("FanoutProto", { batch: true });
+    assert.ok(matched);
+    assert.equal(fired.length, 1);
+    assert.deepEqual(fired[0].trigger.roleToAgent["FanoutProto.worker"], {
+      cardinality: "many",
+      agents: ["WorkerA", "WorkerB"],
+    });
   });
 });

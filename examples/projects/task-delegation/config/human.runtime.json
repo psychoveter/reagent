@@ -1,0 +1,27 @@
+{
+  "nodeId": "human-gate",
+  "langs": ["ts"],
+  "stateStore": {
+    "kind": "etcd",
+    "hosts": ["http://127.0.0.1:2379"]
+  },
+  "membership": {
+    "enabled": true
+  },
+  "messagePlane": {
+    "kind": "nats",
+    "url": "nats://localhost:4222"
+  },
+  "telemetry": {
+    "traceSink": "none",
+    "interceptors": []
+  },
+  "controlEndpoint": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 19091,
+    "advertiseUrl": "ws://127.0.0.1:19091"
+  },
+  "triggerPolicies": {},
+  "cronIntervalMs": 15000
+}

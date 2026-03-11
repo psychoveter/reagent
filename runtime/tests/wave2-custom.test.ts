@@ -12,16 +12,16 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
-import { ReagentController } from "../ts/src/reagent-controller.js";
-import { NativeAgentNode, NativeAgentHandle } from "../ts/src/native-agent-node.js";
-import { CustomAgentNode, CustomAgentHandle } from "../ts/src/custom-agent-node.js";
-import { GateSession, GateValidationError } from "../ts/src/gate-session.js";
-import { ManagedAgentAdapter } from "../ts/src/agent-interface.js";
-import type { AgentInterface } from "../ts/src/agent-interface.js";
-import type { ProtocolEvent, AgentResponse } from "../ts/src/protocol-engine.js";
-import type { AgentIR, IRGraph, ThinAgentIR, RoleIR, TraceEvent } from "../ts/src/types.js";
-import { resolveAgentIR } from "../ts/src/types.js";
-import type { GateTransport } from "../ts/src/gate-transport.js";
+import { ReagentController } from "../ts/src/controller/reagent-controller.js";
+import { NativeAgentNode, NativeAgentHandle } from "../ts/src/nodes/native-agent-node.js";
+import { CustomAgentNode, CustomAgentHandle } from "../ts/src/nodes/custom-agent-node.js";
+import { GateSession, GateValidationError } from "../ts/src/gate/gate-session.js";
+import { ManagedAgentAdapter } from "../ts/src/core/agent-interface.js";
+import type { AgentInterface } from "../ts/src/core/agent-interface.js";
+import type { ProtocolEvent, AgentResponse } from "../ts/src/core/protocol-engine.js";
+import type { AgentIR, IRGraph, ThinAgentIR, RoleIR, TraceEvent } from "../ts/src/contracts/types.js";
+import { resolveAgentIR } from "../ts/src/contracts/types.js";
+import type { GateTransport } from "../ts/src/gate/gate-transport.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = join(__dirname, "..", "..", "examples", "out", "14-ts-only-demo");

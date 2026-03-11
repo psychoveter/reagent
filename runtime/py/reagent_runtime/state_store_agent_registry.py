@@ -1,7 +1,7 @@
 """
 StateStoreAgentRegistry — agent registry backed by StateStore.
 
-Python mirror of runtime/ts/src/state-store-agent-registry.ts.
+Python mirror of runtime/ts/src/cluster/state-store-agent-registry.ts.
 """
 
 from __future__ import annotations

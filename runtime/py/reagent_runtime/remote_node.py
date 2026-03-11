@@ -1,22 +1,22 @@
 """
-RemoteNode — a standalone Python agent node that connects to ROS via WebSocket.
+RemoteNode — a standalone Python agent node that connects to the admin host via WebSocket.
 
-Mirrors the TS RemoteNode (runtime/ts/src/remote-node.ts).  Creates its own
-ReagentController + InprocAgentNode, registers with ROS, and receives
+Mirrors the TS RemoteNode. Creates its own
+ReagentController + InprocAgentNode, registers with the admin host, and receives
 Deploy/TriggerProtocol commands over WS.
 
 Usage::
 
     python -m reagent_runtime.remote_node \\
-        --ros-url ws://127.0.0.1:18789 \\
+        --admin-url ws://127.0.0.1:18789 \\
         --node-id node-py-1 \\
         --agents-dir ./agents
 
 Or programmatically::
 
-    node = RemoteNode(node_id="node-py-1", ros_url="ws://127.0.0.1:18789")
+    node = RemoteNode(node_id="node-py-1", admin_url="ws://127.0.0.1:18789")
     await node.connect()
-    # ... node receives Deploy / TriggerProtocol from ROS ...
+    # ... node receives Deploy / TriggerProtocol from the admin host ...
     await node.close()
 """
 
@@ -123,17 +123,17 @@ class _DebugAdvanceHook:
 
 
 class RemoteNode:
-    """A remote Python agent node that connects to the ROS via WebSocket."""
+    """A remote Python agent node that connects to the admin host via WebSocket."""
 
     def __init__(
         self,
         node_id: str,
-        ros_url: str,
+        admin_url: str,
         agents_dir: Optional[str] = None,
         supported_langs: Optional[list[str]] = None,
     ) -> None:
         self.node_id = node_id
-        self._ros_url = ros_url
+        self._admin_url = admin_url
         self._agents_dir = agents_dir
         self._supported_langs = supported_langs or ["py"]
         self._ws: Any = None
@@ -158,8 +158,8 @@ class RemoteNode:
                 "Install it with: pip install websockets"
             )
 
-        log.info("[RemoteNode %s] Connecting to %s", self.node_id, self._ros_url)
-        self._ws = await websockets.connect(self._ros_url)
+        log.info("[RemoteNode %s] Connecting to %s", self.node_id, self._admin_url)
+        self._ws = await websockets.connect(self._admin_url)
         self._running = True
 
         await self._send_control("Register", {
@@ -340,12 +340,12 @@ class RemoteNode:
             hook.set_state_breakpoints(bps)
 
     def _forward_trace(self, event: dict[str, Any]) -> None:
-        """Forward trace events to ROS over WS."""
+        """Forward trace events to the admin host over WS."""
         if self._ws and self._running:
             asyncio.ensure_future(self._send_control("TraceEvent", event))
 
     def _forward_envelope(self, envelope: dict[str, Any]) -> None:
-        """Forward unroutable envelopes to ROS for cross-node relay."""
+        """Forward unroutable envelopes to the admin host for cross-node relay."""
         if self._ws and self._running:
             asyncio.ensure_future(self._send_raw(envelope))
 

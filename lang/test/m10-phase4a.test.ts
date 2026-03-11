@@ -441,4 +441,55 @@ describe("validation", () => {
     assert.ok(!result.ok);
     assert.ok(result.errors.some(e => e.includes('dynamic participant "b" must not have a "resolve"')));
   });
+
+  it("errors on direct send to many participant", () => {
+    const proto = parseProto(`
+      protocol P {
+        participants: a [ts] initiator, workers [py] many
+        trigger on invoke with M {
+          resolve a = single
+          resolve workers = all
+        }
+        a --> workers: Msg
+      }
+    `);
+    const result = emit(proto);
+    assert.ok(!result.ok);
+    assert.ok(result.errors.some(e => e.includes("direct send") && e.includes("declared many")));
+  });
+
+  it("errors when scatter target is not many", () => {
+    const proto = parseProto(`
+      protocol P {
+        participants: a [ts] initiator, worker [py]
+        trigger on invoke with M {
+          resolve a = single
+          resolve worker = single
+        }
+        scatter ($ctx.items as worker) {
+          a --> worker: Msg
+        }
+      }
+    `);
+    const result = emit(proto);
+    assert.ok(!result.ok);
+    assert.ok(result.errors.some(e => e.includes('scatter target "worker" must be declared many')));
+  });
+
+  it("allows scatter when target participant is many", () => {
+    const proto = parseProto(`
+      protocol P {
+        participants: a [ts] initiator, worker [py] many
+        trigger on invoke with M {
+          resolve a = single
+          resolve worker = all
+        }
+        scatter ($ctx.items as worker) {
+          a --> worker: Msg
+        }
+      }
+    `);
+    const result = emit(proto);
+    assert.ok(result.ok, `Emit failed: ${result.errors.join("; ")}`);
+  });
 });

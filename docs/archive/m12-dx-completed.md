@@ -7,7 +7,7 @@ to the new participant model, resolve policies, agent metadata, and spawn lifecy
 
 | # | Task | Status |
 |---|------|--------|
-| P.1 | Runtime type sync: `ParticipantIR`, `resolveMap`, `AgentRegistrationIR`, `ResolvePolicyIR` in `runtime/ts/src/types.ts` | ✅ Done |
+| P.1 | Runtime type sync: `ParticipantIR`, `resolveMap`, `AgentRegistrationIR`, `ResolvePolicyIR` in `runtime/ts/src/contracts/types.ts` | ✅ Done |
 | P.2 | RegistryView metadata: `RegistryAgentEntry` extended with `tags`, `capabilities`, `labels`, `spawnedBy` | ✅ Done |
 | P.3 | TraceHook wiring: `ResolveCompleted`, `SpawnStarted/Completed/Failed`, `TriggerDedupSkipped` | ✅ Done |
 | P.4 | Diagram participant metadata: `binding`, `cardinality` in `Participant` type | ✅ Done |

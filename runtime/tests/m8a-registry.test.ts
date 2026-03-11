@@ -15,11 +15,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
-import { ReagentController } from "../ts/src/reagent-controller.js";
-import { NativeAgentNode } from "../ts/src/native-agent-node.js";
-import type { IRGraph, ThinAgentIR, RoleIR, MessageEnvelope } from "../ts/src/types.js";
-import { resolveAgentIR } from "../ts/src/types.js";
-import type { ProtocolEntry } from "../ts/src/protocol-registry.js";
+import { ReagentController } from "../ts/src/controller/reagent-controller.js";
+import { NativeAgentNode } from "../ts/src/nodes/native-agent-node.js";
+import type { IRGraph, ThinAgentIR, RoleIR, MessageEnvelope } from "../ts/src/contracts/types.js";
+import { resolveAgentIR } from "../ts/src/contracts/types.js";
+import type { ProtocolEntry } from "../ts/src/controller/protocol-registry.js";
 import { execFileSync } from "node:child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

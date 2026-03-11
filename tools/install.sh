@@ -9,6 +9,11 @@ EXT_ID="psychoveter.reagent-vscode"
 VERSION=$(node -p "require('$PLUGIN_DIR/package.json').version")
 VSIX="$PLUGIN_DIR/reagent-vscode-${VERSION}.vsix"
 
+if [ ! -x "$CURSOR" ]; then
+  echo "Cursor CLI not found at $CURSOR" >&2
+  exit 1
+fi
+
 # Uninstall ALL previously installed versions of the plugin (any version tag)
 INSTALLED=$("$CURSOR" --list-extensions --show-versions 2>/dev/null | grep -i "^psychoveter\.reagent" || true)
 if [ -n "$INSTALLED" ]; then
@@ -25,4 +30,4 @@ echo "==> Building reagent-vscode v${VERSION} ..."
 echo "==> Installing ${VSIX} ..."
 "$CURSOR" --install-extension "$VSIX" --force
 
-echo "==> Done. Restart Cursor window to pick up changes."
+echo "==> Done. Reload the Cursor window in this repo to pick up the new extension build."

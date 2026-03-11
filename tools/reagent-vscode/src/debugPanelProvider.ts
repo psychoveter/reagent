@@ -80,7 +80,10 @@ export class ReagentDebugPanelProvider implements vscode.WebviewViewProvider {
     if (!this.view) return;
 
     const dp = this.diagramAccessor?.();
-    const ds = dp?.getDebugState() ?? this.debugState;
+    const diagramState = dp?.getDebugState();
+    const ds = this.debugState.active || this.debugState.stateId
+      ? this.debugState
+      : (diagramState ?? this.debugState);
 
     const tracesHtml = this.traces
       .slice(-50)

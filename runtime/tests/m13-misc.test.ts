@@ -20,10 +20,10 @@ import {
   mergeNodeProtocols,
   findProtocol,
   findAgents,
-} from "../ts/src/registry-view.js";
-import type { RegistryView, RegistryAgentEntry } from "../ts/src/registry-view.js";
+} from "../ts/src/admin/registry-view.js";
+import type { RegistryView, RegistryAgentEntry } from "../ts/src/admin/registry-view.js";
 
-import { durationToMs } from "../ts/src/protocol-engine.js";
+import { durationToMs } from "../ts/src/core/protocol-engine.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TMP_DIR = join(__dirname, "..", "..", ".tmp-m13-misc");

@@ -19,7 +19,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { ProtocolEngine } from "../ts/src/protocol-engine.js";
+import { ProtocolEngine } from "../ts/src/core/protocol-engine.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(__dirname, "..", "..", "examples", "out");

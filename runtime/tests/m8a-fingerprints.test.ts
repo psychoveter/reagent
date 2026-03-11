@@ -88,8 +88,13 @@ message Query {}
 message Reply {}
 
 protocol Demo {
-  participants: a [ts], b [ts]
-  initiator: a
+  participants:
+    a [ts] initiator,
+    b [ts]
+  trigger on invoke with Query {
+    resolve a = single
+    resolve b = single
+  }
 
   a --> b: Query = {
     onSend {
@@ -112,12 +117,16 @@ protocol Demo {
 
 role RoleA [ts] {
   plays Demo as a
-  init { $self.ready = true }
+  init {
+    $self.ready = true
+  }
 }
 
 role RoleB [ts] {
   plays Demo as b
-  init { $self.ready = true }
+  init {
+    $self.ready = true
+  }
 }
 `;
 
@@ -165,8 +174,13 @@ message Reply {}
 message Ack {}
 
 protocol Demo {
-  participants: a [ts], b [ts]
-  initiator: a
+  participants:
+    a [ts] initiator,
+    b [ts]
+  trigger on invoke with Query {
+    resolve a = single
+    resolve b = single
+  }
 
   a --> b: Query = {
     onSend {
@@ -191,12 +205,16 @@ protocol Demo {
 
 role RoleA [ts] {
   plays Demo as a
-  init { $self.ready = true }
+  init {
+    $self.ready = true
+  }
 }
 
 role RoleB [ts] {
   plays Demo as b
-  init { $self.ready = true }
+  init {
+    $self.ready = true
+  }
 }
 `;
 
@@ -244,9 +262,11 @@ message Request {}
 message Result {}
 
 protocol SubProto {
-  participants: worker [ts]
-  initiator: worker
-  input: Request
+  participants:
+    worker [ts] initiator
+  trigger on invoke with Request {
+    resolve worker = single
+  }
 
   worker {
     $ctx.result = 42
@@ -255,8 +275,13 @@ protocol SubProto {
 }
 
 protocol MainProto {
-  participants: a [ts], b [ts]
-  initiator: a
+  participants:
+    a [ts] initiator,
+    b [ts]
+  trigger on invoke with Request {
+    resolve a = single
+    resolve b = single
+  }
 
   a --> b: Request = {
     onSend { $ctx.msg.value = 1 }
@@ -271,7 +296,9 @@ protocol MainProto {
   }
 }
 
-role RoleA [ts] { plays MainProto as a }
+role RoleA [ts] {
+  plays MainProto as a
+}
 role RoleB [ts] {
   plays MainProto as b
   plays SubProto as worker

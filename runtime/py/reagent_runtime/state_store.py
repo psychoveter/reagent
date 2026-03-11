@@ -1,7 +1,7 @@
 """
 StateStore — abstract key-value interface for all Reagent runtime state.
 
-Python mirror of runtime/ts/src/state-store.ts.
+Python mirror of runtime/ts/src/cluster/state-store.ts.
 """
 
 from __future__ import annotations

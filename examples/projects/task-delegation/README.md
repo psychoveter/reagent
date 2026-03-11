@@ -14,6 +14,18 @@ Cursor ──stdio──> mcp-gate (human-gate)  ──NATS──>  mcp-gate (wo
 
 Each `mcp-gate` runs its own `ReagentController`. Agent discovery is automatic via etcd watches. Message envelopes flow directly between gates via `NatsNodeLink`.
 
+This example now keeps node wiring in declarative config files:
+
+- `config/human.runtime.json` — plain Reagent runtime config for the human-side `mcp-gate` used by Cursor
+- `config/human.claude-node.json` — Claude-backed node wrapper config used by the live e2e path
+- `config/worker.claude-node.docker.json` — Claude-backed node wrapper config for the Dockerized worker
+
+Runtime lifecycle in this example:
+
+- deploy installs `ProtocolArtifacts` plus `AgentTemplate`
+- the gate can hold an `AgentRecord` before the external client is actually attached
+- `reagent_register` from Cursor/Claude attaches `AgentRuntime`, after which the agent becomes addressable
+
 ## Quick start
 
 ### Option A: VSCode command (recommended)
@@ -25,7 +37,7 @@ Open this directory in Cursor, then run **`Reagent: MCP Dev Cycle`** from the co
 3. Compiles the protocol
 4. Deploys to the cluster
 
-The human-gate MCP server starts automatically via `.cursor/mcp.json`. The Cluster Panel shows infrastructure health (NATS / etcd / ROS).
+The human-gate MCP server starts automatically via `.cursor/mcp.json`. That file points `mcp-gate` at `config/human.runtime.json`, so Cursor still talks directly to the gate using the plain Reagent runtime config. Claude-backed nodes use the wrapper config path instead.
 
 To recompile after editing `.rg` files: **`Reagent: Recompile & Redeploy (MCP)`**.
 
@@ -39,7 +51,7 @@ This starts NATS + etcd (docker compose), compiles the protocol, and starts ROS.
 
 ### Worker agent (Claude via Agent SDK)
 
-The worker runs as a headless Claude agent using `@anthropic-ai/claude-agent-sdk` in a Docker container.
+The worker runs as a headless Claude live-agent using `@anthropic-ai/claude-agent-sdk` in a Docker container.
 
 ```bash
 cd ../../../runtime/agents/claude
@@ -48,13 +60,14 @@ cd ../../../runtime/agents/claude
 ```
 
 This builds and starts a Docker container that:
-1. Launches `mcp-gate` as a subprocess (connects to ROS, NATS, etcd)
-2. Runs Claude via the Agent SDK with `reagent` as its MCP server
-3. Autonomously registers as `WorkerAgent` and enters the event loop
+1. Mounts `config/worker.claude-node.docker.json` into the container
+2. Launches `live-agent.ts` with that one node config file
+3. `live-agent.ts` materializes the embedded Reagent runtime config and starts `mcp-gate` as a subprocess
+4. Claude processes protocol events one-by-one and registers as `WorkerAgent`
 
 ### Deploy and trigger
 
-With the MCP Dev Cycle, deploy happens automatically. For manual operation, send RAP messages to ROS (`ws://localhost:18789`):
+With the MCP Dev Cycle, deploy happens automatically. For manual operation, use the transitional admin tooling layer (`reagent-rgctl`) or send RAP messages to the current legacy ROS admin endpoint (`ws://localhost:18789`):
 
 ```json
 {
@@ -82,6 +95,8 @@ Single round-trip. Both agents execute zone code (pre_send / post_receive) via M
 - `protocols/task.rg` — protocol definition
 - `reagent.json` — project manifest
 - `docker-compose.yml` — NATS + etcd infrastructure (with health checks)
+- `config/human.runtime.json` — plain Reagent runtime config for Cursor's human gate
+- `config/*.claude-node*.json` — one-config-per-node wrapper files for Claude-backed live-agent nodes
 - `.cursor/mcp.json` — Cursor MCP server config (human-gate)
 - `.cursorrules` — instructions for Cursor agent on how to use Reagent MCP tools
 - `run.sh` — infrastructure launcher (manual alternative)

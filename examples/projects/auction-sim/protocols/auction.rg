@@ -27,17 +27,18 @@ message AuctionSummary {
 
 protocol Auction {
   participants:
-    seller [py] initiator,
-    buyer [py] dynamic many
+    seller [ts] initiator,
+    buyer [ts] dynamic many
   
   trigger on invoke with AuctionStart {
     resolve seller = single
   }
 
   seller {
+    $self.auctionLog = $self.auctionLog ?? []
     $ctx.itemName = $ctx.input.itemName
     $ctx.reservePrice = $ctx.input.reservePrice
-    $ctx.buyerIds = await $agent.get_buyer_ids()
+    $ctx.buyerIds = ["Buyer1", "Buyer2", "Buyer3"]
     $ctx.bids = []
   }
 
@@ -55,7 +56,10 @@ protocol Auction {
     }
 
     buyer {
-      $ctx.bidAmount = await $agent.decide_bid($self.currentItem, $self.reservePrice)
+      const reserve = Number($self.reservePrice ?? 0)
+      const spread = Math.max(10, reserve * 0.35)
+      const rawBid = reserve + (Math.random() * spread)
+      $ctx.bidAmount = Math.round(rawBid * 100) / 100
     }
 
     buyer --> seller: Bid = {
@@ -63,16 +67,30 @@ protocol Auction {
         $ctx.msg.amount = $ctx.bidAmount
       }
       onReceive {
-        $ctx.bids.push($ctx.msg.amount)
+        $ctx.bids.push({
+          buyerIdx: $ctx._scatterIdx,
+          amount: Number($ctx.msg.amount ?? 0)
+        })
       }
     }
   }
 
   // Seller evaluates all bids
   seller {
-    $ctx.result = await $agent.evaluate_bids($ctx.bids, $ctx.reservePrice)
-    $ctx.winnerIdx = $ctx.result.winnerIdx
-    $ctx.finalPrice = $ctx.result.finalPrice
+    let winnerIdx = -1
+    let finalPrice = 0
+
+    for (const bid of $ctx.bids) {
+      const amount = Number(bid.amount ?? 0)
+      if (amount >= $ctx.reservePrice && amount > finalPrice) {
+        winnerIdx = Number(bid.buyerIdx ?? -1)
+        finalPrice = amount
+      }
+    }
+
+    $ctx.result = { winnerIdx, finalPrice }
+    $ctx.winnerIdx = winnerIdx
+    $ctx.finalPrice = finalPrice
   }
 
   // Notify each buyer of the result
@@ -83,34 +101,29 @@ protocol Auction {
         $ctx.msg.finalPrice = $ctx.finalPrice
       }
       onReceive {
-        $self.lastResult = "won" if $ctx.msg.won else "lost"
+        $self.lastResult = $ctx.msg.won ? "won" : "lost"
+        $self.finalPrice = $ctx.msg.finalPrice
       }
     }
   }
 
   seller {
-    def create_auction_log():
-      return {
-        "item": $ctx.itemName,
-        "winner": $ctx.winnerIdx,
-        "price": $ctx.finalPrice,
-        "totalBids": len($ctx.bids)
-        "something": "something"
-      }
-
-    $self.auctionLog = create_auction_log()
-  }
-
-  seller {
-    print("This is spartaaaaaaa $self.auctionLog")
+    $self.auctionLog.push({
+      item: $ctx.itemName,
+      winner: $ctx.winnerIdx,
+      price: $ctx.finalPrice,
+      totalBids: $ctx.bids.length
+    })
+    $self.lastAuction = $self.auctionLog[$self.auctionLog.length - 1]
+    console.log("[auction-sim] completed auction", JSON.stringify($self.lastAuction))
   }
 }
 
-role SellerRole [py] {
+role SellerRole [ts] {
   plays Auction as seller
 }
 
-role BuyerRole [py] {
+role BuyerRole [ts] {
   plays Auction as buyer
 }
 

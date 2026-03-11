@@ -14,10 +14,10 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
-import { ReagentController } from "../ts/src/reagent-controller.js";
-import { NativeAgentNode, NativeAgentHandle } from "../ts/src/native-agent-node.js";
-import type { IRGraph, RoleIR, TraceEvent } from "../ts/src/types.js";
-import type { TraceHook } from "../ts/src/interceptor.js";
+import { ReagentController } from "../ts/src/controller/reagent-controller.js";
+import { NativeAgentNode, NativeAgentHandle } from "../ts/src/nodes/native-agent-node.js";
+import type { IRGraph, RoleIR, TraceEvent } from "../ts/src/contracts/types.js";
+import type { TraceHook } from "../ts/src/contracts/interceptor.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

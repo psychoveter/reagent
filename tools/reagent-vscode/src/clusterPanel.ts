@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { RapClient } from './rapClient';
-import type { RosManager } from './rosManager';
 
 interface NodeInfo {
   nodeId: string;
@@ -41,7 +40,7 @@ interface NodeInspectData {
 export interface InfraHealth {
   nats: 'up' | 'down' | 'unknown';
   etcd: 'up' | 'down' | 'unknown';
-  ros: 'up' | 'down' | 'unknown';
+  admin: 'up' | 'down' | 'unknown';
 }
 
 type TreeElement =
@@ -71,9 +70,10 @@ export class ClusterPanelProvider implements vscode.TreeDataProvider<TreeElement
 
   private nodeInspectCache = new Map<string, { data: NodeInspectData; fetchedAt: number }>();
   private nodeInspectPending = new Set<string>();
-  private _infraHealth: InfraHealth = { nats: 'unknown', etcd: 'unknown', ros: 'unknown' };
+  private _infraHealth: InfraHealth = { nats: 'unknown', etcd: 'unknown', admin: 'unknown' };
+  private lastConnectError: string | null = null;
 
-  constructor(private readonly rosManager: RosManager) {}
+  constructor() {}
 
   setInfraHealth(health: InfraHealth): void {
     this._infraHealth = health;
@@ -90,10 +90,10 @@ export class ClusterPanelProvider implements vscode.TreeDataProvider<TreeElement
 
   async connect(): Promise<void> {
     if (this.rap?.connected) return;
-    if (!this.rosManager.running) return;
 
     try {
-      this.rap = new RapClient(this.rosManager.rosUrl);
+      this.lastConnectError = null;
+      this.rap = new RapClient('cluster://default');
       await this.rap.connect();
 
       this.disposables.push(this.rap.on('ClusterUpdate', (msg) => {
@@ -171,8 +171,11 @@ export class ClusterPanelProvider implements vscode.TreeDataProvider<TreeElement
 
       this.startPolling();
       this.poll();
-    } catch {
+    } catch (err) {
       this.rap = null;
+      this.lastConnectError = err instanceof Error ? err.message : String(err);
+      this._onDidChangeTreeData.fire();
+      throw err;
     }
   }
 
@@ -182,6 +185,7 @@ export class ClusterPanelProvider implements vscode.TreeDataProvider<TreeElement
     this.disposables = [];
     this.rap?.close();
     this.rap = null;
+    this.lastConnectError = null;
     this.state = { nodes: [], agents: [], protocols: [], timestamp: 0 };
     this.nodeInspectCache.clear();
     this.nodeInspectPending.clear();
@@ -258,12 +262,12 @@ export class ClusterPanelProvider implements vscode.TreeDataProvider<TreeElement
         return item;
       }
       case 'node': {
-        const statusIcon = element.node.status === 'connected' ? '$(server-process)' : '$(server)';
         const agentCount = element.agents.length;
         const item = new vscode.TreeItem(
-          `${statusIcon} ${element.node.nodeId}`,
+          element.node.nodeId,
           vscode.TreeItemCollapsibleState.Collapsed,
         );
+        item.iconPath = new vscode.ThemeIcon(element.node.status === 'connected' ? 'server-process' : 'server');
         item.description = `${element.node.status} · ${agentCount} agent${agentCount !== 1 ? 's' : ''}`;
         item.contextValue = 'node';
         item.tooltip = new vscode.MarkdownString(
@@ -346,13 +350,15 @@ export class ClusterPanelProvider implements vscode.TreeDataProvider<TreeElement
       }
       case 'nodeProtocol': {
         const p = element.protocol;
+        const agents = Array.isArray(p.agents) ? p.agents : [];
+        const graphs = Array.isArray(p.graphs) ? p.graphs : [];
         const item = new vscode.TreeItem(p.name, vscode.TreeItemCollapsibleState.None);
-        item.description = `v${p.version}  agents=[${p.agents.join(', ')}]`;
+        item.description = `v${p.version}  agents=[${agents.join(', ')}]`;
         item.iconPath = new vscode.ThemeIcon('symbol-interface');
         item.tooltip = new vscode.MarkdownString(
           `**${p.name}** v${p.version}\n\n` +
-          `Agents: ${p.agents.join(', ')}\n\n` +
-          `Graphs: ${p.graphs.join(', ')}`
+          `Agents: ${agents.join(', ') || '(none)'}\n\n` +
+          `Graphs: ${graphs.join(', ') || '(none)'}`
         );
         item.contextValue = 'nodeProtocol';
         item.command = {
@@ -374,12 +380,17 @@ export class ClusterPanelProvider implements vscode.TreeDataProvider<TreeElement
     if (!element) {
       const items: TreeElement[] = [];
       const h = this._infraHealth;
-      const hasInfraData = h.nats !== 'unknown' || h.etcd !== 'unknown' || h.ros !== 'unknown';
+      const hasInfraData = h.nats !== 'unknown' || h.etcd !== 'unknown' || h.admin !== 'unknown';
       if (hasInfraData) {
         items.push({ type: 'category', label: 'Infrastructure', category: 'infra' });
       }
       if (!this.rap?.connected) {
-        items.push({ type: 'empty', label: 'Not connected to ROS' });
+        items.push({
+          type: 'empty',
+          label: this.lastConnectError
+            ? `Cluster connect failed: ${this.lastConnectError}`
+            : 'Not connected to cluster control plane',
+        });
         return items;
       }
       items.push(
@@ -395,7 +406,7 @@ export class ClusterPanelProvider implements vscode.TreeDataProvider<TreeElement
         return [
           { type: 'infraItem', service: 'NATS', status: h.nats },
           { type: 'infraItem', service: 'etcd', status: h.etcd },
-          { type: 'infraItem', service: 'ROS', status: h.ros },
+          { type: 'infraItem', service: 'Admin', status: h.admin },
         ];
       }
       if (element.category === 'nodes') {

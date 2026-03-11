@@ -19,7 +19,7 @@ Approach:
 
 The authoritative overview of Reagent's architecture, tools, and documentation can be found in the documentation registry:
 
-👉 **[docs/current/reagent-registry.md](../docs/current/reagent-registry.md)**
+👉 **[docs/current/00-registry.md](../docs/current/00-registry.md)**
 
 Please refer to the registry for:
 - High-level architecture and component diagrams

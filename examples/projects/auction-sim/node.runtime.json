@@ -1,0 +1,26 @@
+{
+  "nodeId": "auction-sim-node",
+  "langs": ["ts"],
+  "stateStore": {
+    "kind": "etcd",
+    "hosts": ["http://127.0.0.1:2379"]
+  },
+  "membership": {
+    "enabled": true
+  },
+  "messagePlane": {
+    "kind": "none"
+  },
+  "telemetry": {
+    "traceSink": "none",
+    "interceptors": []
+  },
+  "controlEndpoint": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 19101,
+    "advertiseUrl": "ws://127.0.0.1:19101"
+  },
+  "triggerPolicies": {},
+  "cronIntervalMs": 15000
+}

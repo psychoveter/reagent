@@ -13,7 +13,7 @@
  */
 import { describe, it, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { EtcdStateStore } from "../src/etcd-state-store.js";
+import { EtcdStateStore } from "../src/cluster/etcd-state-store.js";
 
 const ETCD_HOSTS = (process.env.ETCD_HOSTS ?? "http://127.0.0.1:2379").split(",");
 

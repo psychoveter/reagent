@@ -11,9 +11,9 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
-import { DebugController } from "../ts/src/debug-controller.js";
-import type { DebugStoppedEvent, Breakpoint } from "../ts/src/debug-controller.js";
-import type { SourceMap } from "../ts/src/session.js";
+import { DebugController } from "../ts/src/admin/debug-controller.js";
+import type { DebugStoppedEvent, Breakpoint } from "../ts/src/admin/debug-controller.js";
+import type { SourceMap } from "../ts/src/admin/session.js";
 
 const SESSION = "test-session";
 

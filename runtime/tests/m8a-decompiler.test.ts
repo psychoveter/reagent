@@ -51,10 +51,12 @@ message TaskResponse { result: string }
 
 protocol SimpleTask {
   participants:
-    client [ts],
+    client [ts] initiator,
     worker [ts]
-
-  initiator: client
+  trigger on invoke with TaskRequest {
+    resolve client = single
+    resolve worker = single
+  }
 
   client --> worker: TaskRequest = {
     onSend {

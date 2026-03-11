@@ -308,7 +308,7 @@ Compile all to IR. Derive JSON wire format schema from IR message definitions.
 
 **Intent**: decouple the runtime from NATS, introduce multi-agent nodes with loopback routing, a pluggable interceptor chain, and the platform abstraction for alternative runtimes. No separate messaging system underneath — Reagent is the messaging system.
 
-Full design: [connectivity.md (draft-3)](connectivity.md).
+Full design: [connectivity.md (draft-3)](04-cluster-and-control-plane.md).
 
 ### Core concepts
 
@@ -388,7 +388,7 @@ Full design: [connectivity.md (draft-3)](connectivity.md).
 
 **Intent**: build the orchestration and debug infrastructure on top of M5-CTRL's connectivity layer. The ROS is a long-lived Node.js process with WebSocket server that compiles, deploys, runs, and debugs protocols. No NATS dependency.
 
-Full design: [orchestrator.md (draft-1)](orchestrator.md).
+Full design: [orchestrator.md (draft-1)](04-cluster-and-control-plane.md).
 
 ### Core concepts
 
@@ -445,14 +445,14 @@ Full design: [orchestrator.md (draft-1)](orchestrator.md).
 
 | File | Purpose | Phase |
 |---|---|---|
-| `runtime/ts/src/ws-node-link.ts` | WebSocket NodeLink (client + server modes) | 1 |
-| `runtime/ts/src/ros.ts` | ReagentOrchestratorServer | 1 |
-| `runtime/ts/src/session.ts` | Session + SessionManager | 1 |
+| `runtime/ts/src/network/ws-node-link.ts` | WebSocket NodeLink (client + server modes) | 1 |
+| `runtime/ts/src/orchestrator/ros.ts` | ReagentOrchestratorServer | 1 |
+| `runtime/ts/src/orchestrator/session.ts` | Session + SessionManager | 1 |
 | `runtime/ts/src/ros-cli.ts` | CLI entry point | 1 |
-| `runtime/ts/src/debug-interceptor.ts` | DebugInterceptor (message-level) | 2 |
-| `runtime/ts/src/debug-advance-hook.ts` | DebugAdvanceHook (state-level) | 2 |
-| `runtime/ts/src/debug-controller.ts` | DebugController (coordinates both levels) | 2 |
-| `runtime/ts/src/remote-node.ts` | RemoteNode (standalone agent node) | 3 |
+| `runtime/ts/src/orchestrator/debug-interceptor.ts` | DebugInterceptor (message-level) | 2 |
+| `runtime/ts/src/orchestrator/debug-advance-hook.ts` | DebugAdvanceHook (state-level) | 2 |
+| `runtime/ts/src/orchestrator/debug-controller.ts` | DebugController (coordinates both levels) | 2 |
+| `runtime/ts/src/orchestrator/remote-node.ts` | RemoteNode (standalone agent node) | 3 |
 | `tools/reagent-vscode/src/rapClient.ts` | WebSocket RAP client for VSCode | 4 |
 | `tools/reagent-vscode/src/reagentDebugAdapter.ts` | DAP debug adapter (inline) | 4 |
 | `tools/reagent-vscode/src/debugPanelProvider.ts` | Debug panel webview | 4 |
@@ -503,8 +503,8 @@ Full design: [orchestrator.md (draft-1)](orchestrator.md).
 - **Parser** (`lang/src/parser.ts`): `pInvokeStmt()`, `pSpawnStmt()`, `pScatterStmt()`; keywords `invoke`, `invokes`, `spawn`, `spawns`, `scatter`, `where`.
 - **IR** (`lang/src/ir.ts`): `IRInvokeData`, `IRSpawnData`, `IRScatterData`; `propagateFlow` on send/receive states.
 - **IR emitter** (`lang/src/ir-emitter.ts`): `emitInvoke()`, `emitSpawn()`, `emitScatter()`; flow propagation on all send states.
-- **Runtime TS** (`runtime/ts/src/protocol-instance.ts`): `this.flow` field, `handleSend()` serializes `$flow`, `handleReceive()` deserializes, `handleInvoke()`, `handleScatter()`, `BranchRunner` with `$ctx.msg` isolation.
-- **Runtime TS** (`runtime/ts/src/zone-executor.ts`): `$flow` as 4th injected parameter, `BreakRequest` sentinel, `reagent.break()`.
+- **Runtime TS** (`runtime/ts/src/core/protocol-instance.ts`): `this.flow` field, `handleSend()` serializes `$flow`, `handleReceive()` deserializes, `handleInvoke()`, `handleScatter()`, `BranchRunner` with `$ctx.msg` isolation.
+- **Runtime TS** (`runtime/ts/src/core/zone-executor.ts`): `$flow` as 4th injected parameter, `BreakRequest` sentinel, `reagent.break()`.
 - **Runtime Python** (`runtime/py/reagent_runtime/protocol_instance.py`, `zone_executor.py`): mirror all TS changes.
 - **Examples**: all 24 rewritten for `$ctx`/`$flow`; new `23-scatter-gather.rg`, `24-call-for-proposal.rg`.
 - **Lang spec** (`docs/lang-spec.md`): §1.5–1.6 ($ctx/$flow), new sections for invoke/spawn/scatter, EBNF updated.
@@ -566,7 +566,7 @@ Full design: [orchestrator.md (draft-1)](orchestrator.md).
 
 **Intent**: turn Reagent from a language with test-driven runtimes into a **human-usable tool** — establish the foundation: fix debug wiring, one-click run, ROS management, UX mockups.
 
-Full design: [dx-tooling.md (draft-1)](dx-tooling.md).
+Full design: [dx-tooling.md (draft-1)](06-tooling-overview.md).
 
 **Scope note**: M7-DX originally planned Phases 0–7. Phases 0 and 0.5 are complete, plus the Run/CodeLens items from Phase 1. The remaining Phase 1 items (IR-driven diagrams) and all of Phases 2–7 require revision for M5-LANG (`$flow`, `scatter`, `invoke`/`spawn`), M6-PYRC (Python RC), and M8a (versioning, registry, project structure). These are now **M9-DX**.
 
@@ -611,7 +611,7 @@ Full design: [dx-tooling.md (draft-1)](dx-tooling.md).
 
 **Intent**: give Reagent protocols identity (fingerprints, versions), make RC a knowledge plane (protocol registry), define project structure, and build the IR decompiler. All changes are **non-breaking** — existing code, examples, and tests continue to work unchanged.
 
-Full design: [protocol-versioning.md](protocol-versioning.md).
+Full design: [05-versioning-and-reconcile.md](05-versioning-and-reconcile.md).
 
 ### Core concepts
 
@@ -630,14 +630,14 @@ Full design: [protocol-versioning.md](protocol-versioning.md).
 - [x] `lang/src/ir-fingerprint.ts` — BFS normalization + SHA-256 hashing (pure functions, no I/O)
 - [x] `lang/src/versioning.ts` — `reagent.lock` I/O + auto-semver (major/minor/patch classification)
 - [x] Integrate into `cli.ts` — compute fingerprints after emit, compare with `reagent.lock`, write updated lock
-- [x] Mirror types in `runtime/ts/src/types.ts` (all optional fields, backward compatible)
+- [x] Mirror types in `runtime/ts/src/contracts/types.ts` (all optional fields, backward compatible)
 - [x] Python mirror: `runtime/py/reagent_runtime/ir_fingerprint.py` — read-only fingerprint/version extraction from IR JSON
 - [x] Export fingerprint + versioning functions from `lang/src/index.ts`
 - [x] All 29 examples recompiled with fingerprints and `reagent.lock` files
 
 ### Phase 2: RC Protocol Registry ✅ DONE
 
-- [x] `runtime/ts/src/protocol-registry.ts` — `ProtocolRegistry` class with `register`, `list`, `canDeploy`, `agentsForProtocol`
+- [x] `runtime/ts/src/controller/protocol-registry.ts` — `ProtocolRegistry` class with `register`, `list`, `canDeploy`, `agentsForProtocol`
 - [x] Add `registry` to `ReagentController`, populate in `registerAgent()` with reverse index
 - [x] `canDeploy()` — compatibility check: change-level classification + dependency conflict detection
 - [x] `protocolVersion` in `MessageEnvelope` and `ProtocolTrigger`, `createMessageEnvelope()` updated
@@ -673,7 +673,7 @@ Full design: [protocol-versioning.md](protocol-versioning.md).
 |---|---|---|---|
 | `lang/src/ir-fingerprint.ts` | BFS normalization + SHA-256 fingerprint computation | 1 | ✅ |
 | `lang/src/versioning.ts` | `reagent.lock` I/O + auto-semver classification | 1 | ✅ |
-| `runtime/ts/src/protocol-registry.ts` | ProtocolRegistry class for RC | 2 | ✅ |
+| `runtime/ts/src/controller/protocol-registry.ts` | ProtocolRegistry class for RC | 2 | ✅ |
 | `runtime/py/reagent_runtime/protocol_registry.py` | Python ProtocolRegistry | 2 | ✅ |
 | `runtime/py/reagent_runtime/ir_fingerprint.py` | Python fingerprint reader/validator | 1 | ✅ |
 | `runtime/tests/m8a-fingerprints.test.ts` | F1–F6 fingerprint E2E tests | 1 | ✅ |
@@ -689,7 +689,7 @@ Full design: [protocol-versioning.md](protocol-versioning.md).
 
 **Intent**: evolve the agent model for native code integration (`$agent` binding, `agent.json` manifests, async zones) and transform ROS into a desired-state reconciliation controller. Changes are **additive** — `agent` keyword remains in `.rg`, async zones are opt-in, reconciler coexists with existing session mode.
 
-Full design: [protocol-versioning.md §9, §13](protocol-versioning.md).
+Full design: [protocol-versioning.md §9, §13](05-versioning-and-reconcile.md).
 
 **Prerequisite**: M8a completed.
 
@@ -771,11 +771,11 @@ ROS evolves from a session-centric compile/run/debug server into a **reconciliat
 
 | File | Purpose | Phase | Status |
 |---|---|---|---|
-| `runtime/ts/src/agent-manifest.ts` | agent.json loader + native module binding | 3 | ✅ |
+| `runtime/ts/src/support/agent-manifest.ts` | agent.json loader + native module binding | 3 | ✅ |
 | `runtime/py/reagent_runtime/agent_manifest.py` | Python agent.json loader | 3 | ✅ |
-| `runtime/ts/src/reconciler.ts` | Desired-state reconciler (diff engine + plan + topo sort) | 5 | ✅ |
-| `runtime/ts/src/deploy-spec.ts` | DeploySpec types + loader from reagent.json | 5 | ✅ |
-| `runtime/ts/src/registry-view.ts` | Aggregated cluster registry snapshot | 5 | ✅ |
+| `runtime/ts/src/orchestrator/reconciler.ts` | Desired-state reconciler (diff engine + plan + topo sort) | 5 | ✅ |
+| `runtime/ts/src/orchestrator/deploy-spec.ts` | DeploySpec types + loader from reagent.json | 5 | ✅ |
+| `runtime/ts/src/orchestrator/registry-view.ts` | Aggregated cluster registry snapshot | 5 | ✅ |
 | `tools/rap/10-list-protocols.rg` | RAP sub-protocol: query RC registry | 5 | ✅ |
 | `tools/rap/11-deploy-protocol.rg` | RAP sub-protocol: deploy/upgrade on RC | 5 | ✅ |
 | `tools/rap/12-cluster-status.rg` | RAP sub-protocol: aggregated cluster state | 5 | ✅ |
@@ -794,7 +794,7 @@ ROS evolves from a session-centric compile/run/debug server into a **reconciliat
 
 **Prerequisite**: M8a completed (M8b is not required for DX tooling).
 
-Full design: [dx-tooling.md](dx-tooling.md) — to be updated by this milestone.
+Full design: [06-tooling-overview.md](06-tooling-overview.md) — to be updated by this milestone.
 
 ### Why a separate milestone
 
@@ -867,7 +867,7 @@ M7-DX Phase 0 and 0.5 are done. The remaining phases (1–7) were designed again
 
 **Goal**: same as M7-DX Phase 2, plus new constructs and project awareness.
 
-Full LSP design and backlog: **[lsp.md](lsp.md)**.
+Full LSP design and backlog: **[07-lsp.md](07-lsp.md)**.
 
 **Completed**: document symbols, go-to-definition, hover, context-aware completion, parse + semantic diagnostics. Single-file scope.
 
@@ -1046,7 +1046,7 @@ Ideas and milestones considered but not yet scheduled.
 - ~~**Cross-language loopback**~~: ✅ Done in M5-CTRL / Phase E. `PythonAgentNode` bridges Python child processes via JSON-line IPC. Multi-`AgentNode` RC routes by language.
 - **RAP as a Reagent project**: extract the 14 RAP sub-protocols from `tools/rap/` into a proper Reagent project (`reagent-rap` or `@reagent/rap`) with its own `reagent.json`, versioned independently. Currently RAP specs live as loose `.rg` files under `tools/`; they should be a first-class package that other projects can depend on via `reagent.json` `dependencies`. This also validates the package/import resolution system (M8a/P4) end-to-end. Concrete steps: (1) `reagent init` a new project, (2) move `tools/rap/*.rg` into `protocols/`, (3) add `reagent.json` with name `@reagent/rap`, (4) verify `reagent build` compiles all 14, (5) update ROS + CLI to resolve RAP protocols from the package instead of hardcoded paths, (6) publish as the first `reagent_packages/` dependency example.
 - **Production hardening**: AuthN/AuthZ on `NodeLink` connections (TLS, mTLS, token auth), quotas, backpressure, operational tooling, crash recovery.
-- **Hot protocol deployment**: deploy new protocols to a running cluster without stopping existing agents. Depends on M8a fingerprints + registry + M8b reconciler. See [protocol-versioning.md §12-13](protocol-versioning.md).
+- **Hot protocol deployment**: deploy new protocols to a running cluster without stopping existing agents. Depends on M8a fingerprints + registry + M8b reconciler. See [protocol-versioning.md §12-13](05-versioning-and-reconcile.md).
 
 ---
 

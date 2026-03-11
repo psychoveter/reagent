@@ -14,9 +14,6 @@
   "activationEvents": [
     "onLanguage:reagent",
     "workspaceContains:**/reagent.json",
-    "onCommand:reagent.startRos",
-    "onCommand:reagent.stopRos",
-    "onCommand:reagent.toggleRos",
     "onCommand:reagent.connectCluster",
     "onCommand:reagent.disconnectCluster",
     "onCommand:reagent.refreshCluster",
@@ -82,16 +79,6 @@
               "rgFile": {
                 "type": "string",
                 "description": "Path to the .rg file to debug"
-              },
-              "rosPort": {
-                "type": "number",
-                "default": 18789,
-                "description": "Port of the Reagent Orchestrator Service"
-              },
-              "rosHost": {
-                "type": "string",
-                "default": "127.0.0.1",
-                "description": "Host of the Reagent Orchestrator Service"
               }
             }
           }
@@ -101,20 +88,18 @@
             "type": "reagent",
             "request": "launch",
             "name": "Debug Reagent Protocol",
-            "rgFile": "${file}",
-            "rosPort": 18789
+            "rgFile": "${file}"
           }
         ],
         "configurationSnippets": [
           {
             "label": "Reagent: Debug Protocol",
-            "description": "Debug a Reagent protocol via ROS",
+            "description": "Start a Reagent debug session",
             "body": {
               "type": "reagent",
               "request": "launch",
               "name": "Debug Reagent Protocol",
-              "rgFile": "^\"\\${file}\"",
-              "rosPort": 18789
+              "rgFile": "^\"\\${file}\""
             }
           }
         ]
@@ -148,18 +133,6 @@
         "command": "reagent.openProjectDiagram",
         "title": "Reagent: Open Project Overview",
         "icon": "$(graph)"
-      },
-      {
-        "command": "reagent.startRos",
-        "title": "Reagent: Start ROS"
-      },
-      {
-        "command": "reagent.stopRos",
-        "title": "Reagent: Stop ROS"
-      },
-      {
-        "command": "reagent.toggleRos",
-        "title": "Reagent: Toggle ROS"
       },
       {
         "command": "reagent.connectCluster",
@@ -206,7 +179,7 @@
       },
       {
         "command": "reagent.mcpDevCycle",
-        "title": "Reagent: MCP Dev Cycle (NATS + etcd + ROS)",
+        "title": "Reagent: MCP Dev Cycle (NATS + etcd + admin)",
         "icon": "$(rocket)"
       },
       {
@@ -332,21 +305,46 @@
         "reagent.logLevel": {
           "type": "string",
           "default": "info",
-          "enum": ["error", "warn", "info", "debug"],
+          "enum": [
+            "error",
+            "warn",
+            "info",
+            "debug"
+          ],
           "description": "Log level for the Reagent language server"
+        },
+        "reagent.cluster.stateStore": {
+          "type": "string",
+          "default": "etcd",
+          "enum": [
+            "etcd",
+            "memory"
+          ],
+          "description": "State store backend used by Reagent cluster tooling."
+        },
+        "reagent.cluster.etcdHosts": {
+          "type": "array",
+          "default": [
+            "http://127.0.0.1:2379"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Etcd hosts used by Reagent cluster tooling when stateStore is set to etcd."
         }
       }
     },
     "viewsWelcome": [
       {
         "view": "reagentCluster",
-        "contents": "Not connected to ROS.\n[Connect to Cluster](command:reagent.connectCluster)"
+        "contents": "Not connected to the Reagent cluster.\n[Connect to Cluster](command:reagent.connectCluster)"
       }
     ]
   },
   "scripts": {
     "bundle-lang": "cd ../../lang && npm run build && cd - && rm -rf lang && cp -r ../../lang/dist lang && echo '{\"type\":\"module\"}' > lang/package.json",
-    "compile": "npm run bundle-lang && tsc -p ./ && tsc -p server/",
+    "bundle-runtime-admin": "node ./scripts/bundle-runtime-admin.mjs",
+    "compile": "npm run bundle-lang && tsc -p ./ && tsc -p server/ && npm run bundle-runtime-admin",
     "watch": "tsc -watch -p ./",
     "test:lsp": "npm run compile && node --test out/server/test/lsp.test.js",
     "package": "npm run compile && vsce package"
@@ -362,6 +360,7 @@
     "@types/vscode": "^1.80.0",
     "@types/ws": "^8.5.10",
     "@vscode/vsce": "^2.22.0",
+    "esbuild": "^0.27.3",
     "typescript": "^5.3.0"
   }
 }

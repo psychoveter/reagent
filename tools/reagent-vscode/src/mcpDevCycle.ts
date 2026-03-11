@@ -3,20 +3,19 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as net from 'net';
 import { ChildProcess, execSync } from 'child_process';
-import type { RosManager } from './rosManager';
 import type { ClusterPanelProvider } from './clusterPanel';
 import { deployProject } from './deployController';
 
 interface InfraStatus {
   nats: 'up' | 'down' | 'unknown';
   etcd: 'up' | 'down' | 'unknown';
-  ros: 'up' | 'down' | 'unknown';
+  admin: 'up' | 'down' | 'unknown';
 }
 
 export class McpDevCycle implements vscode.Disposable {
   private outputChannel: vscode.OutputChannel;
   private composeProcess: ChildProcess | null = null;
-  private _infraStatus: InfraStatus = { nats: 'unknown', etcd: 'unknown', ros: 'unknown' };
+  private _infraStatus: InfraStatus = { nats: 'unknown', etcd: 'unknown', admin: 'unknown' };
   private healthTimer: ReturnType<typeof setInterval> | null = null;
   private _onStatusChange = new vscode.EventEmitter<InfraStatus>();
   readonly onStatusChange = this._onStatusChange.event;
@@ -24,7 +23,6 @@ export class McpDevCycle implements vscode.Disposable {
   private _running = false;
 
   constructor(
-    private readonly rosManager: RosManager,
     private readonly clusterPanel: ClusterPanelProvider,
     private readonly getCliPath: () => string,
   ) {
@@ -59,7 +57,6 @@ export class McpDevCycle implements vscode.Disposable {
 
     try {
       await this.startInfra(projectRoot);
-      await this.startRos();
       await this.compile(projectRoot);
       await this.connectAndDeploy(projectRoot);
       this.startHealthPolling();
@@ -101,7 +98,7 @@ export class McpDevCycle implements vscode.Disposable {
     }
 
     this._running = false;
-    this._infraStatus = { nats: 'unknown', etcd: 'unknown', ros: 'unknown' };
+    this._infraStatus = { nats: 'unknown', etcd: 'unknown', admin: 'unknown' };
     this._onStatusChange.fire(this._infraStatus);
     this.updateStatusBar();
     this.statusBar.hide();
@@ -180,17 +177,6 @@ export class McpDevCycle implements vscode.Disposable {
     throw new Error('Infrastructure did not become healthy within timeout');
   }
 
-  private async startRos(): Promise<void> {
-    this.log('Starting ROS...');
-    const ok = await this.rosManager.ensureRunning();
-    if (!ok) {
-      throw new Error('ROS failed to start');
-    }
-    this._infraStatus.ros = 'up';
-    this._onStatusChange.fire(this._infraStatus);
-    this.log(`ROS ready at ${this.rosManager.rosUrl}`);
-  }
-
   private async compile(projectRoot: string): Promise<void> {
     this.log('Compiling project...');
     const cliPath = this.getCliPath();
@@ -242,11 +228,11 @@ export class McpDevCycle implements vscode.Disposable {
     this.stopHealthPolling();
     this.healthTimer = setInterval(async () => {
       const status = await this.probeInfra();
-      status.ros = this.rosManager.running ? 'up' : 'down';
+      status.admin = this.clusterPanel.getRapClient()?.connected ? 'up' : 'down';
       const changed =
         status.nats !== this._infraStatus.nats ||
         status.etcd !== this._infraStatus.etcd ||
-        status.ros !== this._infraStatus.ros;
+        status.admin !== this._infraStatus.admin;
       this._infraStatus = status;
       if (changed) {
         this._onStatusChange.fire(status);
@@ -270,7 +256,7 @@ export class McpDevCycle implements vscode.Disposable {
     return {
       nats: nats ? 'up' : 'down',
       etcd: etcd ? 'up' : 'down',
-      ros: this.rosManager.running ? 'up' : 'down',
+      admin: this.clusterPanel.getRapClient()?.connected ? 'up' : 'down',
     };
   }
 
@@ -324,16 +310,16 @@ export class McpDevCycle implements vscode.Disposable {
     const s = this._infraStatus;
     const icon = (v: string) => v === 'up' ? '$(pass)' : v === 'down' ? '$(error)' : '$(question)';
 
-    this.statusBar.text = `$(rocket) MCP Dev  ${icon(s.nats)}NATS ${icon(s.etcd)}etcd ${icon(s.ros)}ROS`;
+    this.statusBar.text = `$(rocket) MCP Dev  ${icon(s.nats)}NATS ${icon(s.etcd)}etcd ${icon(s.admin)}Admin`;
     this.statusBar.tooltip = [
       `NATS: ${s.nats}`,
       `etcd: ${s.etcd}`,
-      `ROS: ${s.ros}`,
+      `Admin: ${s.admin}`,
       '',
       'Click to stop MCP Dev Cycle',
     ].join('\n');
 
-    const allUp = s.nats === 'up' && s.etcd === 'up' && s.ros === 'up';
+    const allUp = s.nats === 'up' && s.etcd === 'up' && s.admin === 'up';
     this.statusBar.backgroundColor = allUp
       ? undefined
       : new vscode.ThemeColor('statusBarItem.warningBackground');

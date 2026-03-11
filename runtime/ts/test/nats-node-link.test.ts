@@ -17,8 +17,8 @@
  */
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { NatsNodeLink } from "../src/nats-node-link.js";
-import type { MessageEnvelope } from "../src/types.js";
+import { NatsNodeLink } from "../src/network/nats-node-link.js";
+import type { MessageEnvelope } from "../src/contracts/types.js";
 
 const NATS_URL = process.env.NATS_URL ?? "nats://localhost:4222";
 

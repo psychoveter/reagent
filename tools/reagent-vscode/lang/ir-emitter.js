@@ -26,6 +26,7 @@ export function emitIR(protocol) {
         cardinality: p.cardinality ?? "single",
         initiator: p.initiator === true,
     }));
+    const participantMap = new Map(participants.map((p) => [p.name, p]));
     const initiatorParticipant = participants.find(p => p.initiator);
     // Validate initiator
     const initiatorCount = participants.filter(p => p.initiator).length;
@@ -86,7 +87,7 @@ export function emitIR(protocol) {
         }
     }
     for (const p of protocol.participants) {
-        const builder = new GraphBuilder(protocol.name, p.name, p.lang, langMap);
+        const builder = new GraphBuilder(protocol.name, p.name, p.lang, langMap, participantMap, errors);
         builder.emitBody(protocol.body);
         builder.finalize();
         const graph = builder.toGraph();
@@ -252,18 +253,23 @@ class GraphBuilder {
     role;
     lang;
     langMap;
+    participants;
+    errors;
     states = [];
     transitions = [];
     initialStateId;
     terminalStateIds = [];
     sourceMapEntries = [];
+    activeScatterRoles = [];
     /** The "current" state ID — the last state emitted, where the next transition will start from. */
     currentId;
-    constructor(protocolName, role, lang, langMap) {
+    constructor(protocolName, role, lang, langMap, participants, errors) {
         this.protocolName = protocolName;
         this.role = role;
         this.lang = lang;
         this.langMap = langMap;
+        this.participants = participants;
+        this.errors = errors;
         const initId = nextId("init");
         this.addState(initId, { kind: "initial" });
         this.initialStateId = initId;
@@ -318,9 +324,14 @@ class GraphBuilder {
     emitMessage(msg) {
         const isSender = msg.from === this.role;
         const isReceiver = msg.to === this.role;
+        const targetParticipant = this.participants.get(msg.to);
         if (!isSender && !isReceiver) {
             // This role is not involved in this message — skip but maintain control flow continuity
             return;
+        }
+        const narrowedByScatter = this.activeScatterRoles.includes(msg.to);
+        if (isSender && targetParticipant?.cardinality === "many" && !narrowedByScatter) {
+            this.errors.push(`Protocol "${this.protocolName}": direct send ${msg.from} -> ${msg.to} (${msg.messageName}) is ambiguous because participant "${msg.to}" is declared many. Use scatter or explicit narrowing.`);
         }
         if (isSender) {
             let preSendZone;
@@ -575,10 +586,20 @@ class GraphBuilder {
     }
     // ── Scatter ────────────────────────────────────────────────────
     emitScatter(stmt) {
+        const itemParticipant = this.participants.get(stmt.itemRole);
+        if (!itemParticipant) {
+            this.errors.push(`Protocol "${this.protocolName}": scatter target "${stmt.itemRole}" is not a declared participant.`);
+            return;
+        }
+        if (itemParticipant.cardinality !== "many") {
+            this.errors.push(`Protocol "${this.protocolName}": scatter target "${stmt.itemRole}" must be declared many.`);
+        }
         if (this.role === stmt.itemRole) {
             // The item-role participant runs a single linear branch (no scatter wrapper).
             // The scatter orchestration is the initiator's concern.
+            this.activeScatterRoles.push(stmt.itemRole);
             this.emitBody(stmt.body);
+            this.activeScatterRoles.pop();
             return;
         }
         const forkId = nextId("scatter_fork");
@@ -590,7 +611,9 @@ class GraphBuilder {
         this.addTransition(forkId, branchEntryId, { kind: "branch", branchIndex: 0 });
         branchStartIds.push(branchEntryId);
         this.currentId = branchEntryId;
+        this.activeScatterRoles.push(stmt.itemRole);
         this.emitBody(stmt.body);
+        this.activeScatterRoles.pop();
         this.addTransition(this.currentId, joinId, { kind: "default" });
         const scatterState = this.states.find(s => s.id === forkId);
         scatterState.data.branchStartIds = branchStartIds;

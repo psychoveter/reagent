@@ -28,6 +28,7 @@ import {
   getCompiledData,
   getDebugRenderOpts,
 } from './panelState';
+import { logDebugProtocol, showDebugProtocolLog } from './debugLog';
 
 // ── Diagram compiler (lazy-loaded from bundled lang/) ───────────────
 
@@ -482,6 +483,20 @@ export class ReagentDiagramPanel {
 
     const sessionId = `dbg-${Date.now().toString(36)}`;
     const breakpoints = msg.breakpoints ? new Set(msg.breakpoints) : new Set<string>();
+    const editorBreakpointStates = collectEditorBreakpointStates(compiledData.sourceFile, compiledData.sourceMap);
+    for (const stateId of editorBreakpointStates) {
+      breakpoints.add(stateId);
+    }
+    showDebugProtocolLog(true);
+    logDebugProtocol('diagram.debugTrigger', {
+      sessionId,
+      protocolName: msg.protocolName,
+      agentName: msg.agentName,
+      sourceFile: compiledData.sourceFile,
+      editorBreakpointStates,
+      diagramBreakpointStates: msg.breakpoints ?? [],
+      mergedBreakpointStates: [...breakpoints],
+    });
 
     // Transition to debug mode
     this.dispatch({
@@ -786,7 +801,7 @@ export class ReagentDiagramPanel {
   private async showDecompiledFromRC(): Promise<void> {
     const rap = this.clusterPanel?.getRapClient();
     if (!rap || !rap.connected) {
-      vscode.window.showWarningMessage('Not connected to ROS');
+      vscode.window.showWarningMessage('Not connected to cluster control plane');
       return;
     }
 
@@ -1841,6 +1856,33 @@ function decompileFromIRGraphs(
 function truncate(s: string, max: number): string {
   const clean = s.replace(/\n/g, ' ').trim();
   return clean.length > max ? clean.slice(0, max - 3) + '...' : clean;
+}
+
+function collectEditorBreakpointStates(sourceFile: string, sourceMap: Map<string, number> | undefined): string[] {
+  if (!sourceMap || sourceMap.size === 0) return [];
+  const normalizedSource = path.resolve(sourceFile);
+  const states = new Set<string>();
+  const seen: Array<{ line: number; stateIds: string[] }> = [];
+  for (const bp of vscode.debug.breakpoints) {
+    if (!(bp instanceof vscode.SourceBreakpoint)) continue;
+    const bpPath = bp.location.uri.fsPath;
+    if (!bpPath || path.resolve(bpPath) !== normalizedSource) continue;
+    const line = bp.location.range.start.line + 1;
+    const matched: string[] = [];
+    for (const [stateId, mappedLine] of sourceMap.entries()) {
+      if (mappedLine === line) {
+        states.add(stateId);
+        matched.push(stateId);
+      }
+    }
+    seen.push({ line, stateIds: matched });
+  }
+  logDebugProtocol('diagram.collectEditorBreakpointStates', {
+    sourceFile: normalizedSource,
+    seen,
+    mergedStateIds: [...states],
+  });
+  return [...states];
 }
 
 // ── Base styles ─────────────────────────────────────────────────────

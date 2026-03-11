@@ -5,9 +5,9 @@
  */
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { InMemoryStateStore } from "../src/state-store.js";
-import { StateStoreAgentRegistry, type AgentRegistration } from "../src/state-store-agent-registry.js";
-import { ResolvePolicyEvaluator } from "../src/resolve-policy-evaluator.js";
+import { InMemoryStateStore } from "../src/cluster/state-store.js";
+import { StateStoreAgentRegistry, type AgentRegistration } from "../src/cluster/state-store-agent-registry.js";
+import { ResolvePolicyEvaluator } from "../src/triggers/resolve-policy-evaluator.js";
 
 function makeAgent(name: string, role: string, opts?: Partial<AgentRegistration>): AgentRegistration {
   return {

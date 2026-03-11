@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as net from 'net';
 import {
   LanguageClient,
   LanguageClientOptions,
@@ -24,7 +25,6 @@ import { ReagentInlineValues } from './inlineValues';
 import { ReagentDiagramPanel } from './diagramPanel';
 import { RunController } from './runController';
 import { ReagentCodeLensProvider } from './codeLensProvider';
-import { RosManager } from './rosManager';
 import { DiagramController } from './diagramController';
 import { ProjectDiagramPanel } from './projectDiagramPanel';
 import { ClusterPanelProvider } from './clusterPanel';
@@ -32,6 +32,7 @@ import { ReagentTracePanelProvider } from './tracePanel';
 import { deployProject } from './deployController';
 import { ProjectCodeLensProvider } from './projectCodeLens';
 import { McpDevCycle } from './mcpDevCycle';
+import { showDebugProtocolLog } from './debugLog';
 import { ChildProcess, spawn, execSync } from 'child_process';
 import * as fs from 'fs';
 
@@ -146,12 +147,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const inlineValues = new ReagentInlineValues();
   context.subscriptions.push(inlineValues);
 
-  // ── ROS manager (auto-start/stop) ──────────────────────────────
-  const rosManager = new RosManager();
-  context.subscriptions.push(rosManager);
-
   // ── Cluster panel (tree view in explorer + debug sidebar) ────────
-  const clusterPanel = new ClusterPanelProvider(rosManager);
+  const clusterPanel = new ClusterPanelProvider();
   context.subscriptions.push(clusterPanel);
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider(ClusterPanelProvider.viewType, clusterPanel)
@@ -178,11 +175,11 @@ export function activate(context: vscode.ExtensionContext): void {
     )
   );
 
-  // ── Debug adapter (wired to panel + inline values + ROS manager) ─
+  // ── Debug adapter (wired to panel + inline values) ─
   const debugAdapterFactory = new ReagentDebugAdapterFactory({
     debugPanel: debugPanelProvider,
     inlineValues,
-  }, rosManager);
+  });
   context.subscriptions.push(
     vscode.debug.registerDebugAdapterDescriptorFactory('reagent', debugAdapterFactory)
   );
@@ -238,6 +235,9 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('reagent.debug.stop', () => {
       ReagentDiagramPanel.getInstance()?.sendDebugCommand('stop');
+    }),
+    vscode.commands.registerCommand('reagent.debug.showProtocolLog', () => {
+      showDebugProtocolLog(false);
     }),
   );
   debugPanelProvider.setDiagramPanelAccessor(() => ReagentDiagramPanel.getInstance() ?? null);
@@ -365,18 +365,6 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
-  context.subscriptions.push(
-    vscode.commands.registerCommand('reagent.startRos', () => rosManager.start())
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand('reagent.stopRos', () => rosManager.stop())
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand('reagent.toggleRos', () => {
-      if (rosManager.running) { rosManager.stop(); } else { rosManager.start(); }
-    })
-  );
-
   clusterPanel.setTraceChannel(traceChannel);
 
   // Make cluster view visible by default when reagent extension is active
@@ -384,13 +372,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand('reagent.connectCluster', async () => {
-      const ok = await rosManager.ensureRunning();
-      if (!ok) {
-        vscode.window.showErrorMessage('Cannot connect: ROS is not running');
-        return;
+      try {
+        await clusterPanel.connect();
+        vscode.window.showInformationMessage('Connected to Reagent cluster');
+      } catch (err) {
+        vscode.window.showErrorMessage(`Failed to connect to Reagent cluster: ${err instanceof Error ? err.message : String(err)}`);
       }
-      await clusterPanel.connect();
-      vscode.window.showInformationMessage('Connected to Reagent cluster');
     })
   );
 
@@ -504,7 +491,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // ── Dev Cycle: one-click setup ──────────────────────────────────
   context.subscriptions.push(
     vscode.commands.registerCommand('reagent.devCycle', async () => {
-      const devChannel = remoteNodeChannel ?? vscode.window.createOutputChannel('Reagent Node');
+      const devChannel = remoteNodeChannel ?? vscode.window.createOutputChannel('Reagent Dev Cycle');
       remoteNodeChannel = devChannel;
       context.subscriptions.push(devChannel);
       devChannel.show(true);
@@ -527,22 +514,31 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       devChannel.appendLine(`[DevCycle] Project: ${projectRoot}`);
+      devChannel.appendLine('[DevCycle] This channel shows dev-cycle steps plus stdout/stderr from the project node runner.');
 
-      // 2. Ensure ROS running
-      devChannel.appendLine('[DevCycle] Starting ROS...');
-      const rosOk = await rosManager.ensureRunning();
-      if (!rosOk) {
-        vscode.window.showErrorMessage('Dev Cycle: ROS failed to start');
-        return;
+      const composePath = findComposePath(projectRoot);
+      if (composePath) {
+        if (await canConnectToPort('127.0.0.1', 2379)) {
+          devChannel.appendLine('[DevCycle] Reusing existing etcd on 127.0.0.1:2379');
+        } else {
+          devChannel.appendLine(`[DevCycle] Starting docker compose from ${composePath}`);
+          try {
+            execSync('docker compose up -d', {
+              cwd: path.dirname(composePath),
+              timeout: 60000,
+              stdio: 'pipe',
+            });
+            await waitForPort('127.0.0.1', 2379, 15000);
+            devChannel.appendLine('[DevCycle] etcd is reachable');
+          } catch (err: any) {
+            const stderr = err.stderr?.toString() ?? '';
+            devChannel.appendLine(`[DevCycle] Failed to start docker compose:\n${stderr}`);
+            vscode.window.showErrorMessage('Dev Cycle: failed to start docker compose');
+            return;
+          }
+        }
       }
-      devChannel.appendLine('[DevCycle] ROS ready');
 
-      // 3. Connect cluster
-      devChannel.appendLine('[DevCycle] Connecting to cluster...');
-      await clusterPanel.connect();
-      devChannel.appendLine('[DevCycle] Cluster connected');
-
-      // 4. Compile project
       devChannel.appendLine('[DevCycle] Compiling project...');
       const cliPath = context.asAbsolutePath(path.join('lang', 'cli.js'));
       try {
@@ -556,79 +552,81 @@ export function activate(context: vscode.ExtensionContext): void {
         const stderr = err.stderr?.toString() ?? '';
         const stdout = err.stdout?.toString() ?? '';
         devChannel.appendLine(`[DevCycle] Compile failed:\n${stdout}\n${stderr}`);
-        vscode.window.showErrorMessage('Dev Cycle: compilation failed — check Reagent Node output');
+        vscode.window.showErrorMessage('Dev Cycle: compilation failed');
         return;
       }
 
-      // 5. Kill previous remote node if still alive
       if (remoteNodeProcess && !remoteNodeProcess.killed) {
-        devChannel.appendLine('[DevCycle] Killing previous remote node...');
+        devChannel.appendLine('[DevCycle] Stopping previous node process...');
         remoteNodeProcess.kill('SIGTERM');
         remoteNodeProcess = null;
         await new Promise(r => setTimeout(r, 500));
       }
 
-      // 6. Start Python remote node
-      devChannel.appendLine('[DevCycle] Starting remote node...');
-      const runtimePyDir = findRuntimePyDir(projectRoot);
-      if (!runtimePyDir) {
-        vscode.window.showErrorMessage('Dev Cycle: cannot find runtime/py directory');
+      const nodeRunner = findProjectNodeRunner(projectRoot);
+      if (!nodeRunner) {
+        vscode.window.showErrorMessage('Dev Cycle: cannot find run_node.ts, run_node.js, or run_node.sh in project root');
+        return;
+      }
+      const tsxBinary = findTsxBinary(projectRoot);
+      if (nodeRunner.endsWith('.ts') && !tsxBinary) {
+        vscode.window.showErrorMessage('Dev Cycle: cannot locate tsx binary for TypeScript node runner');
         return;
       }
 
-      const agentsDir = path.join(projectRoot, 'agents');
-      const pythonPath = vscode.workspace.getConfiguration('python').get<string>('defaultInterpreterPath') || 'python3';
-
-      remoteNodeProcess = spawn(
-        pythonPath,
-        ['-m', 'reagent_runtime.remote_node_cli',
-          '--ros-url', rosManager.rosUrl,
-          '--node-id', 'node-py-1',
-          '--agents-dir', agentsDir,
-          '--no-repl',
-        ],
-        { cwd: runtimePyDir, stdio: ['ignore', 'pipe', 'pipe'] },
-      );
-
+      devChannel.appendLine(`[DevCycle] Starting node runner: ${nodeRunner}`);
+      remoteNodeProcess = spawnNodeRunner(nodeRunner, projectRoot, tsxBinary);
       remoteNodeProcess.stdout?.on('data', (data: Buffer) => {
-        devChannel.append(data.toString());
+        for (const line of data.toString().split(/\r?\n/)) {
+          if (line.length > 0) devChannel.appendLine(`[node] ${line}`);
+        }
       });
       remoteNodeProcess.stderr?.on('data', (data: Buffer) => {
-        devChannel.append(data.toString());
+        for (const line of data.toString().split(/\r?\n/)) {
+          if (line.length > 0) devChannel.appendLine(`[node:stderr] ${line}`);
+        }
       });
       remoteNodeProcess.on('exit', (code) => {
-        devChannel.appendLine(`[DevCycle] Remote node exited (code ${code})`);
+        devChannel.appendLine(`[DevCycle] Node process exited (code ${code})`);
         remoteNodeProcess = null;
       });
 
-      // 7. Wait for node to register (poll cluster state)
-      devChannel.appendLine('[DevCycle] Waiting for node registration...');
-      const deadline = Date.now() + 10000;
-      while (Date.now() < deadline) {
-        await new Promise(r => setTimeout(r, 500));
-        const state = clusterPanel.getState();
-        if (state.nodes.length > 0) break;
-      }
-      if (clusterPanel.getState().nodes.length === 0) {
-        vscode.window.showErrorMessage('Dev Cycle: remote node did not register in time');
+      await new Promise(r => setTimeout(r, 1000));
+
+      devChannel.appendLine('[DevCycle] Connecting cluster tooling...');
+      try {
+        await clusterPanel.connect();
+      } catch (err) {
+        devChannel.appendLine(`[DevCycle] Cluster connect failed: ${err instanceof Error ? err.message : String(err)}`);
+        vscode.window.showErrorMessage(`Dev Cycle: failed to connect cluster tooling: ${err instanceof Error ? err.message : String(err)}`);
         return;
       }
-      devChannel.appendLine(`[DevCycle] Node registered: ${clusterPanel.getState().nodes.map(n => n.nodeId).join(', ')}`);
+      clusterPanel.getRapClient()?.send({ rap: 'ClusterStatus', payload: {} });
 
-      // 8. Deploy project
+      const deadline = Date.now() + 15000;
+      while (Date.now() < deadline) {
+        const state = clusterPanel.getState();
+        if (state.nodes.length > 0) break;
+        await new Promise(r => setTimeout(r, 500));
+        clusterPanel.getRapClient()?.send({ rap: 'ClusterStatus', payload: {} });
+      }
+
+      if (clusterPanel.getState().nodes.length === 0) {
+        vscode.window.showErrorMessage('Dev Cycle: node did not register in time');
+        return;
+      }
+
+      devChannel.appendLine(`[DevCycle] Registered nodes: ${clusterPanel.getState().nodes.map(n => n.nodeId).join(', ')}`);
       devChannel.appendLine('[DevCycle] Deploying project...');
       await deployProject(clusterPanel, projectRoot);
       devChannel.appendLine('[DevCycle] Deploy complete');
-
-      // 9. Open diagram
       ReagentDiagramPanel.createOrShow(context.extensionUri, clusterPanel);
-      devChannel.appendLine('[DevCycle] Ready — use the trigger bar to run the protocol');
+      devChannel.appendLine('[DevCycle] Ready');
     })
   );
 
-  // ── MCP Dev Cycle: NATS + etcd + ROS + compile + deploy ─────────
+  // ── MCP Dev Cycle: NATS + etcd + admin host + compile + deploy ─────────
   const mcpDevCycle = new McpDevCycle(
-    rosManager,
     clusterPanel,
     () => context.asAbsolutePath(path.join('lang', 'cli.js')),
   );
@@ -681,9 +679,9 @@ export function activate(context: vscode.ExtensionContext): void {
       if (remoteNodeProcess && !remoteNodeProcess.killed) {
         remoteNodeProcess.kill('SIGTERM');
         remoteNodeProcess = null;
-        remoteNodeChannel?.appendLine('[DevCycle] Remote node stopped');
+        remoteNodeChannel?.appendLine('[DevCycle] Node process stopped');
       }
-      vscode.window.showInformationMessage('Dev Cycle: remote node stopped');
+      vscode.window.showInformationMessage('Dev Cycle: node process stopped');
     })
   );
 
@@ -706,6 +704,89 @@ function findRuntimePyDir(projectRoot: string): string | null {
     if (fs.existsSync(path.join(c, 'reagent_runtime', 'remote_node_cli.py'))) return c;
   }
   return null;
+}
+
+function findComposePath(projectRoot: string): string | null {
+  const candidates = [
+    path.join(projectRoot, 'docker-compose.yml'),
+    path.join(projectRoot, 'docker-compose.yaml'),
+    path.join(projectRoot, 'compose.yml'),
+    path.join(projectRoot, 'compose.yaml'),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+function findProjectNodeRunner(projectRoot: string): string | null {
+  const candidates = [
+    path.join(projectRoot, 'run_node.ts'),
+    path.join(projectRoot, 'run_node.js'),
+    path.join(projectRoot, 'run_node.mjs'),
+    path.join(projectRoot, 'run_node.sh'),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+function findTsxBinary(projectRoot: string): string | null {
+  const candidates = [
+    path.resolve(projectRoot, '../../../runtime/ts/node_modules/.bin/tsx'),
+    path.resolve(projectRoot, '../../../../runtime/ts/node_modules/.bin/tsx'),
+  ];
+  for (const folder of vscode.workspace.workspaceFolders ?? []) {
+    candidates.push(
+      path.join(folder.uri.fsPath, 'projects', 'reagent', 'runtime', 'ts', 'node_modules', '.bin', 'tsx'),
+      path.join(folder.uri.fsPath, 'runtime', 'ts', 'node_modules', '.bin', 'tsx'),
+    );
+  }
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+function spawnNodeRunner(nodeRunner: string, cwd: string, tsxBinary?: string | null): ChildProcess {
+  if (nodeRunner.endsWith('.ts')) {
+    return spawn(tsxBinary ?? 'tsx', [nodeRunner], {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  }
+  if (nodeRunner.endsWith('.sh')) {
+    return spawn('bash', [nodeRunner], {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  }
+  return spawn(process.execPath, [nodeRunner], {
+    cwd,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+}
+
+async function waitForPort(host: string, port: number, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const ok = await canConnectToPort(host, port);
+    if (ok) return;
+    await new Promise(r => setTimeout(r, 500));
+  }
+  throw new Error(`Timeout waiting for ${host}:${port}`);
+}
+
+async function canConnectToPort(host: string, port: number): Promise<boolean> {
+  return await new Promise<boolean>((resolve) => {
+    const socket = new net.Socket();
+    socket.setTimeout(1000);
+    socket.once('connect', () => { socket.destroy(); resolve(true); });
+    socket.once('error', () => { socket.destroy(); resolve(false); });
+    socket.once('timeout', () => { socket.destroy(); resolve(false); });
+    socket.connect(port, host);
+  });
 }
 
 export function deactivate(): void {

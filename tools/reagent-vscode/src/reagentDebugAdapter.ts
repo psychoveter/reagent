@@ -2,9 +2,9 @@ import * as vscode from 'vscode';
 import { RapClient } from './rapClient';
 import { ReagentDebugPanelProvider } from './debugPanelProvider';
 import { ReagentInlineValues } from './inlineValues';
-import type { RosManager } from './rosManager';
 import * as fs from 'fs';
 import * as path from 'path';
+import { logDebugProtocol } from './debugLog';
 
 const THREAD_ID = 1;
 const SPAWN_THREAD_BASE = 100;
@@ -22,8 +22,6 @@ const SCOPE_REGISTRY = 3000;
 
 interface LaunchConfig extends vscode.DebugConfiguration {
   rgFile: string;
-  rosHost?: string;
-  rosPort?: number;
   /** When set, the session attaches to an existing cluster debug instead of compiling/running. */
   clusterSessionId?: string;
   /** Pre-connected RAP client to reuse (set programmatically, not from JSON). */
@@ -61,6 +59,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
 
   private nextBreakpointId = 1;
   private breakpointMap = new Map<number, { id: number; line: number; stateId?: string; verified: boolean; source?: string }>();
+  private pendingClusterBreakpointStateIds: string[] = [];
   private activeThreads = new Map<number, { name: string; instanceId?: string }>();
 
   /** T.15: Next thread ID for spawned agents. */
@@ -96,7 +95,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
 
   static activeSession: ReagentDebugSession | null = null;
 
-  constructor(private readonly sinks?: DebugSinks, private readonly rosManager?: RosManager) {}
+  constructor(private readonly sinks?: DebugSinks) {}
 
   getRapClient(): RapClient | null { return this.rap; }
   getSessionId(): string | null { return this.sessionId; }
@@ -203,108 +202,12 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
   }
 
   private async handleLaunch(reqSeq: number, config: LaunchConfig): Promise<void> {
-    const rosHost = config.rosHost || '127.0.0.1';
-    const rosPort = config.rosPort || 18789;
     this.rgFilePath = config.rgFile;
-
-    this.rap = new RapClient(`ws://${rosHost}:${rosPort}`);
-    try {
-      await this.rap.connect();
-    } catch {
-      // Auto-start ROS if available
-      if (this.rosManager) {
-        const ok = await this.rosManager.ensureRunning();
-        if (!ok) {
-          this.sendErrorResponse(reqSeq, 'launch', `Cannot start ROS. Check Reagent ROS output.`);
-          return;
-        }
-        try {
-          this.rap = new RapClient(`ws://${rosHost}:${rosPort}`);
-          await this.rap.connect();
-        } catch (err2) {
-          this.sendErrorResponse(reqSeq, 'launch', `ROS started but cannot connect: ${err2}`);
-          return;
-        }
-      } else {
-        this.sendErrorResponse(reqSeq, 'launch', `Cannot connect to ROS at ws://${rosHost}:${rosPort}. Start ROS first (Ctrl+Shift+P → Reagent: Start ROS).`);
-        return;
-      }
-    }
-
-    // Listen for Stopped events from ROS → DAP + debug panel + inline values
-    this.disposables.push(this.rap.on('Stopped', (msg) => {
-      const payload = (msg.payload || {}) as Record<string, unknown>;
-      const sid = payload.sessionId as string | undefined;
-      if (sid && this.sessionId && sid !== this.sessionId) return;
-
-      this.paused = true;
-      this.stoppedReason = String(payload.reason || 'step');
-      this.stoppedDetail = payload;
-
-      const branchIdx = this.stoppedDetail.scatterBranchIndex;
-      if (typeof branchIdx === 'number') {
-        this.scatterBranchIndex = branchIdx;
-      }
-
-      if (this.stoppedDetail.returnedFromChild && this.protocolStack.length > 0) {
-        this.protocolStack.pop();
-      }
-
-      this.applyStoppedEvent(payload);
-    }));
-
-    // Listen for RunCompleted
-    this.disposables.push(this.rap.on('RunCompleted', () => {
-      this.sendEvent('terminated', {});
-    }));
-
-    // Listen for TraceEvents → output channel + debug panel + spawn threads
-    this.disposables.push(this.rap.on('TraceEvent', (msg) => {
-      const p = (msg.payload || {}) as Record<string, unknown>;
-      const kind = (p.kind || 'trace') as string;
-      const agent = (p.agentName || '') as string;
-      this.sendEvent('output', {
-        category: 'console',
-        output: `[${kind}] ${agent}: ${JSON.stringify(p)}\n`,
-      });
-      this.sinks?.debugPanel.addTrace({
-        kind,
-        agentName: agent || undefined,
-        instanceId: p.instanceId as string | undefined,
-        timestamp: Date.now(),
-        detail: p,
-      });
-      this.handleSpawnTraceEvent(kind, p);
-    }));
-
-    // Read .rg source
-    let rgSource: string;
-    try {
-      rgSource = fs.readFileSync(this.rgFilePath, 'utf-8');
-    } catch (err) {
-      this.sendErrorResponse(reqSeq, 'launch', `Cannot read ${this.rgFilePath}: ${err}`);
-      return;
-    }
-
-    // Compile (field name must match ROS expectation: rgSource, fileName)
-    const compileResp = await this.rap.request('Compile', { rgSource, fileName: path.basename(this.rgFilePath) }, 'CompileSuccess', 15000);
-    if (compileResp.rap === 'CompileError') {
-      this.sendErrorResponse(reqSeq, 'launch', `Compile error: ${JSON.stringify(compileResp.payload)}`);
-      return;
-    }
-    this.sessionId = compileResp.sessionId || (compileResp.payload?.sessionId as string) || 'default';
-    this.sourceMap = (compileResp.payload?.sourceMap as SourceMapEntry[]) || [];
-
-    // Start in debug mode
-    this.rap.send({
-      rap: 'RunStart',
-      sessionId: this.sessionId,
-      payload: { sessionId: this.sessionId, mode: 'debug' },
-    });
-
-    ReagentDebugSession.activeSession = this;
-    this.addThread(THREAD_ID, 'Reagent Protocol');
-    this.sendResponse(reqSeq, 'launch');
+    this.sendErrorResponse(
+      reqSeq,
+      'launch',
+      'Direct local debug via the removed server-backed path is no longer available. Use cluster debug from the diagram/cluster tooling.',
+    );
   }
 
   /**
@@ -315,6 +218,10 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     this.rgFilePath = config.rgFile || '';
     this.sessionId = config.clusterSessionId!;
     this.isClusterAttach = true;
+    logDebugProtocol('dap.handleClusterAttach.begin', {
+      sessionId: this.sessionId,
+      rgFilePath: this.rgFilePath,
+    });
 
     const pendingRap = ReagentDebugSession.pendingClusterRap;
     ReagentDebugSession.pendingClusterRap = null;
@@ -322,13 +229,11 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     if (pendingRap && pendingRap.connected) {
       this.rap = pendingRap;
     } else {
-      const rosHost = config.rosHost || '127.0.0.1';
-      const rosPort = config.rosPort || 18789;
-      this.rap = new RapClient(`ws://${rosHost}:${rosPort}`);
+      this.rap = new RapClient('cluster://default');
       try {
         await this.rap.connect();
       } catch {
-        this.sendErrorResponse(reqSeq, 'launch', 'Cannot connect to ROS for cluster attach');
+        this.sendErrorResponse(reqSeq, 'launch', 'Cannot connect to cluster control plane for cluster attach');
         return;
       }
     }
@@ -339,6 +244,11 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     if (pendingMap && pendingMap.length > 0) {
       this.sourceMap = pendingMap;
     }
+    logDebugProtocol('dap.handleClusterAttach.sourceMapReady', {
+      sessionId: this.sessionId,
+      sourceMapEntries: this.sourceMap.length,
+      pendingBreakpointStateIds: this.pendingClusterBreakpointStateIds,
+    });
 
     // Listen for source map updates after recompile/redeploy
     this.disposables.push(this.rap.on('SourceMapUpdated', (msg) => {
@@ -354,6 +264,13 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
       const payload = (msg.payload || {}) as Record<string, unknown>;
       const sid = payload.sessionId as string | undefined;
       if (sid && sid !== this.sessionId) return;
+      logDebugProtocol('dap.event.Stopped', {
+        sessionId: this.sessionId,
+        stateId: payload.stateId,
+        stateKind: payload.stateKind,
+        reason: payload.reason,
+        roleName: payload.roleName,
+      });
 
       this.paused = true;
       this.stoppedReason = String(payload.reason || 'step');
@@ -395,6 +312,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     }));
 
     ReagentDebugSession.activeSession = this;
+    this.flushPendingClusterBreakpoints();
     this.addThread(THREAD_ID, 'Reagent Protocol');
     this.sendResponse(reqSeq, 'launch');
 
@@ -428,6 +346,14 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
    */
   private applyStoppedEvent(payload: Record<string, unknown>): void {
     const level = payload.level as string | undefined;
+    logDebugProtocol('dap.applyStoppedEvent', {
+      sessionId: this.sessionId,
+      level,
+      reason: this.stoppedReason,
+      stateId: payload.stateId,
+      stateKind: payload.stateKind,
+      roleName: payload.roleName,
+    });
 
     if (level === 'resolve') {
       this.resolveDetail = {
@@ -462,16 +388,29 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     const bpArgs = args.breakpoints as Array<{ line: number }> | undefined;
     const bpFile = source?.path || this.rgFilePath;
     const breakpoints: Array<{ id: number; verified: boolean; line: number; message?: string }> = [];
+    const mappedStateIds: string[] = [];
 
     // Remove previous breakpoints for this source file
     for (const [id, bp] of this.breakpointMap) {
       if (bp.source === bpFile) this.breakpointMap.delete(id);
     }
 
-    // Fallback: if source map is empty, try reading from compiled output
-    if (this.sourceMap.length === 0 && this.rgFilePath) {
-      this.sourceMap = tryReadSourceMapFromDisk(this.rgFilePath);
+    // Fallback: if source map is empty, try reading from compiled output.
+    // This must work even before launch/attach assigns rgFilePath, because
+    // VSCode can send setBreakpoints before launch in the DAP lifecycle.
+    if (this.sourceMap.length === 0) {
+      const fallbackPath = bpFile || this.rgFilePath;
+      if (fallbackPath) {
+        this.sourceMap = tryReadSourceMapFromDisk(fallbackPath);
+      }
     }
+    logDebugProtocol('dap.handleSetBreakpoints.begin', {
+      sessionId: this.sessionId,
+      isClusterAttach: this.isClusterAttach,
+      source: bpFile,
+      requestedLines: (bpArgs ?? []).map(bp => bp.line),
+      sourceMapEntries: this.sourceMap.length,
+    });
 
     if (this.rap?.connected && bpArgs && bpArgs.length > 0) {
       if (this.isClusterAttach) {
@@ -481,6 +420,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
           const mapped = findNearestSourceMapEntry(this.sourceMap, bp.line, bpFile);
           if (mapped) {
             stateIds.push(mapped.stateId);
+            mappedStateIds.push(mapped.stateId);
             const adjusted = mapped.line !== bp.line ? ` (snapped from line ${bp.line})` : '';
             breakpoints.push({
               id: bpId,
@@ -494,22 +434,21 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
             this.breakpointMap.set(bpId, { id: bpId, line: bp.line, verified: false, source: bpFile });
           }
         }
-        if (stateIds.length > 0) {
-          this.rap.send({
-            rap: 'DebugCommand',
-            payload: {
-              sessionId: this.sessionId || 'default',
-              command: 'setBreakpoints',
-              breakpoints: stateIds,
-            },
-          });
-        }
+        this.pendingClusterBreakpointStateIds = stateIds;
+        logDebugProtocol('dap.handleSetBreakpoints.clusterMapped', {
+          sessionId: this.sessionId,
+          source: bpFile,
+          mappedStateIds: stateIds,
+          dapBreakpoints: breakpoints,
+        });
+        this.flushPendingClusterBreakpoints();
       } else {
         const resolvedLocations: Array<{ type: 'sourceLine'; file: string; line: number }> = [];
         for (const bp of bpArgs) {
           const bpId = this.nextBreakpointId++;
           const mapped = findNearestSourceMapEntry(this.sourceMap, bp.line, bpFile);
           if (mapped) {
+            mappedStateIds.push(mapped.stateId);
             resolvedLocations.push({ type: 'sourceLine', file: bpFile, line: mapped.line });
             const adjusted = mapped.line !== bp.line ? ` (snapped from line ${bp.line})` : '';
             breakpoints.push({
@@ -538,12 +477,52 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     } else if (bpArgs) {
       for (const bp of bpArgs) {
         const bpId = this.nextBreakpointId++;
-        breakpoints.push({ id: bpId, verified: false, line: bp.line });
-        this.breakpointMap.set(bpId, { id: bpId, line: bp.line, verified: false, source: bpFile });
+        const mapped = findNearestSourceMapEntry(this.sourceMap, bp.line, bpFile);
+        if (mapped) {
+          mappedStateIds.push(mapped.stateId);
+          breakpoints.push({ id: bpId, verified: true, line: mapped.line, message: `→ ${mapped.stateId}` });
+          this.breakpointMap.set(bpId, { id: bpId, line: mapped.line, stateId: mapped.stateId, verified: true, source: bpFile });
+        } else {
+          breakpoints.push({ id: bpId, verified: false, line: bp.line });
+          this.breakpointMap.set(bpId, { id: bpId, line: bp.line, verified: false, source: bpFile });
+        }
       }
     }
 
+    if (mappedStateIds.length > 0) {
+      this.pendingClusterBreakpointStateIds = mappedStateIds;
+    }
+    logDebugProtocol('dap.handleSetBreakpoints.end', {
+      sessionId: this.sessionId,
+      mappedStateIds: mappedStateIds,
+      pendingClusterBreakpointStateIds: this.pendingClusterBreakpointStateIds,
+      dapBreakpoints: breakpoints,
+    });
+
     this.sendResponse(reqSeq, 'setBreakpoints', { breakpoints });
+  }
+
+  private flushPendingClusterBreakpoints(): void {
+    if (!this.isClusterAttach || !this.rap?.connected || !this.sessionId) return;
+    if (this.pendingClusterBreakpointStateIds.length === 0) {
+      logDebugProtocol('dap.flushPendingClusterBreakpoints.skip', {
+        sessionId: this.sessionId,
+        reason: 'no pending breakpoints',
+      });
+      return;
+    }
+    logDebugProtocol('dap.flushPendingClusterBreakpoints', {
+      sessionId: this.sessionId,
+      breakpoints: this.pendingClusterBreakpointStateIds,
+    });
+    this.rap.send({
+      rap: 'DebugCommand',
+      payload: {
+        sessionId: this.sessionId,
+        command: 'setBreakpoints',
+        breakpoints: this.pendingClusterBreakpointStateIds,
+      },
+    });
   }
 
   private handleStackTrace(reqSeq: number): void {
@@ -827,6 +806,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
       });
     }
     this.paused = false;
+    this.sinks?.debugPanel.updateDebugState(false, null, 0);
     this.sendResponse(reqSeq, 'continue', { allThreadsContinued: true });
   }
 
@@ -858,6 +838,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     }
 
     this.paused = false;
+    this.sinks?.debugPanel.updateDebugState(false, null, 0);
     this.sendResponse(reqSeq, 'next');
   }
 
@@ -892,6 +873,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     }
 
     this.paused = false;
+    this.sinks?.debugPanel.updateDebugState(false, null, 0);
     this.sendResponse(reqSeq, 'stepIn');
   }
 
@@ -913,6 +895,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     }
 
     this.paused = false;
+    this.sinks?.debugPanel.updateDebugState(false, null, 0);
     this.sendResponse(reqSeq, 'stepOut');
   }
 
@@ -982,6 +965,7 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
     if (ReagentDebugSession.activeSession === this) {
       ReagentDebugSession.activeSession = null;
     }
+    this.sinks?.debugPanel.updateDebugState(false, null, 0);
     this.sendResponse(reqSeq, 'disconnect');
   }
 
@@ -1072,12 +1056,12 @@ export class ReagentDebugSession implements vscode.DebugAdapter {
  * Factory that creates inline ReagentDebugSession instances for each debug session.
  */
 export class ReagentDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
-  constructor(private readonly sinks?: DebugSinks, private readonly rosManager?: RosManager) {}
+  constructor(private readonly sinks?: DebugSinks) {}
 
   createDebugAdapterDescriptor(
     _session: vscode.DebugSession
   ): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
-    return new vscode.DebugAdapterInlineImplementation(new ReagentDebugSession(this.sinks, this.rosManager));
+    return new vscode.DebugAdapterInlineImplementation(new ReagentDebugSession(this.sinks));
   }
 }
 

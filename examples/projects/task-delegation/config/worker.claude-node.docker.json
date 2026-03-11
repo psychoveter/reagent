@@ -1,0 +1,41 @@
+{
+  "kind": "claude_live_agent_node",
+  "runtime": {
+    "nodeId": "worker-gate",
+    "langs": ["ts"],
+    "stateStore": {
+      "kind": "etcd",
+      "hosts": ["http://host.docker.internal:2379"]
+    },
+    "membership": {
+      "enabled": true
+    },
+    "messagePlane": {
+      "kind": "nats",
+      "url": "nats://host.docker.internal:4222"
+    },
+    "telemetry": {
+      "traceSink": "none",
+      "interceptors": []
+    },
+    "controlEndpoint": {
+      "enabled": true,
+      "host": "0.0.0.0",
+      "port": 19092,
+      "advertiseUrl": "ws://127.0.0.1:19092"
+    },
+    "triggerPolicies": {},
+    "cronIntervalMs": 15000
+  },
+  "agent": {
+    "name": "WorkerAgent",
+    "roles": ["WorkerRole"]
+  },
+  "claude": {
+    "tools": [],
+    "mcpServers": {},
+    "maxTurns": 4,
+    "permissionMode": "bypassPermissions",
+    "extraInstructions": "You are the worker side. Produce a concise but useful deliverable and a short summary. Prefer structured JSON-safe strings and objects."
+  }
+}

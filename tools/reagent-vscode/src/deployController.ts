@@ -5,7 +5,7 @@ import type { ClusterPanelProvider } from './clusterPanel';
 
 /**
  * Reads a compiled Reagent project (out/ directory) and sends
- * DeployProject RAP to ROS so agents get distributed to connected nodes.
+ * Deploy a compiled Reagent project across currently reachable node endpoints.
  */
 export async function deployProject(cluster: ClusterPanelProvider, explicitRoot?: string): Promise<void> {
   const rap = cluster.getRapClient();
@@ -95,8 +95,11 @@ export async function deployProject(cluster: ClusterPanelProvider, explicitRoot?
       return;
     }
 
+    const nodes = Array.isArray(p.nodes) ? p.nodes as Array<{ nodeId?: string; deployedAgents?: string[] }> : [];
+    const deployedCount = nodes.reduce((sum, node) => sum + ((node.deployedAgents ?? []).length), 0);
+    const nodeCount = nodes.length;
     vscode.window.showInformationMessage(
-      `Deployed ${p.deployed ?? '?'}/${p.total ?? '?'} agents across ${p.adapterCount ?? '?'} node(s)`
+      `Deployed ${deployedCount} agent${deployedCount === 1 ? '' : 's'} across ${nodeCount} node${nodeCount === 1 ? '' : 's'}`
     );
   } catch (err) {
     vscode.window.showErrorMessage(`Deploy failed: ${err}`);

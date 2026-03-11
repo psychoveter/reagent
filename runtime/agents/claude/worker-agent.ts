@@ -7,10 +7,10 @@
  *
  * Environment:
  *   ANTHROPIC_API_KEY — required
- *   ROS_URL           — default ws://localhost:18789
- *   NATS_URL          — default nats://localhost:4222
- *   ETCD_HOSTS        — default http://127.0.0.1:2379
- *   NODE_ID           — default worker-gate
+ *   MCP_RUNTIME_CONFIG — optional path to mcp-gate runtime config JSON
+ *   NATS_URL          — legacy override when no runtime config is provided
+ *   ETCD_HOSTS        — legacy override when no runtime config is provided
+ *   NODE_ID           — legacy override when no runtime config is provided
  *   WORKER_AGENT      — default WorkerAgent
  *   WORKER_ROLES      — default WorkerRole (comma-separated)
  *   MCP_GATE_PATH     — path to mcp-gate.js
@@ -22,7 +22,7 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import * as path from "path";
 
-const rosUrl = process.env.ROS_URL ?? "ws://localhost:18789";
+const runtimeConfigPath = process.env.MCP_RUNTIME_CONFIG;
 const natsUrl = process.env.NATS_URL ?? "nats://localhost:4222";
 const etcdHosts = process.env.ETCD_HOSTS ?? "http://127.0.0.1:2379";
 const nodeId = process.env.NODE_ID ?? "worker-gate";
@@ -40,6 +40,24 @@ const mcpGatePath =
 
 const log = (msg: string) =>
   process.stderr.write(`[worker-agent] ${msg}\n`);
+
+function buildMcpGateArgs(): string[] {
+  const args = [
+    mcpGatePath,
+  ];
+
+  if (runtimeConfigPath) {
+    args.push("--runtime-config", runtimeConfigPath);
+    return args;
+  }
+
+  args.push(
+    "--nats-url", natsUrl,
+    "--etcd-hosts", etcdHosts,
+    "--node-id", nodeId,
+  );
+  return args;
+}
 
 const SYSTEM_PROMPT = `You are an autonomous worker agent participating in Reagent protocols.
 
@@ -91,14 +109,7 @@ async function runSession(): Promise<string> {
       mcpServers: {
         reagent: {
           command: "node",
-          args: [
-            mcpGatePath,
-            "--ros-url", rosUrl,
-            "--nats-url", natsUrl,
-            "--etcd-hosts", etcdHosts,
-            "--node-id", nodeId,
-            "--agents", agentName,
-          ],
+          args: buildMcpGateArgs(),
         },
       },
     },
@@ -159,7 +170,11 @@ function isFatalError(err: unknown): boolean {
 async function main(): Promise<void> {
   log(`Worker agent starting`);
   log(`MCP gate: ${mcpGatePath}`);
-  log(`ROS: ${rosUrl}, NATS: ${natsUrl}, etcd: ${etcdHosts}`);
+  if (runtimeConfigPath) {
+    log(`runtimeConfig: ${runtimeConfigPath}`);
+  } else {
+    log(`NATS: ${natsUrl}, etcd: ${etcdHosts}`);
+  }
   log(`Agent: ${agentName}, roles: ${roles.join(",")}, maxTurns: ${maxTurns}`);
 
   let consecutiveFailures = 0;

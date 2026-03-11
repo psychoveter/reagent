@@ -8,9 +8,9 @@
  */
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { EtcdStateStore } from "../src/etcd-state-store.js";
-import { LeaderElection } from "../src/leader-election.js";
-import { EtcdMembership } from "../src/etcd-membership.js";
+import { EtcdStateStore } from "../src/cluster/etcd-state-store.js";
+import { LeaderElection } from "../src/cluster/leader-election.js";
+import { EtcdMembership } from "../src/cluster/etcd-membership.js";
 
 const ETCD_HOSTS = (process.env.ETCD_HOSTS ?? "http://127.0.0.1:2379").split(",");
 

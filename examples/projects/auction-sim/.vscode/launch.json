@@ -2,19 +2,24 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run Auction",
-      "type": "debugpy",
+      "name": "Auction Node",
+      "type": "node",
       "request": "launch",
-      "program": "${workspaceFolder}/run.py",
-      "console": "integratedTerminal"
+      "runtimeExecutable": "${workspaceFolder}/../../../runtime/ts/node_modules/.bin/tsx",
+      "program": "${workspaceFolder}/run_node.ts",
+      "args": ["--runtime-config", "${workspaceFolder}/node.runtime.json"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
     },
     {
-      "name": "Run Auction (custom)",
-      "type": "debugpy",
+      "name": "Auction Node (verbose etcd)",
+      "type": "node",
       "request": "launch",
-      "program": "${workspaceFolder}/run.py",
-      "args": ["--item", "Gold Watch", "--reserve", "200", "-v"],
-      "console": "integratedTerminal"
+      "runtimeExecutable": "${workspaceFolder}/../../../runtime/ts/node_modules/.bin/tsx",
+      "program": "${workspaceFolder}/run_node.ts",
+      "args": ["--runtime-config", "${workspaceFolder}/node.runtime.json"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }

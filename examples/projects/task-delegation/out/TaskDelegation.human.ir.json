@@ -11,28 +11,38 @@
       }
     },
     {
-      "id": "send_2",
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\r\n    // Prepare a worker-facing task packet from the trigger input.\r\n    // Preserve the original input under $ctx.originalInput.\r\n    // Set:\r\n    // - $ctx.originalInput = $ctx.input\r\n    // - $ctx.request.description = non-empty string from $ctx.input.description\r\n    // - $ctx.request.context = object from $ctx.input.context (or {})\r\n    // - $ctx.request.requestedBy = \"HumanAgent\"\r\n    // - $ctx.request.successCriteria = short string explaining what a good answer should contain\r\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_3",
       "kind": "send",
       "data": {
         "kind": "send",
         "to": "worker",
         "arrow": "-->",
         "messageName": "TaskRequest",
-        "preSendZone": "\r\n      $ctx.msg.description = $ctx.input.description || \"No description\"\r\n      $ctx.msg.context = $ctx.input.context || {}\r\n    "
+        "preSendZone": "\r\n      // Copy the prepared delegation request into the outgoing message.\r\n      // Set:\r\n      // - $ctx.msg.description = $ctx.request.description\r\n      // - $ctx.msg.context = $ctx.request.context\r\n      // - $ctx.msg.requestedBy = $ctx.request.requestedBy\r\n      // - $ctx.msg.successCriteria = $ctx.request.successCriteria\r\n    "
       }
     },
     {
-      "id": "recv_3",
+      "id": "recv_4",
       "kind": "receive",
       "data": {
         "kind": "receive",
         "from": "worker",
         "arrow": "-->",
-        "messageName": "TaskResult"
+        "messageName": "TaskResult",
+        "postReceiveZone": "\r\n      // Review and persist the worker result on the human side.\r\n      // Set:\r\n      // - $ctx.review = {\r\n      //     accepted: true,\r\n      //     summary: $ctx.msg.summary,\r\n      //     result: $ctx.msg.result\r\n      //   }\r\n      // - $self.lastCompletedTask = {\r\n      //     description: $ctx.request.description,\r\n      //     summary: $ctx.msg.summary,\r\n      //     result: $ctx.msg.result\r\n      //   }\r\n    "
       }
     },
     {
-      "id": "end_4",
+      "id": "end_5",
       "kind": "terminal",
       "data": {
         "kind": "terminal",
@@ -43,21 +53,28 @@
   "transitions": [
     {
       "from": "init_1",
-      "to": "send_2",
+      "to": "act_2",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "send_2",
-      "to": "recv_3",
+      "from": "act_2",
+      "to": "send_3",
       "label": {
         "kind": "default"
       }
     },
     {
-      "from": "recv_3",
-      "to": "end_4",
+      "from": "send_3",
+      "to": "recv_4",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_4",
+      "to": "end_5",
       "label": {
         "kind": "default"
       }
@@ -65,7 +82,7 @@
   ],
   "initialStateId": "init_1",
   "terminalStateIds": [
-    "end_4"
+    "end_5"
   ],
   "participants": [
     {
@@ -102,10 +119,10 @@
     }
   ],
   "invocable": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "fingerprints": {
-    "structureHash": "a8e480508d62a8a40bb6b1dfe57338ae46402cfdbbba73e5668975b9e1ede6a6",
+    "structureHash": "162060defe520c9399dc4ed55d78d7659b71994ab16e70db775ab9629e64bae1",
     "schemaHash": "fad2d2fbb6bf5cbeb6f6684de46972d3f0ebbea1ea95a50065279b84a75a92de",
-    "implHash": "b093372b601614b32ffe2ca8ae4889749a9c3b756dce5ecb22648037ebeb7854"
+    "implHash": "732e4d7df6e8da578405d47110baeba0c4753e83da9fc571f99c037818745446"
   }
 }

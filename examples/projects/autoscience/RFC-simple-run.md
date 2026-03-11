@@ -4,7 +4,7 @@
 **Status:** RFC draft
 **Area:** examples/autoscience, runtime integration
 **Depends on:** MCP Gate RFC (`docs/future/mcp-gate-rfc.md`), simple.rg protocol,
-  ROS (`runtime/ts/src/ros.ts`), RemoteNode (`runtime/ts/src/remote-node.ts`)
+  node control endpoints, RemoteNode (`runtime/ts/src/admin/remote-node.ts`)
 
 ---
 
@@ -24,15 +24,14 @@ care whether the agent on the other end is a human or an LLM.
 
 ---
 
-## Architecture: ROS + RemoteNodes + MCP Gate
+## Architecture: AdminClient + RemoteNodes + MCP Gate
 
-The system uses the existing Reagent multi-node architecture:
+The system uses the current Reagent multi-node architecture:
 
-- **ROS** (ReagentOrchestratorServer) — central coordinator. Compiles `.rg`,
-  deploys agent IR to RemoteNodes, triggers protocols, routes
-  `MessageEnvelope`s between nodes. Runs on your local machine.
-- **RemoteNode** — lightweight RC process that connects to ROS via WebSocket.
-  Receives `Deploy` and `TriggerProtocol` commands. Runs the agent's
+- **AdminClient** — tool-side client. Reads shared cluster state, resolves owning nodes,
+  and talks to node control endpoints for deploy/inspect/trigger/debug.
+- **RemoteNode** — lightweight RC process that publishes its own node control endpoint.
+  Receives deploy/trigger/debug operations directly on that endpoint. Runs the agent's
   `ProtocolEngine` locally. One per agent (or per machine).
 - **MCP Gate** — each RemoteNode exposes an MCP server that the actual agent
   (Cursor or Claude Code) connects to. The MCP Gate bridges between the
@@ -40,7 +39,7 @@ The system uses the existing Reagent multi-node architecture:
 
 ```
                          ┌──────────────────────────┐
-                         │         ROS              │
+                         │      Admin host          │
                          │   Compile simple.rg      │
                          │   Deploy IR to nodes     │
                          │   Trigger protocols      │
@@ -289,20 +288,19 @@ verification. Current options:
 
 ## ROS setup and deployment
 
-### Step 1: ROS starts
+### Step 1: Cluster state backend starts
 
-ROS is a local process. It starts the WebSocket server and waits for
-RemoteNode connections.
+The shared cluster state backend starts first so nodes can publish their
+presence and control endpoint metadata.
 
 ```bash
-# Existing CLI (runtime/ts/src/ros-cli.ts)
-npx reagent-ros --port 7400
+npx reagent-rgctl cluster-status --etcd-hosts http://127.0.0.1:2379
 ```
 
 ### Step 2: RemoteNodes connect
 
-Each RemoteNode connects to ROS via WebSocket, sends `Register` with its
-`nodeId` and `supportedLangs`. ROS sends back `Accepted`.
+Each RemoteNode publishes its `nodeId`, capabilities, and node control endpoint
+into shared cluster state.
 
 - RemoteNode 1 (local): `nodeId: "node-human"`, launched manually or via script
 - RemoteNode 2 (Docker): `nodeId: "node-consultant"`, launched in container

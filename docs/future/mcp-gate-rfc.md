@@ -247,7 +247,7 @@ Agent configuration (e.g. Claude Code `.mcp.json` or Cursor `.cursorrules`):
 {
   "reagent": {
     "command": "node",
-    "args": ["path/to/mcp-gate.js", "--ros-url", "ws://localhost:7400", "--node-id", "claude-1"]
+    "args": ["path/to/mcp-gate.js", "--admin-url", "ws://localhost:7400", "--node-id", "claude-1"]
   }
 }
 ```
@@ -255,7 +255,7 @@ Agent configuration (e.g. Claude Code `.mcp.json` or Cursor `.cursorrules`):
 ### Inter-RC communication
 
 Message routing between RCs uses **NATS** or **NodeLink** (peer-to-peer
-or via NAT). **ROS is not a message router** — it only handles compile,
+or via NAT). The **admin host is not a message router** — it only handles compile,
 deploy, debug, and monitoring. Envelopes travel directly between RC
 instances through the configured transport layer.
 
@@ -550,21 +550,21 @@ Summary:
 ## References
 
 - **MCP Gate implementation:**
-  - `runtime/ts/src/async-queue.ts` — AsyncQueue with timeout drain
-  - `runtime/ts/src/mcp-agent-adapter.ts` — McpAgentAdapter (AgentInterface → MCP)
-  - `runtime/ts/src/mcp-server.ts` — ReagentMcpServer (MCP tools, stdio transport)
+  - `runtime/ts/src/gate/async-queue.ts` — AsyncQueue with timeout drain
+  - `runtime/ts/src/mcp/mcp-agent-adapter.ts` — McpAgentAdapter (AgentInterface → MCP)
+  - `runtime/ts/src/mcp/mcp-server.ts` — ReagentMcpServer (MCP tools, stdio transport)
   - `runtime/ts/src/mcp-gate.ts` — Entry-point subprocess (RC + MCP stdio)
   - `runtime/ts/test/mcp-adapter.test.ts` — Smoke tests
 - **Core abstractions:**
-  - CustomAgentNode: `runtime/ts/src/custom-agent-node.ts`
-  - AgentInterface: `runtime/ts/src/agent-interface.ts`
-  - ProtocolEngine: `runtime/ts/src/protocol-engine.ts`
-  - Transport: `runtime/ts/src/transport.ts`
+  - CustomAgentNode: `runtime/ts/src/nodes/custom-agent-node.ts`
+  - AgentInterface: `runtime/ts/src/core/agent-interface.ts`
+  - ProtocolEngine: `runtime/ts/src/core/protocol-engine.ts`
+  - Transport: `runtime/ts/src/contracts/transport.ts`
 - **Infrastructure:**
-  - RemoteNode: `runtime/ts/src/remote-node.ts`
-  - ROS: `runtime/ts/src/ros.ts`
-  - WsNodeLink: `runtime/ts/src/ws-node-link.ts`
-  - Gate transports: `runtime/ts/src/gate-transport.ts`
+  - RemoteNode: `runtime/ts/src/admin/remote-node.ts`
+  - legacy admin transport host: removed in final cluster-first cutover
+  - WsNodeLink: `runtime/ts/src/network/ws-node-link.ts`
+  - Gate transports: `runtime/ts/src/gate/gate-transport.ts`
 - **Specs and plans:**
   - MCP specification: https://modelcontextprotocol.io/specification
   - Autoscience simple.rg run plan: `examples/projects/autoscience/RFC-simple-run.md`

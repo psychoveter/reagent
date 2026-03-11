@@ -9,7 +9,7 @@ COPY runtime/ts/package.json ./
 
 # Worker agent as a standalone project
 WORKDIR /opt/worker
-COPY runtime/agents/claude/dist/worker-agent.js ./worker-agent.js
+COPY runtime/agents/claude/dist/live-agent.js ./live-agent.js
 COPY runtime/agents/claude/package.json ./
 COPY runtime/agents/claude/node_modules/ ./node_modules/
 
@@ -20,4 +20,4 @@ ENV MCP_GATE_PATH=/opt/reagent/dist/mcp-gate.js
 USER worker
 WORKDIR /workspace
 
-CMD ["node", "/opt/worker/worker-agent.js"]
+CMD ["node", "/opt/worker/live-agent.js"]

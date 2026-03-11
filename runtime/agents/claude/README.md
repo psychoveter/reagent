@@ -1,17 +1,17 @@
-# Claude Worker Agent
+# Claude Live Agent
 
-Headless Claude worker agent for Reagent protocols, using `@anthropic-ai/claude-agent-sdk`.
+Headless Claude live-agent for Reagent protocols, using `@anthropic-ai/claude-agent-sdk`.
 
 ## How it works
 
-`worker-agent.ts` uses the SDK's `query()` function to run Claude as an autonomous agent.
+`live-agent.ts` uses the SDK's `query()` function to handle one Reagent protocol event at a time.
 The `mcp-gate` process is launched as a subprocess MCP server, giving Claude access to
 Reagent tools (`register`, `wait_for_events`, `respond`, `invoke`).
 
 ```
-worker-agent.ts ──SDK──> Claude API
+live-agent.ts ──SDK──> Claude API
        │
-       └──stdio──> mcp-gate.js ──> RC ──> NATS/etcd/ROS
+       └──stdio──> mcp-gate.js ──> RC ──> NATS/etcd/control-endpoint
 ```
 
 ## Setup
@@ -24,25 +24,24 @@ worker-agent.ts ──SDK──> Claude API
 | Variable | Default | Description |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | (required) | Anthropic API key |
-| `ROS_URL` | `ws://host.docker.internal:18789` | ROS WebSocket URL |
-| `NATS_URL` | `nats://host.docker.internal:4222` | NATS server URL |
-| `ETCD_HOSTS` | `http://host.docker.internal:2379` | etcd endpoints |
-| `NODE_ID` | `worker-gate` | Cluster node ID |
-| `WORKER_AGENT` | `WorkerAgent` | Agent name to register |
-| `WORKER_ROLES` | `WorkerRole` | Comma-separated roles |
-| `MAX_TURNS` | `200` | Max SDK turns before stopping |
+| `CLAUDE_NODE_CONFIG` | `/opt/task-delegation-config/worker.claude-node.docker.json` | Wrapper config containing embedded Reagent runtime config plus Claude settings |
+| `MCP_GATE_PATH` | `/opt/reagent/dist/mcp-gate.js` | Path to the `mcp-gate` entrypoint |
+| `MCP_RUNTIME_CONFIG` | unset | Legacy fallback: direct runtime config path for `mcp-gate` |
+| `AGENT_NAME` / `AGENT_ROLES` | unset | Legacy fallback: direct agent identity overrides |
+| `MAX_TURNS` | `4` | Legacy fallback max SDK turns when wrapper config is not used |
 
 ## Development
 
 ```bash
 npm install          # install SDK
-npm run build        # compile worker-agent.ts
-npm start            # run locally (needs ANTHROPIC_API_KEY + infra running)
+npm run build        # compile live-agent.ts and legacy worker-agent.ts
+npm start            # run the config-driven live-agent locally
 ```
 
 ## Files
 
-- `worker-agent.ts` — source (system prompt + SDK query loop)
-- `Dockerfile` — container image (node:20-slim + reagent runtime + worker)
+- `live-agent.ts` — canonical config-driven Claude live-agent entrypoint
+- `worker-agent.ts` — legacy autonomous variant kept for compatibility
+- `Dockerfile` — container image (node:20-slim + reagent runtime + live-agent)
 - `run-worker.sh` — build & run Docker container
 - `.env` — API key (not committed)

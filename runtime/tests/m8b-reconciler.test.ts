@@ -11,14 +11,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { reconcile, planSummary, type ReconciliationPlan } from "../../runtime/ts/src/reconciler.js";
-import type { DeploySpec, DeployProtocolSpec, DeployAgentSpec } from "../../runtime/ts/src/deploy-spec.js";
+import { reconcile, planSummary, type ReconciliationPlan } from "../../runtime/ts/src/admin/reconciler.js";
+import type { DeploySpec, DeployProtocolSpec, DeployAgentSpec } from "../../runtime/ts/src/admin/deploy-spec.js";
 import {
   createEmptyView,
   mergeNodeProtocols,
   type RegistryView,
-} from "../../runtime/ts/src/registry-view.js";
-import type { ProtocolFingerprint } from "../../runtime/ts/src/types.js";
+} from "../../runtime/ts/src/admin/registry-view.js";
+import type { ProtocolFingerprint } from "../../runtime/ts/src/contracts/types.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 

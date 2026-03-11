@@ -338,7 +338,17 @@ function cmdCompile(file, outDir) {
                 roleName: p.roleName,
                 irGraphFile: `${key}.ir.json`,
             });
-            roleToAgent[key] = agent.name;
+            const existing = roleToAgent[key];
+            if (existing === undefined) {
+                roleToAgent[key] = agent.name;
+            }
+            else if (Array.isArray(existing)) {
+                if (!existing.includes(agent.name))
+                    existing.push(agent.name);
+            }
+            else if (existing !== agent.name) {
+                roleToAgent[key] = [existing, agent.name];
+            }
         }
         deploymentAgents.push(da);
     }
@@ -527,7 +537,17 @@ function cmdBuild(projectDir) {
         for (const p of plays) {
             const key = `${p.protocolName}.${p.roleName}`;
             da.roles.push({ protocolName: p.protocolName, roleName: p.roleName, irGraphFile: `${key}.ir.json` });
-            roleToAgent[key] = agent.name;
+            const existing = roleToAgent[key];
+            if (existing === undefined) {
+                roleToAgent[key] = agent.name;
+            }
+            else if (Array.isArray(existing)) {
+                if (!existing.includes(agent.name))
+                    existing.push(agent.name);
+            }
+            else if (existing !== agent.name) {
+                roleToAgent[key] = [existing, agent.name];
+            }
         }
         deploymentAgents.push(da);
     }
