@@ -1,6 +1,6 @@
 # End-to-End Use Cases
 
-Five reference use cases covering the breadth of the Reagent language and runtime stack. Each is a self-contained story: domain problem, protocol design, agent integration mode, and deployment shape.
+Six reference use cases covering the breadth of the Reagent language and runtime stack. Each is a self-contained story: domain problem, protocol design, agent integration mode, and deployment shape.
 
 The cases are chosen to be maximally distant from each other across three axes:
 - **deployment topology** (single-process ↔ multi-node cluster)
@@ -640,37 +640,176 @@ This is the "enterprise workflow" case. It shows Reagent handling scheduled, app
 
 ---
 
+## 6. Reagent Feature Development Workflow
+
+**Domain**: product and engineering workflow / AI-assisted software delivery.
+
+**Problem**: a human maintainer works in Cursor and needs to drive feature delivery across multiple iterative stages. The human sets the task, an `analyst` formalizes it and updates product/user/spec docs, a `developer` turns the approved design into architecture and code, and a `reviewer` critiques the work of both. Each stage may require several analyst-developer-reviewer iterations before the human approves it. The workflow ends only after design, implementation, and finalization all converge.
+
+### Protocol
+
+This use case is best modeled as a staged protocol family:
+
+- `FeatureDevelopmentReagent` — top-level coordinator protocol
+- `DesignStage` — analyst-driven formalization and architecture framing
+- `ImplementationStage` — developer-driven coding, tests, and architecture notes
+- `FinalizationStage` — docs, backlog, and release/follow-up closure
+
+The top-level protocol invokes the three stages in order, and each child protocol contains its own review loop:
+
+```rg
+message FeatureTask { title: string, problem: string, goals: any, constraints: any, acceptance: any }
+message StageInput { stage: string, task: any, previous: any }
+message StageOutcome { stage: string, status: string, artifact: any, humanDecision: any }
+
+protocol FeatureDevelopmentReagent {
+  participants:
+    human [ts] initiator,
+    analyst [ts],
+    developer [ts],
+    reviewer [ts]
+
+  trigger on invoke with FeatureTask {
+    resolve human = single
+    resolve analyst = single
+    resolve developer = single
+    resolve reviewer = single
+  }
+
+  human {
+    $ctx.task = $ctx.input
+  }
+
+  human invokes DesignStage($ctx.task) -> $ctx.designStage
+
+  human invokes ImplementationStage({
+    stage: "implementation",
+    task: $ctx.task,
+    previous: $ctx.designStage
+  }) -> $ctx.implementationStage
+
+  human invokes FinalizationStage({
+    stage: "finalization",
+    task: $ctx.task,
+    previous: {
+      design: $ctx.designStage,
+      implementation: $ctx.implementationStage
+    }
+  }) -> $ctx.finalizationStage
+
+  human {
+    reagent.return({
+      design: $ctx.designStage,
+      implementation: $ctx.implementationStage,
+      finalization: $ctx.finalizationStage
+    })
+  }
+}
+
+protocol DesignStage {
+  participants:
+    human [ts] initiator,
+    analyst [ts],
+    developer [ts],
+    reviewer [ts]
+
+  trigger on invoke with FeatureTask {
+    resolve human = single
+    resolve analyst = single
+    resolve developer = single
+    resolve reviewer = single
+  }
+
+  human --> analyst: FeatureTask
+
+  loop ($ctx.stageApproved != true) {
+    analyst --> developer: DesignPacket
+    developer --> reviewer: DesignPacket
+    reviewer --> analyst: ReviewFeedback
+    analyst --> human: ApprovalRequest
+    human --> analyst: ApprovalDecision
+
+    alt ($ctx.stageApproved == true) {
+      analyst {
+        reagent.return({
+          stage: "design",
+          status: "approved",
+          artifact: $ctx.designProposal,
+          humanDecision: $ctx.lastDecision
+        })
+      }
+    }
+  }
+}
+```
+
+Reference project:
+
+- `projects/reagent/examples/projects/feature-development-reagent/`
+
+### Agents and runtime
+
+| Agent | Host | Integration mode |
+|---|---|---|
+| HumanAgent | Cursor IDE | MCP Gate |
+| AnalystAgent | Claude/live or MCP-capable coding agent | MCP Gate |
+| DeveloperAgent | Claude/live or MCP-capable coding agent | MCP Gate |
+| ReviewerAgent | Claude/live or MCP-capable coding agent | MCP Gate |
+
+| Aspect | Choice |
+|---|---|
+| Runtime | TypeScript RC |
+| Default deployment | Single-node MCP-backed workflow |
+| Optional deployment | Multi-node cluster if analyst/developer/reviewer are hosted remotely |
+| Activation | `trigger on invoke` from the human role |
+
+### What it exercises
+
+- stage-oriented protocol composition via `invokes`
+- repeated analyst/developer/reviewer cycles via `loop`
+- human approval boundaries via `alt`
+- `reagent.return()` for stage and final outputs
+- multi-protocol roles (`HumanRole`, `AnalystRole`, `DeveloperRole`, `ReviewerRole`)
+- human-in-the-loop execution through Cursor MCP
+- MCP-backed collaborative software-delivery workflow rather than a pure research or ops scenario
+
+### Why Reagent fits
+
+This is the “develop Reagent with Reagent” case. The choreography makes role boundaries explicit: analysis, implementation, and review are not blurred into one generic coding agent. Each stage is inspectable, iterative, and approval-gated. Reagent is useful here not because the agents are LLMs, but because the process itself is a protocol with real phase changes, artifacts, and handoffs.
+
+---
+
 ## Coverage Matrix
 
-| Feature | UC1 Auction | UC2 Research | UC3 IoT | UC4 Payment | UC5 Risk Review |
-|---|:---:|:---:|:---:|:---:|:---:|
+| Feature | UC1 Auction | UC2 Research | UC3 IoT | UC4 Payment | UC5 Risk Review | UC6 Feature Dev |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
 | **Language constructs** | | | | | |
-| `scatter` | x | x | x | | x |
-| `par` | | | | x | |
-| `loop` | | | | | |
-| `alt` (expression) | | | | x | x |
-| `invokes` (child protocol) | | | | | x |
-| `spawns` | | | | | x |
-| `reagent.return()` | | | | x | x |
-| `reagent.emit()` | | | x | | x |
-| `reagent.break()` | | | | | |
-| `trigger on invoke` | x | x | | x | |
-| `trigger on cron` | | | x | | x |
-| `trigger on event` | | | x | | |
-| `resolve` pipelines | | x | x | | x |
-| `message` type defs | x | x | x | x | x |
-| `role` + `init` + `on` | | | | | x |
-| `$agent` native module | x | | x | | |
-| `$self` persistence | x | x | x | x | x |
+| `scatter` | x | x | x | | x | |
+| `par` | | | | x | | |
+| `loop` | | | | | | x |
+| `alt` (expression) | | | | x | x | x |
+| `invokes` (child protocol) | | | | | x | x |
+| `spawns` | | | | | x | |
+| `reagent.return()` | | | | x | x | x |
+| `reagent.emit()` | | | x | | x | |
+| `reagent.break()` | | | | | | |
+| `trigger on invoke` | x | x | | x | | x |
+| `trigger on cron` | | | x | | x | |
+| `trigger on event` | | | x | | | |
+| `resolve` pipelines | | x | x | | x | |
+| `message` type defs | x | x | x | x | x | x |
+| `role` + `init` + `on` | | | | | x | x |
+| `$agent` native module | x | | x | | | |
+| `$self` persistence | x | x | x | x | x | x |
 | **Runtime modes** | | | | | |
-| Managed (`NativeAgentNode`) | x | | x | x | x |
-| Custom (`CustomAgentNode`) | | | | | x |
-| Message Gate | | | | x | |
-| MCP Gate | | x | | | x |
+| Managed (`NativeAgentNode`) | x | | x | x | x | |
+| Custom (`CustomAgentNode`) | | | | | x | |
+| Message Gate | | | | x | | |
+| MCP Gate | | x | | | x | x |
 | **Deployment** | | | | | |
-| Single-process (Python RC) | x | | x | | |
-| Single-process (TS RC) | | | | x | |
-| Multi-node cluster | | x | | | x |
-| Docker + etcd + NATS | | x | | | |
-| Cross-language agents | | | | x | |
-| Human-in-the-loop | | x | | | x |
+| Single-process (Python RC) | x | | x | | | |
+| Single-process (TS RC) | | | | x | | x |
+| Multi-node cluster | | x | | | x | |
+| Docker + etcd + NATS | | x | | | | |
+| Cross-language agents | | | | x | | |
+| Human-in-the-loop | | x | | | x | x |

@@ -8,7 +8,7 @@
 import { DebugInterceptor, type DebugInterceptorEvent, type HeldMessage } from "./debug-interceptor.js";
 import { DebugAdvanceHook, type DebugAdvanceHookEvent } from "./debug-advance-hook.js";
 import type { SourceMap, SourceMapEntry } from "./session.js";
-import type { AdvanceHook } from "../core/protocol-instance.js";
+import type { AdvanceHook } from "../core/role-run.js";
 import type { InterceptorFn } from "../contracts/interceptor.js";
 import type { DebugResolveHookFn } from "../controller/reagent-controller.js";
 

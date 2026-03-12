@@ -13,9 +13,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { ReagentController } from "../ts/src/controller/reagent-controller.js";
-import { NativeAgentNode, NativeAgentHandle } from "../ts/src/nodes/native-agent-node.js";
-import { CustomAgentNode, CustomAgentHandle } from "../ts/src/nodes/custom-agent-node.js";
-import { ManagedAgentAdapter } from "../ts/src/core/agent-interface.js";
+import { ManagedBehaviorFactory } from "../ts/src/nodes/managed-behavior-factory.js";
+import { CustomBehaviorFactory } from "../ts/src/nodes/custom-behavior-factory.js";
+import { AgentShellImpl } from "../ts/src/core/agent-shell-impl.js";
+import { ManagedAgentBehavior } from "../ts/src/core/agent-interface.js";
 import type { IRGraph, RoleIR } from "../ts/src/contracts/types.js";
 import { parseProgram } from "../../lang/src/parser.js";
 import { emitIR, emitRoleIR, resetIdCounter } from "../../lang/src/ir-emitter.js";
@@ -51,12 +52,12 @@ function compileSource(src: string): { graphs: Map<string, IRGraph>; roleIRs: Ma
   return { graphs, roleIRs };
 }
 
-function getManagedHandle(rc: ReagentController, name: string): NativeAgentHandle {
-  return rc.getAgent(name) as NativeAgentHandle;
+function getManagedHandle(rc: ReagentController, name: string): AgentShellImpl {
+  return rc.getAgent(name) as AgentShellImpl;
 }
 
-function getCustomHandle(rc: ReagentController, name: string): CustomAgentHandle {
-  return rc.getAgent(name) as CustomAgentHandle;
+function getCustomHandle(rc: ReagentController, name: string): AgentShellImpl {
+  return rc.getAgent(name) as AgentShellImpl;
 }
 
 test("M17: cron review invokes scoring, spawns analyst, and crosses approval boundary", async () => {
@@ -212,11 +213,10 @@ role analyst [ts] {
 
   const rc = new ReagentController({
     nodeId: "m17-risk-node",
-    agentNodes: {
-      ts: new NativeAgentNode({ roleToAgent: {} }),
-      js: new CustomAgentNode({
-        roleToAgent: {},
-        agentFactory: () => new ManagedAgentAdapter(),
+    behaviorFactories: {
+      ts: new ManagedBehaviorFactory(),
+      js: new CustomBehaviorFactory({
+        behaviorFactory: () => new ManagedAgentBehavior(),
       }),
     },
     cronIntervalMs: 0,

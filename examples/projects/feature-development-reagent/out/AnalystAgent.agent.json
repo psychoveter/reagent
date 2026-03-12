@@ -1,0 +1,6 @@
+{
+  "agentName": "AnalystAgent",
+  "lang": "ts",
+  "roleName": "AnalystRole",
+  "roleFile": "AnalystRole.role.json"
+}

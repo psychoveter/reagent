@@ -20,7 +20,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { ReagentController } from "../ts/src/controller/reagent-controller.js";
-import { NativeAgentNode } from "../ts/src/nodes/native-agent-node.js";
+import { ManagedBehaviorFactory } from "../ts/src/nodes/managed-behavior-factory.js";
+import { AgentShellImpl } from "../ts/src/core/agent-shell-impl.js";
 import type { IRGraph, ThinAgentIR, RoleIR } from "../ts/src/contracts/types.js";
 import { resolveAgentIR } from "../ts/src/contracts/types.js";
 
@@ -47,8 +48,8 @@ function createSingleNodeSetup(
   agents: Array<{ name: string; graphEntries: Array<{ proto: string; role: string }> }>,
 ) {
   const deployment = loadDeploymentFrom(dir);
-  const agentNode = new NativeAgentNode({ roleToAgent: deployment.roleToAgent });
-  const rc = new ReagentController({ nodeId: "test-node", agentNode });
+  const factory = new ManagedBehaviorFactory();
+  const rc = new ReagentController({ nodeId: "test-node", behaviorFactory: factory });
 
   for (const agentDef of agents) {
     const { roleIR } = loadRoleIR(dir, agentDef.name);
@@ -63,7 +64,7 @@ function createSingleNodeSetup(
 }
 
 function getHandle(rc: ReagentController, name: string) {
-  return rc.getAgent(name) as import("../ts/src/nodes/native-agent-node.js").NativeAgentHandle;
+  return rc.getAgent(name) as AgentShellImpl;
 }
 
 type TestResult = { name: string; passed: boolean; error?: string };

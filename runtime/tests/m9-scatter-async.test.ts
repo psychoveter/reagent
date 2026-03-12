@@ -15,7 +15,8 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { ReagentController } from "../ts/src/controller/reagent-controller.js";
-import { NativeAgentNode, NativeAgentHandle } from "../ts/src/nodes/native-agent-node.js";
+import { ManagedBehaviorFactory } from "../ts/src/nodes/managed-behavior-factory.js";
+import { AgentShellImpl } from "../ts/src/core/agent-shell-impl.js";
 import type { IRGraph, RoleIR, TraceEvent } from "../ts/src/contracts/types.js";
 import type { TraceHook } from "../ts/src/contracts/interceptor.js";
 
@@ -60,8 +61,8 @@ function makeGraph(proto: string, role: string, states: any[], transitions: any[
   return { protocolName: proto, role, lang: "ts", states, transitions, initialStateId: initial, terminalStateIds: terminals } as IRGraph;
 }
 
-function getHandle(rc: ReagentController, name: string): NativeAgentHandle {
-  return rc.getAgent(name) as NativeAgentHandle;
+function getHandle(rc: ReagentController, name: string): AgentShellImpl {
+  return rc.getAgent(name) as AgentShellImpl;
 }
 
 function createInlineSetup(
@@ -69,8 +70,8 @@ function createInlineSetup(
   agents: Array<{ name: string; roleIR: RoleIR; graphs: Map<string, IRGraph> }>,
   opts?: { traceHook?: TraceHook },
 ): { rc: ReagentController } {
-  const agentNode = new NativeAgentNode({ roleToAgent, traceHook: opts?.traceHook });
-  const rc = new ReagentController({ nodeId: "test-node", agentNode });
+  const factory = new ManagedBehaviorFactory();
+  const rc = new ReagentController({ nodeId: "test-node", behaviorFactory: factory, traceHook: opts?.traceHook });
   for (const a of agents) {
     rc.registerAgent(a.name, a.roleIR, a.graphs);
   }
@@ -120,8 +121,8 @@ async function testSA1(): Promise<TestResult> {
       },
     };
 
-    const agentNode = new NativeAgentNode({ roleToAgent: rta });
-    const rc = new ReagentController({ nodeId: "test-node", agentNode });
+    const factory = new ManagedBehaviorFactory();
+    const rc = new ReagentController({ nodeId: "test-node", behaviorFactory: factory });
     rc.registerAgent(
       "CoordAgent",
       { roleName: "CoordRole", lang: "ts", plays: [{ protocolName: "AsyncScatter", roleName: "coordinator" }], lifecycleHandlers: [] } as RoleIR,
@@ -202,8 +203,8 @@ async function testSA2(): Promise<TestResult> {
       validate: async (v: string) => { await new Promise(r => setTimeout(r, 5)); return `ok:${v}`; },
     };
 
-    const agentNode = new NativeAgentNode({ roleToAgent: rta });
-    const rc = new ReagentController({ nodeId: "test-node", agentNode });
+    const factory = new ManagedBehaviorFactory();
+    const rc = new ReagentController({ nodeId: "test-node", behaviorFactory: factory });
 
     rc.registerAgent(
       "ClientAgent",
@@ -286,8 +287,8 @@ async function testSA3(): Promise<TestResult> {
       },
     };
 
-    const agentNode = new NativeAgentNode({ roleToAgent: rta });
-    const rc = new ReagentController({ nodeId: "test-node", agentNode });
+    const factory = new ManagedBehaviorFactory();
+    const rc = new ReagentController({ nodeId: "test-node", behaviorFactory: factory });
     rc.registerAgent(
       "CoordAgent",
       { roleName: "CoordRole", lang: "ts", plays: [{ protocolName: "BatchProcess", roleName: "coordinator" }], lifecycleHandlers: [] } as RoleIR,
@@ -354,8 +355,8 @@ async function testSA4(): Promise<TestResult> {
 
     const rta = { "ScatterItems.coordinator": "CoordAgent" };
 
-    const agentNode = new NativeAgentNode({ roleToAgent: rta });
-    const rc = new ReagentController({ nodeId: "test-node", agentNode });
+    const factory = new ManagedBehaviorFactory();
+    const rc = new ReagentController({ nodeId: "test-node", behaviorFactory: factory });
     rc.registerAgent(
       "CoordAgent",
       { roleName: "CoordRole", lang: "ts", plays: [{ protocolName: "ScatterItems", roleName: "coordinator" }], lifecycleHandlers: [] } as RoleIR,

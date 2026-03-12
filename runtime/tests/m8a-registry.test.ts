@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
 import { ReagentController } from "../ts/src/controller/reagent-controller.js";
-import { NativeAgentNode } from "../ts/src/nodes/native-agent-node.js";
+import { ManagedBehaviorFactory } from "../ts/src/nodes/managed-behavior-factory.js";
 import type { IRGraph, ThinAgentIR, RoleIR, MessageEnvelope } from "../ts/src/contracts/types.js";
 import { resolveAgentIR } from "../ts/src/contracts/types.js";
 import type { ProtocolEntry } from "../ts/src/controller/protocol-registry.js";
@@ -46,8 +46,8 @@ function loadDeploymentFrom(dir: string): { roleToAgent: Record<string, string> 
 
 function createSetup(dir: string, agents: Array<{ name: string; graphEntries: Array<{ proto: string; role: string }> }>) {
   const deployment = loadDeploymentFrom(dir);
-  const agentNode = new NativeAgentNode({ roleToAgent: deployment.roleToAgent });
-  const rc = new ReagentController({ nodeId: "test-reg", agentNode });
+  const factory = new ManagedBehaviorFactory();
+  const rc = new ReagentController({ nodeId: "test-reg", behaviorFactory: factory });
 
   for (const agentDef of agents) {
     const { roleIR } = loadRoleIR(dir, agentDef.name);

@@ -1,6 +1,6 @@
 # R1 Runtime Antientropy
 
-Status: RFC | Date: 2026-03-12
+Status: **Implemented + Legacy Removed** | Date: 2026-03-12 | Implemented: 2026-03-08 | Cleanup: 2026-03-08
 
 ---
 
@@ -761,9 +761,9 @@ Behavior:
 | `AgentRunner` | `ManagedAgentShell` | it is the managed shell for one agent, not a generic "runner" concept |
 | `CustomAgentHandle` | `CustomAgentShell` | better aligns with one-shell-per-agent ontology |
 | `MessageGateHandle` | `GateAgentShell` | makes it a mode-specific shell under the same ontology |
-| `AgentInterface` | `AgentBehavior` | runtime object, not a TS-language interface concept |
-| `ManagedAgentAdapter` | `ManagedBehavior` | behavior naming aligned with ontology |
-| `McpAgentAdapter` | `McpBehavior` | behavior naming aligned with ontology |
+| `AgentInterface` | `AgentBehavior` | runtime object, not a TS-language interface concept — **done** |
+| `ManagedAgentAdapter` | `ManagedAgentBehavior` | behavior naming aligned with ontology — **done** |
+| `McpAgentAdapter` | `McpBehavior` | behavior naming aligned with ontology (adapter kept for MCP bridge role) |
 | `AgentNode` | `BehaviorFactory` | factory for behavior objects, not shells |
 | `AgentRuntime` | `AgentShell` | if and when the repo wants one explicit live-runtime term |
 

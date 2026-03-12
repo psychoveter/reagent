@@ -16,10 +16,10 @@ The TypeScript runtime core is now reflected directly in `runtime/ts/src`:
 
 | Layer | Path | Responsibility |
 |---|---|---|
-| Contracts | `runtime/ts/src/contracts/` | Shared runtime interfaces and wire-level types |
-| Core | `runtime/ts/src/core/` | Protocol execution, zone execution, agent interface model |
+| Contracts | `runtime/ts/src/contracts/` | Shared runtime interfaces, R1 ontology types, and wire-level types |
+| Core | `runtime/ts/src/core/` | Protocol execution (`RoleEngine`, `RoleRun`, `AgentShell`), zone execution, agent behavior model |
 | Controller | `runtime/ts/src/controller/` | `ReagentController`, protocol registry, local bus, role bindings |
-| Nodes | `runtime/ts/src/nodes/` | `AgentNode` implementations for managed, custom, Python, and gate-backed agents |
+| Nodes | `runtime/ts/src/nodes/` | `BehaviorFactory` implementations for managed, custom, Python, and gate-backed agents |
 | Triggers | `runtime/ts/src/triggers/` | Trigger matching, trigger policy, cron, resolve policy |
 | Network | `runtime/ts/src/network/` | `NodeLink` implementations and transport compatibility |
 | Cluster | `runtime/ts/src/cluster/` | State store, membership, leader election, runtime bootstrap |
@@ -67,53 +67,38 @@ The registry is used by:
 - local introspection
 - local protocol invocation
 
-### `ProtocolInstance`
+### R1 Ontology: `RoleEngine`, `RoleRun`, `AgentShell`, `AgentBehavior`
 
-`ProtocolInstance` remains the managed execution wrapper around a compiled role graph.
+The R1 Runtime Antientropy redesign introduces a unified execution model that replaces the old split between managed (`ProtocolInstance` + `AgentRunner`) and custom (`ProtocolEngine` + `CustomAgentHandle`) paths.
 
-It owns:
+**`RoleEngine`** is the unified passive FSM that drives one local role execution. It extends `ProtocolEngine` with first-class message dispatch (inbox + resolvers), eliminating the monkey-patching pattern previously used by `CustomAgentHandle`.
 
-- per-instance `$ctx`
-- message send/receive progression
-- invoke/spawn/return/break integration
-- zone execution via the zone executor
-- trace emission hooks
+**`RoleRun`** is the shared orchestration wrapper that walks the state machine using a `RoleEngine` and delegates to an `AgentBehavior`. It handles the full advance loop: action, send, receive, guard, fork/join, scatter, invoke, spawn, timer, try/catch. It replaces both `ProtocolInstance` (managed path) and the `CustomAgentHandle.runEngine()` loop (custom path).
 
-Role-to-agent lookup now accepts a generalized role-binding source rather than assuming a flat map only.
+**`AgentShell`** is the primary live runtime object for one agent identity. It owns persistent `$self`, the active/completed run registry, and an optional attached `AgentBehavior`. Its lifecycle is `detached` (no behavior) / `attached` (behavior present). It replaces `AgentRunner`, `CustomAgentHandle`, and `MessageGateHandle`.
 
-### `ProtocolEngine`
+**`AgentBehavior`** is the pluggable executable object that handles `ProtocolEvent`s and returns `AgentResponse`s. It replaces the old `AgentInterface` contract.
 
-`ProtocolEngine` is the pure state-machine walker used primarily by the custom-agent path.
-It is transport-agnostic and does not own RC routing.
+**`BehaviorFactory`** is the runtime-kind-specific factory for creating `AgentBehavior` objects. It replaces `AgentNode`. Current implementations:
 
-### `AgentRunner`
+- `ManagedBehaviorFactory` — creates `ManagedAgentBehavior` instances (zone executor)
+- `CustomBehaviorFactory` — wraps user-supplied `AgentBehavior` implementations
+- `GateBehaviorFactory` — creates gate-backed proxy behaviors
+- `PythonBehaviorFactory` — bridges to the Python runtime (stub, deferred)
 
-`AgentRunner` is the managed-agent host.
+**`AgentRecord`** is a DTO/projection of `AgentShell` state for cluster publication. It is not a peer runtime entity.
 
-It owns:
+### Removed types
 
-- persistent `$self`
-- lifecycle handlers
-- local instance map
-- managed `ProtocolInstance` creation
+The following types have been fully removed (R1 cleanup):
 
-Current behavior worth calling out:
-
-- receive-side lazy materialization is implemented
-- a role can begin participating when the first inbound message arrives
-- protocol startup happens locally, not via a centralized fanout path
-
-### `AgentNode`
-
-`AgentNode` is the host/runtime abstraction used by RC.
-Current TS runtime implementations live in `runtime/ts/src/nodes/`:
-
-- `NativeAgentNode`
-- `CustomAgentNode`
-- `PythonAgentNode`
-- `MessageGateNode`
-
-This keeps RC agnostic to whether behavior is managed, custom, Python subprocess-backed, or gate-backed.
+- `ProtocolInstance` — replaced by `RoleRun`
+- `AgentRunner` — replaced by `AgentShellImpl`
+- `AgentNode` / `AgentHandle` — replaced by `BehaviorFactory` / `AgentShell`
+- `NativeAgentNode` / `NativeAgentHandle` — replaced by `ManagedBehaviorFactory` / `AgentShellImpl`
+- `CustomAgentNode` / `CustomAgentHandle` — replaced by `CustomBehaviorFactory` / `AgentShellImpl`
+- `MessageGateNode` / `MessageGateHandle` — replaced by `GateBehaviorFactory` / `AgentShellImpl`
+- `PythonAgentNode` / `PythonAgentHandle` — replaced by `PythonBehaviorFactory` (stub, Python deferred)
 
 ## 4. Routing Model
 
@@ -123,7 +108,6 @@ The routing contract lives in `runtime/ts/src/contracts/`:
 
 - `types.ts`
 - `transport.ts`
-- `agent-node.ts`
 - `interceptor.ts`
 
 Key abstractions:
@@ -133,8 +117,6 @@ Key abstractions:
 - `AgentRef`
 - `ReagentTransport`
 - `NodeLink`
-- `AgentNode`
-- `AgentHandle`
 
 ### Delivery rules
 
@@ -215,35 +197,38 @@ Protocol launch is a node-local RC responsibility, not a centralized server conc
 
 ## 8. Managed, Custom, Python, And Gate Hosts
 
+### R1 unified model
+
+All agent modes now share a single execution path: `AgentShell` + `BehaviorFactory` + `RoleRun` + `RoleEngine`. The factory creates an `AgentBehavior`, the shell hosts it, and `RoleRun` drives the state machine.
+
 ### Managed agents
 
-`NativeAgentNode` wraps `AgentRunner` and `ProtocolInstance`.
+`ManagedBehaviorFactory` creates `ManagedAgentBehavior` instances that execute .rg zone code.
 
 ### Custom agents
 
-`CustomAgentNode` wraps `ProtocolEngine` plus a user `AgentInterface`.
-It also supports receive-side lazy engine materialization.
+`CustomBehaviorFactory` wraps a user-supplied `AgentBehavior`.
 
 ### Python agents
 
-`PythonAgentNode` runs Python agents through JSON-line IPC to the Python runtime.
-The Python runtime itself was not structurally reorganized in this refactor, but the TS-side node host was moved into `runtime/ts/src/nodes/`.
+`PythonBehaviorFactory` is a stub for Python-backed agents (deferred per backlog).
 
 ### Message Gate and MCP Gate
 
+- `GateBehaviorFactory` creates gate-backed proxy behaviors
 - Message Gate host logic lives in `nodes/` plus `gate/`
 - MCP-facing pieces live in `mcp/`
 - `mcp-gate.ts` remains a root entrypoint because it is a runnable host, not just a library file
 
 ### RC ontology
 
-The runtime now distinguishes several layers that older docs often collapsed:
+The runtime distinguishes several layers:
 
 - `ProtocolArtifacts` — compiled protocol/role payload loaded into the node
 - `AgentTemplate` — create-spec that describes how an agent can be materialized
-- `AgentRecord` — logical agent identity/slot in the RC and cluster state
-- `AgentRuntime` — attached executor/session/runner that makes the record addressable
-- `ProtocolInstance` — one live execution owned by an attached runtime
+- `AgentRecord` — DTO projection of `AgentShell` state for cluster publication
+- `AgentShell` — live runtime session container with attachable `AgentBehavior`
+- `RoleRun` — one live execution of one role graph (replaces `ProtocolInstance`)
 
 This distinction matters for cluster behavior:
 
@@ -262,9 +247,9 @@ The main lifecycle-bearing entities around `ReagentController` are:
 - `ReagentController` itself as the node-local orchestrator
 - `EtcdMembership` and the leased `/nodes/{nodeId}` presence record
 - `AgentRecord` as logical agent identity tracked by the controller
-- `AgentRuntime` / `AgentHandle` as the live attached executor
+- `AgentShellImpl` as the live attached executor
 - leased `/agents/{agentName}` as live cluster-visible presence
-- `ProtocolInstance` as one execution of one role graph
+- `RoleRun` as one execution of one role graph
 
 Secondary operational lifecycle entities also exist:
 
@@ -330,26 +315,23 @@ stateDiagram-v2
 This is intentionally distinct from cluster-visible liveness. A declared or
 detached `AgentRecord` does not imply that `/agents/{agentName}` exists.
 
-#### Live runtime: `AgentRuntime` / `AgentHandle`
+#### Live runtime: `AgentShellImpl`
 
-The runtime embodiment of an agent is created by an `AgentNode` and tracked by
-RC through an `AgentHandle`. This is the layer that makes the record
-addressable.
+The runtime embodiment of an agent is an `AgentShellImpl` created by the RC
+via `createAgentFromTemplate()`. The RC uses a `BehaviorFactory` to create an
+`AgentBehavior` and attaches it to the shell.
 
 ```mermaid
 stateDiagram-v2
     [*] --> Created: createAgentFromTemplate()
     Created --> Attached: attachAgentRuntime()
-    Attached --> Ready: handle.start() + markAgentRuntimeReady()
+    Attached --> Ready: shell.start() + markAgentRuntimeReady()
     Attached --> Detached: detachAgentRuntime()
     Ready --> Detached: detachAgentRuntime()
-    Attached --> Stopped: rc.stop() / handle.stop()
-    Ready --> Stopped: rc.stop() / handle.stop()
+    Attached --> Stopped: rc.stop() / shell.stop()
+    Ready --> Stopped: rc.stop() / shell.stop()
     Stopped --> [*]
 ```
-
-In the managed path this runtime is usually `AgentRunner`; in the custom path it
-is `CustomAgentHandle` with one or more `ProtocolEngine` instances.
 
 #### Live cluster-visible presence: `/agents/{agentName}`
 
@@ -371,15 +353,15 @@ stateDiagram-v2
 This is the cluster-facing lifecycle that remote resolution and membership
 watches care about.
 
-#### `ProtocolInstance`
+#### `RoleRun`
 
-`ProtocolInstance` is the lifecycle of one concrete execution of one role graph.
+`RoleRun` is the lifecycle of one concrete execution of one role graph.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Created: new ProtocolInstance(...)
-    Created --> Running: run()
-    Running --> Running: advance()\nsend/receive/action/guard\ninvoke/spawn/scatter
+    [*] --> Idle: new RoleRun(...)
+    Idle --> Running: run()
+    Running --> Running: advance loop\nsend/receive/action/guard\ninvoke/spawn/scatter
     Running --> Completed: terminal(status=completed)
     Running --> Failed: terminal(status=error)
     Running --> Failed: fatal exception
@@ -387,29 +369,9 @@ stateDiagram-v2
     Failed --> [*]
 ```
 
-Instances are typically created by `AgentRunner` either from an explicit
+Runs are created by `AgentShellImpl` either from an explicit
 trigger/invocation or by receive-side lazy materialization when the first
 message arrives.
-
-#### `AgentRunner`
-
-`AgentRunner` is the managed runtime host for one agent. It owns persistent
-`$self`, lifecycle handlers, and the map of active/completed `ProtocolInstance`
-objects.
-
-```mermaid
-stateDiagram-v2
-    [*] --> Constructed
-    Constructed --> Started: start()
-    Started --> Started: triggerProtocol()
-    Started --> Started: materialize receive-side instance
-    Started --> Started: instance completion callbacks
-    Started --> Stopped: stop()
-    Stopped --> [*]
-```
-
-`AgentRunner` is coarse-grained lifecycle-wise; most execution detail lives in
-the child `ProtocolInstance` objects it creates and observes.
 
 #### Secondary operational entities
 
@@ -423,10 +385,10 @@ than the primary RC ontology:
 Together these layers explain why the runtime distinguishes:
 
 - logical declaration (`AgentRecord`)
-- live execution (`AgentRuntime`)
+- live execution (`AgentShellImpl`)
 - cluster-visible liveness (`/agents/*`)
 - node-visible liveness (`/nodes/*`)
-- per-run execution (`ProtocolInstance`)
+- per-run execution (`RoleRun`)
 
 ## 9. Runtime Config Boundary
 
@@ -447,12 +409,12 @@ In code, this boundary lives in:
 - `runtime/ts/src/cluster/runtime-bootstrap.ts`
 
 This config is intentionally about the node-local RC host only.
-It should not be extended with Claude-specific or other external agent-runner
+It should not be extended with Claude-specific or other external agent
 settings.
 
 Imperative host code should provide:
 
-- concrete `AgentNode` instances
+- concrete `BehaviorFactory` instances
 - host-specific callbacks
 - control-plane transport connections
 - process lifecycle integration
@@ -474,7 +436,7 @@ the core RC runtime model itself.
 - RC now owns local protocol invocation through `invokeProtocol()`.
 - cluster state is part of runtime behavior, not just an orchestration side-channel.
 - receive-side instance materialization is implemented in both managed and custom paths.
-- `AgentRecord` and `AgentRuntime` are now separate concepts in the TS runtime model.
+- `AgentRecord` and `AgentShellImpl` are now separate concepts in the TS runtime model.
 - the TS runtime filesystem now matches the architecture described here.
 - the Python runtime remains implemented but structurally asymmetric relative to TS.
 
@@ -482,14 +444,25 @@ the core RC runtime model itself.
 
 For the current runtime core, start with:
 
+**R1 ontology (new):**
+- `runtime/ts/src/contracts/agent-behavior.ts` — `AgentBehavior` interface
+- `runtime/ts/src/contracts/behavior-factory.ts` — `BehaviorFactory` interface
+- `runtime/ts/src/contracts/agent-shell.ts` — `AgentShell` interface and related types
+- `runtime/ts/src/contracts/protocol-run.ts` — `ProtocolRunRef`, `RoleRunIdentity`, `RoleRunStatus`
+- `runtime/ts/src/core/role-engine.ts` — `RoleEngine` class (extends `ProtocolEngine`)
+- `runtime/ts/src/core/role-run.ts` — `RoleRun` class (unified orchestration)
+- `runtime/ts/src/core/agent-shell-impl.ts` — `AgentShellImpl` class (unified shell)
+- `runtime/ts/src/nodes/managed-behavior-factory.ts` — `ManagedBehaviorFactory`
+- `runtime/ts/src/nodes/custom-behavior-factory.ts` — `CustomBehaviorFactory`
+- `runtime/ts/src/nodes/gate-behavior-factory.ts` — `GateBehaviorFactory`
+
+**Controller and infrastructure:**
 - `runtime/ts/src/controller/reagent-controller.ts`
 - `runtime/ts/src/controller/protocol-registry.ts`
 - `runtime/ts/src/controller/role-bindings.ts`
-- `runtime/ts/src/core/agent-runner.ts`
-- `runtime/ts/src/core/protocol-instance.ts`
-- `runtime/ts/src/core/protocol-engine.ts`
-- `runtime/ts/src/nodes/native-agent-node.ts`
-- `runtime/ts/src/nodes/custom-agent-node.ts`
 - `runtime/ts/src/triggers/trigger-matcher.ts`
 - `runtime/ts/src/cluster/runtime-config.ts`
 - `runtime/ts/src/cluster/runtime-bootstrap.ts`
+
+**Engine (internal, used by RoleRun):**
+- `runtime/ts/src/core/protocol-engine.ts`

@@ -12,7 +12,7 @@
  * This process:
  *   1. Bootstraps cluster (connects to etcd for agent discovery)
  *   2. Publishes a node control endpoint via shared cluster state
- *   3. Uses CustomAgentNode + McpAgentAdapter (zones go to MCP client)
+ *   3. Uses CustomBehaviorFactory + McpAgentAdapter (zones go to MCP client)
  *   4. Creates NatsNodeLinks lazily when remote agents are discovered via etcd
  *   5. Exposes Reagent MCP tools on stdio (JSON-RPC via stdin/stdout)
  *
@@ -22,7 +22,7 @@
 
 import { readFileSync } from "node:fs";
 import { ReagentController } from "./controller/reagent-controller.js";
-import { CustomAgentNode } from "./nodes/custom-agent-node.js";
+import { CustomBehaviorFactory } from "./nodes/custom-behavior-factory.js";
 import { McpAgentAdapter } from "./mcp/mcp-agent-adapter.js";
 import { ReagentMcpServer } from "./mcp/mcp-server.js";
 import { NatsNodeLink } from "./network/nats-node-link.js";
@@ -131,23 +131,21 @@ async function main(): Promise<void> {
   const roleToAgent: RoleBindingMap = {};
   const debugHooks = new Map<string, DebugAdvanceHook>();
   const debugState = new Map<string, Record<string, unknown>>();
-  const resolveConfiguredAgent = (protocolName: string, roleName: string) => roleToAgent[`${protocolName}.${roleName}`];
   const natsUrl = runtimeConfig.messagePlane?.kind === "nats" ? runtimeConfig.messagePlane.url : undefined;
   const stateStore = runtimeConfig.stateStore.kind === "etcd"
     ? new EtcdStateStore({ hosts: runtimeConfig.stateStore.hosts })
     : new InMemoryStateStore();
 
-  const mcpNode = new CustomAgentNode({
-    roleToAgent: resolveConfiguredAgent,
-    agentFactory: () => adapter,
+  const mcpFactory = new CustomBehaviorFactory({
+    behaviorFactory: () => adapter,
   });
 
-  const agentNodes: Record<string, typeof mcpNode> = {};
-  for (const lang of langs) agentNodes[lang] = mcpNode;
+  const behaviorFactories: Record<string, typeof mcpFactory> = {};
+  for (const lang of langs) behaviorFactories[lang] = mcpFactory;
 
   const rc = new ReagentController({
     nodeId,
-    agentNodes,
+    behaviorFactories,
     stateStore,
     triggerPolicies: runtimeConfig.triggerPolicies,
   });

@@ -293,14 +293,14 @@ protocol MyProto {
 
 ### 6.2 Custom Agent Mode
 
-The user provides a class implementing `AgentInterface.handle()`. No zones are needed in the `.rg` file — the protocol only defines the choreography.
+The user provides a class implementing `AgentBehavior.handle()`. No zones are needed in the `.rg` file — the protocol only defines the choreography.
 
 ```typescript
-import { CustomAgentNode } from "@reagent/runtime";
+import { CustomBehaviorFactory } from "@reagent/runtime";
 
-const node = new CustomAgentNode({
+const factory = new CustomBehaviorFactory({
   roleToAgent: { "MyProto.worker": "WorkerAgent" },
-  agentFactory: (agentName, roleIR) => ({
+  behaviorFactory: (agentName, roleIR) => ({
     async handle(event) {
       switch (event.type) {
         case "action":
@@ -315,7 +315,7 @@ const node = new CustomAgentNode({
 });
 ```
 
-**Components**: `CustomAgentNode` → `CustomAgentHandle` → user's `AgentInterface`
+**Components**: `CustomBehaviorFactory` → user's `AgentBehavior`
 
 **When to use**: When agent logic is complex, needs full TypeScript/Python control, or integrates with existing codebases where zone code is limiting.
 

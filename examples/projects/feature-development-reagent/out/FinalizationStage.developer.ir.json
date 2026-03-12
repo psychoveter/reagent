@@ -1,0 +1,259 @@
+{
+  "protocolName": "FinalizationStage",
+  "role": "developer",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_29",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "loop_guard_30",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression",
+        "expr": "$ctx.stageApproved != true"
+      }
+    },
+    {
+      "id": "recv_32",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "analyst",
+        "arrow": "-->",
+        "messageName": "FinalizationPacket",
+        "postReceiveZone": "\n        $ctx.finalizationInput = $ctx.msg\n      "
+      }
+    },
+    {
+      "id": "act_33",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n      $ctx.finalPacket = {\n        stage: \"finalization\",\n        docUpdates: $ctx.finalizationInput.docUpdates,\n        backlogUpdates: $ctx.finalizationInput.backlogUpdates,\n        releaseNotes: $ctx.finalizationInput.releaseNotes,\n        revisionNote: $ctx.finalizationInput.revisionNote\n      }\n    ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_34",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "reviewer",
+        "arrow": "-->",
+        "messageName": "FinalizationPacket",
+        "preSendZone": "\n        $ctx.msg.stage = $ctx.finalPacket.stage\n        $ctx.msg.docUpdates = $ctx.finalPacket.docUpdates\n        $ctx.msg.backlogUpdates = $ctx.finalPacket.backlogUpdates\n        $ctx.msg.releaseNotes = $ctx.finalPacket.releaseNotes\n        $ctx.msg.revisionNote = $ctx.finalPacket.revisionNote\n      "
+      }
+    },
+    {
+      "id": "xor_35",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "xor"
+      }
+    },
+    {
+      "id": "guard_37",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression",
+        "expr": "$ctx.stageApproved == true"
+      }
+    },
+    {
+      "id": "else_38",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "merge_36",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "loop_exit_31",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "end_39",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_29",
+      "to": "loop_guard_30",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "loop_guard_30",
+      "to": "recv_32",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_32",
+      "to": "act_33",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_33",
+      "to": "send_34",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_34",
+      "to": "xor_35",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_35",
+      "to": "guard_37",
+      "label": {
+        "kind": "expression",
+        "expr": "$ctx.stageApproved == true"
+      }
+    },
+    {
+      "from": "guard_37",
+      "to": "merge_36",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_35",
+      "to": "else_38",
+      "label": {
+        "kind": "else"
+      }
+    },
+    {
+      "from": "else_38",
+      "to": "merge_36",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "merge_36",
+      "to": "loop_guard_30",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "loop_guard_30",
+      "to": "loop_exit_31",
+      "label": {
+        "kind": "else"
+      }
+    },
+    {
+      "from": "loop_exit_31",
+      "to": "end_39",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_29",
+  "terminalStateIds": [
+    "end_39"
+  ],
+  "participants": [
+    {
+      "name": "human",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "analyst",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    },
+    {
+      "name": "developer",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    },
+    {
+      "name": "reviewer",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "triggers": [
+    {
+      "kind": "invoke",
+      "withType": "StageInput",
+      "resolveMap": {
+        "human": [
+          {
+            "step": "single"
+          }
+        ],
+        "analyst": [
+          {
+            "step": "single"
+          }
+        ],
+        "developer": [
+          {
+            "step": "single"
+          }
+        ],
+        "reviewer": [
+          {
+            "step": "single"
+          }
+        ]
+      }
+    }
+  ],
+  "invocable": true,
+  "version": "0.1.0",
+  "fingerprints": {
+    "structureHash": "1918858bc6cffd9aa41c5e730c9263c85e612dcc0223218ce46de0de246d18c8",
+    "schemaHash": "8f3160a8648d6cd672b52f9fb93a721104ba8eed1d6663b6ce341bbe1c0f7761",
+    "implHash": "ee029b28b91de03577fb8a0683f87ae3242a8ad90dc723257e1044eda7988669"
+  }
+}

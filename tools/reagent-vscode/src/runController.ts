@@ -120,7 +120,7 @@ export class RunController implements vscode.Disposable {
       }
 
       const { ReagentController } = await import(path.join(runtimeDistPath, 'reagent-controller.js'));
-      const { NativeAgentNode } = await import(path.join(runtimeDistPath, 'native-agent-node.js'));
+      const { ManagedBehaviorFactory } = await import(path.join(runtimeDistPath, 'managed-behavior-factory.js'));
 
       const deployment = compiled.deployment as {
         agents: Array<{ agentName: string; lang: string; roleName: string; roles: Array<{ protocolName: string; roleName: string }> }>;
@@ -133,14 +133,12 @@ export class RunController implements vscode.Disposable {
         this.outputChannel.appendLine(`  [${kind}] ${agent}: ${JSON.stringify(event)}`);
       };
 
-      const tsNode = new NativeAgentNode({
-        roleToAgent: deployment.roleToAgent,
-        traceHook,
-      });
+      const factory = new ManagedBehaviorFactory();
 
       const rc = new ReagentController({
         nodeId: 'run-local',
-        agentNodes: { ts: tsNode, '*': tsNode },
+        behaviorFactories: { ts: factory, '*': factory },
+        traceHook,
       });
 
       for (const agentDef of deployment.agents) {

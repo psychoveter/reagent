@@ -3,34 +3,24 @@ import assert from "node:assert/strict";
 import { InMemoryStateStore } from "../src/cluster/state-store.js";
 import { StateStoreAgentRegistry } from "../src/cluster/state-store-agent-registry.js";
 import { ReagentController } from "../src/controller/reagent-controller.js";
-import type { AgentHandle, AgentNode } from "../src/contracts/agent-node.js";
-import type { IRGraph, MessageEnvelope, ProtocolTrigger, RoleIR } from "../src/contracts/types.js";
-import type { ReagentTransport } from "../src/contracts/transport.js";
+import type { IRGraph, RoleIR } from "../src/contracts/types.js";
+import type { BehaviorFactory } from "../src/contracts/behavior-factory.js";
+import type { AgentBehavior } from "../src/contracts/agent-behavior.js";
 
-class FakeHandle implements AgentHandle {
-  constructor(readonly agentName: string) {}
-
-  async start(): Promise<void> {}
-  async stop(): Promise<void> {}
-  getSelf(): Record<string, unknown> { return {}; }
-  triggerProtocol(_trigger: ProtocolTrigger): void {}
-  dispatchMessage(_env: MessageEnvelope): void {}
-}
-
-class FakeNode implements AgentNode {
+class FakeBehaviorFactory implements BehaviorFactory {
   readonly runtimeName = "fake";
 
-  createAgent(
-    agentName: string,
+  createBehavior(
+    _agentName: string,
     _roleIR: RoleIR,
     _graphs: Map<string, IRGraph>,
-    _transport: ReagentTransport,
-    _extras?: Record<string, unknown>,
-  ): AgentHandle {
-    return new FakeHandle(agentName);
+  ): AgentBehavior {
+    return {
+      handle: async () => ({ type: "noop" as const }),
+    } as AgentBehavior;
   }
 
-  async destroyAgent(_handle: AgentHandle): Promise<void> {}
+  async destroyBehavior(): Promise<void> {}
 }
 
 const roleIR: RoleIR = {
@@ -85,7 +75,7 @@ describe("lease-backed agent presence", () => {
     const store = new InMemoryStateStore();
     const rc = new ReagentController({
       nodeId: "node-a",
-      agentNode: new FakeNode(),
+      behaviorFactory: new FakeBehaviorFactory(),
       stateStore: store,
     });
 

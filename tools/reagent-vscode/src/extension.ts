@@ -354,8 +354,18 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('reagent.openDiagram', () => {
-      ReagentDiagramPanel.createOrShow(context.extensionUri, clusterPanel);
+    vscode.commands.registerCommand('reagent.openDiagram', async (uri?: vscode.Uri, protocolName?: string) => {
+      const panel = ReagentDiagramPanel.createOrShow(context.extensionUri, clusterPanel);
+      if (uri) {
+        const doc = await vscode.workspace.openTextDocument(uri);
+        await panel.openDocumentProtocol(doc, protocolName);
+        return;
+      }
+      const editor = vscode.window.activeTextEditor;
+      if (editor?.document.languageId === 'reagent') {
+        await panel.openDocumentProtocol(editor.document, protocolName);
+        return;
+      }
     })
   );
 

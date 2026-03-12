@@ -1,17 +1,15 @@
 /**
- * McpAgentAdapter — bridges AgentInterface to MCP tool interactions.
+ * McpAgentAdapter — bridges AgentBehavior to MCP tool interactions.
  *
- * Implements AgentInterface.handle() by queueing events for the MCP client
+ * Implements AgentBehavior.handle() by queueing events for the MCP client
  * to pull via wait_for_events, then blocking until the client responds
  * via deliverResponse().
  *
- * Used with CustomAgentNode: the ProtocolEngine runs on the RC side
- * (inside RemoteNode), handling send/receive/timer/guard automatically.
  * The MCP client only sees zone events (action, pre_send_action,
  * post_receive_action) and lifecycle notifications.
  */
 
-import type { AgentInterface } from "../core/agent-interface.js";
+import type { AgentBehavior } from "../contracts/agent-behavior.js";
 import type { ProtocolEvent, AgentResponse } from "../core/protocol-engine.js";
 import { AsyncQueue } from "../gate/async-queue.js";
 
@@ -23,7 +21,7 @@ export interface QueuedEvent {
   seq: number;
 }
 
-export class McpAgentAdapter implements AgentInterface {
+export class McpAgentAdapter implements AgentBehavior {
   agentName: string;
 
   private eventQueue = new AsyncQueue<QueuedEvent>();
@@ -38,7 +36,7 @@ export class McpAgentAdapter implements AgentInterface {
     this.agentName = agentName;
   }
 
-  // ── AgentInterface ─────────────────────────────────────────────
+  // ── AgentBehavior ──────────────────────────────────────────────
 
   async handle(event: ProtocolEvent): Promise<AgentResponse> {
     const instanceId = this.currentInstanceId;
@@ -61,12 +59,9 @@ export class McpAgentAdapter implements AgentInterface {
     });
   }
 
-  // ── Called by CustomAgentHandle (engine loop context) ──────────
+  // ── Instance context ───────────────────────────────────────────
 
-  /**
-   * Set the current instance context before the engine calls handle().
-   * CustomAgentHandle.runEngine() should call this before each handle().
-   */
+  /** Set the current instance context before the engine calls handle(). */
   setCurrentInstance(instanceId: string, protocolName: string, role: string): void {
     this.currentInstanceId = instanceId;
     if (!this.instanceMeta.has(instanceId)) {

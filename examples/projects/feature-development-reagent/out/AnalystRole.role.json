@@ -1,0 +1,32 @@
+{
+  "roleName": "AnalystRole",
+  "lang": "ts",
+  "plays": [
+    {
+      "protocolName": "FeatureDevelopmentReagent",
+      "roleName": "analyst",
+      "protocolVersion": "0.1.0"
+    },
+    {
+      "protocolName": "DesignStage",
+      "roleName": "analyst",
+      "protocolVersion": "0.1.0"
+    },
+    {
+      "protocolName": "ImplementationStage",
+      "roleName": "analyst",
+      "protocolVersion": "0.1.0"
+    },
+    {
+      "protocolName": "FinalizationStage",
+      "roleName": "analyst",
+      "protocolVersion": "0.1.0"
+    }
+  ],
+  "lifecycleHandlers": [],
+  "version": "0.1.0",
+  "fingerprints": {
+    "playsHash": "ba2143c6d21ccfc47f50f0449e8ef3d28048eb9d9cc654e5ffaded0c4ce22de0",
+    "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
+  }
+}

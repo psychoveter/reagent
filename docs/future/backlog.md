@@ -8,7 +8,8 @@ Current conceptual baseline:
 - shared cluster truth lives in `StateStore`
 - tool-facing control uses `AdminClient` + per-node control endpoints
 - `mcp-gate` and wrapper hosts such as Claude `live-agent` are already part of the current model
-- RC lifecycle ontology now explicitly distinguishes `AgentRecord`, `AgentRuntime`, and `ProtocolInstance`
+- R1 ontology is the sole execution model: `AgentShell`/`AgentShellImpl` (session container), `AgentBehavior` (pluggable behavior), `BehaviorFactory` (replaces removed `AgentNode`), `RoleRun` (unified orchestration), `RoleEngine` (passive FSM with native inbox)
+- legacy types removed: `ProtocolInstance`, `AgentRunner`, `AgentNode`, `AgentHandle`, `NativeAgentNode`, `CustomAgentNode`, `MessageGateNode`, `PythonAgentNode`
 
 Reference documents:
 
@@ -35,7 +36,7 @@ the TypeScript runtime, control-plane hosts, and test surface.
 
 | # | Feature | Status | Area | Notes |
 |---|---|---|---|---|
-| R1 | **Managed path migration to `ProtocolEngine`** | Not started | `runtime/ts` | `NativeAgentNode` -> `AgentRunner` -> `ProtocolInstance` remains the legacy managed execution path. Migrate TS managed execution toward `ProtocolEngine` + `ManagedAgentAdapter` and then reduce duplicated orchestration logic in `ProtocolInstance`. |
+| R1 | **Unified engine (R1 Antientropy) + legacy cleanup** | **Complete** | `runtime/ts` | R1 ontology is the sole execution model. `RoleEngine`, `RoleRun`, `AgentShellImpl`, `AgentBehavior`, `BehaviorFactory`. Legacy types (`ProtocolInstance`, `AgentRunner`, `AgentNode`, `AgentHandle`, all `*-node.ts` files) fully removed. See `r1-runtime-antientropy.md`. |
 | R2 | **Scatter semantics: deep clone + gather** | RFC drafted | `lang`, `runtime` | Current scatter isolation still has inherited mutable-state caveats. Replace `Object.create()`-style semantics with explicit clone/gather behavior. |
 | R3 | **TS-first conformance hardening** | Not started | `tests` | Strengthen fixture-based conformance around the current TS runtime and use it as the reference baseline for later multi-runtime parity work. |
 | R4 | **TS cluster/runtime hardening** | Not started | `runtime/ts` | Keep tightening lease-backed presence, membership, control-plane wiring, and host/runtime integration in the TS runtime before expanding parity work. |

@@ -232,6 +232,10 @@ export class ReagentDiagramPanel {
     this.panel.webview.postMessage({ type: 'highlightState', stateId });
   }
 
+  public async openDocumentProtocol(document: vscode.TextDocument, protocolName?: string): Promise<void> {
+    await this.compileAndTransition(document, protocolName);
+  }
+
   public sendDebugCommand(command: string): void {
     const rap = this.clusterPanel?.getRapClient();
     const ctx = this.state.context;
@@ -270,7 +274,7 @@ export class ReagentDiagramPanel {
 
   // ── Compile .rg → dispatch open/update event ────────────────────
 
-  private async compileAndTransition(document: vscode.TextDocument): Promise<void> {
+  private async compileAndTransition(document: vscode.TextDocument, preferredProtocolName?: string): Promise<void> {
     try {
       const compiler = await getDiagramCompiler(this.extensionUri.fsPath);
       const source = document.getText();
@@ -288,7 +292,17 @@ export class ReagentDiagramPanel {
         return;
       }
 
-      const proto = protocols[0];
+      const currentProtoName =
+        (this.state.context.mode === 'source' || this.state.context.mode === 'debug' || this.state.context.mode === 'replay')
+          ? this.state.context.compiledData.sourceFile === document.uri.fsPath
+            ? this.state.context.compiledData.protocolName
+            : undefined
+          : undefined;
+      const activeLine =
+        vscode.window.activeTextEditor?.document.uri.fsPath === document.uri.fsPath
+          ? vscode.window.activeTextEditor.selection.active.line + 1
+          : undefined;
+      const proto = this.selectProtocol(protocols, preferredProtocolName, currentProtoName, activeLine);
       compiler.resetIdCounter();
       const result = compiler.emitIR(proto);
       if (!result.ok) {
@@ -363,6 +377,40 @@ export class ReagentDiagramPanel {
     } catch (err) {
       this.renderError(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  private selectProtocol(
+    protocols: any[],
+    preferredProtocolName?: string,
+    currentProtocolName?: string,
+    activeLine?: number,
+  ): any {
+    if (preferredProtocolName) {
+      const exact = protocols.find((p: any) => p.name === preferredProtocolName);
+      if (exact) return exact;
+    }
+
+    if (currentProtocolName) {
+      const current = protocols.find((p: any) => p.name === currentProtocolName);
+      if (current) return current;
+    }
+
+    if (activeLine != null) {
+      const sorted = [...protocols]
+        .filter((p: any) => typeof p.loc?.start?.line === 'number')
+        .sort((a: any, b: any) => a.loc.start.line - b.loc.start.line);
+      let selected = sorted[0];
+      for (const proto of sorted) {
+        if (proto.loc.start.line <= activeLine) {
+          selected = proto;
+        } else {
+          break;
+        }
+      }
+      if (selected) return selected;
+    }
+
+    return protocols[0];
   }
 
   // ── Message handling from webview ─────────────────────────────────

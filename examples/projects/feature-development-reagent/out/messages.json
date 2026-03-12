@@ -1,0 +1,345 @@
+[
+  {
+    "name": "FeatureTask",
+    "fields": [
+      {
+        "name": "title",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      },
+      {
+        "name": "problem",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      },
+      {
+        "name": "goals",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "constraints",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "acceptance",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "StageInput",
+    "fields": [
+      {
+        "name": "stage",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      },
+      {
+        "name": "task",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "previous",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "DesignPacket",
+    "fields": [
+      {
+        "name": "stage",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      },
+      {
+        "name": "docsDelta",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "architecture",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "openQuestions",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "revisionNote",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "ImplementationPacket",
+    "fields": [
+      {
+        "name": "stage",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      },
+      {
+        "name": "changeSet",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "tests",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "architectureNotes",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "revisionNote",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "FinalizationPacket",
+    "fields": [
+      {
+        "name": "stage",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      },
+      {
+        "name": "docUpdates",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "backlogUpdates",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "releaseNotes",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "revisionNote",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "ReviewFeedback",
+    "fields": [
+      {
+        "name": "approvedForHuman",
+        "type": {
+          "kind": "ScalarType",
+          "name": "boolean"
+        },
+        "optional": false
+      },
+      {
+        "name": "summary",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      },
+      {
+        "name": "findings",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "requestedChanges",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "ApprovalRequest",
+    "fields": [
+      {
+        "name": "stage",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      },
+      {
+        "name": "artifact",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "review",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "ApprovalDecision",
+    "fields": [
+      {
+        "name": "approved",
+        "type": {
+          "kind": "ScalarType",
+          "name": "boolean"
+        },
+        "optional": false
+      },
+      {
+        "name": "comment",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      },
+      {
+        "name": "requestedChanges",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "StageOutcome",
+    "fields": [
+      {
+        "name": "stage",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      },
+      {
+        "name": "status",
+        "type": {
+          "kind": "ScalarType",
+          "name": "string"
+        },
+        "optional": false
+      },
+      {
+        "name": "artifact",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "humanDecision",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "FeatureDevelopmentResult",
+    "fields": [
+      {
+        "name": "design",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "implementation",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      },
+      {
+        "name": "finalization",
+        "type": {
+          "kind": "AnyType"
+        },
+        "optional": false
+      }
+    ]
+  }
+]

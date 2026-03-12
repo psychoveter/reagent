@@ -5,7 +5,7 @@
  * Supports breakpoint matching on state IDs and step modes.
  */
 
-import type { AdvanceHookContext, AdvanceHook } from "../core/protocol-instance.js";
+import type { AdvanceHookContext, AdvanceHook } from "../core/role-run.js";
 
 export type StepMode = "none" | "stepState" | "stepOver";
 

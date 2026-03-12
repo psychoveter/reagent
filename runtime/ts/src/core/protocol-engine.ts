@@ -2,7 +2,7 @@
  * ProtocolEngine — pure FSM walker for Reagent protocol instances.
  *
  * Owns the IR graph, state machine state, and $ctx. Emits ProtocolEvent
- * objects that the orchestrating layer (e.g. ManagedAgentAdapter) handles.
+ * objects that the orchestrating layer (e.g. ManagedAgentBehavior) handles.
  *
  * Does NOT execute zones, talk to transport, or manage traces directly.
  * These concerns are delegated via the event/response interface.

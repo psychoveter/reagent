@@ -1,0 +1,460 @@
+{
+  "entries": [
+    {
+      "stateId": "send_2",
+      "protocolName": "DesignStage",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 100,
+      "column": 3
+    },
+    {
+      "stateId": "recv_5",
+      "protocolName": "DesignStage",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 188,
+      "column": 5
+    },
+    {
+      "stateId": "act_6",
+      "protocolName": "DesignStage",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 199,
+      "column": 5
+    },
+    {
+      "stateId": "send_7",
+      "protocolName": "DesignStage",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 203,
+      "column": 5
+    },
+    {
+      "stateId": "recv_14",
+      "protocolName": "DesignStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 100,
+      "column": 3
+    },
+    {
+      "stateId": "act_17",
+      "protocolName": "DesignStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 110,
+      "column": 5
+    },
+    {
+      "stateId": "send_18",
+      "protocolName": "DesignStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 128,
+      "column": 5
+    },
+    {
+      "stateId": "recv_19",
+      "protocolName": "DesignStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 176,
+      "column": 5
+    },
+    {
+      "stateId": "send_20",
+      "protocolName": "DesignStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 188,
+      "column": 5
+    },
+    {
+      "stateId": "recv_21",
+      "protocolName": "DesignStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 203,
+      "column": 5
+    },
+    {
+      "stateId": "act_25",
+      "protocolName": "DesignStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 217,
+      "column": 7
+    },
+    {
+      "stateId": "act_27",
+      "protocolName": "DesignStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 226,
+      "column": 7
+    },
+    {
+      "stateId": "recv_32",
+      "protocolName": "DesignStage",
+      "role": "developer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 128,
+      "column": 5
+    },
+    {
+      "stateId": "act_33",
+      "protocolName": "DesignStage",
+      "role": "developer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 141,
+      "column": 5
+    },
+    {
+      "stateId": "send_34",
+      "protocolName": "DesignStage",
+      "role": "developer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 154,
+      "column": 5
+    },
+    {
+      "stateId": "recv_43",
+      "protocolName": "DesignStage",
+      "role": "reviewer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 154,
+      "column": 5
+    },
+    {
+      "stateId": "act_44",
+      "protocolName": "DesignStage",
+      "role": "reviewer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 167,
+      "column": 5
+    },
+    {
+      "stateId": "send_45",
+      "protocolName": "DesignStage",
+      "role": "reviewer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 176,
+      "column": 5
+    },
+    {
+      "stateId": "send_2",
+      "protocolName": "ImplementationStage",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 247,
+      "column": 3
+    },
+    {
+      "stateId": "recv_5",
+      "protocolName": "ImplementationStage",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 320,
+      "column": 5
+    },
+    {
+      "stateId": "act_6",
+      "protocolName": "ImplementationStage",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 331,
+      "column": 5
+    },
+    {
+      "stateId": "send_7",
+      "protocolName": "ImplementationStage",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 335,
+      "column": 5
+    },
+    {
+      "stateId": "recv_16",
+      "protocolName": "ImplementationStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 298,
+      "column": 5
+    },
+    {
+      "stateId": "act_17",
+      "protocolName": "ImplementationStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 310,
+      "column": 5
+    },
+    {
+      "stateId": "send_18",
+      "protocolName": "ImplementationStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 320,
+      "column": 5
+    },
+    {
+      "stateId": "recv_19",
+      "protocolName": "ImplementationStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 335,
+      "column": 5
+    },
+    {
+      "stateId": "act_23",
+      "protocolName": "ImplementationStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 349,
+      "column": 7
+    },
+    {
+      "stateId": "recv_27",
+      "protocolName": "ImplementationStage",
+      "role": "developer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 247,
+      "column": 3
+    },
+    {
+      "stateId": "act_30",
+      "protocolName": "ImplementationStage",
+      "role": "developer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 258,
+      "column": 5
+    },
+    {
+      "stateId": "send_31",
+      "protocolName": "ImplementationStage",
+      "role": "developer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 276,
+      "column": 5
+    },
+    {
+      "stateId": "act_36",
+      "protocolName": "ImplementationStage",
+      "role": "developer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 358,
+      "column": 7
+    },
+    {
+      "stateId": "recv_41",
+      "protocolName": "ImplementationStage",
+      "role": "reviewer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 276,
+      "column": 5
+    },
+    {
+      "stateId": "act_42",
+      "protocolName": "ImplementationStage",
+      "role": "reviewer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 289,
+      "column": 5
+    },
+    {
+      "stateId": "send_43",
+      "protocolName": "ImplementationStage",
+      "role": "reviewer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 298,
+      "column": 5
+    },
+    {
+      "stateId": "send_2",
+      "protocolName": "FinalizationStage",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 379,
+      "column": 3
+    },
+    {
+      "stateId": "recv_5",
+      "protocolName": "FinalizationStage",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 468,
+      "column": 5
+    },
+    {
+      "stateId": "act_6",
+      "protocolName": "FinalizationStage",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 479,
+      "column": 5
+    },
+    {
+      "stateId": "send_7",
+      "protocolName": "FinalizationStage",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 483,
+      "column": 5
+    },
+    {
+      "stateId": "recv_14",
+      "protocolName": "FinalizationStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 379,
+      "column": 3
+    },
+    {
+      "stateId": "act_17",
+      "protocolName": "FinalizationStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 390,
+      "column": 5
+    },
+    {
+      "stateId": "send_18",
+      "protocolName": "FinalizationStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 411,
+      "column": 5
+    },
+    {
+      "stateId": "recv_19",
+      "protocolName": "FinalizationStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 456,
+      "column": 5
+    },
+    {
+      "stateId": "send_20",
+      "protocolName": "FinalizationStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 468,
+      "column": 5
+    },
+    {
+      "stateId": "recv_21",
+      "protocolName": "FinalizationStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 483,
+      "column": 5
+    },
+    {
+      "stateId": "act_25",
+      "protocolName": "FinalizationStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 497,
+      "column": 7
+    },
+    {
+      "stateId": "act_27",
+      "protocolName": "FinalizationStage",
+      "role": "analyst",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 506,
+      "column": 7
+    },
+    {
+      "stateId": "recv_32",
+      "protocolName": "FinalizationStage",
+      "role": "developer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 411,
+      "column": 5
+    },
+    {
+      "stateId": "act_33",
+      "protocolName": "FinalizationStage",
+      "role": "developer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 424,
+      "column": 5
+    },
+    {
+      "stateId": "send_34",
+      "protocolName": "FinalizationStage",
+      "role": "developer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 434,
+      "column": 5
+    },
+    {
+      "stateId": "recv_43",
+      "protocolName": "FinalizationStage",
+      "role": "reviewer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 434,
+      "column": 5
+    },
+    {
+      "stateId": "act_44",
+      "protocolName": "FinalizationStage",
+      "role": "reviewer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 447,
+      "column": 5
+    },
+    {
+      "stateId": "send_45",
+      "protocolName": "FinalizationStage",
+      "role": "reviewer",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 456,
+      "column": 5
+    },
+    {
+      "stateId": "act_2",
+      "protocolName": "FeatureDevelopmentReagent",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 527,
+      "column": 3
+    },
+    {
+      "stateId": "invoke_3",
+      "protocolName": "FeatureDevelopmentReagent",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 531,
+      "column": 3
+    },
+    {
+      "stateId": "invoke_4",
+      "protocolName": "FeatureDevelopmentReagent",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 533,
+      "column": 3
+    },
+    {
+      "stateId": "invoke_5",
+      "protocolName": "FeatureDevelopmentReagent",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 539,
+      "column": 3
+    },
+    {
+      "stateId": "act_6",
+      "protocolName": "FeatureDevelopmentReagent",
+      "role": "human",
+      "file": "/Users/Oleg.Bukhvalov/projects/cyclon/projects/reagent/examples/projects/feature-development-reagent/protocols/feature-development.rg",
+      "line": 548,
+      "column": 3
+    }
+  ]
+}

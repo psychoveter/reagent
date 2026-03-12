@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
 import { ReagentController } from "../ts/src/controller/reagent-controller.js";
-import { NativeAgentNode } from "../ts/src/nodes/native-agent-node.js";
+import { ManagedBehaviorFactory } from "../ts/src/nodes/managed-behavior-factory.js";
 import type { IRGraph, ThinAgentIR, RoleIR } from "../ts/src/contracts/types.js";
 import { parseProgram } from "../../lang/src/parser.js";
 import { emitIR, emitRoleIR, resetIdCounter } from "../../lang/src/ir-emitter.js";
@@ -37,8 +37,8 @@ function loadDeploymentFrom(dir: string): { roleToAgent: Record<string, string> 
 
 function createController() {
   const deployment = loadDeploymentFrom(FIXTURES_DIR);
-  const agentNode = new NativeAgentNode({ roleToAgent: deployment.roleToAgent });
-  const rc = new ReagentController({ nodeId: "lifecycle-node", agentNode });
+  const factory = new ManagedBehaviorFactory();
+  const rc = new ReagentController({ nodeId: "lifecycle-node", behaviorFactory: factory });
   return { rc, deployment };
 }
 
@@ -215,8 +215,8 @@ role WorkerRole [ts] {
 `;
 
   const { graphs, roleIRs } = compileSpawnSource(source);
-  const agentNode = new NativeAgentNode({ roleToAgent: {} });
-  const rc = new ReagentController({ nodeId: "spawn-proto-node", agentNode });
+  const factory = new ManagedBehaviorFactory();
+  const rc = new ReagentController({ nodeId: "spawn-proto-node", behaviorFactory: factory });
 
   rc.deployAgentTemplate("WorkerTemplate", roleIRs.get("WorkerRole")!, new Map([
     ["SpawnProto.worker", graphs.get("SpawnProto.worker")!],

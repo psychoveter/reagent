@@ -1,0 +1,200 @@
+{
+  "protocolName": "FeatureDevelopmentReagent",
+  "role": "human",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_1",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "act_2",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    $ctx.task = $ctx.input\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "invoke_3",
+      "kind": "invoke",
+      "data": {
+        "kind": "invoke",
+        "protocolName": "DesignStage",
+        "input": "$ctx.task",
+        "resultTarget": "$ctx.designStage"
+      }
+    },
+    {
+      "id": "invoke_4",
+      "kind": "invoke",
+      "data": {
+        "kind": "invoke",
+        "protocolName": "ImplementationStage",
+        "input": "{\n    stage: \"implementation\",\n    task: $ctx.task,\n    previous: $ctx.designStage\n  }",
+        "resultTarget": "$ctx.implementationStage"
+      }
+    },
+    {
+      "id": "invoke_5",
+      "kind": "invoke",
+      "data": {
+        "kind": "invoke",
+        "protocolName": "FinalizationStage",
+        "input": "{\n    stage: \"finalization\",\n    task: $ctx.task,\n    previous: {\n      design: $ctx.designStage,\n      implementation: $ctx.implementationStage\n    }\n  }",
+        "resultTarget": "$ctx.finalizationStage"
+      }
+    },
+    {
+      "id": "act_6",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n    reagent.return({\n      design: $ctx.designStage,\n      implementation: $ctx.implementationStage,\n      finalization: $ctx.finalizationStage\n    })\n  ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "end_7",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_1",
+      "to": "act_2",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_2",
+      "to": "invoke_3",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "invoke_3",
+      "to": "invoke_4",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "invoke_4",
+      "to": "invoke_5",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "invoke_5",
+      "to": "act_6",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_6",
+      "to": "end_7",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_1",
+  "terminalStateIds": [
+    "end_7"
+  ],
+  "participants": [
+    {
+      "name": "human",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "analyst",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    },
+    {
+      "name": "developer",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    },
+    {
+      "name": "reviewer",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "triggers": [
+    {
+      "kind": "invoke",
+      "withType": "FeatureTask",
+      "resolveMap": {
+        "human": [
+          {
+            "step": "single"
+          }
+        ],
+        "analyst": [
+          {
+            "step": "single"
+          }
+        ],
+        "developer": [
+          {
+            "step": "single"
+          }
+        ],
+        "reviewer": [
+          {
+            "step": "single"
+          }
+        ]
+      }
+    }
+  ],
+  "invocable": true,
+  "version": "0.1.0",
+  "fingerprints": {
+    "structureHash": "a0f5c0a52c5fffb6b28900773f3f614c5b37271d9c0e6f71c1c42733d3ae2f90",
+    "schemaHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "implHash": "3fb6a5dc0fecaa8f8a9343d86390d80d4294b68253bc58cdb7cf5435c2bc55d8"
+  },
+  "dependencies": [
+    {
+      "protocolName": "DesignStage",
+      "structureHash": "84d179e736b09b39419f4bdf52bb050df84ae257de25171dece3818640ad6c26",
+      "version": "0.1.0"
+    },
+    {
+      "protocolName": "FinalizationStage",
+      "structureHash": "1918858bc6cffd9aa41c5e730c9263c85e612dcc0223218ce46de0de246d18c8",
+      "version": "0.1.0"
+    },
+    {
+      "protocolName": "ImplementationStage",
+      "structureHash": "4c57b1aabd6ebd9c314f1c5feeb84b9375461827df3d9a21b235e8594d2b5d9e",
+      "version": "0.1.0"
+    }
+  ]
+}

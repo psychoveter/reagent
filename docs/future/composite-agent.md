@@ -39,7 +39,7 @@ In Reagent terms:
 | **As a part** (external) | A single `AgentHandle` registered in the parent RC's routing table. Participates in external protocols. Receives `ProtocolEvent`s, returns `AgentResponse`s. Indistinguishable from any other agent. |
 | **As a whole** (internal) | A self-contained `ReagentController` with its own agents, protocols, routing table, interceptors, and registry. Internal agents collaborate via internal protocols to produce decisions. |
 
-This is a **fourth integration strategy** for `AgentInterface`, alongside Managed, Custom, and Gate.
+This is a **fourth integration strategy** for `AgentBehavior`, alongside Managed, Custom, and Gate.
 But unlike the others, it is not a new primitive — it is a **pattern built on CustomAgent**.
 
 ### Recursive composition

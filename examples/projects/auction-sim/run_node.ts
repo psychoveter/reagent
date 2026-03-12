@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  NativeAgentNode,
+  ManagedBehaviorFactory,
   ReagentController,
   DebugAdvanceHook,
   NodeControlEndpoint,
@@ -86,10 +86,8 @@ async function main(): Promise<void> {
 
   const rc = new ReagentController({
     nodeId: runtimeConfig.nodeId,
-    agentNode: new NativeAgentNode({
-      roleToAgent: {},
-      traceHook,
-    }),
+    behaviorFactory: new ManagedBehaviorFactory(),
+    traceHook,
     stateStore,
     triggerPolicies: runtimeConfig.triggerPolicies,
     cronIntervalMs: runtimeConfig.cronIntervalMs,

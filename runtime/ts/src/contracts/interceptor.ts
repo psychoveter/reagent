@@ -29,7 +29,7 @@ export type InterceptorFn = (
 import type { TraceEvent } from "./types.js";
 
 /**
- * Agent-level trace hook. Configured per AgentRunner (inside NativeAgentNode).
+ * Agent-level trace hook. Configured per AgentShellImpl.
  * Not part of the RC interface — the RC doesn't know about trace events.
  */
 export type TraceHook = (event: TraceEvent) => void;

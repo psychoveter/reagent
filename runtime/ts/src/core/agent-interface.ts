@@ -1,43 +1,27 @@
 /**
- * AgentInterface — the contract between ProtocolEngine events and agent implementations.
+ * ManagedAgentBehavior — executes .rg zone code on behalf of the engine.
  *
- * Three integration modes:
- *   1. ManagedAgentAdapter — RC executes zones, injects $ctx/$self/$agent (default)
- *   2. CustomAgent — user implements handle() in-process
- *   3. MessageGate — AgentInterface over network (WS/stdio/HTTP)
+ * This is the default AgentBehavior for managed agents.
+ * It wraps the zone executor and provides zone execution for agents
+ * whose logic is embedded in .rg protocol zones.
  */
 
 import type { ProtocolEvent, AgentResponse } from "./protocol-engine.js";
-
-/**
- * Generic agent interface. Receives ProtocolEvents from the engine
- * and returns AgentResponses.
- */
-export interface AgentInterface {
-  handle(event: ProtocolEvent): Promise<AgentResponse>;
-}
-
-/**
- * ManagedAgentAdapter — executes zone code on behalf of the engine.
- *
- * This is the default integration mode. It wraps the zone executor
- * and provides the same behavior as the current ProtocolInstance
- * for managed agents (agents whose logic is embedded in .rg zones).
- */
+import type { AgentBehavior } from "../contracts/agent-behavior.js";
 import { executeZone, executeZoneAsync, InvokeRequest, ReturnValue, BreakRequest, type ReagentStub } from "./zone-executor.js";
 
-export interface ManagedAgentConfig {
+export interface ManagedBehaviorConfig {
   extras?: Record<string, unknown>;
   invokeCallback?: (protoName: string, input?: Record<string, unknown>) => Promise<unknown>;
   spawnCallback?: (protoName: string, input?: Record<string, unknown>) => void;
   emitCallback?: (eventName: string, data?: Record<string, unknown>) => void;
 }
 
-export class ManagedAgentAdapter implements AgentInterface {
+export class ManagedAgentBehavior implements AgentBehavior {
   private reagent: ReagentStub;
-  private config: ManagedAgentConfig;
+  private config: ManagedBehaviorConfig;
 
-  constructor(config: ManagedAgentConfig = {}) {
+  constructor(config: ManagedBehaviorConfig = {}) {
     this.config = config;
     this.reagent = this.createReagent();
   }
@@ -161,3 +145,10 @@ export class ManagedAgentAdapter implements AgentInterface {
     }
   }
 }
+
+/** @deprecated Use ManagedAgentBehavior */
+export const ManagedAgentAdapter = ManagedAgentBehavior;
+/** @deprecated Use ManagedBehaviorConfig */
+export type ManagedAgentConfig = ManagedBehaviorConfig;
+/** @deprecated Use AgentBehavior from contracts/agent-behavior.ts */
+export type AgentInterface = AgentBehavior;

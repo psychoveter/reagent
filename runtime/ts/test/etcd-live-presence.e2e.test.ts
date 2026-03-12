@@ -12,36 +12,26 @@ import { EtcdStateStore } from "../src/cluster/etcd-state-store.js";
 import { EtcdMembership } from "../src/cluster/etcd-membership.js";
 import { StateStoreAgentRegistry, type AgentRegistration } from "../src/cluster/state-store-agent-registry.js";
 import { ReagentController } from "../src/controller/reagent-controller.js";
-import type { AgentHandle, AgentNode } from "../src/contracts/agent-node.js";
-import type { MessageEnvelope, IRGraph, ProtocolTrigger, RoleIR } from "../src/contracts/types.js";
-import type { ReagentTransport } from "../src/contracts/transport.js";
+import type { IRGraph, RoleIR } from "../src/contracts/types.js";
+import type { BehaviorFactory } from "../src/contracts/behavior-factory.js";
+import type { AgentBehavior } from "../src/contracts/agent-behavior.js";
 
 const ETCD_HOSTS = (process.env.ETCD_HOSTS ?? "http://127.0.0.1:2379").split(",");
 
-class FakeHandle implements AgentHandle {
-  constructor(readonly agentName: string) {}
-
-  async start(): Promise<void> {}
-  async stop(): Promise<void> {}
-  getSelf(): Record<string, unknown> { return {}; }
-  triggerProtocol(_trigger: ProtocolTrigger): void {}
-  dispatchMessage(_env: MessageEnvelope): void {}
-}
-
-class FakeNode implements AgentNode {
+class FakeBehaviorFactory implements BehaviorFactory {
   readonly runtimeName = "fake";
 
-  createAgent(
-    agentName: string,
+  createBehavior(
+    _agentName: string,
     _roleIR: RoleIR,
     _graphs: Map<string, IRGraph>,
-    _transport: ReagentTransport,
-    _extras?: Record<string, unknown>,
-  ): AgentHandle {
-    return new FakeHandle(agentName);
+  ): AgentBehavior {
+    return {
+      handle: async () => ({ type: "noop" as const }),
+    } as AgentBehavior;
   }
 
-  async destroyAgent(_handle: AgentHandle): Promise<void> {}
+  async destroyBehavior(): Promise<void> {}
 }
 
 const roleIR: RoleIR = {
@@ -166,7 +156,7 @@ describe("real etcd live presence e2e", () => {
     const store = new EtcdStateStore({ hosts: ETCD_HOSTS });
     const rc = new ReagentController({
       nodeId: "e2e-detach-node",
-      agentNode: new FakeNode(),
+      behaviorFactory: new FakeBehaviorFactory(),
       stateStore: store,
     });
 

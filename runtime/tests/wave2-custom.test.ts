@@ -2,7 +2,7 @@
  * Wave 2.2: Custom Agent + Message Gate tests.
  *
  * CA1: Custom agent handles action events via handle()
- * CA2: Custom agent integrates with RC via CustomAgentNode
+ * CA2: Custom agent integrates with RC via CustomBehaviorFactory
  * GA1: GateSession validates FSM state
  * GA2: GateSession rejects events after completion
  */
@@ -13,11 +13,12 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { ReagentController } from "../ts/src/controller/reagent-controller.js";
-import { NativeAgentNode, NativeAgentHandle } from "../ts/src/nodes/native-agent-node.js";
-import { CustomAgentNode, CustomAgentHandle } from "../ts/src/nodes/custom-agent-node.js";
+import { ManagedBehaviorFactory } from "../ts/src/nodes/managed-behavior-factory.js";
+import { CustomBehaviorFactory } from "../ts/src/nodes/custom-behavior-factory.js";
+import { AgentShellImpl } from "../ts/src/core/agent-shell-impl.js";
 import { GateSession, GateValidationError } from "../ts/src/gate/gate-session.js";
-import { ManagedAgentAdapter } from "../ts/src/core/agent-interface.js";
-import type { AgentInterface } from "../ts/src/core/agent-interface.js";
+import { ManagedAgentBehavior } from "../ts/src/core/agent-interface.js";
+import type { AgentBehavior } from "../ts/src/contracts/agent-behavior.js";
 import type { ProtocolEvent, AgentResponse } from "../ts/src/core/protocol-engine.js";
 import type { AgentIR, IRGraph, ThinAgentIR, RoleIR, TraceEvent } from "../ts/src/contracts/types.js";
 import { resolveAgentIR } from "../ts/src/contracts/types.js";
@@ -43,12 +44,12 @@ function loadDeploymentFrom(dir: string): { roleToAgent: Record<string, string> 
   return JSON.parse(readFileSync(join(dir, "deployment.json"), "utf8"));
 }
 
-// ── CA1: ManagedAgentAdapter handles action events ──────────────────
+// ── CA1: ManagedAgentBehavior handles action events ──────────────────
 
 async function testCA1(): Promise<TestResult> {
-  const name = "CA1: ManagedAgentAdapter handles action events";
+  const name = "CA1: ManagedAgentBehavior handles action events";
   try {
-    const adapter = new ManagedAgentAdapter();
+    const adapter = new ManagedAgentBehavior();
 
     const ctx: Record<string, unknown> = { x: 1 };
     const selfRef: Record<string, unknown> = {};
@@ -79,18 +80,17 @@ async function testCA1(): Promise<TestResult> {
 // ── CA2: Custom agent integrates with RC ────────────────────────────
 
 async function testCA2(): Promise<TestResult> {
-  const name = "CA2: Custom agent integrates with RC via CustomAgentNode";
+  const name = "CA2: Custom agent integrates with RC via CustomBehaviorFactory";
   try {
     const deployment = loadDeploymentFrom(FIXTURES_DIR);
     const handledEvents: string[] = [];
 
     // One agent is custom, other is native (managed)
-    const nativeNode = new NativeAgentNode({ roleToAgent: deployment.roleToAgent });
+    const nativeFactory = new ManagedBehaviorFactory();
 
-    const customNode = new CustomAgentNode({
-      roleToAgent: deployment.roleToAgent,
-      agentFactory: (_agentName, _roleIR) => {
-        const adapter = new ManagedAgentAdapter();
+    const customFactory = new CustomBehaviorFactory({
+      behaviorFactory: (_agentName, _roleIR) => {
+        const adapter = new ManagedAgentBehavior();
         return {
           async handle(event: ProtocolEvent): Promise<AgentResponse> {
             handledEvents.push(event.type);
@@ -100,10 +100,9 @@ async function testCA2(): Promise<TestResult> {
       },
     });
 
-    // HandlerAgent is custom, ClientAgent is native
     const rc = new ReagentController({
       nodeId: "custom-test-node",
-      agentNodes: { ts: nativeNode, custom: customNode },
+      behaviorFactories: { ts: nativeFactory, custom: customFactory },
     });
 
     // Register ClientAgent on native node (lang "ts" maps to native node key)
@@ -125,7 +124,7 @@ async function testCA2(): Promise<TestResult> {
     rc.triggerProtocol("ClientAgent", { instanceId, protocolName: "TsDemo", input: { text: "custom test" }, roleToAgent: deployment.roleToAgent });
     rc.triggerProtocol("HandlerAgent", { instanceId, protocolName: "TsDemo", input: { text: "custom test" }, roleToAgent: deployment.roleToAgent });
 
-    const clientHandle = rc.getAgent("ClientAgent") as NativeAgentHandle;
+    const clientHandle = rc.getAgent("ClientAgent") as AgentShellImpl;
     await clientHandle.waitForCompletion(1, 10000);
 
     // Wait a bit for custom handler to process

@@ -1,0 +1,6 @@
+{
+  "agentName": "DeveloperAgent",
+  "lang": "ts",
+  "roleName": "DeveloperRole",
+  "roleFile": "DeveloperRole.role.json"
+}

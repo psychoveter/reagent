@@ -4,7 +4,7 @@
  * These tests require a running NATS server at localhost:4222.
  * Start one with: nats-server (or docker run -p 4222:4222 nats)
  *
- * Tests use the TS AgentRunner in-process (no child processes needed).
+ * Tests use the TS AgentShellImpl in-process (no child processes needed).
  * Both agents run in the same Node.js process, communicating via NATS
  * through the NatsCompatTransport shim.
  *
@@ -22,13 +22,15 @@ import { readFileSync, existsSync } from "node:fs";
 import { spawn as spawnProcess } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { AgentRunner, type AgentRunnerConfig } from "../ts/src/core/agent-runner.js";
+import { AgentShellImpl, type AgentShellConfig } from "../ts/src/core/agent-shell-impl.js";
+import { ManagedBehaviorFactory } from "../ts/src/nodes/managed-behavior-factory.js";
 import { validateTrace } from "../ts/src/admin/trace-validator.js";
 import type { AgentIR, IRGraph, ThinAgentIR, RoleIR, ProtocolTrigger } from "../ts/src/contracts/types.js";
 import { resolveAgentIR } from "../ts/src/contracts/types.js";
 import { randomUUID } from "node:crypto";
 import { NatsTransport } from "../ts/src/network/nats-transport.js";
 import { NatsCompatTransport } from "../ts/src/network/nats-compat-transport.js";
+import { normalizeRoleBindingMap } from "../ts/src/controller/role-bindings.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const NATS_URL = process.env.NATS_URL ?? "nats://127.0.0.1:4222";
@@ -42,10 +44,10 @@ const CROSSLANG_FIXTURES_DIR = join(__dirname, "..", "..", "examples", "out", "2
 const PY_RUNTIME_DIR = join(__dirname, "..", "py");
 const PY_VENV_BIN = join(PY_RUNTIME_DIR, ".venv", "bin", "python");
 
-// ── NATS-backed AgentRunner helper ──────────────────────────────────
+// ── NATS-backed AgentShell helper ───────────────────────────────────
 
 type NatsAgentRunner = {
-  runner: AgentRunner;
+  shell: AgentShellImpl;
   nats: NatsTransport;
   compat: NatsCompatTransport;
 };
@@ -59,25 +61,29 @@ async function createNatsRunner(
   await nats.connect();
   const compat = new NatsCompatTransport(agentIR.agentName, nats);
 
-  // Subscribe to triggers via NATS
-  compat.subscribeTriggers((data) => {
-    runner.triggerProtocol(data as ProtocolTrigger);
-  });
-
-  const config: AgentRunnerConfig = {
+  const shellConfig: AgentShellConfig = {
+    agentName: agentIR.agentName,
+    roleName: agentIR.roleName,
     agentIR,
     graphs,
     transport: compat,
-    roleToAgent,
+    roleToAgent: normalizeRoleBindingMap(roleToAgent),
   };
+  const shell = new AgentShellImpl(shellConfig);
+  const factory = new ManagedBehaviorFactory();
+  const behavior = factory.createBehavior(agentIR.agentName, agentIR as any, graphs);
+  shell.attachBehavior(behavior);
 
-  const runner = new AgentRunner(config);
-  return { runner, nats, compat };
+  compat.subscribeTriggers((data) => {
+    shell.triggerProtocol(data as ProtocolTrigger);
+  });
+
+  return { shell, nats, compat };
 }
 
 async function stopNatsRunners(...runners: NatsAgentRunner[]): Promise<void> {
   for (const r of runners) {
-    await r.runner.stop();
+    await r.shell.stop();
     await r.nats.close();
   }
 }
@@ -118,8 +124,8 @@ async function createAgents(): Promise<{ client: NatsAgentRunner; handler: NatsA
   const client = await createNatsRunner(clientIR, clientGraphs, deployment.roleToAgent);
   const handler = await createNatsRunner(handlerIR, handlerGraphs, deployment.roleToAgent);
 
-  await client.runner.start();
-  await handler.runner.start();
+  await client.shell.start();
+  await handler.shell.start();
 
   await new Promise(r => setTimeout(r, 300));
 
@@ -132,7 +138,7 @@ function triggerProtocol(
   input: Record<string, unknown>,
   roleToAgent: Record<string, string>,
 ): void {
-  runner.runner.triggerProtocol({
+  runner.shell.triggerProtocol({
     instanceId,
     protocolName: "TsDemo",
     input,
@@ -158,12 +164,12 @@ async function testT1(): Promise<TestResult> {
     triggerProtocol(handler, instanceId, { text: "hello" }, agents.deployment.roleToAgent);
 
     await Promise.all([
-      client.runner.waitForCompletion(1, 10000),
-      handler.runner.waitForCompletion(1, 10000),
+      client.shell.waitForCompletion(1, 10000),
+      handler.shell.waitForCompletion(1, 10000),
     ]);
 
-    const clientInstance = client.runner.getInstances().get(instanceId);
-    const handlerInstance = handler.runner.getInstances().get(instanceId);
+    const clientInstance = client.shell.getInstances().get(instanceId);
+    const handlerInstance = handler.shell.getInstances().get(instanceId);
 
     if (!clientInstance || !handlerInstance) {
       return { name, passed: false, error: "Instances not found" };
@@ -224,11 +230,11 @@ async function testT2(): Promise<TestResult> {
     triggerProtocol(handler, instanceId, { text: "hello" }, agents.deployment.roleToAgent);
 
     await Promise.all([
-      client.runner.waitForCompletion(1, 10000),
-      handler.runner.waitForCompletion(1, 10000),
+      client.shell.waitForCompletion(1, 10000),
+      handler.shell.waitForCompletion(1, 10000),
     ]);
 
-    const handlerTraces = handler.runner.getInstances().get(instanceId)!.getTraces();
+    const handlerTraces = handler.shell.getInstances().get(instanceId)!.getTraces();
     const sentMessages = handlerTraces
       .filter(t => t.kind === "MessageSent")
       .map(t => t.data?.messageName);
@@ -266,11 +272,11 @@ async function testT3(): Promise<TestResult> {
     triggerProtocol(handler, instanceId, { text: "fail" }, agents.deployment.roleToAgent);
 
     await Promise.all([
-      client.runner.waitForCompletion(1, 10000),
-      handler.runner.waitForCompletion(1, 10000),
+      client.shell.waitForCompletion(1, 10000),
+      handler.shell.waitForCompletion(1, 10000),
     ]);
 
-    const handlerTraces = handler.runner.getInstances().get(instanceId)!.getTraces();
+    const handlerTraces = handler.shell.getInstances().get(instanceId)!.getTraces();
     const sentMessages = handlerTraces
       .filter(t => t.kind === "MessageSent")
       .map(t => t.data?.messageName);
@@ -346,16 +352,16 @@ async function testT5(): Promise<TestResult> {
     triggerProtocol(handler, id1, { text: "first" }, agents.deployment.roleToAgent);
 
     await Promise.all([
-      client.runner.waitForCompletion(1, 10000),
-      handler.runner.waitForCompletion(1, 10000),
+      client.shell.waitForCompletion(1, 10000),
+      handler.shell.waitForCompletion(1, 10000),
     ]);
 
-    const handlerSelf1 = handler.runner.getSelf();
+    const handlerSelf1 = handler.shell.getSelf();
     if (handlerSelf1.queriesHandled !== 1) {
       return { name, passed: false, error: `After instance 1: queriesHandled=${handlerSelf1.queriesHandled}, expected 1` };
     }
 
-    const clientSelf1 = client.runner.getSelf();
+    const clientSelf1 = client.shell.getSelf();
     if (clientSelf1.responsesReceived !== 1) {
       return { name, passed: false, error: `After instance 1: responsesReceived=${clientSelf1.responsesReceived}, expected 1` };
     }
@@ -365,16 +371,16 @@ async function testT5(): Promise<TestResult> {
     triggerProtocol(handler, id2, { text: "second" }, agents.deployment.roleToAgent);
 
     await Promise.all([
-      client.runner.waitForCompletion(2, 10000),
-      handler.runner.waitForCompletion(2, 10000),
+      client.shell.waitForCompletion(2, 10000),
+      handler.shell.waitForCompletion(2, 10000),
     ]);
 
-    const handlerSelf2 = handler.runner.getSelf();
+    const handlerSelf2 = handler.shell.getSelf();
     if (handlerSelf2.queriesHandled !== 2) {
       return { name, passed: false, error: `After instance 2: queriesHandled=${handlerSelf2.queriesHandled}, expected 2` };
     }
 
-    const clientSelf2 = client.runner.getSelf();
+    const clientSelf2 = client.shell.getSelf();
     if (clientSelf2.responsesReceived !== 2) {
       return { name, passed: false, error: `After instance 2: responsesReceived=${clientSelf2.responsesReceived}, expected 2` };
     }
@@ -417,8 +423,8 @@ async function createLoopAgents(): Promise<{ poller: NatsAgentRunner; responder:
   const poller = await createNatsRunner(pollerIR, pollerGraphs, deployment.roleToAgent);
   const responder = await createNatsRunner(responderIR, responderGraphs, deployment.roleToAgent);
 
-  await poller.runner.start();
-  await responder.runner.start();
+  await poller.shell.start();
+  await responder.shell.start();
 
   await new Promise(r => setTimeout(r, 300));
 
@@ -431,7 +437,7 @@ function triggerLoopProtocol(
   input: Record<string, unknown>,
   roleToAgent: Record<string, string>,
 ): void {
-  runner.runner.triggerProtocol({
+  runner.shell.triggerProtocol({
     instanceId,
     protocolName: "LoopWaitDemo",
     input,
@@ -457,12 +463,12 @@ async function testT6(): Promise<TestResult> {
     triggerLoopProtocol(responder, instanceId, {}, agents.deployment.roleToAgent);
 
     await Promise.all([
-      poller.runner.waitForCompletion(1, 15000),
-      responder.runner.waitForCompletion(1, 15000),
+      poller.shell.waitForCompletion(1, 15000),
+      responder.shell.waitForCompletion(1, 15000),
     ]);
 
-    const pollerInstance = poller.runner.getInstances().get(instanceId);
-    const responderInstance = responder.runner.getInstances().get(instanceId);
+    const pollerInstance = poller.shell.getInstances().get(instanceId);
+    const responderInstance = responder.shell.getInstances().get(instanceId);
 
     if (!pollerInstance || !responderInstance) {
       return { name, passed: false, error: "Instances not found" };
@@ -513,8 +519,8 @@ async function testT7(): Promise<TestResult> {
     triggerLoopProtocol(responder, instanceId, {}, agents.deployment.roleToAgent);
 
     await Promise.all([
-      poller.runner.waitForCompletion(1, 15000),
-      responder.runner.waitForCompletion(1, 15000),
+      poller.shell.waitForCompletion(1, 15000),
+      responder.shell.waitForCompletion(1, 15000),
     ]);
 
     const elapsed = Date.now() - startTime;
@@ -525,7 +531,7 @@ async function testT7(): Promise<TestResult> {
     }
 
     // Verify timer traces
-    const pollerTraces = poller.runner.getInstances().get(instanceId)!.getTraces();
+    const pollerTraces = poller.shell.getInstances().get(instanceId)!.getTraces();
     const timerStarted = pollerTraces.filter(t => t.kind === "TimerStarted");
     const timerFired = pollerTraces.filter(t => t.kind === "TimerFired");
 
@@ -562,18 +568,18 @@ async function testT8(): Promise<TestResult> {
     triggerLoopProtocol(responder, instanceId, {}, agents.deployment.roleToAgent);
 
     await Promise.all([
-      poller.runner.waitForCompletion(1, 15000),
-      responder.runner.waitForCompletion(1, 15000),
+      poller.shell.waitForCompletion(1, 15000),
+      responder.shell.waitForCompletion(1, 15000),
     ]);
 
     // Check poller $self state
-    const pollerSelf = poller.runner.getSelf();
+    const pollerSelf = poller.shell.getSelf();
     if (pollerSelf.loopCount !== 3) {
       return { name, passed: false, error: `Expected loopCount=3, got ${pollerSelf.loopCount}` };
     }
 
     // Check responder $self state
-    const responderSelf = responder.runner.getSelf();
+    const responderSelf = responder.shell.getSelf();
     if (responderSelf.pingsReceived !== 3) {
       return { name, passed: false, error: `Expected pingsReceived=3, got ${responderSelf.pingsReceived}` };
     }
@@ -624,9 +630,9 @@ async function createParAgents(): Promise<{
   const workerA = await createNatsRunner(workerAIR, workerAGraphs, deployment.roleToAgent);
   const workerB = await createNatsRunner(workerBIR, workerBGraphs, deployment.roleToAgent);
 
-  await coordinator.runner.start();
-  await workerA.runner.start();
-  await workerB.runner.start();
+  await coordinator.shell.start();
+  await workerA.shell.start();
+  await workerB.shell.start();
   await new Promise(r => setTimeout(r, 300));
 
   return { coordinator, workerA, workerB, deployment };
@@ -638,7 +644,7 @@ function triggerParProtocol(
   input: Record<string, unknown>,
   roleToAgent: Record<string, string>,
 ): void {
-  runner.runner.triggerProtocol({
+  runner.shell.triggerProtocol({
     instanceId, protocolName: "ParDemo", input, roleToAgent,
   });
 }
@@ -663,14 +669,14 @@ async function testT9(): Promise<TestResult> {
     triggerParProtocol(workerB, instanceId, {}, agents.deployment.roleToAgent);
 
     await Promise.all([
-      coordinator.runner.waitForCompletion(1, 10000),
-      workerA.runner.waitForCompletion(1, 10000),
-      workerB.runner.waitForCompletion(1, 10000),
+      coordinator.shell.waitForCompletion(1, 10000),
+      workerA.shell.waitForCompletion(1, 10000),
+      workerB.shell.waitForCompletion(1, 10000),
     ]);
 
-    const ci = coordinator.runner.getInstances().get(instanceId)!;
-    const ai = workerA.runner.getInstances().get(instanceId)!;
-    const bi = workerB.runner.getInstances().get(instanceId)!;
+    const ci = coordinator.shell.getInstances().get(instanceId)!;
+    const ai = workerA.shell.getInstances().get(instanceId)!;
+    const bi = workerB.shell.getInstances().get(instanceId)!;
 
     if (ci.getStatus() !== "completed") return { name, passed: false, error: `Coordinator: ${ci.getStatus()}` };
     if (ai.getStatus() !== "completed") return { name, passed: false, error: `WorkerA: ${ai.getStatus()}` };
@@ -709,18 +715,18 @@ async function testT10(): Promise<TestResult> {
     triggerParProtocol(workerB, instanceId, {}, agents.deployment.roleToAgent);
 
     await Promise.all([
-      coordinator.runner.waitForCompletion(1, 10000),
-      workerA.runner.waitForCompletion(1, 10000),
-      workerB.runner.waitForCompletion(1, 10000),
+      coordinator.shell.waitForCompletion(1, 10000),
+      workerA.shell.waitForCompletion(1, 10000),
+      workerB.shell.waitForCompletion(1, 10000),
     ]);
 
     // Coordinator accumulated its own $self
-    const coordSelf = coordinator.runner.getSelf();
+    const coordSelf = coordinator.shell.getSelf();
     if (coordSelf.protocolsCoordinated !== 1) return { name, passed: false, error: `Coord protocols: ${coordSelf.protocolsCoordinated}` };
 
     // Both workers sent messages
-    const aTraces = workerA.runner.getInstances().get(instanceId)!.getTraces();
-    const bTraces = workerB.runner.getInstances().get(instanceId)!.getTraces();
+    const aTraces = workerA.shell.getInstances().get(instanceId)!.getTraces();
+    const bTraces = workerB.shell.getInstances().get(instanceId)!.getTraces();
     const aSent = aTraces.filter(t => t.kind === "MessageSent").map(t => t.data?.messageName);
     const bSent = bTraces.filter(t => t.kind === "MessageSent").map(t => t.data?.messageName);
     if (!aSent.includes("ResultA")) return { name, passed: false, error: "WorkerA didn't send ResultA" };
@@ -766,8 +772,8 @@ async function createTryCatchAgents(): Promise<{
   const sender = await createNatsRunner(senderIR, senderGraphs, deployment.roleToAgent);
   const processor = await createNatsRunner(procIR, procGraphs, deployment.roleToAgent);
 
-  await sender.runner.start();
-  await processor.runner.start();
+  await sender.shell.start();
+  await processor.shell.start();
   await new Promise(r => setTimeout(r, 300));
 
   return { sender, processor, deployment };
@@ -779,7 +785,7 @@ function triggerTryCatchProtocol(
   input: Record<string, unknown>,
   roleToAgent: Record<string, string>,
 ): void {
-  runner.runner.triggerProtocol({
+  runner.shell.triggerProtocol({
     instanceId, protocolName: "TryCatchDemo", input, roleToAgent,
   });
 }
@@ -801,12 +807,12 @@ async function testT11(): Promise<TestResult> {
     triggerTryCatchProtocol(processor, instanceId, { text: "fail" }, agents.deployment.roleToAgent);
 
     await Promise.all([
-      sender.runner.waitForCompletion(1, 10000),
-      processor.runner.waitForCompletion(1, 10000),
+      sender.shell.waitForCompletion(1, 10000),
+      processor.shell.waitForCompletion(1, 10000),
     ]);
 
-    const si = sender.runner.getInstances().get(instanceId)!;
-    const pi = processor.runner.getInstances().get(instanceId)!;
+    const si = sender.shell.getInstances().get(instanceId)!;
+    const pi = processor.shell.getInstances().get(instanceId)!;
 
     if (si.getStatus() !== "completed") return { name, passed: false, error: `Sender: ${si.getStatus()}` };
     if (pi.getStatus() !== "completed") return { name, passed: false, error: `Processor: ${pi.getStatus()}` };
@@ -846,11 +852,11 @@ async function testT12(): Promise<TestResult> {
     triggerTryCatchProtocol(processor, instanceId, { text: "fail" }, agents.deployment.roleToAgent);
 
     await Promise.all([
-      sender.runner.waitForCompletion(1, 10000),
-      processor.runner.waitForCompletion(1, 10000),
+      sender.shell.waitForCompletion(1, 10000),
+      processor.shell.waitForCompletion(1, 10000),
     ]);
 
-    const pi = processor.runner.getInstances().get(instanceId)!;
+    const pi = processor.shell.getInstances().get(instanceId)!;
     if (pi.getStatus() !== "completed") return { name, passed: false, error: `Processor: ${pi.getStatus()}` };
 
     const procTraces = pi.getTraces();
@@ -906,8 +912,8 @@ async function createInvokeAgents(): Promise<{
   const caller = await createNatsRunner(callerIR, callerGraphs, deployment.roleToAgent);
   const responder = await createNatsRunner(responderIR, responderGraphs, deployment.roleToAgent);
 
-  await caller.runner.start();
-  await responder.runner.start();
+  await caller.shell.start();
+  await responder.shell.start();
   await new Promise(r => setTimeout(r, 300));
 
   return { caller, responder, deployment };
@@ -919,7 +925,7 @@ function triggerInvokeProtocol(
   input: Record<string, unknown>,
   roleToAgent: Record<string, string>,
 ): void {
-  runner.runner.triggerProtocol({
+  runner.shell.triggerProtocol({
     instanceId, protocolName: "InvokeDemo", input, roleToAgent,
   });
 }
@@ -941,17 +947,17 @@ async function testT13(): Promise<TestResult> {
     triggerInvokeProtocol(responder, instanceId, {}, agents.deployment.roleToAgent);
 
     await Promise.all([
-      caller.runner.waitForCompletion(1, 10000),
-      responder.runner.waitForCompletion(1, 10000),
+      caller.shell.waitForCompletion(1, 10000),
+      responder.shell.waitForCompletion(1, 10000),
     ]);
 
-    const ci = caller.runner.getInstances().get(instanceId)!;
-    const ri = responder.runner.getInstances().get(instanceId)!;
+    const ci = caller.shell.getInstances().get(instanceId)!;
+    const ri = responder.shell.getInstances().get(instanceId)!;
 
     if (ci.getStatus() !== "completed") return { name, passed: false, error: `Caller: ${ci.getStatus()}` };
     if (ri.getStatus() !== "completed") return { name, passed: false, error: `Responder: ${ri.getStatus()}` };
 
-    const callerSelf = caller.runner.getSelf();
+    const callerSelf = caller.shell.getSelf();
     if (callerSelf.lastResult !== 49) {
       return { name, passed: false, error: `Expected lastResult=49, got ${callerSelf.lastResult}` };
     }
@@ -981,11 +987,11 @@ async function testT14(): Promise<TestResult> {
     triggerInvokeProtocol(responder, instanceId, {}, agents.deployment.roleToAgent);
 
     await Promise.all([
-      caller.runner.waitForCompletion(1, 10000),
-      responder.runner.waitForCompletion(1, 10000),
+      caller.shell.waitForCompletion(1, 10000),
+      responder.shell.waitForCompletion(1, 10000),
     ]);
 
-    const ci = caller.runner.getInstances().get(instanceId)!;
+    const ci = caller.shell.getInstances().get(instanceId)!;
     if (ci.getStatus() !== "completed") return { name, passed: false, error: `Caller: ${ci.getStatus()}` };
 
     const callerTraces = ci.getTraces();
@@ -1038,8 +1044,8 @@ async function createSpawnAgents(): Promise<{
   const orchestrator = await createNatsRunner(orchIR, orchGraphs, deployment.roleToAgent);
   const helper = await createNatsRunner(helperIR, helperGraphs, deployment.roleToAgent);
 
-  await orchestrator.runner.start();
-  await helper.runner.start();
+  await orchestrator.shell.start();
+  await helper.shell.start();
   await new Promise(r => setTimeout(r, 300));
 
   return { orchestrator, helper, deployment };
@@ -1050,7 +1056,7 @@ function triggerSpawnProtocol(
   instanceId: string,
   roleToAgent: Record<string, string>,
 ): void {
-  runner.runner.triggerProtocol({
+  runner.shell.triggerProtocol({
     instanceId, protocolName: "SpawnEmitDemo", input: {}, roleToAgent,
   });
 }
@@ -1072,14 +1078,14 @@ async function testT15(): Promise<TestResult> {
     triggerSpawnProtocol(helper, instanceId, agents.deployment.roleToAgent);
 
     await Promise.all([
-      orchestrator.runner.waitForCompletion(2, 10000),
-      helper.runner.waitForCompletion(1, 10000),
+      orchestrator.shell.waitForCompletion(2, 10000),
+      helper.shell.waitForCompletion(1, 10000),
     ]);
 
-    const oi = orchestrator.runner.getInstances().get(instanceId)!;
+    const oi = orchestrator.shell.getInstances().get(instanceId)!;
     if (oi.getStatus() !== "completed") return { name, passed: false, error: `Orchestrator main: ${oi.getStatus()}` };
 
-    const orchSelf = orchestrator.runner.getSelf();
+    const orchSelf = orchestrator.shell.getSelf();
     if (orchSelf.spawned !== 1) return { name, passed: false, error: `Expected spawned=1, got ${orchSelf.spawned}` };
     if (orchSelf.bgTasksCompleted !== 1) return { name, passed: false, error: `Expected bgTasksCompleted=1, got ${orchSelf.bgTasksCompleted}` };
 
@@ -1110,11 +1116,11 @@ async function testT16(): Promise<TestResult> {
     triggerSpawnProtocol(helper, instanceId, agents.deployment.roleToAgent);
 
     await Promise.all([
-      orchestrator.runner.waitForCompletion(2, 10000),
-      helper.runner.waitForCompletion(1, 10000),
+      orchestrator.shell.waitForCompletion(2, 10000),
+      helper.shell.waitForCompletion(1, 10000),
     ]);
 
-    const hi = helper.runner.getInstances().get(instanceId)!;
+    const hi = helper.shell.getInstances().get(instanceId)!;
     if (hi.getStatus() !== "completed") return { name, passed: false, error: `Helper: ${hi.getStatus()}` };
 
     const hTraces = hi.getTraces();
@@ -1124,7 +1130,7 @@ async function testT16(): Promise<TestResult> {
       return { name, passed: false, error: `Expected eventName=TaskProcessed, got ${emitted[0].data?.eventName}` };
     }
 
-    const helperSelf = helper.runner.getSelf();
+    const helperSelf = helper.shell.getSelf();
     if (helperSelf.eventsHandled !== 1) {
       return { name, passed: false, error: `Expected eventsHandled=1, got ${helperSelf.eventsHandled}` };
     }
@@ -1212,7 +1218,7 @@ async function testT17(): Promise<TestResult> {
       deployment.roleToAgent,
     );
 
-    await tsRunner.runner.start();
+    await tsRunner.shell.start();
     await new Promise(r => setTimeout(r, 300));
 
     const instanceId = randomUUID();
@@ -1221,7 +1227,7 @@ async function testT17(): Promise<TestResult> {
 
     await new Promise(r => setTimeout(r, 1500));
 
-    tsRunner.runner.triggerProtocol({
+    tsRunner.shell.triggerProtocol({
       instanceId,
       protocolName: "CrossLangE2E",
       input: {},
@@ -1230,17 +1236,17 @@ async function testT17(): Promise<TestResult> {
 
     const [pyResult] = await Promise.all([
       pyPromise,
-      tsRunner.runner.waitForCompletion(1, 15000),
+      tsRunner.shell.waitForCompletion(1, 15000),
     ]);
 
-    const tsi = tsRunner.runner.getInstances().get(instanceId)!;
+    const tsi = tsRunner.shell.getInstances().get(instanceId)!;
     if (tsi.getStatus() !== "completed") return { name, passed: false, error: `TS: ${tsi.getStatus()}` };
     if (pyResult.status !== "completed") {
       const failTraces = pyResult.traces?.filter((t: any) => t.kind === "ProtocolFailed") ?? [];
       return { name, passed: false, error: `Py: ${pyResult.status}, traces: ${JSON.stringify(failTraces)}` };
     }
 
-    const tsSelf = tsRunner.runner.getSelf();
+    const tsSelf = tsRunner.shell.getSelf();
     const expectedReply = "hello from ts — echoed by py";
     if (tsSelf.lastReply !== expectedReply) {
       return { name, passed: false, error: `Expected lastReply="${expectedReply}", got "${tsSelf.lastReply}"` };
@@ -1276,7 +1282,7 @@ async function testT18(): Promise<TestResult> {
       deployment.roleToAgent,
     );
 
-    await tsRunner.runner.start();
+    await tsRunner.shell.start();
     await new Promise(r => setTimeout(r, 300));
 
     const instanceId = randomUUID();
@@ -1285,7 +1291,7 @@ async function testT18(): Promise<TestResult> {
 
     await new Promise(r => setTimeout(r, 1500));
 
-    tsRunner.runner.triggerProtocol({
+    tsRunner.shell.triggerProtocol({
       instanceId,
       protocolName: "CrossLangE2E",
       input: {},
@@ -1294,7 +1300,7 @@ async function testT18(): Promise<TestResult> {
 
     const [pyResult] = await Promise.all([
       pyPromise,
-      tsRunner.runner.waitForCompletion(1, 15000),
+      tsRunner.shell.waitForCompletion(1, 15000),
     ]);
 
     if (pyResult.self.messagesProcessed !== 1) {

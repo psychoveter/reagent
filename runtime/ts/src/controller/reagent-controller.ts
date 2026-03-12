@@ -23,9 +23,11 @@ import type {
 import { createMessageEnvelope, createTraceEvent } from "../contracts/types.js";
 import { isAddressableAgentRecord } from "../contracts/types.js";
 import type { NodeRef, AgentRef, ReagentTransport, NodeLink } from "../contracts/transport.js";
-import type { AgentNode, AgentHandle } from "../contracts/agent-node.js";
-import type { InterceptorFn, InterceptorContext, MessageDirection, AddressPage } from "../contracts/interceptor.js";
-import type { AdvanceHook } from "../core/protocol-instance.js";
+import type { BehaviorFactory } from "../contracts/behavior-factory.js";
+import type { InterceptorFn, InterceptorContext, MessageDirection, TraceHook, AddressPage } from "../contracts/interceptor.js";
+import { AgentShellImpl, type AgentShellConfig } from "../core/agent-shell-impl.js";
+import type { AgentShellStatus } from "../contracts/agent-shell.js";
+import type { AdvanceHookContext } from "../core/role-run.js";
 import { ProtocolRegistry, type ProtocolEntry, type CompatibilityReport } from "./protocol-registry.js";
 import { LocalEventBus } from "./local-event-bus.js";
 import { CronAgent } from "../triggers/cron-agent.js";
@@ -54,15 +56,17 @@ export type DebugResolveHookFn = (data: {
 
 export interface ReagentControllerConfig {
   nodeId: string;
-  /** Single AgentNode (backward compat) — treated as the "ts" backend. */
-  agentNode?: AgentNode;
-  /** Multiple AgentNode backends keyed by language tag ("ts", "py", …). */
-  agentNodes?: Record<string, AgentNode>;
+  /** Single BehaviorFactory — treated as the "ts" backend. */
+  behaviorFactory?: BehaviorFactory;
+  /** Multiple BehaviorFactory backends keyed by language tag ("ts", "py", …). */
+  behaviorFactories?: Record<string, BehaviorFactory>;
   interceptors?: InterceptorFn[];
   /** Trigger policies keyed by trigger ID (e.g. "trigger:cron:MyProto:0 * * * *") */
   triggerPolicies?: Record<string, TriggerPolicy>;
   /** Trace callback for system-level trigger events (TriggerMatched, TriggerSuppressed). */
   traceCallback?: (event: TraceEvent) => void;
+  /** Trace hook for protocol-level events. */
+  traceHook?: TraceHook;
   /** Cron tick interval in ms (default 15000). Set to 0 to disable auto-cron. */
   cronIntervalMs?: number;
   /** External StateStore (default: InMemoryStateStore). */
@@ -86,15 +90,16 @@ export class ReagentController {
   readonly resolvePolicyEvaluator: ResolvePolicyEvaluator;
   private agentPresenceLeaseId?: string;
 
-  /** lang → AgentNode backend */
-  private agentNodes: Record<string, AgentNode>;
+  /** lang → BehaviorFactory backend */
+  private behaviorFactories: Record<string, BehaviorFactory>;
   private interceptors: InterceptorFn[];
   private cronIntervalMs: number;
   private traceCallback?: (event: TraceEvent) => void;
+  private traceHook?: TraceHook;
   private debugResolveHook?: DebugResolveHookFn;
 
-  /** agentName → AgentHandle (local agents on this node) */
-  private agents = new Map<string, AgentHandle>();
+  /** agentName → AgentShellImpl (local agents on this node) */
+  private shells = new Map<string, AgentShellImpl>();
   /** agentName → logical runtime identity */
   private agentRecords = new Map<string, AgentRecord>();
   /** agentName → deployed create spec */
@@ -103,8 +108,8 @@ export class ReagentController {
   private protocolArtifacts = new Map<string, ProtocolArtifacts>();
   /** agentName → attached runtime lifecycle */
   private agentRuntimeStates = new Map<string, AgentRuntimeLifecycle>();
-  /** agentName → AgentNode that created the handle (for destroyAgent) */
-  private agentOwners = new Map<string, AgentNode>();
+  /** agentName → lang key of the factory that created the behavior */
+  private shellFactoryLangs = new Map<string, string>();
   /** agentName → message handler registered via transport.onMessage() */
   private messageHandlers = new Map<string, (env: MessageEnvelope) => void>();
   /** agentName → NodeRef (routing table: local → loopbackRef, remote → link-backed NodeRef) */
@@ -121,16 +126,17 @@ export class ReagentController {
   constructor(config: ReagentControllerConfig) {
     this.nodeId = config.nodeId;
 
-    if (config.agentNodes) {
-      this.agentNodes = { ...config.agentNodes };
-    } else if (config.agentNode) {
-      this.agentNodes = { ts: config.agentNode };
+    if (config.behaviorFactories) {
+      this.behaviorFactories = { ...config.behaviorFactories };
+    } else if (config.behaviorFactory) {
+      this.behaviorFactories = { ts: config.behaviorFactory };
     } else {
-      throw new Error("ReagentControllerConfig must provide agentNode or agentNodes");
+      throw new Error("ReagentControllerConfig must provide behaviorFactory or behaviorFactories");
     }
 
     this.interceptors = [...(config.interceptors ?? [])];
     this.traceCallback = config.traceCallback;
+    this.traceHook = config.traceHook;
     this.registry = new ProtocolRegistry();
     this.stateStore = config.stateStore ?? new InMemoryStateStore();
     this.agentRegistry = new StateStoreAgentRegistry(this.stateStore);
@@ -165,27 +171,6 @@ export class ReagentController {
 
     if (config.triggerPolicies) {
       this.triggerMatcher.setPolicies(config.triggerPolicies);
-    }
-
-    // Wire event bus callback into agent nodes that support it
-    const busCb = (topic: string, payload: Record<string, unknown>, source: { agent: string; instanceId: string }) => {
-      this.emitEvent(topic, payload, source);
-    };
-    const roleSpawnCb = (request: { roleName: string; config?: Record<string, unknown>; bindAs?: string; persistent: boolean; instanceId: string }) =>
-      this.spawnRoleInstance(
-        request.roleName,
-        request.config ?? {},
-        request.instanceId,
-        request.bindAs,
-        request.persistent,
-      );
-    for (const node of Object.values(this.agentNodes)) {
-      if (typeof (node as any).setEmitBusCallback === "function") {
-        (node as any).setEmitBusCallback(busCb);
-      }
-      if (typeof (node as any).setRoleSpawnCallback === "function") {
-        (node as any).setRoleSpawnCallback(roleSpawnCb);
-      }
     }
   }
 
@@ -277,8 +262,8 @@ export class ReagentController {
 
   attachAgentRuntime(
     agentName: string,
-    handle: AgentHandle,
-    owner: AgentNode,
+    shell: AgentShellImpl,
+    lang: string,
     lifecycle: AgentRuntimeLifecycle = "attached",
   ): AgentRecord {
     const template = this.agentTemplates.get(agentName);
@@ -287,14 +272,19 @@ export class ReagentController {
     }
     const record = this.createAgentRecord(agentName, template.roleIR, template.templateId, template.extras);
 
-    this.agents.set(agentName, handle);
-    this.agentOwners.set(agentName, owner);
+    this.shells.set(agentName, shell);
+    this.shellFactoryLangs.set(agentName, lang);
     this.agentRuntimeStates.set(agentName, lifecycle);
     this.routingTable.set(agentName, this.loopbackRef);
 
+    shell.setStatusChangeCallback((name, newStatus) => {
+      this.handleShellStatusChange(name, newStatus);
+    });
+
+    const factory = this.behaviorFactories[lang];
     record.lifecycle = lifecycle === "ready" ? "ready" : "runtime_attached";
     record.runtime = {
-      runtimeName: owner.runtimeName,
+      runtimeName: factory?.runtimeName ?? lang,
       lifecycle,
       nodeId: this.nodeId,
       attachedAt: Date.now(),
@@ -323,7 +313,7 @@ export class ReagentController {
     this.agentRuntimeStates.set(agentName, "ready");
     record.lifecycle = "ready";
     record.runtime = {
-      runtimeName: record.runtime?.runtimeName ?? this.agentOwnerLang(agentName),
+      runtimeName: record.runtime?.runtimeName ?? this.shellLang(agentName),
       lifecycle: "ready",
       nodeId: this.nodeId,
       attachedAt: record.runtime?.attachedAt ?? Date.now(),
@@ -335,8 +325,10 @@ export class ReagentController {
   detachAgentRuntime(agentName: string): void {
     const record = this.agentRecords.get(agentName);
     if (!record) return;
-    this.agents.delete(agentName);
-    this.agentOwners.delete(agentName);
+    const shell = this.shells.get(agentName);
+    shell?.setStatusChangeCallback(undefined);
+    this.shells.delete(agentName);
+    this.shellFactoryLangs.delete(agentName);
     this.messageHandlers.delete(agentName);
     this.routingTable.delete(agentName);
     this.agentRuntimeStates.set(agentName, "detached");
@@ -347,25 +339,85 @@ export class ReagentController {
     this.agentRegistry.deregister(agentName).catch(() => false);
   }
 
+  private handleShellStatusChange(agentName: string, newStatus: AgentShellStatus): void {
+    const record = this.agentRecords.get(agentName);
+    if (!record) return;
+
+    if (newStatus === "attached") {
+      if (record.lifecycle === "detached" || record.lifecycle === "declared") {
+        record.lifecycle = "runtime_attached";
+        this.agentRuntimeStates.set(agentName, "attached");
+        if (record.runtime) {
+          record.runtime = { ...record.runtime, lifecycle: "attached", attachedAt: Date.now() };
+        }
+      }
+    } else if (newStatus === "detached") {
+      if (record.lifecycle !== "destroyed") {
+        record.lifecycle = "detached";
+        this.agentRuntimeStates.set(agentName, "detached");
+        if (record.runtime) {
+          record.runtime = { ...record.runtime, lifecycle: "detached" };
+        }
+      }
+    }
+
+    this.publishAgentPresence(agentName);
+  }
+
   createAgentFromTemplate(agentName: string, opts?: { start?: boolean }): AgentRecord {
     const template = this.agentTemplates.get(agentName);
     if (!template) {
       throw new Error(`[RC ${this.nodeId}] No AgentTemplate found for ${agentName}`);
     }
     const lang = (template.roleIR.lang ?? "ts") as string;
-    const node = this.agentNodes[lang];
-    if (!node) {
+    const factory = this.behaviorFactories[lang];
+    if (!factory) {
       throw new Error(
-        `[RC ${this.nodeId}] No AgentNode registered for lang "${lang}" (agent ${agentName}). ` +
-        `Available: ${Object.keys(this.agentNodes).join(", ")}`,
+        `[RC ${this.nodeId}] No BehaviorFactory registered for lang "${lang}" (agent ${agentName}). ` +
+        `Available: ${Object.keys(this.behaviorFactories).join(", ")}`,
       );
     }
 
     const transport = this.createTransport(agentName);
-    const handle = node.createAgent(agentName, template.roleIR, template.graphs, transport, template.extras);
-    const record = this.attachAgentRuntime(agentName, handle, node);
+    const agentIR = {
+      agentName,
+      lang: (template.roleIR.lang ?? "ts") as any,
+      roleName: template.roleIR.roleName,
+      plays: template.roleIR.plays,
+      initAction: template.roleIR.initAction,
+      lifecycleHandlers: template.roleIR.lifecycleHandlers,
+    };
+
+    const roleToAgent = this.resolveRoleToAgentMap(
+      template.roleIR.plays[0]?.protocolName ?? "",
+    );
+
+    const shellConfig: AgentShellConfig = {
+      agentName,
+      roleName: template.roleIR.roleName,
+      agentIR,
+      graphs: template.graphs,
+      transport,
+      roleToAgent,
+      traceHook: this.traceHook,
+      extras: template.extras,
+      emitBusCallback: (topic, payload, source) => this.emitEvent(topic, payload, source),
+      roleSpawnCallback: (request) => this.spawnRoleInstance(
+        request.roleName,
+        request.config ?? {},
+        request.instanceId,
+        request.bindAs,
+        request.persistent,
+      ),
+    };
+
+    const shell = new AgentShellImpl(shellConfig);
+    const behavior = factory.createBehavior(agentName, template.roleIR, template.graphs, template.extras);
+    shell.attachBehavior(behavior);
+
+    const record = this.attachAgentRuntime(agentName, shell, lang);
     if (opts?.start ?? this.started) {
-      void handle.start().then(() => {
+      void shell.start().then(() => {
         this.markAgentRuntimeReady(agentName);
       });
     }
@@ -414,31 +466,27 @@ export class ReagentController {
     extras?: Record<string, unknown>,
   ): void {
     this.registerAgent(agentName, roleIR, graphs, extras);
-    const handle = this.agents.get(agentName)!;
-    handle.start();
+    const shell = this.shells.get(agentName)!;
+    shell.start();
     this.markAgentRuntimeReady(agentName);
   }
 
   async destroyAgent(agentName: string): Promise<void> {
-    const handle = this.agents.get(agentName);
-    if (!handle) {
+    const shell = this.shells.get(agentName);
+    if (!shell) {
       if (this.agentRecords.has(agentName)) {
         await this.destroyAgentRecord(agentName);
       }
       return;
     }
-    const owner = this.agentOwners.get(agentName);
-    if (owner) {
-      await owner.destroyAgent(handle);
-    } else {
-      await handle.stop();
-    }
+    await shell.stop();
+    shell.detachBehavior();
     this.detachAgentRuntime(agentName);
     await this.destroyAgentRecord(agentName);
   }
 
   hasAgent(agentName: string): boolean {
-    return this.agents.has(agentName);
+    return this.shells.has(agentName);
   }
 
   private getProtocolRoleKey(protocolName: string, roleName: string): string {
@@ -471,12 +519,12 @@ export class ReagentController {
     return this.agentRecords;
   }
 
-  getAgent(agentName: string): AgentHandle | undefined {
-    return this.agents.get(agentName);
+  getAgent(agentName: string): AgentShellImpl | undefined {
+    return this.shells.get(agentName);
   }
 
-  getRegisteredAgents(): Map<string, AgentHandle> {
-    return this.agents;
+  getRegisteredAgents(): Map<string, AgentShellImpl> {
+    return this.shells;
   }
 
   publishAgentPresence(agentName: string): void {
@@ -499,12 +547,10 @@ export class ReagentController {
     return this.registry.canDeploy(entry);
   }
 
-  /** Set advance hook on all agent node backends (for cluster debug). */
-  setAdvanceHook(hook: AdvanceHook | undefined): void {
-    for (const node of Object.values(this.agentNodes)) {
-      if (typeof (node as any).setAdvanceHook === 'function') {
-        (node as any).setAdvanceHook(hook);
-      }
+  /** Set advance hook on all shells (for cluster debug). */
+  setAdvanceHook(hook: ((ctx: AdvanceHookContext) => Promise<void>) | undefined): void {
+    for (const shell of this.shells.values()) {
+      shell.setAdvanceHook(hook);
     }
   }
 
@@ -535,14 +581,14 @@ export class ReagentController {
     agents: Array<{ name: string; lang: string; route: string }>;
     protocols: Array<{ name: string; version: string; agents: string[]; graphs: string[] }>;
     routing: Record<string, string>;
-    agentNodes: string[];
+    behaviorFactories: string[];
   } {
     const agentsList: Array<{ name: string; lang: string; route: string }> = [];
     for (const [name, record] of this.agentRecords) {
       const routeEntry = this.routingTable.get(name);
       agentsList.push({
         name,
-        lang: record.runtime?.runtimeName ?? this.agentOwnerLang(name),
+        lang: record.runtime?.runtimeName ?? this.shellLang(name),
         route: record.runtime ? (routeEntry?.nodeId ?? this.nodeId) : "declared",
       });
     }
@@ -567,17 +613,12 @@ export class ReagentController {
       agents: agentsList,
       protocols: protoList,
       routing,
-      agentNodes: Object.keys(this.agentNodes),
+      behaviorFactories: Object.keys(this.behaviorFactories),
     };
   }
 
-  private agentOwnerLang(agentName: string): string {
-    const owner = this.agentOwners.get(agentName);
-    if (!owner) return "unknown";
-    for (const [lang, node] of Object.entries(this.agentNodes)) {
-      if (node === owner) return lang;
-    }
-    return "unknown";
+  private shellLang(agentName: string): string {
+    return this.shellFactoryLangs.get(agentName) ?? "unknown";
   }
 
   // ── Interceptor chain ───────────────────────────────────────────
@@ -655,8 +696,8 @@ export class ReagentController {
     for (const link of this.links) {
       await link.connect();
     }
-    for (const [agentName, handle] of this.agents) {
-      await handle.start();
+    for (const [agentName, shell] of this.shells) {
+      await shell.start();
       this.markAgentRuntimeReady(agentName);
     }
     if (this.cronIntervalMs > 0) {
@@ -673,8 +714,8 @@ export class ReagentController {
       await this.membership.stop();
       this.membership = null;
     }
-    for (const [agentName, handle] of this.agents) {
-      await handle.stop();
+    for (const [agentName, shell] of this.shells) {
+      await shell.stop();
       const record = this.agentRecords.get(agentName);
       if (record?.runtime) {
         record.lifecycle = "detached";
@@ -714,12 +755,12 @@ export class ReagentController {
   // ── External trigger ────────────────────────────────────────────
 
   triggerProtocol(agentName: string, trigger: ProtocolTrigger): void {
-    const handle = this.agents.get(agentName);
-    if (!handle) {
+    const shell = this.shells.get(agentName);
+    if (!shell) {
       console.warn(`[RC ${this.nodeId}] triggerProtocol: no local agent ${agentName}`);
       return;
     }
-    handle.triggerProtocol(trigger);
+    shell.triggerProtocol(trigger);
   }
 
   invokeProtocol(
@@ -736,7 +777,7 @@ export class ReagentController {
       console.warn(`[RC ${this.nodeId}] invokeProtocol: no initiator for ${protocolName}`);
       return null;
     }
-    if (!this.agents.has(agentName)) {
+    if (!this.shells.has(agentName)) {
       console.warn(`[RC ${this.nodeId}] invokeProtocol: initiator ${agentName} is not local`);
       return null;
     }
@@ -758,7 +799,7 @@ export class ReagentController {
 
   /**
    * Publish an event to the local event bus.
-   * Called by AgentRunner.handleEmit() to propagate zone-level reagent.emit() calls
+   * Called by AgentShellImpl.handleEmit() to propagate zone-level reagent.emit() calls
    * into the trigger system.
    */
   emitEvent(topic: string, payload: Record<string, unknown>, source?: { agent: string; instanceId: string }): void {
@@ -780,7 +821,6 @@ export class ReagentController {
     const protoEntry = this.registry.get(protocolName);
     if (!protoEntry) return null;
 
-    // Find initiator role from ParticipantIR
     let initiatorRole: string | null = null;
     for (const graph of protoEntry.irGraphs.values()) {
       const initiator = graph.participants?.find(p => p.initiator);
@@ -796,25 +836,12 @@ export class ReagentController {
     if (initiatorRole) {
       const candidates = this.findAgentsForProtocolRole(protocolName, initiatorRole);
       for (const candidate of candidates) {
-        if (this.agents.has(candidate.name)) return candidate.name;
-      }
-
-      // Fallback to plays binding
-      for (const agentName of agents) {
-        if (!this.agents.has(agentName)) continue;
-        const handle = this.agents.get(agentName)!;
-        if (typeof (handle as any).getRunner === "function") {
-          const runner = (handle as any).getRunner();
-          const ir = runner?.agentIR ?? runner?._agentIR;
-          if (ir?.plays?.some((p: any) => p.protocolName === protocolName && p.roleName === initiatorRole)) {
-            return agentName;
-          }
-        }
+        if (this.shells.has(candidate.name)) return candidate.name;
       }
     }
 
     for (const agentName of agents) {
-      if (this.agents.has(agentName)) return agentName;
+      if (this.shells.has(agentName)) return agentName;
     }
     return null;
   }
@@ -898,9 +925,9 @@ export class ReagentController {
     if (handler) {
       handler(envelope);
     } else {
-      const handle = this.agents.get(envelope.to.agent);
-      if (handle) {
-        handle.dispatchMessage(envelope);
+      const shell = this.shells.get(envelope.to.agent);
+      if (shell) {
+        shell.dispatchMessage(envelope);
       } else {
         console.warn(`[RC ${this.nodeId}] No handler/agent for ${envelope.to.agent}`);
       }

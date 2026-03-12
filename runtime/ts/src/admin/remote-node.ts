@@ -1,13 +1,14 @@
 /**
  * RemoteNode — a standalone agent node process that connects to an admin host via WsNodeLink.
  *
- * Creates its own ReagentController + NativeAgentNode, connects to the admin host,
+ * Creates its own ReagentController + ManagedBehaviorFactory, connects to the admin host,
  * and receives deploy/trigger commands over the WsNodeLink.
  */
 
 import { WebSocket } from "ws";
 import { ReagentController } from "../controller/reagent-controller.js";
-import { NativeAgentNode } from "../nodes/native-agent-node.js";
+import { ManagedBehaviorFactory } from "../nodes/managed-behavior-factory.js";
+import type { BehaviorFactory } from "../contracts/behavior-factory.js";
 import { WsNodeLink } from "../network/ws-node-link.js";
 import type { IRGraph, RoleIR, TraceEvent, MessageEnvelope } from "../contracts/types.js";
 import type { TraceHook } from "../contracts/interceptor.js";
@@ -45,17 +46,15 @@ export class RemoteNode {
       this.sendControl("TraceEvent", event as unknown as Record<string, unknown>);
     };
 
-    const tsNode = new NativeAgentNode({
-      roleToAgent: this.roleToAgent,
-      traceHook: this.traceHook,
-    });
+    const tsFactory = new ManagedBehaviorFactory();
 
-    const agentNodes: Record<string, NativeAgentNode> = {};
-    for (const lang of this.supportedLangs) agentNodes[lang] = tsNode;
+    const behaviorFactories: Record<string, BehaviorFactory> = {};
+    for (const lang of this.supportedLangs) behaviorFactories[lang] = tsFactory;
 
     this.rc = new ReagentController({
       nodeId: this.nodeId,
-      agentNodes,
+      behaviorFactories,
+      traceHook: this.traceHook,
     });
   }
 

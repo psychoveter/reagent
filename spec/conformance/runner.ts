@@ -11,10 +11,10 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { ReagentController } from "../../runtime/ts/src/controller/reagent-controller.js";
-import { NativeAgentNode, NativeAgentHandle } from "../../runtime/ts/src/nodes/native-agent-node.js";
-import { CustomAgentNode, CustomAgentHandle } from "../../runtime/ts/src/nodes/custom-agent-node.js";
-import { ManagedAgentAdapter } from "../../runtime/ts/src/core/agent-interface.js";
-import type { AgentInterface } from "../../runtime/ts/src/core/agent-interface.js";
+import { ManagedBehaviorFactory } from "../../runtime/ts/src/nodes/managed-behavior-factory.js";
+import { CustomBehaviorFactory } from "../../runtime/ts/src/nodes/custom-behavior-factory.js";
+import { ManagedAgentBehavior } from "../../runtime/ts/src/core/agent-interface.js";
+import { AgentShellImpl } from "../../runtime/ts/src/core/agent-shell-impl.js";
 import type { ProtocolEvent, AgentResponse } from "../../runtime/ts/src/core/protocol-engine.js";
 import type { IRGraph, ThinAgentIR, RoleIR, TraceEvent } from "../../runtime/ts/src/contracts/types.js";
 import { resolveAgentIR } from "../../runtime/ts/src/contracts/types.js";
@@ -45,8 +45,8 @@ async function runManagedMode(): Promise<Set<string>> {
   const traceKinds = new Set<string>();
   const hook: TraceHook = (event: TraceEvent) => { traceKinds.add(event.kind); };
 
-  const agentNode = new NativeAgentNode({ roleToAgent: deployment.roleToAgent, traceHook: hook });
-  const rc = new ReagentController({ nodeId: "conformance-managed", agentNode });
+  const behaviorFactory = new ManagedBehaviorFactory();
+  const rc = new ReagentController({ nodeId: "conformance-managed", behaviorFactory, traceHook: hook });
 
   for (const name of ["ClientAgent", "HandlerAgent"]) {
     const { roleIR } = loadRoleIR(name);
@@ -61,8 +61,8 @@ async function runManagedMode(): Promise<Set<string>> {
   rc.triggerProtocol("ClientAgent", { instanceId, protocolName: "TsDemo", input: { text: "conf" }, roleToAgent: deployment.roleToAgent });
   rc.triggerProtocol("HandlerAgent", { instanceId, protocolName: "TsDemo", input: { text: "conf" }, roleToAgent: deployment.roleToAgent });
 
-  const client = rc.getAgent("ClientAgent") as NativeAgentHandle;
-  const handler = rc.getAgent("HandlerAgent") as NativeAgentHandle;
+  const client = rc.getAgent("ClientAgent") as AgentShellImpl;
+  const handler = rc.getAgent("HandlerAgent") as AgentShellImpl;
   await Promise.all([client.waitForCompletion(1, 10000), handler.waitForCompletion(1, 10000)]);
   await rc.stop();
 
@@ -74,21 +74,19 @@ async function runCustomMode(): Promise<Set<string>> {
   const traceKinds = new Set<string>();
   const hook: TraceHook = (event: TraceEvent) => { traceKinds.add(event.kind); };
 
-  const managedNode = new NativeAgentNode({ roleToAgent: deployment.roleToAgent, traceHook: hook });
-  const customNode = new CustomAgentNode({
-    roleToAgent: deployment.roleToAgent,
-    agentFactory: () => {
-      const adapter = new ManagedAgentAdapter();
+  const managedFactory = new ManagedBehaviorFactory();
+  const customFactory = new CustomBehaviorFactory({
+    behaviorFactory: (_agentName, _roleIR) => {
+      const adapter = new ManagedAgentBehavior();
       return {
         async handle(event: ProtocolEvent): Promise<AgentResponse> {
           return adapter.handle(event);
         },
       };
     },
-    traceHook: hook,
   });
 
-  const rc = new ReagentController({ nodeId: "conformance-custom", agentNodes: { ts: managedNode, custom: customNode } });
+  const rc = new ReagentController({ nodeId: "conformance-custom", behaviorFactories: { ts: managedFactory, custom: customFactory }, traceHook: hook });
 
   // ClientAgent as managed
   const { roleIR: clientRoleIR } = loadRoleIR("ClientAgent");
@@ -108,7 +106,7 @@ async function runCustomMode(): Promise<Set<string>> {
   rc.triggerProtocol("ClientAgent", { instanceId, protocolName: "TsDemo", input: { text: "conf" }, roleToAgent: deployment.roleToAgent });
   rc.triggerProtocol("HandlerAgent", { instanceId, protocolName: "TsDemo", input: { text: "conf" }, roleToAgent: deployment.roleToAgent });
 
-  const client = rc.getAgent("ClientAgent") as NativeAgentHandle;
+  const client = rc.getAgent("ClientAgent") as AgentShellImpl;
   await client.waitForCompletion(1, 10000);
   await new Promise(r => setTimeout(r, 500));
   await rc.stop();

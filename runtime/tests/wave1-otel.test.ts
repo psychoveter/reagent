@@ -13,7 +13,8 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { ReagentController } from "../ts/src/controller/reagent-controller.js";
-import { NativeAgentNode, NativeAgentHandle } from "../ts/src/nodes/native-agent-node.js";
+import { ManagedBehaviorFactory } from "../ts/src/nodes/managed-behavior-factory.js";
+import { AgentShellImpl } from "../ts/src/core/agent-shell-impl.js";
 import type { AgentIR, IRGraph, ThinAgentIR, RoleIR } from "../ts/src/contracts/types.js";
 import { resolveAgentIR } from "../ts/src/contracts/types.js";
 import { createOTelInterceptor, endInstanceSpan } from "../ts/src/observability/otel-interceptor.js";
@@ -66,11 +67,11 @@ async function testOT1(): Promise<TestResult> {
     const interceptor = createOTelInterceptor(fakeTracer as any);
 
     const deployment = loadDeploymentFrom(FIXTURES_DIR);
-    const agentNode = new NativeAgentNode({ roleToAgent: deployment.roleToAgent });
+    const behaviorFactory = new ManagedBehaviorFactory();
 
     const rc = new ReagentController({
       nodeId: "otel-test-node",
-      agentNode,
+      behaviorFactory,
       interceptors: [interceptor],
     });
 
@@ -95,8 +96,8 @@ async function testOT1(): Promise<TestResult> {
     rc.triggerProtocol("ClientAgent", { instanceId, protocolName: "TsDemo", input: triggerInput, roleToAgent: deployment.roleToAgent });
     rc.triggerProtocol("HandlerAgent", { instanceId, protocolName: "TsDemo", input: triggerInput, roleToAgent: deployment.roleToAgent });
 
-    const clientHandle = rc.getAgent("ClientAgent") as NativeAgentHandle;
-    const handlerHandle = rc.getAgent("HandlerAgent") as NativeAgentHandle;
+    const clientHandle = rc.getAgent("ClientAgent") as AgentShellImpl;
+    const handlerHandle = rc.getAgent("HandlerAgent") as AgentShellImpl;
     await Promise.all([
       clientHandle.waitForCompletion(1, 10000),
       handlerHandle.waitForCompletion(1, 10000),
@@ -156,12 +157,9 @@ async function testOT2(): Promise<TestResult> {
     const traceHook = createOTelTraceHook(fakeTracer as any);
 
     const deployment = loadDeploymentFrom(FIXTURES_DIR);
-    const agentNode = new NativeAgentNode({
-      roleToAgent: deployment.roleToAgent,
-      traceHook,
-    });
+    const behaviorFactory = new ManagedBehaviorFactory();
 
-    const rc = new ReagentController({ nodeId: "otel-trace-node", agentNode });
+    const rc = new ReagentController({ nodeId: "otel-trace-node", behaviorFactory, traceHook });
 
     const agents = [
       { name: "ClientAgent", graphEntries: [{ proto: "TsDemo", role: "client" }] },
@@ -184,8 +182,8 @@ async function testOT2(): Promise<TestResult> {
     rc.triggerProtocol("ClientAgent", { instanceId, protocolName: "TsDemo", input: triggerInput, roleToAgent: deployment.roleToAgent });
     rc.triggerProtocol("HandlerAgent", { instanceId, protocolName: "TsDemo", input: triggerInput, roleToAgent: deployment.roleToAgent });
 
-    const clientHandle = rc.getAgent("ClientAgent") as NativeAgentHandle;
-    const handlerHandle = rc.getAgent("HandlerAgent") as NativeAgentHandle;
+    const clientHandle = rc.getAgent("ClientAgent") as AgentShellImpl;
+    const handlerHandle = rc.getAgent("HandlerAgent") as AgentShellImpl;
     await Promise.all([
       clientHandle.waitForCompletion(1, 10000),
       handlerHandle.waitForCompletion(1, 10000),
@@ -234,14 +232,12 @@ async function testOT3(): Promise<TestResult> {
     const interceptor = createOTelInterceptor(fakeTracer as any);
 
     const deployment = loadDeploymentFrom(FIXTURES_DIR);
-    const agentNode = new NativeAgentNode({
-      roleToAgent: deployment.roleToAgent,
-      traceHook,
-    });
+    const behaviorFactory = new ManagedBehaviorFactory();
 
     const rc = new ReagentController({
       nodeId: "otel-end-node",
-      agentNode,
+      behaviorFactory,
+      traceHook,
       interceptors: [interceptor],
     });
 
@@ -266,8 +262,8 @@ async function testOT3(): Promise<TestResult> {
     rc.triggerProtocol("ClientAgent", { instanceId, protocolName: "TsDemo", input: triggerInput, roleToAgent: deployment.roleToAgent });
     rc.triggerProtocol("HandlerAgent", { instanceId, protocolName: "TsDemo", input: triggerInput, roleToAgent: deployment.roleToAgent });
 
-    const clientHandle = rc.getAgent("ClientAgent") as NativeAgentHandle;
-    const handlerHandle = rc.getAgent("HandlerAgent") as NativeAgentHandle;
+    const clientHandle = rc.getAgent("ClientAgent") as AgentShellImpl;
+    const handlerHandle = rc.getAgent("HandlerAgent") as AgentShellImpl;
     await Promise.all([
       clientHandle.waitForCompletion(1, 10000),
       handlerHandle.waitForCompletion(1, 10000),

@@ -1,20 +1,54 @@
-export { AgentRunner } from "./core/agent-runner.js";
-export type { AgentRunnerConfig } from "./core/agent-runner.js";
-export { ProtocolInstance } from "./core/protocol-instance.js";
-export type { InstanceConfig, InstanceStatus, AdvanceHookContext, AdvanceHook } from "./core/protocol-instance.js";
-export { NatsTransport } from "./network/nats-transport.js";
-export { NatsCompatTransport } from "./network/nats-compat-transport.js";
+// ── R1 Core ─────────────────────────────────────────────────────────
+export type { AgentBehavior } from "./contracts/agent-behavior.js";
+export type { BehaviorFactory } from "./contracts/behavior-factory.js";
+export type { AgentShell, AgentShellStatus, AgentRecordDTO, RoleRunHandle, RoleRunResult, ShellStatusChangeCallback } from "./contracts/agent-shell.js";
+export type { ProtocolRunRef, ProtocolRunTracker, ProtocolRunSnapshot, RoleRunIdentity, RoleRunStatus } from "./contracts/protocol-run.js";
+export { RoleEngine } from "./core/role-engine.js";
+export type { RoleEngineInterface, RoleEngineConfig } from "./core/role-engine.js";
+export { RoleRun } from "./core/role-run.js";
+export type { RoleRunInterface, RoleRunConfig, RoleSpawnRequest, AdvanceHookContext, AdvanceHook } from "./core/role-run.js";
+export { AgentShellImpl } from "./core/agent-shell-impl.js";
+export type { AgentShellConfig } from "./core/agent-shell-impl.js";
+export { ManagedBehaviorFactory } from "./nodes/managed-behavior-factory.js";
+export { CustomBehaviorFactory } from "./nodes/custom-behavior-factory.js";
+export type { CustomBehaviorFactoryConfig } from "./nodes/custom-behavior-factory.js";
+export { GateBehaviorFactory } from "./nodes/gate-behavior-factory.js";
+export type { GateBehaviorFactoryConfig } from "./nodes/gate-behavior-factory.js";
+export { PythonBehaviorFactory } from "./nodes/python-behavior-factory.js";
+export { ProtocolEngine, durationToMs } from "./core/protocol-engine.js";
+export type { ProtocolEvent, AgentResponse, EngineStatus } from "./core/protocol-engine.js";
+export { ManagedAgentBehavior } from "./core/agent-interface.js";
+export type { ManagedBehaviorConfig } from "./core/agent-interface.js";
+/** @deprecated use ManagedAgentBehavior */
+export { ManagedAgentBehavior as ManagedAgentAdapter } from "./core/agent-interface.js";
+/** @deprecated use ManagedBehaviorConfig */
+export type { ManagedBehaviorConfig as ManagedAgentConfig } from "./core/agent-interface.js";
+/** @deprecated use AgentBehavior */
+export type { AgentBehavior as AgentInterface } from "./contracts/agent-behavior.js";
+export { executeZone, createReagentStub } from "./core/zone-executor.js";
+export type { ReagentStub } from "./core/zone-executor.js";
+
+// ── Controller & Transport ──────────────────────────────────────────
 export { ReagentController } from "./controller/reagent-controller.js";
 export type { ReagentControllerConfig } from "./controller/reagent-controller.js";
-export { NativeAgentNode, NativeAgentHandle } from "./nodes/native-agent-node.js";
-export type { NativeAgentNodeConfig } from "./nodes/native-agent-node.js";
-export { PythonAgentNode, PythonAgentHandle } from "./nodes/python-agent-node.js";
-export type { PythonAgentNodeConfig } from "./nodes/python-agent-node.js";
+export { NatsTransport } from "./network/nats-transport.js";
+export { NatsCompatTransport } from "./network/nats-compat-transport.js";
 export { InMemoryNodeLink, createInMemoryLinkPair } from "./network/inmemory-node-link.js";
 export { WsNodeLink, WsNodeLinkServer } from "./network/ws-node-link.js";
 export type { WsNodeLinkConfig, WsNodeLinkServerConfig } from "./network/ws-node-link.js";
 export { NatsNodeLink } from "./network/nats-node-link.js";
 export type { NatsNodeLinkConfig } from "./network/nats-node-link.js";
+export * from "./contracts/types.js";
+export type { NodeRef, AgentRef, ReagentTransport, NodeLink } from "./contracts/transport.js";
+export type { InterceptorFn, InterceptorContext, MessageDirection, TraceHook, AddressPage } from "./contracts/interceptor.js";
+export { mergeRoleBindings, resolveRoleBinding, setRoleBinding } from "./controller/role-bindings.js";
+export type { RoleBindingMap, RoleBindingResolver, RoleBindingSource } from "./controller/role-bindings.js";
+export { streamingScatter, partitionBranches, partitionedScatter } from "./core/scatter-coordinator.js";
+export type { ScatterBranch, ScatterResult, ScatterPartition, ScatterCoordinatorConfig, OnBranchResult, BranchExecutor } from "./core/scatter-coordinator.js";
+export { LocalEventBus } from "./controller/local-event-bus.js";
+export type { BusEvent, Disposable } from "./controller/local-event-bus.js";
+
+// ── Admin & Debug ───────────────────────────────────────────────────
 export { AdminClient } from "./admin/client.js";
 export type { AdminResponse, ListAgentsArgs, AdminClientConfig } from "./admin/client.js";
 export { NodeControlEndpoint } from "./admin/node-control-endpoint.js";
@@ -26,26 +60,6 @@ export type { NodeEndpointResolver } from "./admin/node-endpoint-resolver.js";
 export { StoreBackedNodeEndpointResolver } from "./admin/node-endpoint-resolver.js";
 export { Session, SessionManager } from "./admin/session.js";
 export type { SourceMap, SourceMapEntry, CompiledArtifacts, SessionStatus } from "./admin/session.js";
-export { executeZone, createReagentStub } from "./core/zone-executor.js";
-export type { ReagentStub } from "./core/zone-executor.js";
-export * from "./contracts/types.js";
-export type { NodeRef, AgentRef, ReagentTransport, NodeLink } from "./contracts/transport.js";
-export type { AgentNode, AgentHandle } from "./contracts/agent-node.js";
-export type { InterceptorFn, InterceptorContext, MessageDirection, TraceHook, AddressPage } from "./contracts/interceptor.js";
-export { ProtocolEngine, durationToMs } from "./core/protocol-engine.js";
-export type { ProtocolEvent, AgentResponse, EngineStatus } from "./core/protocol-engine.js";
-export { ManagedAgentAdapter } from "./core/agent-interface.js";
-export type { AgentInterface, ManagedAgentConfig } from "./core/agent-interface.js";
-export { CustomAgentNode, CustomAgentHandle } from "./nodes/custom-agent-node.js";
-export type { CustomAgentNodeConfig } from "./nodes/custom-agent-node.js";
-export { MessageGateNode, MessageGateHandle } from "./nodes/message-gate-node.js";
-export type { MessageGateNodeConfig } from "./nodes/message-gate-node.js";
-export type { GateTransport } from "./gate/gate-transport.js";
-export { WsGateTransport, StdioGateTransport, HttpGateTransport } from "./gate/gate-transport.js";
-export { GateSession, GateValidationError } from "./gate/gate-session.js";
-export type { GateSessionConfig, GateSessionStatus } from "./gate/gate-session.js";
-export { createOTelInterceptor, endInstanceSpan } from "./observability/otel-interceptor.js";
-export { createOTelTraceHook } from "./observability/otel-trace-hook.js";
 export { DebugInterceptor } from "./admin/debug-interceptor.js";
 export type { HeldMessage, DebugInterceptorEvent } from "./admin/debug-interceptor.js";
 export { DebugAdvanceHook } from "./admin/debug-advance-hook.js";
@@ -54,17 +68,31 @@ export { DebugController } from "./admin/debug-controller.js";
 export type { Breakpoint, ResolvedBreakpoint, DebugStoppedEvent } from "./admin/debug-controller.js";
 export { RemoteNode } from "./admin/remote-node.js";
 export type { RemoteNodeConfig } from "./admin/remote-node.js";
-export { streamingScatter, partitionBranches, partitionedScatter } from "./core/scatter-coordinator.js";
-export type { ScatterBranch, ScatterResult, ScatterPartition, ScatterCoordinatorConfig, OnBranchResult, BranchExecutor } from "./core/scatter-coordinator.js";
-export { LocalEventBus } from "./controller/local-event-bus.js";
-export type { BusEvent, Disposable } from "./controller/local-event-bus.js";
-export { CronAgent, parseCronExpression, cronMatchesDate, parseCronField, nextCronFire } from "./triggers/cron-agent.js";
-export type { CronSchedule, CronField } from "./triggers/cron-agent.js";
+
+// ── Gate ────────────────────────────────────────────────────────────
+export type { GateTransport } from "./gate/gate-transport.js";
+export { WsGateTransport, StdioGateTransport, HttpGateTransport } from "./gate/gate-transport.js";
+export { GateSession, GateValidationError } from "./gate/gate-session.js";
+export type { GateSessionConfig, GateSessionStatus } from "./gate/gate-session.js";
 export { AsyncQueue } from "./gate/async-queue.js";
 export { McpAgentAdapter } from "./mcp/mcp-agent-adapter.js";
 export type { QueuedEvent } from "./mcp/mcp-agent-adapter.js";
 export { ReagentMcpServer } from "./mcp/mcp-server.js";
 export type { ReagentMcpServerConfig } from "./mcp/mcp-server.js";
+
+// ── Observability ───────────────────────────────────────────────────
+export { createOTelInterceptor, endInstanceSpan } from "./observability/otel-interceptor.js";
+export { createOTelTraceHook } from "./observability/otel-trace-hook.js";
+
+// ── Triggers ────────────────────────────────────────────────────────
+export { CronAgent, parseCronExpression, cronMatchesDate, parseCronField, nextCronFire } from "./triggers/cron-agent.js";
+export type { CronSchedule, CronField } from "./triggers/cron-agent.js";
+export { TriggerMatcher } from "./triggers/trigger-matcher.js";
+export type { TriggerEntry, InvokeTriggerEntry, EventTriggerEntry, CronTriggerEntry, TriggerCallback, TraceCallback } from "./triggers/trigger-matcher.js";
+export { evaluatePolicy, recordTriggerFired, recordTriggerCompleted, createPolicyState, DEFAULT_TRIGGER_POLICY } from "./triggers/trigger-policy.js";
+export type { TriggerPolicy, TriggerPolicyState, CircuitState, SuppressionReason } from "./triggers/trigger-policy.js";
+
+// ── Cluster ─────────────────────────────────────────────────────────
 export { LeaderElection } from "./cluster/leader-election.js";
 export type { LeaderElectionConfig } from "./cluster/leader-election.js";
 export { bootstrapCluster, parsePeersArg, parseEtcdHostsArg } from "./cluster/cluster-bootstrap.js";
@@ -75,10 +103,6 @@ export { EtcdManager } from "./cluster/etcd-manager.js";
 export type { EtcdManagerConfig } from "./cluster/etcd-manager.js";
 export { EtcdStateStore } from "./cluster/etcd-state-store.js";
 export type { EtcdStateStoreConfig } from "./cluster/etcd-state-store.js";
-export { TriggerMatcher } from "./triggers/trigger-matcher.js";
-export type { TriggerEntry, InvokeTriggerEntry, EventTriggerEntry, CronTriggerEntry, TriggerCallback, TraceCallback } from "./triggers/trigger-matcher.js";
-export { evaluatePolicy, recordTriggerFired, recordTriggerCompleted, createPolicyState, DEFAULT_TRIGGER_POLICY } from "./triggers/trigger-policy.js";
-export type { TriggerPolicy, TriggerPolicyState, CircuitState, SuppressionReason } from "./triggers/trigger-policy.js";
 export { createDefaultRuntimeConfig } from "./cluster/runtime-config.js";
 export type {
   RuntimeConfig,
@@ -90,5 +114,3 @@ export type {
 } from "./cluster/runtime-config.js";
 export { bootstrapRuntime } from "./cluster/runtime-bootstrap.js";
 export type { RuntimeBootstrapHandle } from "./cluster/runtime-bootstrap.js";
-export { mergeRoleBindings, resolveRoleBinding, setRoleBinding } from "./controller/role-bindings.js";
-export type { RoleBindingMap, RoleBindingResolver, RoleBindingSource } from "./controller/role-bindings.js";

@@ -380,13 +380,27 @@ connection.onDidChangeConfiguration((change) => {
   }
 });
 
+function findExtensionRoot(): string {
+  const path = require("path");
+  const fs = require("fs");
+  let dir = __dirname;
+  for (let i = 0; i < 5; i++) {
+    if (fs.existsSync(path.join(dir, "lang", "parser.js"))) return dir;
+    dir = path.dirname(dir);
+  }
+  return path.join(__dirname, "..", "..");
+}
+
 async function loadParser() {
   try {
     const path = require("path");
     const { pathToFileURL } = require("url");
-    const langDir = path.join(__dirname, "..", "..", "lang");
-    const parserPath = path.join(langDir, "parser.js");
-    const mod = await import(pathToFileURL(parserPath).href);
+    const extRoot = findExtensionRoot();
+    const parserPath = path.join(extRoot, "lang", "parser.js");
+    // Use Function-based import to bypass TypeScript CJS downlevel (tsc turns
+    // `await import()` into `require()` which cannot handle file:// URLs for ESM).
+    const dynamicImport = new Function("specifier", "return import(specifier)");
+    const mod = await dynamicImport(pathToFileURL(parserPath).href);
     parseFn = mod.parseProgram;
     parserLoadState = "loaded";
     log("info", `Parser loaded from ${parserPath}`);

@@ -1,0 +1,259 @@
+{
+  "protocolName": "DesignStage",
+  "role": "developer",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_29",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "loop_guard_30",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression",
+        "expr": "$ctx.stageApproved != true"
+      }
+    },
+    {
+      "id": "recv_32",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "analyst",
+        "arrow": "-->",
+        "messageName": "DesignPacket",
+        "postReceiveZone": "\n        $ctx.designInput = $ctx.msg\n      "
+      }
+    },
+    {
+      "id": "act_33",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n      $ctx.designProposal = {\n        stage: \"design\",\n        docsDelta: $ctx.designInput.docsDelta,\n        architecture: {\n          designDoc: \"developer architecture proposal for \" + $ctx.task.title,\n          boundaries: [\"runtime\", \"docs\", \"tests\"]\n        },\n        openQuestions: $ctx.designInput.openQuestions,\n        revisionNote: $ctx.designInput.revisionNote\n      }\n    ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_34",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "reviewer",
+        "arrow": "-->",
+        "messageName": "DesignPacket",
+        "preSendZone": "\n        $ctx.msg.stage = $ctx.designProposal.stage\n        $ctx.msg.docsDelta = $ctx.designProposal.docsDelta\n        $ctx.msg.architecture = $ctx.designProposal.architecture\n        $ctx.msg.openQuestions = $ctx.designProposal.openQuestions\n        $ctx.msg.revisionNote = $ctx.designProposal.revisionNote\n      "
+      }
+    },
+    {
+      "id": "xor_35",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "xor"
+      }
+    },
+    {
+      "id": "guard_37",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression",
+        "expr": "$ctx.stageApproved == true"
+      }
+    },
+    {
+      "id": "else_38",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "merge_36",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "loop_exit_31",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "end_39",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_29",
+      "to": "loop_guard_30",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "loop_guard_30",
+      "to": "recv_32",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_32",
+      "to": "act_33",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_33",
+      "to": "send_34",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_34",
+      "to": "xor_35",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_35",
+      "to": "guard_37",
+      "label": {
+        "kind": "expression",
+        "expr": "$ctx.stageApproved == true"
+      }
+    },
+    {
+      "from": "guard_37",
+      "to": "merge_36",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_35",
+      "to": "else_38",
+      "label": {
+        "kind": "else"
+      }
+    },
+    {
+      "from": "else_38",
+      "to": "merge_36",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "merge_36",
+      "to": "loop_guard_30",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "loop_guard_30",
+      "to": "loop_exit_31",
+      "label": {
+        "kind": "else"
+      }
+    },
+    {
+      "from": "loop_exit_31",
+      "to": "end_39",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_29",
+  "terminalStateIds": [
+    "end_39"
+  ],
+  "participants": [
+    {
+      "name": "human",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "analyst",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    },
+    {
+      "name": "developer",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    },
+    {
+      "name": "reviewer",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "triggers": [
+    {
+      "kind": "invoke",
+      "withType": "FeatureTask",
+      "resolveMap": {
+        "human": [
+          {
+            "step": "single"
+          }
+        ],
+        "analyst": [
+          {
+            "step": "single"
+          }
+        ],
+        "developer": [
+          {
+            "step": "single"
+          }
+        ],
+        "reviewer": [
+          {
+            "step": "single"
+          }
+        ]
+      }
+    }
+  ],
+  "invocable": true,
+  "version": "0.1.0",
+  "fingerprints": {
+    "structureHash": "84d179e736b09b39419f4bdf52bb050df84ae257de25171dece3818640ad6c26",
+    "schemaHash": "f98c1ee4f7b0195d0f9fabbb6e5539ce174fb444a69f059b6f56cb647466fa22",
+    "implHash": "24c8e587599dbb3d54e08cfaf8f1a409ec6362228721b3fc01d179e84383f6a5"
+  }
+}

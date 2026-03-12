@@ -2,8 +2,8 @@
  * M16 E2E: TS-first cross-mode orchestration.
  *
  * One protocol instance spans:
- * - managed initiator (`NativeAgentNode`)
- * - custom worker (`CustomAgentNode` mounted on the `js` backend slot)
+ * - managed initiator (`ManagedBehaviorFactory`)
+ * - custom worker (`CustomBehaviorFactory` mounted on the `js` backend slot)
  * - gate-backed approver implemented through `GateSession` + `GateTransport`
  *   and mounted on the `kt` backend slot
  *
@@ -16,10 +16,11 @@ import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 
 import { ReagentController } from "../ts/src/controller/reagent-controller.js";
-import { NativeAgentNode, NativeAgentHandle } from "../ts/src/nodes/native-agent-node.js";
-import { CustomAgentNode, CustomAgentHandle } from "../ts/src/nodes/custom-agent-node.js";
-import { ManagedAgentAdapter } from "../ts/src/core/agent-interface.js";
-import type { AgentInterface } from "../ts/src/core/agent-interface.js";
+import { ManagedBehaviorFactory } from "../ts/src/nodes/managed-behavior-factory.js";
+import { CustomBehaviorFactory } from "../ts/src/nodes/custom-behavior-factory.js";
+import { AgentShellImpl } from "../ts/src/core/agent-shell-impl.js";
+import { ManagedAgentBehavior } from "../ts/src/core/agent-interface.js";
+import type { AgentBehavior } from "../ts/src/contracts/agent-behavior.js";
 import type { AgentResponse, ProtocolEvent } from "../ts/src/core/protocol-engine.js";
 import type { IRGraph, RoleIR } from "../ts/src/contracts/types.js";
 import { GateSession } from "../ts/src/gate/gate-session.js";
@@ -62,7 +63,7 @@ class LoopbackGateTransport implements GateTransport {
   sent: ProtocolEvent[] = [];
   private responseHandler: ((response: AgentResponse) => void) | null = null;
 
-  constructor(private readonly externalAgent: ManagedAgentAdapter) {}
+  constructor(private readonly externalAgent: ManagedAgentBehavior) {}
 
   send(event: ProtocolEvent): void {
     this.sent.push(event);
@@ -86,12 +87,12 @@ class LoopbackGateTransport implements GateTransport {
   close(): void {}
 }
 
-class GateBackedAgent implements AgentInterface {
+class GateBackedAgent implements AgentBehavior {
   private transport: LoopbackGateTransport;
   private session: GateSession | null = null;
 
   constructor() {
-    this.transport = new LoopbackGateTransport(new ManagedAgentAdapter());
+    this.transport = new LoopbackGateTransport(new ManagedAgentBehavior());
   }
 
   async handle(event: ProtocolEvent): Promise<AgentResponse> {
@@ -111,12 +112,12 @@ class GateBackedAgent implements AgentInterface {
   }
 }
 
-function getManagedHandle(rc: ReagentController, name: string): NativeAgentHandle {
-  return rc.getAgent(name) as NativeAgentHandle;
+function getManagedHandle(rc: ReagentController, name: string): AgentShellImpl {
+  return rc.getAgent(name) as AgentShellImpl;
 }
 
-function getCustomHandle(rc: ReagentController, name: string): CustomAgentHandle {
-  return rc.getAgent(name) as CustomAgentHandle;
+function getCustomHandle(rc: ReagentController, name: string): AgentShellImpl {
+  return rc.getAgent(name) as AgentShellImpl;
 }
 
 test("M16: one flow spans managed, custom, and gate-backed agents", async () => {
@@ -231,15 +232,13 @@ role approver [kt] {
 
   const { graphs, roleIRs } = compileSource(source);
 
-  const managedNode = new NativeAgentNode({ roleToAgent: {} });
-  const customNode = new CustomAgentNode({
-    roleToAgent: {},
-    agentFactory: () => new ManagedAgentAdapter(),
+  const managedFactory = new ManagedBehaviorFactory();
+  const customFactory = new CustomBehaviorFactory({
+    behaviorFactory: () => new ManagedAgentBehavior(),
   });
   const gateAgents = new Map<string, GateBackedAgent>();
-  const gateNode = new CustomAgentNode({
-    roleToAgent: {},
-    agentFactory: (agentName) => {
+  const gateFactory = new CustomBehaviorFactory({
+    behaviorFactory: (agentName) => {
       const agent = new GateBackedAgent();
       gateAgents.set(agentName, agent);
       return agent;
@@ -248,10 +247,10 @@ role approver [kt] {
 
   const rc = new ReagentController({
     nodeId: "m16-cross-mode-node",
-    agentNodes: {
-      ts: managedNode,
-      js: customNode,
-      kt: gateNode,
+    behaviorFactories: {
+      ts: managedFactory,
+      js: customFactory,
+      kt: gateFactory,
     },
   });
 

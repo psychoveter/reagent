@@ -1,0 +1,8 @@
+{
+  "name": "feature-development-reagent",
+  "version": "0.1.0",
+  "description": "Feature development workflow: human via Cursor MCP, analyst/developer/reviewer iterate across design, implementation, and finalization stages.",
+  "protocols": [
+    "protocols/*.rg"
+  ]
+}

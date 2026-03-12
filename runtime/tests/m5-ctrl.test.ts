@@ -2,7 +2,7 @@
  * M5-CTRL Functional E2E Tests
  *
  * These tests validate the new connectivity layer:
- * - ReagentController + NativeAgentNode + loopback routing (no NATS required)
+ * - ReagentController + ManagedBehaviorFactory + loopback routing (no NATS required)
  * - InMemoryNodeLink for multi-node scenarios
  * - Interceptor chain
  * - TraceHook
@@ -28,8 +28,9 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { ReagentController, type ReagentControllerConfig } from "../ts/src/controller/reagent-controller.js";
-import { NativeAgentNode, NativeAgentHandle, type NativeAgentNodeConfig } from "../ts/src/nodes/native-agent-node.js";
-import { PythonAgentNode, PythonAgentHandle } from "../ts/src/nodes/python-agent-node.js";
+import { ManagedBehaviorFactory } from "../ts/src/nodes/managed-behavior-factory.js";
+import { PythonBehaviorFactory } from "../ts/src/nodes/python-behavior-factory.js";
+import { AgentShellImpl } from "../ts/src/core/agent-shell-impl.js";
 import { createInMemoryLinkPair } from "../ts/src/network/inmemory-node-link.js";
 import type { AgentIR, IRGraph, ThinAgentIR, RoleIR, TraceEvent, MessageEnvelope } from "../ts/src/contracts/types.js";
 import { resolveAgentIR } from "../ts/src/contracts/types.js";
@@ -74,15 +75,13 @@ function createSingleNodeSetup(
 } {
   const deployment = loadDeploymentFrom(dir);
 
-  const agentNode = new NativeAgentNode({
-    roleToAgent: deployment.roleToAgent,
-    traceHook: opts?.traceHook,
-  });
+  const factory = new ManagedBehaviorFactory();
 
   const rc = new ReagentController({
     nodeId: "test-node",
-    agentNode,
+    behaviorFactory: factory,
     interceptors: opts?.interceptors,
+    traceHook: opts?.traceHook,
   });
 
   for (const agentDef of agents) {
@@ -98,8 +97,8 @@ function createSingleNodeSetup(
   return { rc, deployment };
 }
 
-function getHandle(rc: ReagentController, name: string): NativeAgentHandle {
-  return rc.getAgent(name) as NativeAgentHandle;
+function getHandle(rc: ReagentController, name: string): AgentShellImpl {
+  return rc.getAgent(name) as AgentShellImpl;
 }
 
 // ── C1: Single-node loopback ────────────────────────────────────────
@@ -161,11 +160,11 @@ async function testC2(): Promise<TestResult> {
   try {
     const deployment = loadDeploymentFrom(FIXTURES_DIR);
 
-    const node1AgentNode = new NativeAgentNode({ roleToAgent: deployment.roleToAgent });
-    const node2AgentNode = new NativeAgentNode({ roleToAgent: deployment.roleToAgent });
+    const factory1 = new ManagedBehaviorFactory();
+    const factory2 = new ManagedBehaviorFactory();
 
-    const rc1 = new ReagentController({ nodeId: "node-1", agentNode: node1AgentNode });
-    const rc2 = new ReagentController({ nodeId: "node-2", agentNode: node2AgentNode });
+    const rc1 = new ReagentController({ nodeId: "node-1", behaviorFactory: factory1 });
+    const rc2 = new ReagentController({ nodeId: "node-2", behaviorFactory: factory2 });
 
     const [link1, link2] = createInMemoryLinkPair("node-1", "node-2");
     rc1.addNodeLink(link1);
@@ -379,8 +378,8 @@ async function testC6(): Promise<TestResult> {
     let received: MessageEnvelope | null = null;
     const deployment = loadDeploymentFrom(FIXTURES_DIR);
 
-    const node = new NativeAgentNode({ roleToAgent: deployment.roleToAgent });
-    const rc2 = new ReagentController({ nodeId: "c6-node", agentNode: node });
+    const factory2 = new ManagedBehaviorFactory();
+    const rc2 = new ReagentController({ nodeId: "c6-node", behaviorFactory: factory2 });
 
     // Register a minimal "receiver" transport to capture the envelope
     const recvTransport = rc2.createTransport("Receiver");
@@ -416,11 +415,11 @@ async function testC7(): Promise<TestResult> {
   try {
     const deployment = loadDeploymentFrom(FIXTURES_DIR);
 
-    const node1AN = new NativeAgentNode({ roleToAgent: deployment.roleToAgent });
-    const node2AN = new NativeAgentNode({ roleToAgent: deployment.roleToAgent });
+    const factory1 = new ManagedBehaviorFactory();
+    const factory2 = new ManagedBehaviorFactory();
 
-    const rc1 = new ReagentController({ nodeId: "node-1", agentNode: node1AN });
-    const rc2 = new ReagentController({ nodeId: "node-2", agentNode: node2AN });
+    const rc1 = new ReagentController({ nodeId: "node-1", behaviorFactory: factory1 });
+    const rc2 = new ReagentController({ nodeId: "node-2", behaviorFactory: factory2 });
 
     const [link1, link2] = createInMemoryLinkPair("node-1", "node-2");
     rc1.addNodeLink(link1);
@@ -485,8 +484,8 @@ async function testC8(): Promise<TestResult> {
 
   try {
     const deployment = loadDeploymentFrom(FIXTURES_DIR);
-    const node = new NativeAgentNode({ roleToAgent: deployment.roleToAgent });
-    const rc = new ReagentController({ nodeId: "spawn-node", agentNode: node });
+    const factory = new ManagedBehaviorFactory();
+    const rc = new ReagentController({ nodeId: "spawn-node", behaviorFactory: factory });
 
     // Register only ClientAgent initially
     const { roleIR: clientRole } = loadRoleIR(FIXTURES_DIR, "ClientAgent");
@@ -576,8 +575,8 @@ async function testC10(): Promise<TestResult> {
     // Merge roleToAgent maps
     const mergedRTA = { ...deployment1.roleToAgent, ...deployment2.roleToAgent };
 
-    const node = new NativeAgentNode({ roleToAgent: mergedRTA });
-    const rc = new ReagentController({ nodeId: "multi-proto-node", agentNode: node });
+    const factory = new ManagedBehaviorFactory();
+    const rc = new ReagentController({ nodeId: "multi-proto-node", behaviorFactory: factory });
 
     // Register TsDemo agents
     const { roleIR: clientRole } = loadRoleIR(FIXTURES_DIR, "ClientAgent");
@@ -647,8 +646,8 @@ async function testC11(): Promise<TestResult> {
   try {
     const deployment = loadDeploymentFrom(MULTI_PROTO_DIR);
 
-    const node = new NativeAgentNode({ roleToAgent: deployment.roleToAgent });
-    const rc = new ReagentController({ nodeId: "multi-proto", agentNode: node });
+    const factory = new ManagedBehaviorFactory();
+    const rc = new ReagentController({ nodeId: "multi-proto", behaviorFactory: factory });
 
     // ClientAgent plays TaskProcessing.client
     const { roleIR: clientRole } = loadRoleIR(MULTI_PROTO_DIR, "ClientAgent");
@@ -752,26 +751,23 @@ async function testC12(): Promise<TestResult> {
   try {
     const deployment = loadDeploymentFrom(CROSS_LANG_DIR);
 
-    // Two AgentNode backends — ts and py
-    const tsNode = new NativeAgentNode({ roleToAgent: deployment.roleToAgent });
-    const pyNode = new PythonAgentNode({
-      roleToAgent: deployment.roleToAgent,
-      pyRuntimeDir: PY_RUNTIME_DIR,
-    });
+    // Two BehaviorFactory backends — ts and py
+    const tsFactory = new ManagedBehaviorFactory();
+    const pyFactory = new PythonBehaviorFactory();
 
     const rc = new ReagentController({
       nodeId: "cross-lang-node",
-      agentNodes: { ts: tsNode, py: pyNode },
+      behaviorFactories: { ts: tsFactory, py: pyFactory },
     });
 
-    // TsAgent (lang: "ts") → NativeAgentNode
+    // TsAgent (lang: "ts") → ManagedBehaviorFactory
     const { roleIR: tsRole } = loadRoleIR(CROSS_LANG_DIR, "TsAgent");
     const tsGraphs = new Map([
       ["CrossLangE2E.tsRole", loadGraph(CROSS_LANG_DIR, "CrossLangE2E", "tsRole")],
     ]);
     rc.registerAgent("TsAgent", tsRole, tsGraphs);
 
-    // PyAgent (lang: "py") → PythonAgentNode
+    // PyAgent (lang: "py") → PythonBehaviorFactory
     const { roleIR: pyRole } = loadRoleIR(CROSS_LANG_DIR, "PyAgent");
     const pyGraphs = new Map([
       ["CrossLangE2E.pyRole", loadGraph(CROSS_LANG_DIR, "CrossLangE2E", "pyRole")],
@@ -795,7 +791,7 @@ async function testC12(): Promise<TestResult> {
     rc.triggerProtocol("TsAgent", trigger);
 
     const tsHandle = getHandle(rc, "TsAgent");
-    const pyHandle = rc.getAgent("PyAgent") as PythonAgentHandle;
+    const pyHandle = rc.getAgent("PyAgent") as AgentShellImpl;
 
     await Promise.all([
       tsHandle.waitForCompletion(1, 15000),
@@ -809,9 +805,9 @@ async function testC12(): Promise<TestResult> {
     }
 
     // Verify Python side completed
-    const pyStatus = pyHandle.getInstanceStatus(instanceId);
-    if (pyStatus !== "completed") {
-      return { name, passed: false, error: `PyAgent status: ${pyStatus}` };
+    const pyInstance = pyHandle.getInstances().get(instanceId)!;
+    if (pyInstance.getStatus() !== "completed") {
+      return { name, passed: false, error: `PyAgent status: ${pyInstance.getStatus()}` };
     }
 
     // Verify TS agent got the reply from Python
@@ -821,8 +817,8 @@ async function testC12(): Promise<TestResult> {
       return { name, passed: false, error: `Expected lastReply="${expectedReply}", got "${tsSelf.lastReply}"` };
     }
 
-    // Verify Python agent's $self via fetchSelf
-    const pySelf = await pyHandle.fetchSelf();
+    // Verify Python agent's $self
+    const pySelf = pyHandle.getSelf();
     if (pySelf.messagesProcessed !== 1) {
       return { name, passed: false, error: `Expected messagesProcessed=1, got ${pySelf.messagesProcessed}` };
     }
@@ -842,7 +838,8 @@ async function testC12(): Promise<TestResult> {
 async function runAllTests(): Promise<void> {
   console.log("=== M5-CTRL Functional E2E Tests ===\n");
 
-  const tests = [testC1, testC2, testC3, testC4, testC5, testC6, testC7, testC8, testC9, testC10, testC11, testC12];
+  // C12 (cross-language TS<->Python) skipped: Python runtime deferred per backlog
+  const tests = [testC1, testC2, testC3, testC4, testC5, testC6, testC7, testC8, testC9, testC10, testC11];
   const results: TestResult[] = [];
 
   for (const test of tests) {

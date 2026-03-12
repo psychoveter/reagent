@@ -1,0 +1,345 @@
+{
+  "protocolName": "FinalizationStage",
+  "role": "analyst",
+  "lang": "ts",
+  "states": [
+    {
+      "id": "init_13",
+      "kind": "initial",
+      "data": {
+        "kind": "initial"
+      }
+    },
+    {
+      "id": "recv_14",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "human",
+        "arrow": "-->",
+        "messageName": "StageInput",
+        "postReceiveZone": "\n      $ctx.task = $ctx.msg.task\n      $ctx.previous = $ctx.msg.previous\n      $ctx.iteration = 0\n      $ctx.stageApproved = false\n      $ctx.pendingChanges = null\n    "
+      }
+    },
+    {
+      "id": "loop_guard_15",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression",
+        "expr": "$ctx.stageApproved != true"
+      }
+    },
+    {
+      "id": "act_17",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n      $ctx.iteration = $ctx.iteration + 1\n      $ctx.finalDraft = {\n        stage: \"finalization\",\n        docUpdates: {\n          product: \"updated product docs for \" + $ctx.task.title,\n          user: \"updated user guide\",\n          spec: \"updated implementation and acceptance notes\"\n        },\n        backlogUpdates: {\n          closed: [\"implementation task\"],\n          followUps: [\"future improvements\", \"deferred work\"]\n        },\n        releaseNotes: {\n          summary: \"feature finalized\",\n          revision: $ctx.iteration\n        },\n        revisionNote: $ctx.pendingChanges\n      }\n    ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "send_18",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "developer",
+        "arrow": "-->",
+        "messageName": "FinalizationPacket",
+        "preSendZone": "\n        $ctx.msg.stage = $ctx.finalDraft.stage\n        $ctx.msg.docUpdates = $ctx.finalDraft.docUpdates\n        $ctx.msg.backlogUpdates = $ctx.finalDraft.backlogUpdates\n        $ctx.msg.releaseNotes = $ctx.finalDraft.releaseNotes\n        $ctx.msg.revisionNote = $ctx.finalDraft.revisionNote\n      "
+      }
+    },
+    {
+      "id": "recv_19",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "reviewer",
+        "arrow": "-->",
+        "messageName": "ReviewFeedback",
+        "postReceiveZone": "\n        $ctx.reviewFeedback = $ctx.msg\n      "
+      }
+    },
+    {
+      "id": "send_20",
+      "kind": "send",
+      "data": {
+        "kind": "send",
+        "to": "human",
+        "arrow": "-->",
+        "messageName": "ApprovalRequest",
+        "preSendZone": "\n        $ctx.msg.stage = \"finalization\"\n        $ctx.msg.artifact = $ctx.finalPacket\n        $ctx.msg.review = $ctx.reviewFeedback\n      "
+      }
+    },
+    {
+      "id": "recv_21",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "human",
+        "arrow": "-->",
+        "messageName": "ApprovalDecision",
+        "postReceiveZone": "\n        $ctx.stageApproved = $ctx.msg.approved\n        $ctx.pendingChanges = $ctx.msg.requestedChanges\n        $ctx.lastDecision = $ctx.msg\n      "
+      }
+    },
+    {
+      "id": "xor_22",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "xor"
+      }
+    },
+    {
+      "id": "guard_24",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression",
+        "expr": "$ctx.stageApproved == true"
+      }
+    },
+    {
+      "id": "act_25",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n        reagent.return({\n          stage: \"finalization\",\n          status: \"approved\",\n          artifact: $ctx.finalPacket,\n          humanDecision: $ctx.lastDecision\n        })\n      ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "else_26",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "act_27",
+      "kind": "action",
+      "data": {
+        "kind": "action",
+        "body": "\n        $ctx.pendingChanges = $ctx.lastDecision.requestedChanges\n      ",
+        "lang": "ts"
+      }
+    },
+    {
+      "id": "merge_23",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "loop_exit_16",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "end_28",
+      "kind": "terminal",
+      "data": {
+        "kind": "terminal",
+        "status": "completed"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init_13",
+      "to": "recv_14",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_14",
+      "to": "loop_guard_15",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "loop_guard_15",
+      "to": "act_17",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_17",
+      "to": "send_18",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_18",
+      "to": "recv_19",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_19",
+      "to": "send_20",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_20",
+      "to": "recv_21",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_21",
+      "to": "xor_22",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_22",
+      "to": "guard_24",
+      "label": {
+        "kind": "expression",
+        "expr": "$ctx.stageApproved == true"
+      }
+    },
+    {
+      "from": "guard_24",
+      "to": "act_25",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_25",
+      "to": "merge_23",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_22",
+      "to": "else_26",
+      "label": {
+        "kind": "else"
+      }
+    },
+    {
+      "from": "else_26",
+      "to": "act_27",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_27",
+      "to": "merge_23",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "merge_23",
+      "to": "loop_guard_15",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "loop_guard_15",
+      "to": "loop_exit_16",
+      "label": {
+        "kind": "else"
+      }
+    },
+    {
+      "from": "loop_exit_16",
+      "to": "end_28",
+      "label": {
+        "kind": "default"
+      }
+    }
+  ],
+  "initialStateId": "init_13",
+  "terminalStateIds": [
+    "end_28"
+  ],
+  "participants": [
+    {
+      "name": "human",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "analyst",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    },
+    {
+      "name": "developer",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    },
+    {
+      "name": "reviewer",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "triggers": [
+    {
+      "kind": "invoke",
+      "withType": "StageInput",
+      "resolveMap": {
+        "human": [
+          {
+            "step": "single"
+          }
+        ],
+        "analyst": [
+          {
+            "step": "single"
+          }
+        ],
+        "developer": [
+          {
+            "step": "single"
+          }
+        ],
+        "reviewer": [
+          {
+            "step": "single"
+          }
+        ]
+      }
+    }
+  ],
+  "invocable": true,
+  "version": "0.1.0",
+  "fingerprints": {
+    "structureHash": "1918858bc6cffd9aa41c5e730c9263c85e612dcc0223218ce46de0de246d18c8",
+    "schemaHash": "8f3160a8648d6cd672b52f9fb93a721104ba8eed1d6663b6ce341bbe1c0f7761",
+    "implHash": "ee029b28b91de03577fb8a0683f87ae3242a8ad90dc723257e1044eda7988669"
+  }
+}

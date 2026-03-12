@@ -12,7 +12,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { ReagentController } from "../ts/src/controller/reagent-controller.js";
-import { NativeAgentNode, NativeAgentHandle } from "../ts/src/nodes/native-agent-node.js";
+import { ManagedBehaviorFactory } from "../ts/src/nodes/managed-behavior-factory.js";
+import { AgentShellImpl } from "../ts/src/core/agent-shell-impl.js";
 import type { IRGraph, RoleIR } from "../ts/src/contracts/types.js";
 import { parseProgram } from "../../lang/src/parser.js";
 import { emitIR, emitRoleIR, resetIdCounter } from "../../lang/src/ir-emitter.js";
@@ -48,8 +49,8 @@ function compileSource(src: string): { graphs: Map<string, IRGraph>; roleIRs: Ma
   return { graphs, roleIRs };
 }
 
-function getHandle(rc: ReagentController, name: string): NativeAgentHandle {
-  return rc.getAgent(name) as NativeAgentHandle;
+function getHandle(rc: ReagentController, name: string): AgentShellImpl {
+  return rc.getAgent(name) as AgentShellImpl;
 }
 
 test("M15: cron trigger emits event that starts follow-up protocol", async () => {
@@ -180,10 +181,10 @@ role diagnostics [ts] {
 `;
 
   const { graphs, roleIRs } = compileSource(source);
-  const agentNode = new NativeAgentNode({ roleToAgent: {} });
+  const behaviorFactory = new ManagedBehaviorFactory();
   const rc = new ReagentController({
     nodeId: "m15-iot-node",
-    agentNode,
+    behaviorFactory,
     cronIntervalMs: 0,
   });
 

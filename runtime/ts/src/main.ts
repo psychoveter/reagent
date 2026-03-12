@@ -8,7 +8,8 @@
  */
 
 import { readFileSync } from "node:fs";
-import { AgentRunner, type AgentRunnerConfig } from "./core/agent-runner.js";
+import { AgentShellImpl, type AgentShellConfig } from "./core/agent-shell-impl.js";
+import { ManagedBehaviorFactory } from "./nodes/managed-behavior-factory.js";
 import type { AgentIR, IRGraph, DeploymentPlan, ProtocolTrigger } from "./contracts/types.js";
 import { NatsTransport } from "./network/nats-transport.js";
 import { NatsCompatTransport } from "./network/nats-compat-transport.js";
@@ -71,23 +72,34 @@ async function main() {
 
   const transport = new NatsCompatTransport(agentIR.agentName, nats);
 
-  const config: AgentRunnerConfig = {
+  const roleToAgent = normalizeRoleBindingMap(deployment.roleToAgent);
+
+  const shellConfig: AgentShellConfig = {
+    agentName: agentIR.agentName,
+    roleName: agentIR.roleName,
     agentIR,
     graphs,
     transport,
-    roleToAgent: normalizeRoleBindingMap(deployment.roleToAgent),
+    roleToAgent,
   };
 
-  const runner = new AgentRunner(config);
+  const shell = new AgentShellImpl(shellConfig);
+  const factory = new ManagedBehaviorFactory();
+  const behavior = factory.createBehavior(
+    agentIR.agentName,
+    { roleName: agentIR.roleName, lang: agentIR.lang, plays: agentIR.plays, lifecycleHandlers: agentIR.lifecycleHandlers } as any,
+    graphs,
+  );
+  shell.attachBehavior(behavior);
 
   transport.subscribeTriggers((data) => {
-    runner.triggerProtocol(data as ProtocolTrigger);
+    shell.triggerProtocol(data as ProtocolTrigger);
   });
 
-  await runner.start();
+  await shell.start();
 
   const shutdown = async () => {
-    await runner.stop();
+    await shell.stop();
     await nats.close();
     process.exit(0);
   };

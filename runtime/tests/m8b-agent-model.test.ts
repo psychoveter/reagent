@@ -22,7 +22,7 @@ import type { ProtocolDef, RoleDef, AgentDef } from "../../lang/src/ast.js";
 import type { IRGraph, RoleIR } from "../../lang/src/ir.js";
 
 import { ReagentController } from "../../runtime/ts/src/controller/reagent-controller.js";
-import { NativeAgentNode } from "../../runtime/ts/src/nodes/native-agent-node.js";
+import { ManagedBehaviorFactory } from "../../runtime/ts/src/nodes/managed-behavior-factory.js";
 import { executeZone, createReagentStub } from "../../runtime/ts/src/core/zone-executor.js";
 import { executeZoneAsync } from "../../runtime/ts/src/core/zone-executor.js";
 import { loadAgentManifest, type AgentManifest } from "../../runtime/ts/src/support/agent-manifest.js";

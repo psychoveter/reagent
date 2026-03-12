@@ -19,6 +19,7 @@ export class ReagentCodeLensProvider implements vscode.CodeLensProvider {
           new vscode.CodeLens(range, {
             title: '$(type-hierarchy) View',
             command: 'reagent.openDiagram',
+            arguments: [document.uri, match[1]],
           }),
         );
       }

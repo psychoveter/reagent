@@ -1,0 +1,6 @@
+{
+  "agentName": "ReviewerAgent",
+  "lang": "ts",
+  "roleName": "ReviewerRole",
+  "roleFile": "ReviewerRole.role.json"
+}

@@ -1,0 +1,157 @@
+{
+  "agents": [
+    {
+      "agentName": "HumanAgent",
+      "lang": "ts",
+      "roleName": "HumanRole",
+      "agentIRFile": "HumanAgent.agent.json",
+      "roleIRFile": "HumanRole.role.json",
+      "roles": [
+        {
+          "protocolName": "FeatureDevelopmentReagent",
+          "roleName": "human",
+          "irGraphFile": "FeatureDevelopmentReagent.human.ir.json"
+        },
+        {
+          "protocolName": "DesignStage",
+          "roleName": "human",
+          "irGraphFile": "DesignStage.human.ir.json"
+        },
+        {
+          "protocolName": "ImplementationStage",
+          "roleName": "human",
+          "irGraphFile": "ImplementationStage.human.ir.json"
+        },
+        {
+          "protocolName": "FinalizationStage",
+          "roleName": "human",
+          "irGraphFile": "FinalizationStage.human.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "AnalystAgent",
+      "lang": "ts",
+      "roleName": "AnalystRole",
+      "agentIRFile": "AnalystAgent.agent.json",
+      "roleIRFile": "AnalystRole.role.json",
+      "roles": [
+        {
+          "protocolName": "FeatureDevelopmentReagent",
+          "roleName": "analyst",
+          "irGraphFile": "FeatureDevelopmentReagent.analyst.ir.json"
+        },
+        {
+          "protocolName": "DesignStage",
+          "roleName": "analyst",
+          "irGraphFile": "DesignStage.analyst.ir.json"
+        },
+        {
+          "protocolName": "ImplementationStage",
+          "roleName": "analyst",
+          "irGraphFile": "ImplementationStage.analyst.ir.json"
+        },
+        {
+          "protocolName": "FinalizationStage",
+          "roleName": "analyst",
+          "irGraphFile": "FinalizationStage.analyst.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "DeveloperAgent",
+      "lang": "ts",
+      "roleName": "DeveloperRole",
+      "agentIRFile": "DeveloperAgent.agent.json",
+      "roleIRFile": "DeveloperRole.role.json",
+      "roles": [
+        {
+          "protocolName": "FeatureDevelopmentReagent",
+          "roleName": "developer",
+          "irGraphFile": "FeatureDevelopmentReagent.developer.ir.json"
+        },
+        {
+          "protocolName": "DesignStage",
+          "roleName": "developer",
+          "irGraphFile": "DesignStage.developer.ir.json"
+        },
+        {
+          "protocolName": "ImplementationStage",
+          "roleName": "developer",
+          "irGraphFile": "ImplementationStage.developer.ir.json"
+        },
+        {
+          "protocolName": "FinalizationStage",
+          "roleName": "developer",
+          "irGraphFile": "FinalizationStage.developer.ir.json"
+        }
+      ]
+    },
+    {
+      "agentName": "ReviewerAgent",
+      "lang": "ts",
+      "roleName": "ReviewerRole",
+      "agentIRFile": "ReviewerAgent.agent.json",
+      "roleIRFile": "ReviewerRole.role.json",
+      "roles": [
+        {
+          "protocolName": "FeatureDevelopmentReagent",
+          "roleName": "reviewer",
+          "irGraphFile": "FeatureDevelopmentReagent.reviewer.ir.json"
+        },
+        {
+          "protocolName": "DesignStage",
+          "roleName": "reviewer",
+          "irGraphFile": "DesignStage.reviewer.ir.json"
+        },
+        {
+          "protocolName": "ImplementationStage",
+          "roleName": "reviewer",
+          "irGraphFile": "ImplementationStage.reviewer.ir.json"
+        },
+        {
+          "protocolName": "FinalizationStage",
+          "roleName": "reviewer",
+          "irGraphFile": "FinalizationStage.reviewer.ir.json"
+        }
+      ]
+    }
+  ],
+  "roleToAgent": {
+    "FeatureDevelopmentReagent.human": "HumanAgent",
+    "DesignStage.human": "HumanAgent",
+    "ImplementationStage.human": "HumanAgent",
+    "FinalizationStage.human": "HumanAgent",
+    "FeatureDevelopmentReagent.analyst": "AnalystAgent",
+    "DesignStage.analyst": "AnalystAgent",
+    "ImplementationStage.analyst": "AnalystAgent",
+    "FinalizationStage.analyst": "AnalystAgent",
+    "FeatureDevelopmentReagent.developer": "DeveloperAgent",
+    "DesignStage.developer": "DeveloperAgent",
+    "ImplementationStage.developer": "DeveloperAgent",
+    "FinalizationStage.developer": "DeveloperAgent",
+    "FeatureDevelopmentReagent.reviewer": "ReviewerAgent",
+    "DesignStage.reviewer": "ReviewerAgent",
+    "ImplementationStage.reviewer": "ReviewerAgent",
+    "FinalizationStage.reviewer": "ReviewerAgent"
+  },
+  "roles": [
+    {
+      "name": "HumanRole",
+      "file": "HumanRole.role.json"
+    },
+    {
+      "name": "AnalystRole",
+      "file": "AnalystRole.role.json"
+    },
+    {
+      "name": "DeveloperRole",
+      "file": "DeveloperRole.role.json"
+    },
+    {
+      "name": "ReviewerRole",
+      "file": "ReviewerRole.role.json"
+    }
+  ],
+  "messages": "messages.json"
+}
