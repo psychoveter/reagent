@@ -9,7 +9,7 @@
 // Multiple consultants and researchers can participate (scatter).
 // Lead is the single orchestrator LLM that interfaces with the human.
 //
-// All LLM roles connect via MCP Gate (mcp-gate-rfc.md).
+// All LLM roles connect via MCP Gate using the current MCP/runtime model.
 // Messages are passed as-is — no boilerplate onSend/onReceive hooks.
 // Each MCP agent receives the full message payload in ProtocolEvent
 // and returns its response via reagent/respond.

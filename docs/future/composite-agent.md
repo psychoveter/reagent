@@ -438,7 +438,7 @@ remains in TS/Python. This is a key synergy with Wave 4.
 | Rust RC (Wave 4) | Not started | No (enhances perf, not required) |
 | Hot deploy strategy | Not designed | No (deferred) |
 
-**Placement**: long-horizon (Wave 4+ in `backlog-far.md`). The runtime-only pattern can be
+**Placement**: long-horizon (see `backlog.md`, runtime platform roadmap). The runtime-only pattern can be
 prototyped at any time on existing infrastructure, but the full vision (observability,
 telescopic debug, Rust inner RC) aligns with Wave 4 themes.
 

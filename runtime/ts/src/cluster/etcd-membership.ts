@@ -75,6 +75,8 @@ export class EtcdMembership {
     this.keepAliveTimer = setInterval(() => {
       if (this.lease && !this.stopped) {
         this.lease.keepAlive().catch((err) => {
+          if (this.stopped || this.lease == null) return;
+          if (err instanceof Error && err.name === "ClientClosedError") return;
           console.warn(`[EtcdMembership] keepAlive failed for node ${this.nodeId}:`, err);
         });
       }
@@ -176,5 +178,9 @@ export class EtcdMembership {
       startedAt: new Date().toISOString(),
       ...this.nodeMetadata,
     }), { lease: this.lease.id });
+  }
+
+  getLeaseId(): string | undefined {
+    return this.lease?.id;
   }
 }

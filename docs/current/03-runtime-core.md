@@ -8,7 +8,6 @@ It replaces the older split between `rc-spec.md`, runtime parts of `connectivity
 The runtime core is the node-local execution layer.
 It owns protocol execution, local agent lifecycle, routing, trigger evaluation, and cluster-backed resolution.
 
-The core does **not** depend on ROS concepts.
 It may depend on abstractions such as `StateStore`, `NodeLink`, trace hooks, and interceptors, but it should remain usable without the control plane.
 
 ## 2. Current Source Layout
@@ -46,8 +45,8 @@ Important current properties:
 
 - One RC per node process.
 - RC startup loads agent state from the configured `StateStore` when present.
-- `invokeProtocol()` is now a node-local runtime entry point.
-- ROS is no longer the owner of distributed runtime startup for clustered nodes.
+- `invokeProtocol()` is a node-local runtime entry point.
+- distributed runtime startup is handled by each node's RC, not a centralized server.
 
 ### `ProtocolRegistry`
 
@@ -102,7 +101,7 @@ Current behavior worth calling out:
 
 - receive-side lazy materialization is implemented
 - a role can begin participating when the first inbound message arrives
-- protocol startup is no longer forced to happen via a global ROS fanout path
+- protocol startup happens locally, not via a centralized fanout path
 
 ### `AgentNode`
 
@@ -158,7 +157,7 @@ Current runtime consequences:
 
 - RC can resolve a protocol initiator from cluster-backed registry state
 - RC can synthesize a `roleToAgent` map for local invocation
-- nodes can override or merge role bindings without ROS needing to build a cluster-global map first
+- nodes can override or merge role bindings locally without a cluster-global map
 
 This is a key architectural change from the older model.
 
@@ -212,7 +211,7 @@ With a configured cluster state backend, RC can:
 - support cron singleton leadership
 - support membership-driven remote agent discovery
 
-This is why protocol launch responsibilities have been pulled away from ROS and back into node-local RCs.
+Protocol launch is a node-local RC responsibility, not a centralized server concern.
 
 ## 8. Managed, Custom, Python, And Gate Hosts
 
@@ -253,6 +252,182 @@ This distinction matters for cluster behavior:
 - routing and trigger resolution should only target records that currently have attached runtime presence
 - `spawnRoleInstance()` should mean live spawn of a ready agent runtime; pure logical-slot creation belongs to lower-level record APIs
 
+### Lifecycle entities around RC
+
+The runtime model is easier to reason about if we separate logical records,
+live runtimes, and cluster-visible presence.
+
+The main lifecycle-bearing entities around `ReagentController` are:
+
+- `ReagentController` itself as the node-local orchestrator
+- `EtcdMembership` and the leased `/nodes/{nodeId}` presence record
+- `AgentRecord` as logical agent identity tracked by the controller
+- `AgentRuntime` / `AgentHandle` as the live attached executor
+- leased `/agents/{agentName}` as live cluster-visible presence
+- `ProtocolInstance` as one execution of one role graph
+
+Secondary operational lifecycle entities also exist:
+
+- `CronAgent`
+- `NodeLink`
+- spawned-agent sets tracked per protocol instance
+
+#### `ReagentController`
+
+`ReagentController` has an operational lifecycle even though it does not expose a
+formal status enum. The important transitions are `startMembership()`,
+`start()`, and `stop()`.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Constructed
+    Constructed --> MembershipStarted: startMembership()
+    Constructed --> Running: start()
+    MembershipStarted --> Running: start()
+    Running --> Running: deploy/create/invoke/addNodeLink
+    Running --> Stopping: stop()
+    MembershipStarted --> Stopping: stop()
+    Stopping --> Stopped: cron stopped\nmembership stopped\nagent handles stopped\nlinks closed
+    Stopped --> [*]
+```
+
+#### Node presence: `EtcdMembership` and `/nodes/{nodeId}`
+
+Cluster-visible node presence is lease-based. A node is considered live only
+while its membership lease is alive.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Inactive
+    Inactive --> LeaseGranted: start()
+    LeaseGranted --> Published: put /nodes/{nodeId} with lease
+    Published --> Alive: keepAlive loop running
+    Alive --> Alive: updateNodeMetadata()
+    Alive --> Stopping: stop()
+    Stopping --> Revoked: lease.revoke()
+    Revoked --> Inactive: /nodes key deleted
+```
+
+#### Logical agent identity: `AgentRecord`
+
+`AgentRecord` is the controller's logical view of an agent slot. It can exist
+before any live runtime is attached.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Declared: createAgentRecord()
+    Declared --> RuntimeAttached: attachAgentRuntime()
+    RuntimeAttached --> Ready: markAgentRuntimeReady()
+    RuntimeAttached --> Detached: detachAgentRuntime()
+    Ready --> Detached: detachAgentRuntime()
+    Detached --> RuntimeAttached: createAgentFromTemplate()/reattach
+    Declared --> Destroyed: destroyAgentRecord()
+    Detached --> Destroyed: destroyAgentRecord()
+    Ready --> Destroyed: destroyAgent()
+    Destroyed --> [*]
+```
+
+This is intentionally distinct from cluster-visible liveness. A declared or
+detached `AgentRecord` does not imply that `/agents/{agentName}` exists.
+
+#### Live runtime: `AgentRuntime` / `AgentHandle`
+
+The runtime embodiment of an agent is created by an `AgentNode` and tracked by
+RC through an `AgentHandle`. This is the layer that makes the record
+addressable.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Created: createAgentFromTemplate()
+    Created --> Attached: attachAgentRuntime()
+    Attached --> Ready: handle.start() + markAgentRuntimeReady()
+    Attached --> Detached: detachAgentRuntime()
+    Ready --> Detached: detachAgentRuntime()
+    Attached --> Stopped: rc.stop() / handle.stop()
+    Ready --> Stopped: rc.stop() / handle.stop()
+    Stopped --> [*]
+```
+
+In the managed path this runtime is usually `AgentRunner`; in the custom path it
+is `CustomAgentHandle` with one or more `ProtocolEngine` instances.
+
+#### Live cluster-visible presence: `/agents/{agentName}`
+
+The `/agents/` keyspace is live presence, not durable inventory. Presence is
+published only for addressable attached/ready runtimes and is tied to the node
+lease.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Absent
+    Absent --> Published: runtime_attached / ready
+    Published --> Refreshed: markAgentRuntimeReady()\npublishAgentPresence()
+    Refreshed --> Published
+    Published --> Absent: detachAgentRuntime()
+    Published --> Absent: rc.stop()
+    Published --> Absent: node lease revoked
+```
+
+This is the cluster-facing lifecycle that remote resolution and membership
+watches care about.
+
+#### `ProtocolInstance`
+
+`ProtocolInstance` is the lifecycle of one concrete execution of one role graph.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Created: new ProtocolInstance(...)
+    Created --> Running: run()
+    Running --> Running: advance()\nsend/receive/action/guard\ninvoke/spawn/scatter
+    Running --> Completed: terminal(status=completed)
+    Running --> Failed: terminal(status=error)
+    Running --> Failed: fatal exception
+    Completed --> [*]
+    Failed --> [*]
+```
+
+Instances are typically created by `AgentRunner` either from an explicit
+trigger/invocation or by receive-side lazy materialization when the first
+message arrives.
+
+#### `AgentRunner`
+
+`AgentRunner` is the managed runtime host for one agent. It owns persistent
+`$self`, lifecycle handlers, and the map of active/completed `ProtocolInstance`
+objects.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Constructed
+    Constructed --> Started: start()
+    Started --> Started: triggerProtocol()
+    Started --> Started: materialize receive-side instance
+    Started --> Started: instance completion callbacks
+    Started --> Stopped: stop()
+    Stopped --> [*]
+```
+
+`AgentRunner` is coarse-grained lifecycle-wise; most execution detail lives in
+the child `ProtocolInstance` objects it creates and observes.
+
+#### Secondary operational entities
+
+These have real lifecycle too, but they are supporting infrastructure rather
+than the primary RC ontology:
+
+- `CronAgent`: idle -> started -> ticking -> stopped
+- `NodeLink`: added -> connected -> active routing -> closed
+- spawned agents: requested -> declared -> attached -> ready -> cleaned up or persisted
+
+Together these layers explain why the runtime distinguishes:
+
+- logical declaration (`AgentRecord`)
+- live execution (`AgentRuntime`)
+- cluster-visible liveness (`/agents/*`)
+- node-visible liveness (`/nodes/*`)
+- per-run execution (`ProtocolInstance`)
+
 ## 9. Runtime Config Boundary
 
 The runtime config boundary is now explicit.
@@ -271,6 +446,10 @@ In code, this boundary lives in:
 - `runtime/ts/src/cluster/runtime-config.ts`
 - `runtime/ts/src/cluster/runtime-bootstrap.ts`
 
+This config is intentionally about the node-local RC host only.
+It should not be extended with Claude-specific or other external agent-runner
+settings.
+
 Imperative host code should provide:
 
 - concrete `AgentNode` instances
@@ -278,12 +457,23 @@ Imperative host code should provide:
 - control-plane transport connections
 - process lifecycle integration
 
+When a node is launched through an external live-agent wrapper, the wrapper
+config should embed `RuntimeConfig` rather than mutate its meaning. In the
+current Claude path, the UX-facing launch file is a wrapper config of the form:
+
+- `kind: "claude_live_agent_node"`
+- `runtime: RuntimeConfig`
+- `agent: { name, roles }`
+- `claude: { ...Claude SDK settings... }`
+
+That wrapper is a launch artifact for a specific node kind. It is not part of
+the core RC runtime model itself.
+
 ## 10. What Changed Relative To Older Docs
 
 - RC now owns local protocol invocation through `invokeProtocol()`.
 - cluster state is part of runtime behavior, not just an orchestration side-channel.
 - receive-side instance materialization is implemented in both managed and custom paths.
-- ROS should be understood as a control-plane tool, not as the global runtime owner for clustered startup.
 - `AgentRecord` and `AgentRuntime` are now separate concepts in the TS runtime model.
 - the TS runtime filesystem now matches the architecture described here.
 - the Python runtime remains implemented but structurally asymmetric relative to TS.

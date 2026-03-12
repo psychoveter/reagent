@@ -69,7 +69,7 @@ The agent reasons about the payload directly and responds. Hooks are used only w
 
 ## MCP Gate integration
 
-This project is designed as a reference example for the [MCP Gate RFC](../../../docs/future/mcp-gate-rfc.md).
+This project is designed as a reference example for the current MCP Gate runtime model described in [the user guide](../../../docs/current/01-user-guide.md) and [cluster/control-plane docs](../../../docs/current/04-cluster-and-control-plane.md).
 
 In MCP Gate mode:
 - **Lead, Consultant, Researcher** are Claude Code sessions connected via `McpGateTransport`

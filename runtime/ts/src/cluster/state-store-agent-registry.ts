@@ -12,7 +12,7 @@ import { isAddressableAgentRecord } from "../contracts/types.js";
 export type AgentRegistration = AgentRecord;
 
 export interface AgentRegistry {
-  register(agent: AgentRegistration): Promise<void>;
+  register(agent: AgentRegistration, opts?: { lease?: string }): Promise<void>;
   deregister(name: string): Promise<boolean>;
   get(name: string): AgentRegistration | undefined;
   findByRole(role: string): AgentRegistration[];
@@ -35,9 +35,9 @@ export class StateStoreAgentRegistry implements AgentRegistry {
     this.watcher = store.watch(AGENTS_PREFIX, (event) => this.handleWatch(event));
   }
 
-  async register(agent: AgentRegistration): Promise<void> {
+  async register(agent: AgentRegistration, opts?: { lease?: string }): Promise<void> {
     const key = AGENTS_PREFIX + agent.name;
-    await this.store.put(key, JSON.stringify(agent));
+    await this.store.put(key, JSON.stringify(agent), opts);
     this.cache.set(agent.name, agent);
   }
 

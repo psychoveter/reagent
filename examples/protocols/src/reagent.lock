@@ -1,7 +1,7 @@
 {
   "protocols": {
     "TaskExecution": {
-      "version": "20.0.0",
+      "version": "24.0.0",
       "fingerprints": {
         "structureHash": "1823df64da37a6609e629afa89b82f794c99aa43b1892c947af22b9878163efe",
         "schemaHash": "3ff741769ea2af2c94ab665342ce44cb8474c89539c481b8ab462ceb042038e8",
@@ -105,7 +105,7 @@
       }
     },
     "HealthCheck": {
-      "version": "30.0.0",
+      "version": "36.0.0",
       "fingerprints": {
         "structureHash": "607ed3107febd0a9742e9acf06c10cea917deb4ec812c8179713b5b6faab8b54",
         "schemaHash": "4ab1b58940301b8acd55f43b1bcbbdfaccf4159a4ee2bb684afb9d11e9404018",
@@ -193,7 +193,7 @@
       }
     },
     "TaskProcessing": {
-      "version": "19.0.0",
+      "version": "23.0.0",
       "fingerprints": {
         "structureHash": "02de7f0ad996a07078de7c11f1d545a64f3c1545c99d02bc282b4a732f7ee24f",
         "schemaHash": "62a3629ef9e82183f520e42d013626129661bc6d239e4699136e8d24f7548524",
@@ -275,14 +275,14 @@
   },
   "roles": {
     "CommaRole": {
-      "version": "71.0.0",
+      "version": "95.0.0",
       "fingerprints": {
-        "playsHash": "0a09348f33f91b7b18b59363e60341b9bbe95eb41059a12b8bb88a1c49af4331",
+        "playsHash": "1a3c1a7e8d676873f7446a5cd110e56de1cbdd19a795ddc3c1dbf25537fb5c49",
         "behaviorHash": "6c9a6242fca2132097085defabab7de2d62f526f498be33d020ef4d1c8ea4c4a"
       }
     },
     "SiaRole": {
-      "version": "42.0.0",
+      "version": "58.0.0",
       "fingerprints": {
         "playsHash": "26ceab6dc0d4f40e25f92f109ea3e9fb669de76ab6f3bd03082d8ae4dc1cfacd",
         "behaviorHash": "90d1d22e125fdbed9a3af8dc227859c7d65a22e6f61a23a44c9bf8360e17026a"
@@ -303,7 +303,7 @@
       }
     },
     "ClientRole": {
-      "version": "20.0.0",
+      "version": "24.0.0",
       "fingerprints": {
         "playsHash": "a872fc47c7a7206e5332071a8eb14a07039d41c82fe8e1d517ea580394efb81c",
         "behaviorHash": "ba2d5f0c39c95f3dc5d75d0d68fa0fa458620ea57244b4274d28da02e160c318"
@@ -324,14 +324,14 @@
       }
     },
     "ResponderRole": {
-      "version": "19.0.0",
+      "version": "23.0.0",
       "fingerprints": {
         "playsHash": "dbe66ccbf77e4f19276924d58db5ec82337530239e373bdd41acc4b374d2ee72",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
       }
     },
     "CoordinatorRole": {
-      "version": "20.0.0",
+      "version": "24.0.0",
       "fingerprints": {
         "playsHash": "eb65870da7788c774d5bae0996fee75b45cdded252603b118ecf7013163e17f3",
         "behaviorHash": "995b644300b189b4641ffd1df5e563f14cd2a0ceeeb1133c867698328de1ca21"
@@ -401,30 +401,30 @@
       }
     },
     "BaseMonitored": {
-      "version": "5.0.0",
+      "version": "7.0.0",
       "fingerprints": {
-        "playsHash": "08bb2af697bbb8e5d25a71c1aaaa0e9f345143ddfbeaf2fa094ca5cb0d294899",
+        "playsHash": "64081731006eb9771110f27168c384e1c13cc67ba2303218b4994369f21212e8",
         "behaviorHash": "7246bd57418d671816112a85ae12c0f2a2c9312dc9ba96c027adaabeb9d7a4d0"
       }
     },
     "WorkerRole": {
-      "version": "29.0.0",
+      "version": "35.0.0",
       "fingerprints": {
         "playsHash": "590ddfae9d3d4f2292e53e5c25e145dad97c1817884b588aabe062ae8485f6bd",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
       }
     },
     "DispatcherRole": {
-      "version": "5.0.0",
+      "version": "7.0.0",
       "fingerprints": {
-        "playsHash": "599b95c0e61d36b779b5a9297f04a7a7bee3c1264f21b26115956619ae381031",
+        "playsHash": "a0c0ce3b2021d73e1f7e06b8da54b771cc53e4be3e000c178c9d9d6a2666d3b3",
         "behaviorHash": "b896f9a93934f0972ca028c3432607ba47ddcffd23f8f3213378b63ef017df85"
       }
     },
     "MonitorRole": {
-      "version": "5.0.0",
+      "version": "7.0.0",
       "fingerprints": {
-        "playsHash": "e9237d5825e412a79bf1a3a2aa216335a66b4a909c79fd25d15811cb5d2e7685",
+        "playsHash": "5fb88e9f934c6d87c52d791c844eaa60080711b3b5fe2a47aa8d372263e5c791",
         "behaviorHash": "440817a688e622a6a0112cdf2dcfe55fdf457fae10cf7a848a9a73e24c1786a0"
       }
     },
@@ -485,7 +485,7 @@
       }
     },
     "UserRole": {
-      "version": "35.0.0",
+      "version": "49.0.0",
       "fingerprints": {
         "playsHash": "f0b9c4deef905845e6c4cc2daea50489175273a84a64f03602c3d9ebd82dbce5",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"

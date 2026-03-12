@@ -84,6 +84,7 @@ export class ReagentController {
   readonly stateStore: StateStore;
   readonly agentRegistry: StateStoreAgentRegistry;
   readonly resolvePolicyEvaluator: ResolvePolicyEvaluator;
+  private agentPresenceLeaseId?: string;
 
   /** lang → AgentNode backend */
   private agentNodes: Record<string, AgentNode>;
@@ -271,7 +272,6 @@ export class ReagentController {
       },
     };
     this.agentRecords.set(agentName, record);
-    this.agentRegistry.register(record).catch(() => {});
     return record;
   }
 
@@ -301,7 +301,7 @@ export class ReagentController {
       readyAt: lifecycle === "ready" ? Date.now() : undefined,
     };
     this.agentRecords.set(agentName, record);
-    this.agentRegistry.register(record).catch(() => {});
+    this.agentRegistry.register(record, { lease: this.agentPresenceLeaseId }).catch(() => {});
 
     for (const graph of template.graphs.values()) {
       this.registry.bindAgent(graph.protocolName, agentName);
@@ -329,7 +329,7 @@ export class ReagentController {
       attachedAt: record.runtime?.attachedAt ?? Date.now(),
       readyAt: Date.now(),
     };
-    this.agentRegistry.register(record).catch(() => {});
+    this.agentRegistry.register(record, { lease: this.agentPresenceLeaseId }).catch(() => {});
   }
 
   detachAgentRuntime(agentName: string): void {
@@ -344,7 +344,7 @@ export class ReagentController {
     record.runtime = record.runtime
       ? { ...record.runtime, lifecycle: "detached" }
       : undefined;
-    this.agentRegistry.register(record).catch(() => {});
+    this.agentRegistry.deregister(agentName).catch(() => false);
   }
 
   createAgentFromTemplate(agentName: string, opts?: { start?: boolean }): AgentRecord {
@@ -482,7 +482,11 @@ export class ReagentController {
   publishAgentPresence(agentName: string): void {
     const record = this.agentRecords.get(agentName);
     if (!record) return;
-    this.agentRegistry.register(record).catch(() => {});
+    if (isAddressableAgentRecord(record)) {
+      this.agentRegistry.register(record, { lease: this.agentPresenceLeaseId }).catch(() => {});
+    } else {
+      this.agentRegistry.deregister(agentName).catch(() => false);
+    }
   }
 
   // ── Protocol registry convenience ──────────────────────────────
@@ -640,6 +644,7 @@ export class ReagentController {
       },
     });
     await this.membership.start();
+    this.setAgentPresenceLease(this.membership.getLeaseId());
   }
 
   // ── Lifecycle ───────────────────────────────────────────────────
@@ -674,9 +679,10 @@ export class ReagentController {
       if (record?.runtime) {
         record.lifecycle = "detached";
         record.runtime = { ...record.runtime, lifecycle: "stopped" };
-        this.agentRegistry.register(record).catch(() => {});
+        this.agentRegistry.deregister(agentName).catch(() => false);
       }
     }
+    this.agentPresenceLeaseId = undefined;
     for (const link of this.links) {
       await link.close();
     }
@@ -960,7 +966,7 @@ export class ReagentController {
       metadata: { ...config, _spawned: true, _instanceId: instanceId, _parentInstanceId: instanceId, _persistent: persistent === true },
     };
     this.agentRecords.set(spawnedName, registration);
-    this.agentRegistry.register(registration).then(() => {
+    Promise.resolve().then(() => {
       this.traceCallback?.(createTraceEvent(instanceId, "SpawnCompleted", spawnedName, {
         role: roleName,
         data: { roleName, agentName: spawnedName, persistent: persistent === true },
@@ -982,6 +988,17 @@ export class ReagentController {
     }
 
     return spawnedName;
+  }
+
+  setAgentPresenceLease(leaseId?: string): void {
+    this.agentPresenceLeaseId = leaseId;
+    for (const [agentName, record] of this.agentRecords) {
+      if (isAddressableAgentRecord(record)) {
+        this.agentRegistry.register(record, { lease: this.agentPresenceLeaseId }).catch(() => {});
+      } else {
+        this.agentRegistry.deregister(agentName).catch(() => false);
+      }
+    }
   }
 
   /**

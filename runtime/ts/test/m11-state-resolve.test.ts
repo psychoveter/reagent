@@ -13,6 +13,15 @@ function makeAgent(name: string, role: string, opts?: Partial<AgentRegistration>
   return {
     name,
     role,
+    nodeId: opts?.nodeId ?? "test-node",
+    lifecycle: opts?.lifecycle ?? "ready",
+    runtime: opts?.runtime ?? {
+      runtimeName: "test-runtime",
+      lifecycle: "ready",
+      nodeId: opts?.nodeId ?? "test-node",
+      attachedAt: Date.now(),
+      readyAt: Date.now(),
+    },
     tags: opts?.tags ?? [],
     capabilities: opts?.capabilities ?? [],
     labels: opts?.labels ?? {},
@@ -144,24 +153,24 @@ describe("ResolvePolicyEvaluator", () => {
     await registry.register(makeAgent("s1", "Seller", { tags: ["eu"] }));
   });
 
-  it("all returns all agents for role", () => {
-    const result = evaluator.evaluate([{ step: "all" }], "Buyer");
+  it("all returns all agents for role", async () => {
+    const result = await evaluator.evaluate([{ step: "all" }], "Buyer");
     assert.equal(result.length, 3);
   });
 
-  it("single returns first", () => {
-    const result = evaluator.evaluate([{ step: "single" }], "Buyer");
+  it("single returns first", async () => {
+    const result = await evaluator.evaluate([{ step: "single" }], "Buyer");
     assert.equal(result.length, 1);
   });
 
-  it("all | first returns one", () => {
-    const result = evaluator.evaluate([{ step: "all" }, { step: "first" }], "Buyer");
+  it("all | first returns one", async () => {
+    const result = await evaluator.evaluate([{ step: "all" }, { step: "first" }], "Buyer");
     assert.equal(result.length, 1);
     assert.equal(result[0].name, "b1");
   });
 
-  it("filter by tag", () => {
-    const result = evaluator.evaluate([
+  it("filter by tag", async () => {
+    const result = await evaluator.evaluate([
       { step: "all" },
       { step: "filter", predicate: '"eu" in agent.tags' },
     ], "Buyer");
@@ -169,8 +178,8 @@ describe("ResolvePolicyEvaluator", () => {
     assert.ok(result.every(a => a.tags.includes("eu")));
   });
 
-  it("filter by label", () => {
-    const result = evaluator.evaluate([
+  it("filter by label", async () => {
+    const result = await evaluator.evaluate([
       { step: "all" },
       { step: "filter", predicate: 'agent.labels.tier == "premium"' },
     ], "Buyer");
@@ -178,42 +187,42 @@ describe("ResolvePolicyEvaluator", () => {
     assert.equal(result[0].name, "b1");
   });
 
-  it("filter by metadata comparison", () => {
-    const result = evaluator.evaluate([
+  it("filter by metadata comparison", async () => {
+    const result = await evaluator.evaluate([
       { step: "all" },
       { step: "filter", predicate: "agent.metadata.score > 0.5" },
     ], "Buyer");
     assert.equal(result.length, 2);
   });
 
-  it("filter compound (&&)", () => {
-    const result = evaluator.evaluate([
+  it("filter compound (&&)", async () => {
+    const result = await evaluator.evaluate([
       { step: "all" },
       { step: "filter", predicate: '"eu" in agent.tags && agent.metadata.score > 0.5' },
     ], "Buyer");
     assert.equal(result.length, 2);
   });
 
-  it("roundRobin cycles through candidates", () => {
+  it("roundRobin cycles through candidates", async () => {
     evaluator.resetRoundRobin();
-    const r1 = evaluator.evaluate([{ step: "all" }, { step: "roundRobin" }], "Buyer", {}, "t1");
-    const r2 = evaluator.evaluate([{ step: "all" }, { step: "roundRobin" }], "Buyer", {}, "t1");
-    const r3 = evaluator.evaluate([{ step: "all" }, { step: "roundRobin" }], "Buyer", {}, "t1");
+    const r1 = await evaluator.evaluate([{ step: "all" }, { step: "roundRobin" }], "Buyer", {}, "t1");
+    const r2 = await evaluator.evaluate([{ step: "all" }, { step: "roundRobin" }], "Buyer", {}, "t1");
+    const r3 = await evaluator.evaluate([{ step: "all" }, { step: "roundRobin" }], "Buyer", {}, "t1");
     assert.equal(r1[0].name, "b1");
     assert.equal(r2[0].name, "b2");
     assert.equal(r3[0].name, "b3");
   });
 
-  it("sample returns N items", () => {
-    const result = evaluator.evaluate([
+  it("sample returns N items", async () => {
+    const result = await evaluator.evaluate([
       { step: "all" },
       { step: "sample", count: 2 },
     ], "Buyer");
     assert.equal(result.length, 2);
   });
 
-  it("fallback when primary yields empty", () => {
-    const result = evaluator.evaluate([
+  it("fallback when primary yields empty", async () => {
+    const result = await evaluator.evaluate([
       { step: "all" },
       { step: "filter", predicate: '"nonexistent" in agent.tags' },
       { step: "fallback", chain: [{ step: "all" }, { step: "first" }] },
@@ -221,14 +230,14 @@ describe("ResolvePolicyEvaluator", () => {
     assert.equal(result.length, 1);
   });
 
-  it("custom policy integration", () => {
+  it("custom policy integration", async () => {
     evaluator.registerCustomPolicy("topScorer", (candidates) => {
       return candidates
         .filter(a => typeof a.metadata.score === "number")
         .sort((a, b) => (b.metadata.score as number) - (a.metadata.score as number))
         .slice(0, 1);
     });
-    const result = evaluator.evaluate([
+    const result = await evaluator.evaluate([
       { step: "all" },
       { step: "custom", name: "topScorer" },
     ], "Buyer");
@@ -236,8 +245,8 @@ describe("ResolvePolicyEvaluator", () => {
     assert.equal(result[0].name, "b1");
   });
 
-  it("from($ctx.input.agentName) resolves specific agent", () => {
-    const result = evaluator.evaluate(
+  it("from($ctx.input.agentName) resolves specific agent", async () => {
+    const result = await evaluator.evaluate(
       [{ step: "from", expr: "$ctx.input.agentName" }],
       "Buyer",
       { input: { agentName: "b2" } },

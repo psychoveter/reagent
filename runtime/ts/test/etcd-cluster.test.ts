@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import { EtcdStateStore } from "../src/cluster/etcd-state-store.js";
 import { LeaderElection } from "../src/cluster/leader-election.js";
 import { EtcdMembership } from "../src/cluster/etcd-membership.js";
+import { StateStoreAgentRegistry, type AgentRegistration } from "../src/cluster/state-store-agent-registry.js";
 
 const ETCD_HOSTS = (process.env.ETCD_HOSTS ?? "http://127.0.0.1:2379").split(",");
 
@@ -27,6 +28,40 @@ async function etcdReachable(): Promise<boolean> {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+async function waitFor(
+  check: () => Promise<boolean> | boolean,
+  message: string,
+  timeoutMs = 5_000,
+  intervalMs = 100,
+): Promise<void> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (await check()) return;
+    await sleep(intervalMs);
+  }
+  assert.fail(message);
+}
+
+function liveAgent(name: string, nodeId: string): AgentRegistration {
+  return {
+    name,
+    role: "buyer",
+    nodeId,
+    lifecycle: "ready",
+    runtime: {
+      runtimeName: "fake",
+      lifecycle: "ready",
+      nodeId,
+      attachedAt: Date.now(),
+      readyAt: Date.now(),
+    },
+    tags: [],
+    capabilities: [],
+    labels: {},
+    metadata: {},
+  };
 }
 
 // ── LeaderElection ──────────────────────────────────────────────────
@@ -63,13 +98,15 @@ describe("LeaderElection (integration)", () => {
       onElected: () => { elected = true; },
     });
 
-    await le.start();
-    await sleep(500);
+    try {
+      await le.start();
+      await sleep(500);
 
-    assert.strictEqual(le.isLeader, true);
-    assert.strictEqual(elected, true);
-
-    await le.stop();
+      assert.strictEqual(le.isLeader, true);
+      assert.strictEqual(elected, true);
+    } finally {
+      await le.stop().catch(() => {});
+    }
   });
 
   it("second candidate does not acquire leadership while first holds it", async (t) => {
@@ -92,17 +129,19 @@ describe("LeaderElection (integration)", () => {
       retryIntervalMs: 500,
     });
 
-    await le1.start();
-    await sleep(300);
-    assert.strictEqual(le1.isLeader, true);
+    try {
+      await le1.start();
+      await sleep(300);
+      assert.strictEqual(le1.isLeader, true);
 
-    await le2.start();
-    await sleep(1000);
-    assert.strictEqual(le2.isLeader, false);
-
-    await le1.stop();
-    await le2.stop();
-    await store.delete(key);
+      await le2.start();
+      await sleep(1000);
+      assert.strictEqual(le2.isLeader, false);
+    } finally {
+      await le1.stop().catch(() => {});
+      await le2.stop().catch(() => {});
+      await store.delete(key).catch(() => {});
+    }
   });
 
   it("second candidate acquires leadership after first stops", async (t) => {
@@ -127,24 +166,27 @@ describe("LeaderElection (integration)", () => {
       onElected: () => { le2Elected = true; },
     });
 
-    await le1.start();
-    await sleep(300);
-    assert.strictEqual(le1.isLeader, true);
+    try {
+      await le1.start();
+      await sleep(300);
+      assert.strictEqual(le1.isLeader, true);
 
-    await le2.start();
-    await sleep(500);
-    assert.strictEqual(le2.isLeader, false);
+      await le2.start();
+      await sleep(500);
+      assert.strictEqual(le2.isLeader, false);
 
-    // Stop le1 — its lease will expire (2s TTL)
-    await le1.stop();
+      // Stop le1 — its lease will expire (2s TTL)
+      await le1.stop();
 
-    // Wait for lease expiry + le2 retry
-    await sleep(4000);
-    assert.strictEqual(le2.isLeader, true);
-    assert.strictEqual(le2Elected, true);
-
-    await le2.stop();
-    await store.delete(key);
+      // Wait for lease expiry + le2 retry
+      await sleep(4000);
+      assert.strictEqual(le2.isLeader, true);
+      assert.strictEqual(le2Elected, true);
+    } finally {
+      await le1.stop().catch(() => {});
+      await le2.stop().catch(() => {});
+      await store.delete(key).catch(() => {});
+    }
   });
 });
 
@@ -210,6 +252,7 @@ describe("EtcdMembership (integration)", () => {
     if (!available) { t.skip(); return; }
 
     const remoteAgents: Array<{ name: string; nodeId: string }> = [];
+    const registry = new StateStoreAgentRegistry(store2);
 
     const m1 = new EtcdMembership({
       stateStore: store1,
@@ -218,27 +261,21 @@ describe("EtcdMembership (integration)", () => {
       onRemoteAgent: (name, nodeId) => remoteAgents.push({ name, nodeId }),
     });
 
-    await m1.start();
-    await sleep(500);
+    try {
+      await m1.start();
+      await sleep(500);
 
-    // Simulate node B registering an agent in the store
-    await store2.put("/agents/BuyerAgent", JSON.stringify({
-      name: "BuyerAgent",
-      role: "buyer",
-      nodeId: "test-node-B",
-      tags: [],
-      capabilities: [],
-      labels: {},
-      metadata: {},
-    }));
+      await registry.register(liveAgent("BuyerAgent", "test-node-B"));
 
-    await sleep(1000);
-
-    const found = remoteAgents.find((a) => a.name === "BuyerAgent");
-    assert.ok(found, `Expected BuyerAgent in remote agents: ${JSON.stringify(remoteAgents)}`);
-    assert.strictEqual(found!.nodeId, "test-node-B");
-
-    await m1.stop();
+      await waitFor(
+        () => remoteAgents.some((a) => a.name === "BuyerAgent" && a.nodeId === "test-node-B"),
+        `Expected BuyerAgent in remote agents: ${JSON.stringify(remoteAgents)}`,
+      );
+    } finally {
+      registry.dispose();
+      await m1.stop().catch(() => {});
+      await store2.delete("/agents/BuyerAgent").catch(() => {});
+    }
   });
 
   it("detects node leave on lease expiry", async (t) => {
@@ -259,18 +296,22 @@ describe("EtcdMembership (integration)", () => {
       leaseTtlSeconds: 2,
     });
 
-    await m1.start();
-    await sleep(300);
-    await m2.start();
-    await sleep(1000);
+    try {
+      await m1.start();
+      await sleep(300);
+      await m2.start();
+      await sleep(1000);
 
-    // Stop m2 (revokes lease → deletes /nodes/test-leave-target)
-    await m2.stop();
-    await sleep(1000);
-
-    assert.ok(leftNodes.includes("test-leave-target"), `Expected test-leave-target in left: ${leftNodes}`);
-
-    await m1.stop();
+      // Stop m2 (revokes lease → deletes /nodes/test-leave-target)
+      await m2.stop();
+      await waitFor(
+        () => leftNodes.includes("test-leave-target"),
+        `Expected test-leave-target in left: ${leftNodes}`,
+      );
+    } finally {
+      await m2.stop().catch(() => {});
+      await m1.stop().catch(() => {});
+    }
   });
 });
 

@@ -11,7 +11,7 @@
  *
  * Requires:
  * - Docker
- * - ANTHROPIC_API_KEY in env, or runtime/agents/claude/.env
+ * - ANTHROPIC_API_KEY in env, or projects/reagent/.env, or runtime/agents/claude/.env
  *
  * Run:
  *   cd projects/reagent
@@ -66,6 +66,7 @@ const TASK_CONFIG_ROOT = join(TASK_ROOT, "config");
 const CLAUDE_AGENT_ROOT = join(REAGENT_ROOT, "runtime", "agents", "claude");
 const CLAUDE_AGENT_DIST = join(CLAUDE_AGENT_ROOT, "dist", "live-agent.js");
 const MCP_GATE_DIST = join(REAGENT_ROOT, "runtime", "ts", "dist", "mcp-gate.js");
+const PROJECT_ENV_PATH = join(REAGENT_ROOT, ".env");
 const CLAUDE_ENV_PATH = join(CLAUDE_AGENT_ROOT, ".env");
 const HUMAN_NODE_TEMPLATE = join(TASK_CONFIG_ROOT, "human.claude-node.json");
 const WORKER_NODE_TEMPLATE = join(TASK_CONFIG_ROOT, "worker.claude-node.docker.json");
@@ -114,6 +115,10 @@ function parseDotEnv(path: string): Record<string, string> {
 function resolveAnthropicEnv(): Record<string, string> {
   if (process.env.ANTHROPIC_API_KEY) {
     return { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY };
+  }
+  const projectEnv = parseDotEnv(PROJECT_ENV_PATH);
+  if (projectEnv.ANTHROPIC_API_KEY) {
+    return { ANTHROPIC_API_KEY: projectEnv.ANTHROPIC_API_KEY };
   }
   const fileEnv = parseDotEnv(CLAUDE_ENV_PATH);
   if (fileEnv.ANTHROPIC_API_KEY) {

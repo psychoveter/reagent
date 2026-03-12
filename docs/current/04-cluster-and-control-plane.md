@@ -1,42 +1,70 @@
 # Cluster And Control Plane
 
-This document describes the current boundary between node-local runtime ownership and the Reagent control plane.
-It replaces the older split across `connectivity.md`, `orchestrator.md`, `ros-rc-interaction.md`, and the standalone runtime-layering note.
+This document describes the current boundary between the node-local runtime and the cluster control plane in Reagent.
+
+The canonical control-plane API is `AdminClient`, backed by `StateStore` and per-node control endpoints.
 
 ## 1. Architecture Summary
 
-Reagent now has a cleaner separation between:
+Reagent is split into three layers:
 
-- node-local runtime ownership in `ReagentController`
-- cluster infrastructure for discovery and message transport
-- control-plane tooling in ROS
+- node-local execution in `ReagentController`
+- shared cluster truth in `StateStore`
+- tool-facing control operations through `AdminClient`
 
 The critical current rule is:
 
-**ROS deploys, debugs, inspects, and proxies; node-local RCs own runtime execution.**
+**RC owns runtime execution. `AdminClient` owns control-plane access. Shared cluster truth lives in `StateStore`.**
+
+That means:
+
+- protocol execution starts on the node that owns the initiator
+- runtime routing is RC-to-RC via loopback or `NodeLink`
+- cluster discovery and addressability come from `StateStore` and membership
+- tools do not need a central always-on orchestrator to deploy, inspect, or trigger a cluster
 
 ## 2. Current Source Layout
 
-Relevant TS source areas:
+Relevant TypeScript source areas:
 
 | Area | Path | Purpose |
 |---|---|---|
-| Cluster infrastructure | `runtime/ts/src/cluster/` | State store, membership, leader election, bootstrap |
-| Network transport | `runtime/ts/src/network/` | `NodeLink` implementations |
-| Control plane | `runtime/ts/src/admin/` | admin server, remote node, debug, reconciler, registry view |
-| MCP integration | `runtime/ts/src/mcp/` and `mcp-gate.ts` | MCP adapter, MCP server, node host entrypoint |
+| Runtime core | `runtime/ts/src/controller/`, `core/`, `nodes/`, `triggers/` | Node-local protocol execution and agent hosting |
+| Cluster infrastructure | `runtime/ts/src/cluster/` | State store, membership, leader election, runtime bootstrap |
+| Message plane | `runtime/ts/src/network/` | `NodeLink` implementations |
+| Control plane | `runtime/ts/src/admin/` | `AdminClient`, node endpoint client/server, endpoint resolver |
+| MCP integration | `runtime/ts/src/mcp/` | MCP adapter and MCP server |
+| Runnable hosts | `runtime/ts/src/mcp-gate.ts`, `runtime/agents/claude/live-agent.ts` | Real host entrypoints that embed RCs |
 
-## 3. Cluster Infrastructure
+## 3. Shared Cluster Truth
 
 ### State store
 
 Cluster state is abstracted through `StateStore`.
+
 Current implementations:
 
 - `InMemoryStateStore`
 - `EtcdStateStore`
 
-Cluster-backed agent knowledge flows through `StateStoreAgentRegistry`, not through ROS-owned global memory.
+The state store is the canonical shared truth for:
+
+- node registrations
+- agent registrations
+- endpoint discovery inputs
+- cluster-visible lifecycle state
+
+This is the main architectural shift away from a central orchestrator keeping the authoritative in-memory view.
+
+### Agent registry
+
+Cluster-backed agent presence flows through `StateStoreAgentRegistry`, not through a centralized process map.
+
+Practical consequence:
+
+- tools can list agents from shared state
+- node startup can hydrate awareness from shared state
+- resolution does not depend on a central server already having seen every node
 
 ### Membership
 
@@ -44,9 +72,9 @@ Cluster-backed agent knowledge flows through `StateStoreAgentRegistry`, not thro
 
 - node presence
 - remote agent discovery
-- node leave callbacks
+- leave callbacks
 
-This supports the architectural shift away from ROS needing to assemble a cluster-wide runtime map before protocols can start.
+Membership is runtime-facing infrastructure. It supports routing and discovery, not just admin UX.
 
 ### Leader election
 
@@ -54,200 +82,256 @@ This supports the architectural shift away from ROS needing to assemble a cluste
 
 ### Runtime bootstrap
 
-`runtime/ts/src/cluster/runtime-bootstrap.ts` centralizes the runtime-side infrastructure bootstrap for hosts that embed RCs.
+`runtime/ts/src/cluster/runtime-bootstrap.ts` centralizes host-side infrastructure bootstrap from `RuntimeConfig`.
 
-This is important because hosts such as `mcp-gate` should consume runtime config declaratively instead of hand-building infra wiring ad hoc.
+This matters because hosts such as `mcp-gate` and live-agent wrappers should consume declarative runtime config rather than each hand-building cluster wiring ad hoc.
 
-## 4. Message Plane
+## 4. Message Plane vs Control Plane
 
 The message plane is based on `NodeLink`.
+
 Current implementations:
 
 - `InMemoryNodeLink`
 - `WsNodeLink`
 - `NatsNodeLink`
 
-The message plane is distinct from the control plane:
+These are runtime delivery mechanisms. They are not the control plane.
 
-- Control plane commands are RAP over ROS WebSocket connections.
-- Runtime message delivery is RC-to-RC envelope routing through `NodeLink` or loopback.
+The distinction is:
 
-`NatsTransport` and `NatsCompatTransport` still exist, but they are legacy compatibility pieces rather than the primary architecture.
+- message plane: runtime envelopes between RCs
+- control plane: deploy, trigger, inspect, and stop operations addressed to nodes
 
-## 5. Runtime Hosts
+In the current architecture:
 
-### Local RC hosts
+- RC routes messages by agent name and node ownership
+- tools use `AdminClient`
+- `AdminClient` resolves nodes from shared state and talks to node control endpoints
+
+## 5. The Control Plane Model
+
+### `AdminClient`
+
+`runtime/ts/src/admin/client.ts` is the canonical tool-facing API.
+
+It supports two modes:
+
+- state-store-backed mode, which is the canonical architecture
+- legacy WebSocket RAP mode, which remains as a compatibility path for workflows not yet migrated
+
+In state-store-backed mode, `AdminClient`:
+
+- lists node registrations from `StateStore`
+- resolves target nodes using `StoreBackedNodeEndpointResolver`
+- sends imperative operations through `NodeControlClient`
+
+This is the current cluster control-plane shape.
+
+### Per-node control endpoints
+
+Each runnable node host may expose a `NodeControlEndpoint`.
+
+The pair is:
+
+- `NodeControlEndpoint` — per-node server
+- `NodeControlClient` — tool-side client
+
+This is how imperative control is meant to work in the non-legacy architecture:
+
+- deploy to a node
+- trigger on the node that owns an agent
+- inspect a specific node
+- stop a specific agent
+
+### Endpoint resolution
+
+Node lookup is not hardcoded in tools.
+
+Instead:
+
+- node registration is stored in `StateStore`
+- control endpoint URLs are stored with node registration
+- `StoreBackedNodeEndpointResolver` finds the right node or agent owner
+
+This removes the need for a central admin host to proxy every operation.
+
+## 6. What Is Still Legacy
+
+Not every control-plane path is fully migrated yet.
+
+Today, `AdminClient` still exposes a legacy compatibility path through `legacyAdminUrl`.
+
+When `stateStoreProvider` is absent, methods fall back to WebSocket RAP requests such as:
+
+- `Compile`
+- `DeployProject`
+- `TriggerOnCluster`
+- `NodeInspect`
+- `ClusterStatus`
+- `ListProtocols`
+- `ListAgents`
+- `StopAgent`
+- `GetDeployedIR`
+- debug commands
+
+This means the current reality is:
+
+- **canonical architecture**: `AdminClient` + `StateStore` + `NodeControlEndpoint`
+- **compatibility path**: legacy RAP/WebSocket admin transport
+
+The compatibility path should be described as transitional, not as the target design.
+
+## 7. Runtime Hosts
 
 A host is any runnable process that embeds an RC and translates process-level config into runtime wiring.
 
 Examples:
 
-- local in-process session RC inside ROS
-- `RemoteNode`
 - `mcp-gate`
+- Claude live-agent wrapper
 - test bootstraps
-
-### `RemoteNode`
-
-`RemoteNode` remains the ROS-managed adapter host.
-
-Current role:
-
-- connect to ROS
-- register as an adapter node
-- receive deploy, trigger, inspect, and debug commands
-- translate those commands into local RC operations
-
-Important caveat:
-
-`RemoteNode` is still more tightly coupled to ROS transport than the target architecture wants.
-It remains a partially transitional host.
+- future node kinds that embed `RuntimeConfig`
 
 ### `mcp-gate`
 
-`mcp-gate` is the strongest example of the new direction.
+`mcp-gate` is the main MCP-facing runtime host.
 
 Current role:
 
-- host its own node-local RC
-- expose the runtime to an external MCP client
-- bootstrap cluster state and message-plane infrastructure from runtime config
-- deploy `AgentTemplate` / `AgentRecord` locally and attach `AgentRuntime` when the MCP client registers
-- invoke protocols locally through RC
-- use ROS primarily for deploy, inspect, and debug/control compatibility
+- host a node-local RC
+- expose runtime participation to an external MCP client
+- bootstrap cluster state and message-plane wiring from `RuntimeConfig`
+- attach MCP-driven custom-agent behavior through `McpAgentAdapter`
+- participate in cluster routing through membership and `NodeLink`
 
-This means `mcp-gate` already treats ROS more as control plane than as runtime owner.
+`mcp-gate` should be understood as a runtime host first, not as a thin proxy to a central admin server.
 
-## 6. ROS Responsibilities
+### Claude live-agent wrapper
 
-The current legacy-compatible admin server lives in `runtime/ts/src/admin/ros.ts`.
+`runtime/agents/claude/live-agent.ts` is a wrapper host for Claude-backed nodes.
 
-Current responsibilities:
+It reads a node wrapper config, extracts embedded `RuntimeConfig`, and launches `mcp-gate`.
 
-- compile `.rg` sources for local session workflows
-- manage local run/debug sessions
-- accept RAP client connections
-- track connected adapter nodes
-- distribute deploy requests
-- proxy trigger/debug/inspect requests to node hosts
-- maintain registry and reconciliation views for the cluster
+That wrapper config contains node-kind-specific settings such as:
 
-No central admin host should be treated as the owner of distributed protocol startup.
+- runtime config
+- agent name and roles
+- Claude SDK options
 
-Current implementation note:
+This keeps the core runtime config provider-neutral.
 
-- `AdminClient` is the canonical tool-facing entrypoint over the cluster/admin API surface
-- declarative cluster truth lives in `StateStore`
-- imperative control happens through per-node control endpoints
-- docs that still mention ROS or a central admin host elsewhere are historical and no longer describe the canonical architecture
+## 8. Deploy Flow
 
-### What changed
-
-Older docs described ROS as more deeply involved in protocol startup and cluster-wide role binding assembly.
-That is no longer the intended runtime model.
-
-Current direction:
-
-- deploy should resolve through `StateStore` and per-node control endpoints
-- debug should attach directly to the owning node endpoint
-- inspect should query shared state first and then the specific node endpoint when deeper runtime detail is needed
-- actual protocol invocation should happen through the node-local RC that owns the initiator
-
-## 7. Trigger Flow In Cluster Mode
+In the canonical architecture, deploy is node-directed, not centrally executed.
 
 Current intended flow:
 
-1. A client asks ROS to trigger a protocol.
-2. ROS identifies the initiator node.
-3. ROS forwards the request to that node as a control-plane proxy.
+1. A tool builds deployment artifacts.
+2. `AdminClient` reads node registrations from `StateStore`.
+3. `AdminClient` sends `DeployProject` to node control endpoints.
+4. Each node installs protocol artifacts and agent state locally in its RC.
+5. Shared cluster state reflects agent presence and ownership.
+
+In the current compatibility path, deploy may still go through legacy RAP transport.
+
+What matters architecturally is that deploy is node-directed: each node receives and installs its own artifacts.
+
+## 9. Trigger Flow
+
+Current intended cluster trigger flow:
+
+1. A tool calls `AdminClient.triggerProtocol(...)`.
+2. `AdminClient` resolves the owning node for the initiator agent.
+3. `AdminClient` talks directly to that node’s control endpoint.
 4. The node-local RC invokes the protocol locally.
-5. Participant resolution is derived from cluster-backed runtime state, not from a ROS-built global startup map.
+5. Participant resolution uses cluster-backed runtime state, not a central startup map.
 
-In terms of runtime ontology, this means:
+Important runtime ontology:
 
-- deploy can create `AgentTemplate` and `AgentRecord`
-- trigger/invoke should only target records that currently have attached `AgentRuntime`
-- control plane must not assume that “deployed” implies “runtime attached”
+- deploy can create logical agent presence and install protocol artifacts
+- trigger should target an agent that is actually attached and reachable
+- control plane must not assume that “deployed” automatically means “runtime attached”
 
-This is the architectural consequence of adding reliable cluster state to RC.
+## 10. Inspect And Cluster Status
 
-## 8. Debug And Inspect
+Inspect is now conceptually two-layered:
 
-Debug infrastructure lives under `runtime/ts/src/admin/`:
+- shared-state query for broad cluster truth
+- direct node inspection for deep local runtime detail
 
-- `debug-controller.ts`
-- `debug-interceptor.ts`
-- `debug-advance-hook.ts`
-- `session.ts`
+`AdminClient.clusterStatus()` in state-store-backed mode already follows this shape:
 
-Current debugging model:
+- nodes come from `StateStore`
+- agents come from `StateStore`
+- protocol details are aggregated by inspecting node endpoints
 
-- ROS coordinates the client-facing debug session
-- RC-level interceptors and advance hooks perform the actual runtime pauses
-- remote hosts surface stop/inspect information back through ROS
+`AdminClient.inspectNode(nodeId)` resolves a node endpoint and asks that node directly.
 
-This keeps runtime stepping local to the node while preserving centralized UX.
+This is the current control-plane model. It is more accurate than a “central server knows everything” story.
 
-## 9. Registry View And Reconciliation Inputs
+## 11. Debug
 
-Cluster control-plane state is modeled through:
+Debug remains the least migrated part of the control plane.
 
-- `registry-view.ts`
-- `deploy-spec.ts`
-- `reconciler.ts`
+Today:
 
-These structures exist so ROS can reason about:
+- debug commands in `AdminClient` still go through the legacy `send(...)` path
+- some extension/debug UX still assumes legacy admin transport
 
-- what is currently deployed
-- what should be deployed
-- how to converge the two
+So the accurate current statement is:
 
-They are not a substitute for node-local runtime ownership.
+- deploy/trigger/inspect/list/stop are moving to the `AdminClient` + node-endpoint model
+- debug is still partially tied to the legacy transport path
 
-## 10. Runtime Config Boundary
+This should be documented explicitly.
 
-The runtime config boundary matters most in cluster-capable hosts.
+## 12. Runtime Config Boundary
 
-RC-facing declarative config should cover:
+The runtime config boundary matters most for cluster-capable hosts.
 
-- node id
+`RuntimeConfig` should describe only node-local runtime concerns:
+
+- node identity
 - state store backend
 - membership
 - message plane
 - telemetry
+- control endpoint settings
 - trigger policy defaults
 
-RC-facing imperative code should cover:
+Imperative host code should provide:
 
 - concrete `AgentNode` instances
-- host wiring
-- MCP or RAP adapters
+- host-specific adapters
+- MCP or external agent integration
 - process lifecycle
 
-This lets RC remain ROS-agnostic while still being embeddable in ROS-connected hosts.
+`RuntimeConfig` should not be repurposed for Claude-specific or tool-specific launch settings.
+Those belong in wrapper configs around the runtime config.
 
-## 11. Python Runtime Asymmetry
+## 13. Python Runtime Asymmetry
 
-The TS runtime and its hosts were structurally reorganized in this pass.
+The TypeScript runtime and control-plane layers were reorganized to match the current architecture.
 The Python runtime was not.
 
 Practical consequence:
 
-- TS docs in this file describe the current architectural boundary with freshly reorganized source layout
-- Python runtime behavior may mirror parts of the model, but its file structure and host layering are not yet aligned the same way
+- this file describes the current TypeScript control-plane model
+- Python support may mirror parts of the behavior, but not the structure or file layout
 
 Do not assume path parity between `runtime/ts/` and `runtime/py/`.
 
-## 12. Primary Files
+## 14. Primary Files
 
-For current cluster/control-plane behavior, start with:
+For the current cluster/control-plane behavior, start with:
 
-- `runtime/ts/src/admin/ros.ts`
-- `runtime/ts/src/admin/remote-node.ts`
-- `runtime/ts/src/admin/session.ts`
-- `runtime/ts/src/admin/debug-controller.ts`
-- `runtime/ts/src/admin/registry-view.ts`
-- `runtime/ts/src/admin/reconciler.ts`
+- `runtime/ts/src/admin/client.ts`
+- `runtime/ts/src/admin/node-control-client.ts`
+- `runtime/ts/src/admin/node-control-endpoint.ts`
+- `runtime/ts/src/admin/node-endpoint-resolver.ts`
+- `runtime/ts/src/cluster/state-store.ts`
+- `runtime/ts/src/cluster/state-store-agent-registry.ts`
 - `runtime/ts/src/cluster/runtime-config.ts`
 - `runtime/ts/src/cluster/runtime-bootstrap.ts`
 - `runtime/ts/src/cluster/etcd-membership.ts`
@@ -256,3 +340,10 @@ For current cluster/control-plane behavior, start with:
 - `runtime/ts/src/mcp/mcp-server.ts`
 - `runtime/ts/src/mcp/mcp-agent-adapter.ts`
 - `runtime/ts/src/mcp-gate.ts`
+- `runtime/agents/claude/live-agent.ts`
+
+## 15. Short Version
+
+If you remember only one thing from this file, remember this:
+
+**The canonical cluster control-plane architecture is `AdminClient` + `StateStore` + per-node control endpoints.**

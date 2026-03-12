@@ -769,7 +769,7 @@ All existing examples and tests are updated as part of the implementation. No mi
 | `rc-spec.md` §8 | ResolvePolicy replaces initiator resolution (§8.5). Triggers gain `resolveMap`. Trigger runtime (TriggerMatcher, policies, cross-node routing) documented there. |
 | `lang-spec.md` §1.9 | Spawn syntax (`spawns <RoleName> as <participant> persistent`) documented in the language spec. Spawn lifecycle (§7 here) defines runtime semantics. |
 | `composite-agent.md` | Inner agents of a composite are invisible to the outer registry. Resolve policies in the outer RC never see inner agents. The inner RC has its own registry and resolve policies. |
-| `backlog-far.md` Wave 4 | Rust RC must implement `ResolvePolicyEvaluator`. Stateful policy state must be serializable for WASM/PyO3. |
+| `backlog.md` runtime platform roadmap | Rust RC must implement `ResolvePolicyEvaluator`. Stateful policy state must be serializable for WASM/PyO3. |
 
 ---
 
@@ -779,8 +779,8 @@ All existing examples and tests are updated as part of the implementation. No mi
 |---|---|---|
 | ~~Q1~~ | **~~Predicate language expressiveness~~** | **Resolved (§4.5).** Full expression language with `agent.*` access, comparisons, `in`, `&&`/`||`/`!`. Shorthands (`hasTag`, etc.) are sugar. |
 | ~~Q2~~ | **~~Cross-node resolve + trigger race~~** | **Resolved (§13.1).** Embedded etcd provides consistent agent registry, CAS-based trigger dedup, lease-based cron leader election. See `backlog.md` M11-INFRA. |
-| ~~Q3~~ | **~~Resolve failure semantics~~** | **Resolved.** Empty resolve result → protocol instantiation fails with error. `fallback()` step available for explicit handling. Future: trigger supervision system (see `backlog-far.md`). |
-| Q4 | **Dynamic participant first-use verification** | Deferred to formal verification work (see `backlog-far.md` F1/F5). For now: no compiler enforcement, runtime error if message targets unresolved dynamic participant. |
+| ~~Q3~~ | **~~Resolve failure semantics~~** | **Resolved.** Empty resolve result → protocol instantiation fails with error. `fallback()` step available for explicit handling. Future: trigger supervision system (see `backlog.md`). |
+| Q4 | **Dynamic participant first-use verification** | Deferred to formal verification work (see `backlog.md` formal foundations). For now: no compiler enforcement, runtime error if message targets unresolved dynamic participant. |
 | Q5 | **Resolve in role lifecycle handlers** | Can `on protocolStarted(Proto) { ... }` use `reagent.resolve()`? Likely yes — handlers run in zone context. |
 
 ### 13.1 Cross-node resolve and trigger race (Q2) — solved by embedded etcd

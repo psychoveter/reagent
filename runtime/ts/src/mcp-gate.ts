@@ -32,7 +32,7 @@ import { mergeRoleBindings } from "./controller/role-bindings.js";
 import { createDefaultRuntimeConfig, type RuntimeConfig } from "./cluster/runtime-config.js";
 import { bootstrapRuntime } from "./cluster/runtime-bootstrap.js";
 import { EtcdStateStore } from "./cluster/etcd-state-store.js";
-import { InMemoryStateStore } from "./cluster/state-store.js";
+import { InMemoryStateStore, type Lease } from "./cluster/state-store.js";
 import { NodeControlEndpoint } from "./admin/node-control-endpoint.js";
 import { DebugAdvanceHook } from "./admin/debug-advance-hook.js";
 
@@ -197,6 +197,10 @@ async function main(): Promise<void> {
       }
     },
   });
+
+  if (runtime.membership) {
+    rc.setAgentPresenceLease(runtime.membership.getLeaseId());
+  }
   if (runtimeConfig.stateStore.kind === "etcd") {
     log(`Connected to state store at ${runtimeConfig.stateStore.hosts.join(",")}`);
   } else {
@@ -485,6 +489,9 @@ async function main(): Promise<void> {
   const advertisedControlUrl = runtimeConfig.controlEndpoint?.advertiseUrl
     ?? `ws://${runtimeConfig.controlEndpoint?.host ?? "127.0.0.1"}:${boundControlPort}`;
 
+  let standaloneLease: Lease | null = null;
+  let standaloneLeaseKeepAliveTimer: ReturnType<typeof setInterval> | null = null;
+
   if (runtime.membership) {
     await runtime.membership.updateNodeMetadata({
       control: { kind: "ws", url: advertisedControlUrl },
@@ -499,6 +506,15 @@ async function main(): Promise<void> {
       },
     });
   } else {
+    const leaseTtlSeconds = runtimeConfig.membership?.leaseTtlSeconds ?? 15;
+    const keepAliveIntervalMs = Math.floor((leaseTtlSeconds * 1000) / 3);
+    standaloneLease = await runtime.stateStore.createLease(leaseTtlSeconds);
+    standaloneLeaseKeepAliveTimer = setInterval(() => {
+      standaloneLease?.keepAlive().catch((err) => {
+        log(`Standalone lease keepAlive failed: ${String(err)}`);
+      });
+    }, keepAliveIntervalMs);
+    rc.setAgentPresenceLease(standaloneLease.id);
     await runtime.stateStore.put(`/nodes/${nodeId}`, JSON.stringify({
       nodeId,
       startedAt,
@@ -512,7 +528,7 @@ async function main(): Promise<void> {
       metadata: {
         langs,
       },
-    }));
+    }), { lease: standaloneLease.id });
   }
 
   log(`Node control endpoint listening at ${advertisedControlUrl}`);
@@ -591,6 +607,18 @@ async function main(): Promise<void> {
     await mcpServer.close();
     for (const link of createdLinks.values()) {
       await link.close();
+    }
+    if (standaloneLeaseKeepAliveTimer) {
+      clearInterval(standaloneLeaseKeepAliveTimer);
+      standaloneLeaseKeepAliveTimer = null;
+    }
+    if (standaloneLease) {
+      try {
+        await standaloneLease.revoke();
+      } catch {
+        // best effort
+      }
+      standaloneLease = null;
     }
     await controlEndpoint.stop();
     await rc.stop();

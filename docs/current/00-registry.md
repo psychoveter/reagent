@@ -17,11 +17,12 @@ It is intentionally organized as a numbered reading order rather than as a flat 
 | [`01-user-guide.md`](01-user-guide.md) | How to create, build, run, debug, and deploy Reagent projects |
 | [`02-lang-spec.md`](02-lang-spec.md) | Current language surface and runtime-facing semantics |
 | [`03-runtime-core.md`](03-runtime-core.md) | Node-local runtime model: RC, protocol execution, triggers, nodes |
-| [`04-cluster-and-control-plane.md`](04-cluster-and-control-plane.md) | Cluster state, message plane, ROS, MCP gate, and runtime config boundary |
+| [`04-cluster-and-control-plane.md`](04-cluster-and-control-plane.md) | Cluster state, message plane, AdminClient, MCP gate, and runtime config boundary |
 | [`05-versioning-and-reconcile.md`](05-versioning-and-reconcile.md) | Fingerprints, registry, desired state, and reconciliation |
-| [`06-tooling-overview.md`](06-tooling-overview.md) | IDE tooling, diagrams, debug UX, ROS manager, observability |
+| [`06-tooling-overview.md`](06-tooling-overview.md) | IDE tooling, diagrams, debug UX, control-plane lifecycle, observability |
 | [`07-lsp.md`](07-lsp.md) | Reagent language server architecture, current features, and backlog |
 | [`08-test-spec.md`](08-test-spec.md) | Test inventory, execution surface, and known gaps |
+| [`09-e2e-usecases.md`](09-e2e-usecases.md) | Representative end-to-end use cases spanning managed, cluster, MCP, custom, and hybrid runtime shapes |
 
 ## Current Runtime Reality
 
@@ -65,3 +66,4 @@ Where the docs describe TS and Python together, treat TS as the freshly refactor
 - Runtime implementers: start with [`03-runtime-core.md`](03-runtime-core.md), [`04-cluster-and-control-plane.md`](04-cluster-and-control-plane.md), and [`05-versioning-and-reconcile.md`](05-versioning-and-reconcile.md)
 - Tooling work: start with [`06-tooling-overview.md`](06-tooling-overview.md) and [`07-lsp.md`](07-lsp.md)
 - Test updates: start with [`08-test-spec.md`](08-test-spec.md)
+- Product / solution framing: read [`20-usecases-gpt.md`](20-usecases-gpt.md) after the core runtime and cluster docs

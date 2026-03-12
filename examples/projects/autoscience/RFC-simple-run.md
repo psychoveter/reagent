@@ -3,7 +3,7 @@
 **Date:** 2026-03-09
 **Status:** RFC draft
 **Area:** examples/autoscience, runtime integration
-**Depends on:** MCP Gate RFC (`docs/future/mcp-gate-rfc.md`), simple.rg protocol,
+**Depends on:** current MCP Gate docs (`docs/current/01-user-guide.md`, `docs/current/04-cluster-and-control-plane.md`), simple.rg protocol,
   node control endpoints, RemoteNode (`runtime/ts/src/admin/remote-node.ts`)
 
 ---
@@ -526,9 +526,9 @@ The pattern repeats. Each cycle:
 
 ---
 
-## What the MCP Gate RFC needs to add
+## What the current MCP Gate docs and implementation still need to cover
 
-Based on this scenario, the MCP Gate RFC (`mcp-gate-rfc.md`) should include:
+Based on this scenario, the current docs and implementation should include:
 
 ### 1. `reagent/invoke` tool
 
@@ -576,7 +576,7 @@ independently of the MCP client.
 
 ### 5. Event type mapping
 
-The MCP Gate RFC should specify how `ProtocolEvent` types map to MCP
+The current docs should specify how `ProtocolEvent` types map to MCP
 tool responses. The `McpGateTransport` on each RemoteNode must surface:
 - `action` / `pre_send_action` / `post_receive_action` → zone code to interpret
 - `send` / `receive` states → message payload construction / delivery
@@ -672,7 +672,7 @@ server? Options to verify:
 - Implement `McpGateTransport` and MCP server skeleton
 - `register`, `wait_for_events`, `respond` tools
 - Streamable HTTP transport
-- This is the MCP Gate RFC P1-P3
+- This is the MCP Gate core integration surface
 
 ### Phase 1: RemoteNode MCP mode
 - Extend `RemoteNode` to support `McpGateTransport` instead of `NativeAgentNode`

@@ -93,7 +93,7 @@ export class LeaderElection {
     }
 
     // Adjust interval based on state
-    if (this.timer) {
+    if (!this.stopped && this.timer) {
       clearInterval(this.timer);
       this.timer = setInterval(
         () => void this.loop(),
@@ -105,6 +105,10 @@ export class LeaderElection {
   private async tryAcquire(): Promise<void> {
     try {
       const lease = await this.store.createLease(this.leaseTtlSeconds);
+      if (this.stopped) {
+        await lease.revoke().catch(() => {});
+        return;
+      }
       const acquired = await this.store.putIfAbsent(this.leaderKey, this.candidateId, { lease: lease.id });
 
       if (acquired) {
@@ -115,6 +119,8 @@ export class LeaderElection {
         await lease.revoke();
       }
     } catch (err) {
+      if (this.stopped) return;
+      if (err instanceof Error && err.name === "ClientClosedError") return;
       console.warn(`[LeaderElection] Failed to acquire ${this.leaderKey}:`, err);
     }
   }
@@ -123,7 +129,9 @@ export class LeaderElection {
     if (!this.lease) return;
     try {
       await this.lease.keepAlive();
-    } catch {
+    } catch (err) {
+      if (this.stopped) return;
+      if (err instanceof Error && err.name === "ClientClosedError") return;
       this._isLeader = false;
       this.lease = null;
       this.onRevoked?.();

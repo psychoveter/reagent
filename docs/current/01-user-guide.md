@@ -157,7 +157,7 @@ All commands are invoked via `node lang/dist/cli.js <command>` (or `reagent-lang
 | `init` | `reagent init [dir]` | Scaffold a new Reagent project |
 | `decompile` | `reagent decompile <dir\|file.ir.json>` | Reconstruct `.rg` from compiled IR |
 | `verify` | `reagent verify <file.rg>` | Generate TLA+ spec, run TLC model checker |
-| `deploy` | `reagent deploy [project-dir] [ros-url]` | Build and deploy to ROS (default: `ws://127.0.0.1:18789`) |
+| `deploy` | `reagent deploy [project-dir] [url]` | Build and deploy to control-plane server (default: `ws://127.0.0.1:18789`) |
 
 ### `build` output
 
@@ -349,7 +349,7 @@ Three transport implementations:
 
 The agent connects as an MCP client to a `mcp-gate` subprocess. Unlike Message Gate (push), MCP Gate uses a pull model: the agent actively requests protocol events.
 
-The `mcp-gate` process is started as a subprocess by the agent (Claude Code, Cursor, or any MCP client):
+The simplest path is a direct MCP client such as Cursor launching `mcp-gate` from a plain runtime config:
 
 ```json
 {
@@ -361,6 +361,31 @@ The `mcp-gate` process is started as a subprocess by the agent (Claude Code, Cur
   }
 }
 ```
+
+For Claude-backed live agents, the recommended launch UX is now slightly different:
+
+- keep core RC host settings in `RuntimeConfig`
+- wrap them in a node-kind-specific config file
+- let `live-agent.ts` read that one wrapper file, materialize the embedded runtime config, and launch `mcp-gate`
+
+Current canonical wrapper shape for Claude-backed nodes:
+
+```json
+{
+  "kind": "claude_live_agent_node",
+  "runtime": { "...": "RuntimeConfig" },
+  "agent": { "name": "WorkerAgent", "roles": ["WorkerRole"] },
+  "claude": {
+    "tools": [],
+    "mcpServers": {},
+    "maxTurns": 4,
+    "permissionMode": "bypassPermissions",
+    "extraInstructions": "..."
+  }
+}
+```
+
+This preserves a one-config-per-node UX without making core `RuntimeConfig` depend on Claude-specific settings.
 
 The agent interacts with the protocol via MCP tools:
 
@@ -383,6 +408,11 @@ Current lifecycle model:
 - deploy installs `ProtocolArtifacts` and `AgentTemplate`
 - the RC may create an `AgentRecord` before the external client is attached
 - `reagent/register` is the point where the external MCP client attaches `AgentRuntime` and becomes addressable for protocol execution
+
+Operationally, this means there are now two normal MCP Gate entry styles:
+
+- direct MCP client → `mcp-gate` using plain `RuntimeConfig`
+- config-driven Claude `live-agent` → embedded `RuntimeConfig` → `mcp-gate`
 
 ---
 
@@ -495,11 +525,11 @@ This lets you:
 - Inspect `$self`, `$ctx` state in the debugger's variables panel
 - Step through agent decision functions
 
-### ROS debug session (advanced)
+### Control-plane debug session (advanced)
 
 For protocol-level debugging with breakpoints on send/receive/action states:
 
-1. Start the current legacy ROS control-plane server: `Cmd+Shift+P` → `Reagent: Start ROS`
+1. Start the control-plane server: `Cmd+Shift+P` → `Reagent: Start Control Plane`
 2. Open a `.rg` file
 3. `Cmd+Shift+P` → `Reagent: Start Debug Session`
 
@@ -508,10 +538,9 @@ The debug panel shows:
 - Agent state (`$self`)
 - Held messages
 
-> **Note**: The current debug flow still relies on the legacy ROS server implementation and currently supports the TypeScript runtime. For Python
-> projects, use the Python debugger approach above.
+> **Note**: The current debug flow supports the TypeScript runtime. For Python projects, use the Python debugger approach above.
 
-For non-debug administrative actions, prefer the emerging `reagent-rgctl` CLI/tooling layer over speaking RAP messages manually. It currently uses the legacy ROS-compatible endpoint underneath while the cluster/admin API surface is being separated from the old server model.
+For administrative actions, use `AdminClient` or the `reagent-rgctl` CLI.
 
 ---
 
@@ -535,10 +564,10 @@ the `.rg` protocol file — message structure, control flow, zones.
 | Reagent: Run Protocol | ▶ button | `.rg` file open | Run via `run.py` or in-process TS |
 | Reagent: Open Diagram | ⎅ button | `.rg` file open | Sequence diagram for current protocol |
 | Reagent: Open Project Overview | graph button | `.rg` file open | Agents/roles/protocols overview |
-| Reagent: Start Debug Session | — | `.rg` file open | Launch ROS debug session |
+| Reagent: Start Debug Session | — | `.rg` file open | Launch debug session |
 | Reagent: Inspect Agent State | — | Debug session active | Query agent `$self` state |
 | Reagent: Show Trace Timeline | — | Debug session active | Focus the trace timeline panel |
-| Reagent: Start/Stop/Toggle ROS | — | Any | Manage the current legacy control-plane server |
+| Reagent: Start/Stop Control Plane | — | Any | Manage the control-plane server |
 
 ---
 
@@ -650,4 +679,4 @@ const results = await partitionedScatter(
 
 ## 15. Self-Hosting
 
-The ROS (Reagent Orchestrator Service) uses its own internal `ReagentController` for managing system protocols and agents. On startup, the ROS creates a system RC (`nodeId: "ros-system"`) that can host system agents (Orchestrator, Debugger, Reconciler, Discovery). This makes infrastructure operations observable and debuggable via the same tools used for user protocols. See `docs/orchestrator.md` §8 for details.
+The control-plane server uses its own internal `ReagentController` for managing system protocols and agents. On startup it creates a system RC (`nodeId: "system"`) that can host system agents (Orchestrator, Debugger, Reconciler, Discovery). This makes infrastructure operations observable and debuggable via the same tools used for user protocols. See `docs/orchestrator.md` §8 for details.
