@@ -1,11 +1,15 @@
 # End-to-End Use Cases
 
-Six reference use cases covering the breadth of the Reagent language and runtime stack. Each is a self-contained story: domain problem, protocol design, agent integration mode, and deployment shape.
+Seven reference use cases covering the breadth of the Reagent language and runtime stack. Each is a self-contained story: domain problem, protocol design, agent integration mode, and deployment shape.
 
 The cases are chosen to be maximally distant from each other across three axes:
 - **deployment topology** (single-process ↔ multi-node cluster)
 - **agent integration mode** (managed ↔ custom ↔ message gate ↔ MCP gate)
 - **activation model** (invoke ↔ cron ↔ event)
+
+Status labels used below:
+- **Supported** — aligned with the current architecture as a realistic current-state deployment shape
+- **Future** — important target direction, but not yet a supported first-class end-to-end path
 
 ---
 
@@ -14,6 +18,8 @@ The cases are chosen to be maximally distant from each other across three axes:
 **Domain**: market microstructure / game theory.
 
 **Problem**: a researcher runs hundreds of sealed-bid auctions with different bidding strategies in a tight edit-run loop. All agents live in one process; the only goal is fast iteration — change a strategy, re-run, compare.
+
+**Status**: Supported
 
 ### Protocol
 
@@ -105,6 +111,8 @@ This shows Reagent as a precise local protocol runtime for structured multi-agen
 **Domain**: automated research / LLM-assisted knowledge work.
 
 **Problem**: a human researcher (in Cursor IDE) formulates a hypothesis. LLM agents — a systematizer and multiple experimenters — decompose, execute, and report back. All agents run on separate machines: the human in their IDE, the LLM agents in Docker containers. The system supports iterative research cycles, parallel experiment execution, and human approval at key checkpoints.
+
+**Status**: Future
 
 ### Protocol
 
@@ -205,6 +213,8 @@ This is the canonical "many distributed cognitive workers" case. Reagent makes t
 **Domain**: industrial IoT / edge monitoring.
 
 **Problem**: a factory has temperature sensors and a central monitor. Every 5 minutes the monitor polls all sensors. If any reading crosses a threshold, a reactive protocol launches an investigation — a diagnostics agent analyzes the pattern and recommends action.
+
+**Status**: Supported
 
 ### Protocol
 
@@ -330,6 +340,8 @@ This is not an LLM or simulation case — it shows Reagent as an operational pro
 **Domain**: fintech / payment processing.
 
 **Problem**: a payment gateway coordinates a TypeScript order service, a Python fraud engine, and a Kotlin notification service. The protocol retries transient failures, compensates on fatal errors, and uses parallel processing for independent steps.
+
+**Status**: Future
 
 ### Protocol
 
@@ -462,6 +474,8 @@ This is the heterogeneous-runtime showcase. The protocol stays readable regardle
 **Domain**: financial operations / compliance.
 
 **Problem**: every weekday morning the system collects positions and exposures, scores them for risk, prepares a review package, and asks a human approver for sign-off. On rejection the system spawns remediation agents. The workflow uses persistent state to track reviewer decisions across days.
+
+**Status**: Supported
 
 ### Protocol
 
@@ -646,6 +660,8 @@ This is the "enterprise workflow" case. It shows Reagent handling scheduled, app
 
 **Problem**: a human maintainer works in Cursor and needs to drive feature delivery across multiple iterative stages. The human sets the task, an `analyst` formalizes it and updates product/user/spec docs, a `developer` turns the approved design into architecture and code, and a `reviewer` critiques the work of both. Each stage may require several analyst-developer-reviewer iterations before the human approves it. The workflow ends only after design, implementation, and finalization all converge.
 
+**Status**: Supported
+
 ### Protocol
 
 This use case is best modeled as a staged protocol family:
@@ -779,37 +795,166 @@ This is the “develop Reagent with Reagent” case. The choreography makes role
 
 ---
 
+## 7. NMMO Multi-Agent Simulation Inside A Python Process
+
+**Domain**: game simulation / embodied multi-agent research.
+
+**Problem**: an NMMO environment already runs as a Python process and owns the authoritative world state, tick loop, and observation pipeline. Reagent should orchestrate coordination between simulated agents without introducing a second full Python runtime, expensive IPC, or world-state duplication. The desired shape is a single Rust `reagent-core` embedded in the Python process, with Python-hosted agent behaviors and world access.
+
+**Status**: Future
+
+### Protocol
+
+Illustrative protocol family:
+
+```rg
+message TickFrame {
+  tick: number
+  players: any[]
+  npcs: any[]
+}
+
+message Observation {
+  entityId: string
+  obs: any
+}
+
+message Intent {
+  entityId: string
+  action: any
+}
+
+protocol NmmoTick {
+  participants:
+    world [py] initiator,
+    player [py] dynamic many,
+    npc [py] dynamic many
+
+  trigger on event "nmmo.tick" with TickFrame {
+    resolve world = single
+    resolve player = all | filter(hasCapability("nmmo-player"))
+    resolve npc = all | filter(hasCapability("nmmo-npc"))
+  }
+
+  world {
+    $ctx.players = $ctx.input.players
+    $ctx.npcs = $ctx.input.npcs
+    $ctx.intents = []
+  }
+
+  scatter ($ctx.players as player) {
+    world --> player: Observation = {
+      onSend {
+        $ctx.msg.entityId = $ctx._scatterItem.id
+        $ctx.msg.obs = $ctx._scatterItem.obs
+      }
+    }
+
+    player {
+      $ctx.intent = await $agent.decide($ctx.msg.obs)
+    }
+
+    player --> world: Intent = {
+      onSend {
+        $ctx.msg.entityId = $ctx.msg.entityId
+        $ctx.msg.action = $ctx.intent
+      }
+      onReceive { $ctx.intents.append($ctx.msg) }
+    }
+  }
+
+  scatter ($ctx.npcs as npc) {
+    world --> npc: Observation = {
+      onSend {
+        $ctx.msg.entityId = $ctx._scatterItem.id
+        $ctx.msg.obs = $ctx._scatterItem.obs
+      }
+    }
+
+    npc {
+      $ctx.intent = await $agent.decide($ctx.msg.obs)
+    }
+
+    npc --> world: Intent = {
+      onSend {
+        $ctx.msg.entityId = $ctx.msg.entityId
+        $ctx.msg.action = $ctx.intent
+      }
+      onReceive { $ctx.intents.append($ctx.msg) }
+    }
+  }
+
+  world {
+    reagent.return($ctx.intents)
+  }
+}
+```
+
+### Agents and runtime
+
+| Agent | Host | Integration mode |
+|---|---|---|
+| `world` | NMMO Python process | Embedded host adapter over Rust `reagent-core` |
+| `player` × N | Python behavior objects inside NMMO process | Python-hosted behavior over embedded Rust orchestration |
+| `npc` × N | Python behavior objects inside NMMO process | Python-hosted behavior over embedded Rust orchestration |
+
+| Aspect | Choice |
+|---|---|
+| Runtime | Future Rust `reagent-core` embedded in Python via `PyO3` |
+| World ownership | Python process remains authoritative for world state and tick loop |
+| Data boundary | Coarse-grained tick snapshots, observations, intents, and protocol payloads only |
+| Cluster | none — single simulation process first |
+
+### What it exercises
+
+- single-process orchestration for many simulated agents
+- `trigger on event` from the simulation tick loop
+- `resolve` against in-process runtime registrations
+- `scatter` fan-out over large player/NPC sets
+- Python-hosted agent logic without a separate Python protocol engine
+- future Rust-core embedding through `PyO3`
+- explicit separation between protocol state and world state
+
+### Why Reagent fits
+
+This is the simulation case that argues against maintaining a second full Python runtime. Reagent can keep orchestration, role binding, and protocol state in one Rust core while leaving NMMO's world state and agent policies inside the existing Python process. The protocol remains inspectable and replayable, but the host boundary stays narrow enough for high-frequency simulation ticks.
+
+---
+
 ## Coverage Matrix
 
-| Feature | UC1 Auction | UC2 Research | UC3 IoT | UC4 Payment | UC5 Risk Review | UC6 Feature Dev |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| Feature | UC1 Auction | UC2 Research | UC3 IoT | UC4 Payment | UC5 Risk Review | UC6 Feature Dev | UC7 NMMO |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Status** | Supported | Future | Supported | Future | Supported | Supported | Future |
 | **Language constructs** | | | | | |
-| `scatter` | x | x | x | | x | |
-| `par` | | | | x | | |
-| `loop` | | | | | | x |
-| `alt` (expression) | | | | x | x | x |
-| `invokes` (child protocol) | | | | | x | x |
-| `spawns` | | | | | x | |
-| `reagent.return()` | | | | x | x | x |
-| `reagent.emit()` | | | x | | x | |
-| `reagent.break()` | | | | | | |
-| `trigger on invoke` | x | x | | x | | x |
-| `trigger on cron` | | | x | | x | |
-| `trigger on event` | | | x | | | |
-| `resolve` pipelines | | x | x | | x | |
-| `message` type defs | x | x | x | x | x | x |
-| `role` + `init` + `on` | | | | | x | x |
-| `$agent` native module | x | | x | | | |
-| `$self` persistence | x | x | x | x | x | x |
+| `scatter` | x | x | x | | x | | x |
+| `par` | | | | x | | | |
+| `loop` | | | | | | x | |
+| `alt` (expression) | | | | x | x | x | |
+| `invokes` (child protocol) | | | | | x | x | |
+| `spawns` | | | | | x | | |
+| `reagent.return()` | | | | x | x | x | x |
+| `reagent.emit()` | | | x | | x | | |
+| `reagent.break()` | | | | | | | |
+| `trigger on invoke` | x | x | | x | | x | |
+| `trigger on cron` | | | x | | x | | |
+| `trigger on event` | | | x | | | | x |
+| `resolve` pipelines | | x | x | | x | | x |
+| `message` type defs | x | x | x | x | x | x | x |
+| `role` + `init` + `on` | | | | | x | x | |
+| `$agent` native module | x | | x | | | | x |
+| `$self` persistence | x | x | x | x | x | x | |
 | **Runtime modes** | | | | | |
-| Managed (`NativeAgentNode`) | x | | x | x | x | |
-| Custom (`CustomAgentNode`) | | | | | x | |
-| Message Gate | | | | x | | |
-| MCP Gate | | x | | | x | x |
+| Managed (`NativeAgentNode`) | x | | x | x | x | | |
+| Custom (`CustomAgentNode`) | | | | | x | | |
+| Message Gate | | | | x | | | |
+| MCP Gate | | x | | | x | x | |
+| Embedded Rust core in Python host | | | | | | | x |
 | **Deployment** | | | | | |
-| Single-process (Python RC) | x | | x | | | |
-| Single-process (TS RC) | | | | x | | x |
-| Multi-node cluster | | x | | | x | |
-| Docker + etcd + NATS | | x | | | | |
-| Cross-language agents | | | | x | | |
-| Human-in-the-loop | | x | | | x | x |
+| Single-process (Python RC) | x | | x | | | | |
+| Single-process (TS RC) | | | | x | | x | |
+| Single-process (embedded Python host) | | | | | | | x |
+| Multi-node cluster | | x | | | x | | |
+| Docker + etcd + NATS | | x | | | | | |
+| Cross-language agents | | | | x | | | |
+| Human-in-the-loop | | x | | | x | x | |

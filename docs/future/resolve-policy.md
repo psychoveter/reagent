@@ -2,6 +2,13 @@
 
 Status: **RFC draft** | Date: 2026-02-27
 
+Alignment note (2026-03-13):
+
+- This RFC now assumes the direction described in `agent-types.md`.
+- `agent ... runs ...` should no longer be treated as core-language syntax.
+- Runtime instance inventory, registration metadata, and lifecycle remain part of the platform/runtime model.
+- Participant examples that still use `[py]` / `[ts]` should be read as pre-`agent type` syntax sketches unless updated explicitly.
+
 ---
 
 ## 1. Scope
@@ -390,22 +397,28 @@ interface AgentRegistration {
 }
 ```
 
-### 5.2 Registration in `.rg` (extension to `agent` declaration)
+### 5.2 Registration outside the core DSL
 
-```rg
-agent Auctioneer runs SellerRole {
-  tags: ["premium", "eu-region"]
-  capabilities: ["bidding", "settlement"]
-  labels: { tier: "gold", region: "eu-west" }
-}
+With the `agent type` direction, registration metadata should no longer be modeled as an extension of
+`agent Name runs Role` inside the protocol language.
 
-agent Worker1 runs WorkerRole {
-  tags: ["gpu", "batch-worker"]
-  capabilities: ["ml-inference"]
+Instead, registration lives in runtime/deployment surfaces and is published into the runtime registry.
+
+Illustrative runtime-side shape:
+
+```json
+{
+  "instanceName": "Auctioneer",
+  "role": "SellerRole",
+  "agentType": "ManagedPy",
+  "tags": ["premium", "eu-region"],
+  "capabilities": ["bidding", "settlement"],
+  "labels": { "tier": "gold", "region": "eu-west" }
 }
 ```
 
-This extends the current `agent Name runs Role` syntax with an optional body for registration metadata.
+This RFC intentionally stays focused on resolve/materialization semantics rather than prescribing the
+final deployment syntax for such registrations.
 
 ### 5.3 Runtime registration API
 
@@ -613,19 +626,20 @@ interface IRSpawnData {
 }
 ```
 
-### 8.5 AgentRegistrationIR (new)
+### 8.5 Agent registration record (runtime-side, not protocol IR)
 
 ```ts
-interface AgentRegistrationIR {
+interface AgentRegistrationRecord {
   agentName: string;
   roleName: string;
+  agentType?: string;
   tags?: string[];
   capabilities?: string[];
   labels?: Record<string, string>;
 }
 ```
 
-Emitted from `agent Name runs Role { tags: [...] ... }` declarations.
+This record belongs to runtime/deployment state, not to the core protocol IR.
 
 ---
 
@@ -668,17 +682,13 @@ FilterShorthand  ::= "hasTag" "(" StringLiteral ")"
                    | "hasLabel" "(" StringLiteral "," StringLiteral ")"
                    | "isAlive"
 
-AgentDef         ::= "agent" WS+ Ident (WS* "[" LangTag "]")? WS+ "runs" WS+ Ident
-                     (WS* "{" AgentMetaBody "}")?
-AgentMetaBody    ::= (WS | AgentMetaItem)*
-AgentMetaItem    ::= "tags" WS* ":" WS* ArrayLiteral
-                   | "capabilities" WS* ":" WS* ArrayLiteral
-                   | "labels" WS* ":" WS* Object
-
 SpawnStmt        ::= Ident WS+ "spawns" WS+ Ident "(" ZoneBody ")" (WS+ "as" WS+ Ident)?
                      (WS+ "persistent")?
                      (WS+ "->" WS+ Target)?
 ```
+
+`agent` declarations are intentionally omitted here: under the `agent type` direction they are no
+longer part of the core language surface.
 
 ---
 
@@ -755,7 +765,7 @@ All existing examples and tests are updated as part of the implementation. No mi
 | Phase | What |
 |---|---|
 | **A** | Parser: participant modifiers (`static`/`dynamic`/`single`/`many`/`initiator`), `resolve` declarations in triggers. `initiator:` removed. Compiler emits `resolveMap` in TriggerIR, `ParticipantIR` with binding/cardinality/initiator. All examples updated. |
-| **B** | `AgentRegistration` with tags/capabilities/labels. Runtime API. `agent` body syntax. |
+| **B** | `AgentRegistration` with tags/capabilities/labels. Runtime API and deployment/registry surface outside core DSL. |
 | **C** | `ResolvePolicyEvaluator` in RC. TriggerMatcher uses `resolveMap`. Zone-level `reagent.resolve()`. |
 | **D** | Stateful policies (`roundRobin`, `leastLoaded`). Custom policies. |
 | **E** | Spawn lifecycle (`persistent` flag, protocol-scoped cleanup). |
@@ -766,6 +776,7 @@ All existing examples and tests are updated as part of the implementation. No mi
 
 | Document | Relationship |
 |---|---|
+| `agent-types.md` | Defines `agent type`, removes `agent ... runs ...` from the core DSL, and makes runtime instance registration a platform concern. This document should follow that split. |
 | `rc-spec.md` §8 | ResolvePolicy replaces initiator resolution (§8.5). Triggers gain `resolveMap`. Trigger runtime (TriggerMatcher, policies, cross-node routing) documented there. |
 | `lang-spec.md` §1.9 | Spawn syntax (`spawns <RoleName> as <participant> persistent`) documented in the language spec. Spawn lifecycle (§7 here) defines runtime semantics. |
 | `composite-agent.md` | Inner agents of a composite are invisible to the outer registry. Resolve policies in the outer RC never see inner agents. The inner RC has its own registry and resolve policies. |
