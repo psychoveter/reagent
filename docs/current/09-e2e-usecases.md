@@ -435,7 +435,7 @@ protocol ProcessPayment {
 }
 ```
 
-> **Note on `try/catch`**: an earlier draft of this use case used `try/catch` for error handling. In a distributed protocol, a `throw` can originate on any role (fraud engine, ledger, notifier), but the `catch` block must specify concrete message steps — which requires knowing the faulting role at protocol-design time. The semantics of distributed `try/catch` — error propagation from arbitrary roles, fault originator binding, in-flight message cleanup inside `par` — are an open design problem tracked in the backlog (L1). This version uses `alt` branching instead, which has well-defined semantics today.
+> **Note on `try/catch`**: an earlier draft of this use case used `try/catch` for error handling. In a distributed protocol, a `throw` can originate on any role (fraud engine, ledger, notifier), but the `catch` block must specify concrete message steps — which requires knowing the faulting role at protocol-design time. The semantics of distributed `try/catch` — error propagation from arbitrary roles, fault originator binding, in-flight message cleanup inside `par` — are tracked in backlog item `L1` and explored in `../future/distributed-try-catch.md`. This version uses `alt` branching instead, which has well-defined semantics today.
 
 ### Agents and runtime
 

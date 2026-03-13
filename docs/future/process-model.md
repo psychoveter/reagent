@@ -601,7 +601,7 @@ It does not undo side effects that have already occurred.
 
 Compensation is a **semantic rollback** — it runs compensating actions to undo
 the effects of already-completed steps. This is the domain of saga patterns
-and is out of scope for this document (see backlog L1: distributed try/catch).
+and is out of scope for this document (see backlog L1: distributed try/catch, and `distributed-try-catch.md`).
 
 ---
 
