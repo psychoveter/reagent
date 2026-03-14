@@ -61,8 +61,8 @@ cd ../../../runtime/agents/claude
 
 This builds and starts a Docker container that:
 1. Mounts `config/worker.claude-node.docker.json` into the container
-2. Launches `live-agent.ts` with that one node config file
-3. `live-agent.ts` materializes the embedded Reagent runtime config and starts `mcp-gate` as a subprocess
+2. Launches `claude-node.ts` with that one node config file
+3. `claude-node.ts` materializes the embedded Reagent runtime config and bootstraps an in-process RC
 4. Claude processes protocol events one-by-one and registers as `WorkerAgent`
 
 ### Deploy and trigger

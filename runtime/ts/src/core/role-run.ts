@@ -385,6 +385,9 @@ export class RoleRun implements RoleRunInterface {
       isAsync: data.async === true,
       ctx: this.engine.ctx,
       self: this.selfRef,
+      invokeCallback: this.config.invokeCallback,
+      spawnCallback: this.config.spawnCallback,
+      emitCallback: this.config.emitCallback,
     });
     this.applyResponse(resp);
     if (resp.type === "return_value") {
@@ -420,6 +423,9 @@ export class RoleRun implements RoleRunInterface {
         isAsync: data.preSendAsync === true,
         ctx: this.engine.ctx,
         self: this.selfRef,
+        invokeCallback: this.config.invokeCallback,
+        spawnCallback: this.config.spawnCallback,
+        emitCallback: this.config.emitCallback,
       });
       this.applyZoneResponse(resp, state.id);
       if (resp.type === "return_value" || resp.type === "break_requested") return;
@@ -468,6 +474,9 @@ export class RoleRun implements RoleRunInterface {
         isAsync: data.postReceiveAsync === true,
         ctx: this.engine.ctx,
         self: this.selfRef,
+        invokeCallback: this.config.invokeCallback,
+        spawnCallback: this.config.spawnCallback,
+        emitCallback: this.config.emitCallback,
       });
       this.applyZoneResponse(resp, state.id);
       if (resp.type === "return_value" || resp.type === "break_requested") return;
@@ -756,6 +765,9 @@ export class RoleRun implements RoleRunInterface {
             const resp = await this.behavior.handle({
               type: "pre_send_action", stateId: state.id, body: data.preSendZone,
               isAsync: data.preSendAsync === true, ctx: branchCtx, self: this.selfRef,
+              invokeCallback: this.config.invokeCallback,
+              spawnCallback: this.config.spawnCallback,
+              emitCallback: this.config.emitCallback,
             });
             this.applyBranchZoneResponse(resp, branchCtx, state.id);
             if (resp.type === "return_value" || resp.type === "break_requested") return;
@@ -794,6 +806,9 @@ export class RoleRun implements RoleRunInterface {
             const resp = await this.behavior.handle({
               type: "post_receive_action", stateId: state.id, body: data.postReceiveZone,
               isAsync: data.postReceiveAsync === true, ctx: branchCtx, self: this.selfRef,
+              invokeCallback: this.config.invokeCallback,
+              spawnCallback: this.config.spawnCallback,
+              emitCallback: this.config.emitCallback,
             });
             this.applyBranchZoneResponse(resp, branchCtx, state.id);
             if (resp.type === "return_value" || resp.type === "break_requested") return;
@@ -809,6 +824,9 @@ export class RoleRun implements RoleRunInterface {
           const resp = await this.behavior.handle({
             type: "action", stateId: state.id, body: data.body,
             lang: "*", isAsync: data.async === true, ctx: branchCtx, self: this.selfRef,
+            invokeCallback: this.config.invokeCallback,
+            spawnCallback: this.config.spawnCallback,
+            emitCallback: this.config.emitCallback,
           });
           this.applyBranchZoneResponse(resp, branchCtx, state.id);
           if (resp.type === "return_value" || resp.type === "break_requested") return;
@@ -942,6 +960,9 @@ export class RoleRun implements RoleRunInterface {
           isAsync: recvData.postReceiveAsync === true,
           ctx: this.engine.ctx,
           self: this.selfRef,
+          invokeCallback: this.config.invokeCallback,
+          spawnCallback: this.config.spawnCallback,
+          emitCallback: this.config.emitCallback,
         });
         this.applyZoneResponse(resp, result.targetStateId);
         if (resp.type === "return_value" || resp.type === "break_requested") return;

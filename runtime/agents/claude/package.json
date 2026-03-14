@@ -1,16 +1,16 @@
 {
-  "name": "reagent-worker-agent",
+  "name": "reagent-claude-docker",
   "version": "0.1.0",
-  "description": "Reagent Claude live-agent using Claude Agent SDK",
+  "description": "Docker wrapper for Reagent Claude node (entrypoint lives in @reagent/agent-runtime)",
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/live-agent.js",
+    "start": "node ../../ts/dist/claude-node.js",
     "start:legacy": "node dist/worker-agent.js"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.71",
-    "@modelcontextprotocol/sdk": "^1.27.1"
+    "@reagent/agent-runtime": "file:../../ts"
   },
   "devDependencies": {
     "typescript": "^5.3.0"

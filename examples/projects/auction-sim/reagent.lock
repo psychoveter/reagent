@@ -1,9 +1,9 @@
 {
   "protocols": {
     "Auction": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "8d4a1ec037b054235f8cf930f36941a3e84c60c9c1470c05db287c46182fb5ae",
+        "structureHash": "f2cb11805906443b76309435569a984cc41a293b8ed5b6e7c2e6bb6b074a2154",
         "schemaHash": "94e14fc869c90741f844af7799959f8b86663f3f944517d294e214ee02507c48",
         "implHash": "a237795f40594a9de0b3f1ae11992d0d60d71ae7da768973babf859edc480dfa"
       }
@@ -11,16 +11,16 @@
   },
   "roles": {
     "SellerRole": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "playsHash": "8ba7781647e3eccf91cff5f4665d3761e04e547960aecbbf1edd34c188fa6726",
+        "playsHash": "395a127e1d7154c3e0d97d2a981e7814bf33036e7effd80ca724373048d3addc",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
       }
     },
     "BuyerRole": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "playsHash": "25c8e10cefdb30c3b8b4c7d5fa29431dfd4f666e98e806e88b3eb665845ea4a7",
+        "playsHash": "24da784f725427e86369f32ce0fc1c8f087b4eb89b48aa27bad8a2ebf503cb4a",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
       }
     }

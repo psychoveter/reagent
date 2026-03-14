@@ -155,6 +155,9 @@ export function computeStructureHash(graphs) {
             parts.push(`participant:${p.name}:${p.binding}:${p.cardinality}:${p.initiator}`);
         }
     }
+    if (firstGraph?.supervisionStrategy) {
+        parts.push(`supervision:${firstGraph.supervisionStrategy}`);
+    }
     if (firstGraph?.triggers) {
         for (const t of firstGraph.triggers) {
             parts.push(canonicalizeTrigger(t));

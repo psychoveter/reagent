@@ -92,6 +92,7 @@ export function emitIR(protocol) {
         builder.finalize();
         const graph = builder.toGraph();
         graph.participants = participants;
+        graph.supervisionStrategy = protocol.supervisionStrategy ?? "scoped";
         if (triggers.length > 0) {
             graph.triggers = triggers;
             graph.invocable = invocable;

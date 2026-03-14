@@ -51,7 +51,7 @@ The previous deterministic test wave (`T1-T5`) has been implemented:
 
 - infra presence suites were repaired and stabilized
 - `08-test-spec.md` was rewritten around inventory, tiers, status, and use-case coverage
-- new deterministic story-level suites `m15`, `m16`, and `m17` were added
+- new deterministic story-level suites under `runtime/ts/test/stories/` were added
 
 Those items are intentionally removed from the unfinished backlog.
 Another reviewer still needs to validate real usefulness, stability, and adequacy of the
@@ -60,8 +60,8 @@ new/updated suites, but that is now a verification task rather than an implement
 
 | #   | Feature                                               | Status                 | Area                    | Notes                                                                                                                                                                                                                                     |
 | --- | ----------------------------------------------------- | ---------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| T6  | **Research swarm live e2e**                           | Deferred / conditional | `runtime/tests`         | Deterministic wave is done. Remaining gap is the external/live distributed research scenario, likely as `m18-research-swarm-live-e2e.test.ts` or as an intentional expansion of `m14`, and it should stay outside the default smoke path. |
-| T7  | **Decompiler catch-up for newer language constructs** | Not started            | `lang`, `runtime/tests` | `m13-compiler.test.ts` still fails on newer examples using invoke, spawn, scatter-gather, cross-language, and multi-protocol patterns. Bring round-trip/decompile support back in sync with the current language surface.                 |
+| T6  | **Research swarm live e2e**                           | Deferred / conditional | `runtime/ts/test/stories` | Deterministic wave is done. Remaining gap is the external/live distributed research scenario, likely as `runtime/ts/test/stories/live/research-swarm.test.ts` or as an intentional expansion of `runtime/ts/test/stories/live/task-delegation-claude.test.ts`, and it should stay outside the default smoke path. |
+| T7  | **Decompiler catch-up for newer language constructs** | Not started            | `lang/test/compiler`    | `lang/test/compiler/compiler-roundtrip.test.ts` is green again, but `CR.2` still tracks an expected-unsupported set for newer examples using invoke, spawn, scatter-gather, cross-language, and multi-protocol patterns. Bring round-trip/decompile support back in sync with the current language surface. |
 
 
 ### Tooling and DX

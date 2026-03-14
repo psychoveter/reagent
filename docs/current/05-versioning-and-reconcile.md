@@ -221,9 +221,9 @@ Implication:
 - `runtime/ts/src/admin/registry-view.ts`
 - `runtime/ts/src/admin/reconciler.ts`
 - `runtime/ts/src/admin/client.ts`
-- `runtime/tests/m8a-fingerprints.test.ts`
-- `runtime/tests/m8a-registry.test.ts`
-- `runtime/tests/m8b-reconciler.test.ts`
+- `lang/test/compiler/fingerprints.test.ts`
+- `runtime/ts/test/controller/protocol-registry.test.ts`
+- `runtime/ts/test/controller/reconcile.test.ts`
 
 ## 15. Short Version
 

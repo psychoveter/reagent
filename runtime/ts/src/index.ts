@@ -26,6 +26,20 @@ export type { CustomBehaviorFactoryConfig } from "./nodes/custom-behavior-factor
 export { GateBehaviorFactory } from "./nodes/gate-behavior-factory.js";
 export type { GateBehaviorFactoryConfig } from "./nodes/gate-behavior-factory.js";
 export { PythonBehaviorFactory } from "./nodes/python-behavior-factory.js";
+export { ClaudeBehaviorFactory } from "./nodes/claude-behavior-factory.js";
+export type { ClaudeBehaviorConfig } from "./nodes/claude-behavior-factory.js";
+export {
+  loadClaudeLiveAgentNodeConfig,
+  resolveClaudeCwd,
+} from "./nodes/claude-config.js";
+export type {
+  ClaudePermissionMode,
+  ClaudeToolsConfig,
+  ClaudeMcpServersConfig,
+  ClaudeLiveAgentSettings,
+  ClaudeLiveAgentNodeConfig,
+  LoadedClaudeLiveAgentNodeConfig,
+} from "./nodes/claude-config.js";
 export { ProtocolEngine, durationToMs } from "./core/protocol-engine.js";
 export type { ProtocolEvent, AgentResponse, EngineStatus } from "./core/protocol-engine.js";
 export { ManagedAgentBehavior } from "./core/agent-interface.js";
@@ -53,7 +67,7 @@ export * from "./contracts/types.js";
 export type { NodeRef, AgentRef, ReagentTransport, NodeLink } from "./contracts/transport.js";
 export type { InterceptorFn, InterceptorContext, MessageDirection, TraceHook, AddressPage } from "./contracts/interceptor.js";
 export { mergeRoleBindings, resolveRoleBinding, setRoleBinding } from "./controller/role-bindings.js";
-export type { RoleBindingMap, RoleBindingResolver, RoleBindingSource } from "./controller/role-bindings.js";
+export type { RoleBindingMap, RoleBindingResolver, RoleBindingSource, LegacyRoleBindingMap } from "./controller/role-bindings.js";
 export { streamingScatter, partitionBranches, partitionedScatter } from "./core/scatter-coordinator.js";
 export type { ScatterBranch, ScatterResult, ScatterPartition, ScatterCoordinatorConfig, OnBranchResult, BranchExecutor } from "./core/scatter-coordinator.js";
 export { LocalEventBus } from "./controller/local-event-bus.js";
@@ -104,6 +118,8 @@ export { evaluatePolicy, recordTriggerFired, recordTriggerCompleted, createPolic
 export type { TriggerPolicy, TriggerPolicyState, CircuitState, SuppressionReason } from "./triggers/trigger-policy.js";
 
 // ── Cluster ─────────────────────────────────────────────────────────
+export { InMemoryStateStore } from "./cluster/state-store.js";
+export type { Lease, StateStore, StoreEntry, StoreValue } from "./cluster/state-store.js";
 export { LeaderElection } from "./cluster/leader-election.js";
 export type { LeaderElectionConfig } from "./cluster/leader-election.js";
 export { bootstrapCluster, parsePeersArg, parseEtcdHostsArg } from "./cluster/cluster-bootstrap.js";

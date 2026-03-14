@@ -41,7 +41,12 @@ export class NatsNodeLink implements NodeLink {
   }
 
   async connect(): Promise<void> {
-    this.nc = await connect({ servers: this.natsUrl });
+    this.nc = await connect({
+      servers: this.natsUrl,
+      timeout: 2_000,
+      maxReconnectAttempts: 0,
+      waitOnFirstConnect: false,
+    });
     const inboundSubject = `reagent.node.${this.localNodeId}`;
     this.sub = this.nc.subscribe(inboundSubject);
     (async () => {

@@ -17,13 +17,19 @@ import type {
 
 // ── Event and Response types ─────────────────────────────────────────
 
+type ZoneRuntimeCallbacks = {
+  invokeCallback?: (protoName: string, input?: Record<string, unknown>) => Promise<unknown>;
+  spawnCallback?: (protoName: string, input?: Record<string, unknown>) => void;
+  emitCallback?: (eventName: string, data?: Record<string, unknown>) => void;
+};
+
 export type ProtocolEvent =
   | { type: "protocol_started"; protocolName: string }
   | { type: "protocol_completed"; ctx: Record<string, unknown> }
   | { type: "protocol_failed"; error: string; ctx: Record<string, unknown> }
-  | { type: "action"; stateId: string; body: string; lang: string; isAsync: boolean; ctx: Record<string, unknown>; self: Record<string, unknown> }
-  | { type: "pre_send_action"; stateId: string; body: string; isAsync: boolean; ctx: Record<string, unknown>; self: Record<string, unknown> }
-  | { type: "post_receive_action"; stateId: string; body: string; isAsync: boolean; ctx: Record<string, unknown>; self: Record<string, unknown> }
+  | ({ type: "action"; stateId: string; body: string; lang: string; isAsync: boolean; ctx: Record<string, unknown>; self: Record<string, unknown> } & ZoneRuntimeCallbacks)
+  | ({ type: "pre_send_action"; stateId: string; body: string; isAsync: boolean; ctx: Record<string, unknown>; self: Record<string, unknown> } & ZoneRuntimeCallbacks)
+  | ({ type: "post_receive_action"; stateId: string; body: string; isAsync: boolean; ctx: Record<string, unknown>; self: Record<string, unknown> } & ZoneRuntimeCallbacks)
   | { type: "send_required"; stateId: string; to: string; messageName: string; ctx: Record<string, unknown>; scatterItem?: unknown }
   | { type: "receive_required"; stateId: string; from: string; messageName: string }
   | { type: "receive_any_required"; guardId: string; expectations: Array<{ messageName: string; targetStateId: string }> }

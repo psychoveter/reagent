@@ -15,7 +15,7 @@
  *
  * 4. Agent Registration IR (AgentRegistrationIR) — agent metadata for resolve policies.
  */
-import type { RoleEventKind, ArrowKind, Duration, LangTag, TypeExpr, ParticipantBinding, ParticipantCardinality } from "./ast.js";
+import type { RoleEventKind, ArrowKind, Duration, LangTag, TypeExpr, ParticipantBinding, ParticipantCardinality, SupervisionStrategy } from "./ast.js";
 export type ProtocolFingerprint = {
     structureHash: string;
     schemaHash: string;
@@ -87,6 +87,7 @@ export type IRGraph = {
     protocolName: string;
     role: string;
     lang: LangTag;
+    supervisionStrategy?: SupervisionStrategy;
     version?: string;
     fingerprints?: ProtocolFingerprint;
     dependencies?: ProtocolDependency[];

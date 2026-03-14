@@ -1087,4 +1087,4 @@ await rc.start()
 rc.trigger_protocol("Agent0", trigger)
 ```
 
-See `runtime/py/` for implementations and `runtime/tests/test_py_rc.py` for E2E tests.
+See `runtime/py/` for implementations and `runtime/ts/test/python/runtime-core/test_runtime_core.py` for E2E tests.

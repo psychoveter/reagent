@@ -1,17 +1,24 @@
-# Claude Live Agent
+# Claude Node — Docker Wrapper
 
-Headless Claude live-agent for Reagent protocols, using `@anthropic-ai/claude-agent-sdk`.
+Docker packaging for the Reagent Claude node. The actual entrypoint
+(`claude-node.ts`), behavior factory (`claude-behavior-factory.ts`), and
+config types (`claude-config.ts`) live in `@reagent/agent-runtime`
+(`runtime/ts/src/`).
 
-## How it works
-
-`live-agent.ts` uses the SDK's `query()` function to handle one Reagent protocol event at a time.
-The `mcp-gate` process is launched as a subprocess MCP server, giving Claude access to
-Reagent tools (`register`, `wait_for_events`, `respond`, `invoke`).
+## Architecture
 
 ```
-live-agent.ts ──SDK──> Claude API
-       │
-       └──stdio──> mcp-gate.js ──> RC ──> NATS/etcd/control-endpoint
+runtime/ts/src/
+  ├── claude-node.ts            — entrypoint (bin: reagent-claude-node)
+  └── nodes/
+        ├── claude-behavior-factory.ts — ClaudeBehaviorFactory (AgentBehavior → Claude SDK)
+        └── claude-config.ts           — config types and loaders
+
+runtime/agents/claude/          ← this directory
+  ├── Dockerfile                — container image (node:20-slim + runtime dist)
+  ├── run-worker.sh             — build & run Docker container
+  ├── worker-agent.ts           — legacy autonomous variant (uses MCP child process)
+  └── .env                      — API key (not committed)
 ```
 
 ## Setup
@@ -24,24 +31,16 @@ live-agent.ts ──SDK──> Claude API
 | Variable | Default | Description |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | (required) | Anthropic API key |
-| `CLAUDE_NODE_CONFIG` | `/opt/task-delegation-config/worker.claude-node.docker.json` | Wrapper config containing embedded Reagent runtime config plus Claude settings |
-| `MCP_GATE_PATH` | `/opt/reagent/dist/mcp-gate.js` | Path to the `mcp-gate` entrypoint |
-| `MCP_RUNTIME_CONFIG` | unset | Legacy fallback: direct runtime config path for `mcp-gate` |
+| `CLAUDE_NODE_CONFIG` | (required unless MCP_RUNTIME_CONFIG set) | Wrapper config with embedded Reagent runtime config + Claude settings |
+| `MCP_RUNTIME_CONFIG` | unset | Legacy fallback: direct runtime config path |
 | `AGENT_NAME` / `AGENT_ROLES` | unset | Legacy fallback: direct agent identity overrides |
 | `MAX_TURNS` | `4` | Legacy fallback max SDK turns when wrapper config is not used |
 
-## Development
+## Running locally (without Docker)
 
 ```bash
-npm install          # install SDK
-npm run build        # compile live-agent.ts and legacy worker-agent.ts
-npm start            # run the config-driven live-agent locally
+# From the runtime root
+cd runtime/ts
+npm run build
+node dist/claude-node.js
 ```
-
-## Files
-
-- `live-agent.ts` — canonical config-driven Claude live-agent entrypoint
-- `worker-agent.ts` — legacy autonomous variant kept for compatibility
-- `Dockerfile` — container image (node:20-slim + reagent runtime + live-agent)
-- `run-worker.sh` — build & run Docker container
-- `.env` — API key (not committed)

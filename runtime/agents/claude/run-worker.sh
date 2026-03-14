@@ -16,11 +16,8 @@ fi
 REAGENT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 RUNTIME_TS="$REAGENT_ROOT/runtime/ts"
 
-echo "==> Compiling reagent runtime..."
+echo "==> Compiling reagent runtime (includes claude-node)..."
 (cd "$RUNTIME_TS" && npx tsc --skipLibCheck || true)
-
-echo "==> Compiling Claude live-agent..."
-(cd "$SCRIPT_DIR" && npx tsc)
 
 echo "==> Building Docker image..."
 docker build -t reagent-worker-agent \

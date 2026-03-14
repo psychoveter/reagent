@@ -11,11 +11,14 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test:parse": "node ./dist/cli.js parse ../examples/task-execution.rg",
-    "test": "npx tsx test/trigger.test.ts"
+    "test:surface": "node --import tsx --test test/surface/triggers.test.ts test/surface/ir-surface.test.ts",
+    "test:compiler": "node --import tsx --test test/compiler/compiler-roundtrip.test.ts test/compiler/fingerprints.test.ts test/compiler/decompiler.test.ts",
+    "test": "npm run test:surface",
+    "test:all": "npm run test:surface && npm run test:compiler"
   },
   "devDependencies": {
     "@types/node": "^22.13.4",
+    "tsx": "^4.21.0",
     "typescript": "^5.8.2"
   }
 }
-

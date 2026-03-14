@@ -34,7 +34,7 @@ Relevant TypeScript source areas:
 | Message plane | `runtime/ts/src/network/` | `NodeLink` implementations |
 | Control plane | `runtime/ts/src/admin/` | `AdminClient`, node endpoint client/server, endpoint resolver |
 | MCP integration | `runtime/ts/src/mcp/` | MCP adapter and MCP server |
-| Runnable hosts | `runtime/ts/src/mcp-gate.ts`, `runtime/agents/claude/live-agent.ts` | Real host entrypoints that embed RCs |
+| Runnable hosts | `runtime/ts/src/mcp-gate.ts`, `runtime/ts/src/claude-node.ts` | Real host entrypoints that embed RCs |
 
 ## 3. Shared Cluster Truth
 
@@ -222,19 +222,19 @@ Current role:
 
 `mcp-gate` should be understood as a runtime host first, not as a thin proxy to a central admin server.
 
-### Claude live-agent wrapper
+### Claude node host
 
-`runtime/agents/claude/live-agent.ts` is a wrapper host for Claude-backed nodes.
+`runtime/ts/src/claude-node.ts` is a standalone host for Claude-backed nodes.
 
-It reads a node wrapper config, extracts embedded `RuntimeConfig`, and launches `mcp-gate`.
+It bootstraps a `ReagentController` directly in-process and registers a `ClaudeBehaviorFactory` — an `AgentBehavior` implementation that calls the Claude API via `handle()`. No MCP child process or polling loop; protocol events are handled synchronously inside the behavior.
 
-That wrapper config contains node-kind-specific settings such as:
+The host reads a node wrapper config containing:
 
-- runtime config
+- runtime config (embedded `RuntimeConfig`)
 - agent name and roles
-- Claude SDK options
+- Claude SDK options (model, tools, MCP servers, permission mode)
 
-This keeps the core runtime config provider-neutral.
+This keeps the core runtime config provider-neutral while the Claude-specific settings stay in the wrapper.
 
 ## 8. Deploy Flow
 
@@ -361,7 +361,7 @@ For the current cluster/control-plane behavior, start with:
 - `runtime/ts/src/mcp/mcp-server.ts`
 - `runtime/ts/src/mcp/mcp-agent-adapter.ts`
 - `runtime/ts/src/mcp-gate.ts`
-- `runtime/agents/claude/live-agent.ts`
+- `runtime/ts/src/claude-node.ts`
 
 ## 15. Short Version
 

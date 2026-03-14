@@ -699,7 +699,7 @@ These fields are optional and backward-compatible. Hosts that understand them us
 The following surfaces need targeted updates once implementation starts:
 
 - `lang/test/` for parser, validator, deprecation, compatibility rules, and capabilities validation
-- `runtime/tests/` and `runtime/ts/test/` for materialization, compatibility behavior, and content negotiation
+- `runtime/ts/test/` for materialization, compatibility behavior, and content negotiation
 - `tools/reagent-vscode/server/test/` for parsing, symbols, hover, completion, diagnostics
 - TextMate grammar for `agent type` declarations, `capabilities` blocks, and participant syntax
 

@@ -1,73 +1,73 @@
 {
   "protocols": {
     "TaskExecution": {
-      "version": "24.0.0",
+      "version": "40.0.0",
       "fingerprints": {
-        "structureHash": "1823df64da37a6609e629afa89b82f794c99aa43b1892c947af22b9878163efe",
+        "structureHash": "56f29069289378ebcf8e6e5eaae95c4470ec32c1652e9162f8aa7891c2769344",
         "schemaHash": "3ff741769ea2af2c94ab665342ce44cb8474c89539c481b8ab462ceb042038e8",
         "implHash": "78fbdc420e8fdc23cd0da9d1014606c82b94c38c438bdb9ad80315c081f1c38e"
       }
     },
     "TaskExecutionBasic": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "465c15b60589f40a4a09dbcde443d442f81049a6a1d95362c8fcc39790582a8b",
+        "structureHash": "5612e2b0ea595fa49cc73b4a6dd58cb102dcdfa9a1989f46be4a6a6d264fcb18",
         "schemaHash": "21b81feb8eddceb596f9a7440f752f4c88125168661be87c564d13c0cdcb6031",
         "implHash": "63e043d7a9408408361fe1d4d1d2cfe95d83c2a9fb6ac559fbc965d86517acdc"
       }
     },
     "AwaitTimeoutAlt": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "e265b9a35c2834ca16e64566e2fce3c303e54e50f29063f604181f189a6ddc79",
+        "structureHash": "2e3217fb34dc53d4b02a7f46514b676de36e3619a2f31165e248cf51c5531d54",
         "schemaHash": "b4b468dce867d440078b91f987672e1805f52e137ceff63f2831c6edd844739a",
         "implHash": "d6ddcc64e2c39c70b911b87aad1160aff7df6fe324656e5563dc2880304bf192"
       }
     },
     "LoopRetryBackoff": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "7d57f0e930fb517f792ed8a91d512467994a5fdee8082cb9c04b4299f03715b1",
+        "structureHash": "02c2ad498090ea32eacf9caeed9bb0df2fbc4b4587e46298ffbc1169ec2aec7e",
         "schemaHash": "5ebe31072521e3c4474d0f41799505f02356d47a777afa2172a43667271b5092",
         "implHash": "a1b60d62ceaec48c1aa969f09ad12560d073835be87f6b42e54d0e91e32f4f08"
       }
     },
     "ParallelSubtasks": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "7d97f779ba7bee35b11a12cf2f6484dca62836793442631e28715c72159ed9f6",
+        "structureHash": "76c59f38eca5dd74eaeb12d97caf6d6b9f67881047416763395490e071644cf4",
         "schemaHash": "8c6125df20a1350af9420d644cbbbbd5947228645c78e88869e9d0802390ca82",
         "implHash": "eed5c6b38cc1ce01e0ea9bcf3cf780cec489bf4165cb2f3cb104d607739c4d45"
       }
     },
     "SpawnSubagent": {
-      "version": "3.0.0",
+      "version": "4.0.0",
       "fingerprints": {
-        "structureHash": "d9a81bc4c34cf8f7e485ef5d3c03ae603606447ec225403d5d0c28c07e91453a",
+        "structureHash": "b4dda94b200bab5877712612c51f7f1e40ef20f135ca17ef35d27ec99f1f375d",
         "schemaHash": "ca75649d048071f4cb9be62fd6dfcb215a27c49372760d1a8f687d15aa1f8401",
         "implHash": "3e6ba96b27946a1dd56f79350e6d5bf33253f491c53be0b50a77f2025635bf3b"
       }
     },
     "ExceptionAbortCompensate": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "90a37c713a75e37007e05765ba142e64983cf0e8c8cca58bc22ffb0609821ff0",
+        "structureHash": "2e9eb10715a11fb2a45355da47ad513a3f037724eea2d53a8ad6fd42bb188d14",
         "schemaHash": "8bf1024eb317a7ace61eb76c1e56b8284dc865164354a9740bfb996078bc57a5",
         "implHash": "8ee5109e713211911090753ab5f5e0653570bcd8b292a266141908484adaa51e"
       }
     },
     "DeriveDsiBsi": {
-      "version": "2.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "structureHash": "d462a66fd4beb779d7a3264cdf088bb506463f07f6144efca4c1dd26845eda7f",
+        "structureHash": "875d885639861a11572a80906016d68c8105e260e30928cf1028b281a6ea32e6",
         "schemaHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "implHash": "5b41dd44480c7ea9ffe4d0da0a33bc53f0c393ea344504773293ed8c88cfd8a3"
       }
     },
     "TaskExecutionWithChild": {
-      "version": "3.0.0",
+      "version": "4.0.0",
       "fingerprints": {
-        "structureHash": "2e55fa66062cfd7fde519ce2afd84e938f96722954130e3ce776f36e6b02252d",
+        "structureHash": "896a12a81923e78c323888717f6eef60ff711dce51c817a24eec19e10062d7e3",
         "schemaHash": "3ff741769ea2af2c94ab665342ce44cb8474c89539c481b8ab462ceb042038e8",
         "implHash": "309ba36bc1b2b8a476274428a18d973f4bb7a3c1ff289797a445683e31eda26b"
       }
@@ -81,137 +81,137 @@
       }
     },
     "TaskExecutionWithMultipartyChild": {
-      "version": "2.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "structureHash": "b999f0ba3d477b960876cb31a188950fbd5c7e0818a00cdf09aabfa8fc3061ac",
+        "structureHash": "f706d59a2908c67f0354ff608b9ee1b80194402aa8beb92ed4060c3ed385f4cc",
         "schemaHash": "aa9cda3f6da6cbebfb2ae776e859bada96fdec5699c9336bcf3c285d8d25725b",
         "implHash": "58b64a42b69ee62b0e358e9215647575a220de30ad161c1b92adac838de04bf2"
       }
     },
     "TaskExecutionFromEvent": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "0ba0b7f012d4495a3058594cc41651e10aba5fa51c115dd90f031bdc5b7fafcc",
+        "structureHash": "54a9e60b0a45051900879471d58598c45426fdd3de0089868375b4acd3e22681",
         "schemaHash": "c94ac52370720d4b20dbb262a6c149223fc9374e3c0e119c19940183369c07bf",
         "implHash": "9654fc2b667a1381ddc5867f5180e3bfa1b72f5713edbf44ff59ceeba28295a3"
       }
     },
     "CommaAsksLlmAndReplies": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "f013118aca7dc008f042a5cebf30b1864c0693386f990e428f235f69e5e220dd",
+        "structureHash": "47983548e905ac27aa3a674a25edeb7371ae16b95be985ca1bb0b22724bdfec5",
         "schemaHash": "7e381ea1bf16b01c0308a63e3303e82e6bc9aa580e295e95472b7e604a73b606",
         "implHash": "8786f6ae04fe32a0f1c7d115b3f132e575cdf773474e0bb3b6460167d0119023"
       }
     },
     "HealthCheck": {
-      "version": "36.0.0",
+      "version": "60.0.0",
       "fingerprints": {
-        "structureHash": "607ed3107febd0a9742e9acf06c10cea917deb4ec812c8179713b5b6faab8b54",
+        "structureHash": "ab7a54cb9b06cbf99864e3d5139bca78a778edaad84ef7fc5d571b1c7795673e",
         "schemaHash": "4ab1b58940301b8acd55f43b1bcbbdfaccf4159a4ee2bb684afb9d11e9404018",
         "implHash": "15aefc1748b94b3dac9994de362b1147671e0888605dd2777dd214dd37bfda51"
       }
     },
     "CrossLangDemo": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "c598da1025cfd24642d5e1587d91597fb8b913f6dd1692c3fe46af42aea6d195",
+        "structureHash": "c9e306c8d52c5f08cd78b832e41b976f4a55a263ccb8a2a46740e9c7c848aba9",
         "schemaHash": "91225ee290ec3a9e58f6c2fb33891c67fdd0b0fdcc32dd20c5a7d288faed99fc",
         "implHash": "4c59249489bf8fa91209c43bb208eb007d95bd05326a7f0f15f50a0227ab4138"
       }
     },
     "TsDemo": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "10cd8189126936f5ace7b4027829325564d35845c531a947f9d0763e35c7fc8e",
+        "structureHash": "0d4391c867bf2fbdffefa3bb7cd737b7efb7168dbe34eecfd25fa2258272d6fb",
         "schemaHash": "91225ee290ec3a9e58f6c2fb33891c67fdd0b0fdcc32dd20c5a7d288faed99fc",
         "implHash": "06899aba20de5cfd265d68765b1afec1fad3abd29c40c710a573438a69b1d48f"
       }
     },
     "LoopWaitDemo": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "3c4f7ceafaf38bef32368c453a153193316490348351af072c920eb284239657",
+        "structureHash": "bae31a9f5d2a0a6564bcda061dbef3985659311f78fb492bb7acb664080efaff",
         "schemaHash": "8b388792b6e99d4cc071c0e21653a3c70a550ac008ae13dbd50897689c689a49",
         "implHash": "11872d568bfb6f62cbf32740927a58cf6d7a3f46378ef935a852ba0aec39faa8"
       }
     },
     "ParDemo": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "e5f5b83eda7492d87d95040b2192b265dc4334e7fd8b147f5a3b9d433be84b48",
+        "structureHash": "1904d523926cd71a655df23c8a1c1b6bf127d3f3f8a3ee4f2cce9484f8e8568f",
         "schemaHash": "c4f91c4ce4cb60ad11853016042bc74c93236aab14f530e7602457fb53bfbe4a",
         "implHash": "b7140f33582a82db2841d00bea7e5bf3315745c68aa275fa5367639798527529"
       }
     },
     "TryCatchDemo": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "a0e267745b93d9808499594cdc93d47028d516a24803594e48fa719164a83e5e",
+        "structureHash": "865807069f230d632635bb41015dd1e57900a21c235f90696fe1436549b2230e",
         "schemaHash": "5f820fe374633d60719ae594bc675b225a0bfaf011f72203bd1f8857a096e135",
         "implHash": "8574c7861f088802b5fb8bc5bcf3b8944d20a27c0829c0d0fa0b2a18d99419e4"
       }
     },
     "ComputeSquare": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "d9a359be806bd7affd96364a3debccd6788a6bf0c261f2872cdbc35fa98b3c2d",
+        "structureHash": "4960a1d599e5900bf0108af3c9afa2203646ee0db63890171e9e563b09985388",
         "schemaHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "implHash": "0c345ec1100054ce1ac45d7131deb38322b558ad59ee407caeb00fb3a1bfe137"
       }
     },
     "InvokeDemo": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "dab0834fff7ecfb62b0c15a86126b15ecc91d9d278789553c234c07a4502fe50",
+        "structureHash": "b7ad48da40c5b1d14ce6995cbdb8471191dbe4daf6c84f7d49b5f0fca5761489",
         "schemaHash": "38619be48e8c92713d985a46f3a64c2d864543de5ddcf289f0024992d97e89f1",
         "implHash": "443c7195f8628169e0b14967a590ed2b7d1c1a18d2b6f41281a5c818dc9af0f2"
       }
     },
     "BackgroundTask": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "224fca6a851ab343d8fe32dbe332510ae62215999f2db67be8e4b8e6bc41c2b4",
+        "structureHash": "8def2c1e971b1ad46833d3924f00888088c3ce6a909694280874d9d5fa2062b9",
         "schemaHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "implHash": "6d3463704f7692d057e903023b59edd1b4710a406f60a7825318ec849f8c828b"
       }
     },
     "SpawnEmitDemo": {
-      "version": "3.0.0",
+      "version": "4.0.0",
       "fingerprints": {
-        "structureHash": "fb9afffde1ba66b1fbc6e845f2dc648feda4977a4185d27af7873fadc1ff04f4",
+        "structureHash": "8cd05d24431ca22d771827572b2146ad6ea4639dd0686a45775fe81d3d25125c",
         "schemaHash": "9697e5f70fda03c84bdca3be81d2820c296901e4625f462fe3d238731765b440",
         "implHash": "8c52cc8e925e02a180cf7a0f372872be685b61281be42e080ff726119bbc8615"
       }
     },
     "CrossLangE2E": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "structureHash": "5c270c07c3087f1aa85026b3553e7e32bcdac5b90cb1c02643eb269edb9c6de7",
+        "structureHash": "f59f68d0586bafadf95d52805b24e2f35f3e3753bd76bbd56a2cb161910145fa",
         "schemaHash": "a89f7e4dd65f1129a20f16db3ba04c04e36c3a75df9ccc5c85d7e583322eec10",
         "implHash": "0da0f3257eaec0619247da9817066c06519771fa6292612e0331de2719d8849c"
       }
     },
     "TaskProcessing": {
-      "version": "23.0.0",
+      "version": "39.0.0",
       "fingerprints": {
-        "structureHash": "02de7f0ad996a07078de7c11f1d545a64f3c1545c99d02bc282b4a732f7ee24f",
+        "structureHash": "a8b5f04045f24f7d09ca43edd6881075b14dbd3dde6fee94ed9129d3a76afaa2",
         "schemaHash": "62a3629ef9e82183f520e42d013626129661bc6d239e4699136e8d24f7548524",
         "implHash": "4ca79f23158aa56a877d81140069e6e832a9c7552339ef14f1a2a9997bed9295"
       }
     },
     "ScatterGather": {
-      "version": "3.0.0",
+      "version": "4.0.0",
       "fingerprints": {
-        "structureHash": "989d6c67c3496dc405923f056962b83a02f4466041b4a03b2c92adc96398ff39",
+        "structureHash": "baf0832b2c24bdfc5af7c79eb352491cdf4a405443bae7d00a7e106202c73ed6",
         "schemaHash": "8c6125df20a1350af9420d644cbbbbd5947228645c78e88869e9d0802390ca82",
         "implHash": "6a6eeaebc1c8a1e6395cda7152f0d6b8e2960a9a01296da87902be7f37585c2f"
       }
     },
     "CallForProposal": {
-      "version": "3.0.0",
+      "version": "4.0.0",
       "fingerprints": {
-        "structureHash": "b649cc65b760a2638b0c1208ab6b352f80d8265aff9f73606045494ffd1d6875",
+        "structureHash": "4d2050bedf5ae9688656eff27da7cd0e7b7356347407e93706caf0c2518fbccb",
         "schemaHash": "4f9f4b174f28486e6e78bfc899421efbbca51c77b7407c7a13f4f41e7d5bd324",
         "implHash": "df6fdf958488e632e9684efb656438dd99b85d67a0135c3aaa6b145452fcaeb4"
       }
@@ -275,170 +275,170 @@
   },
   "roles": {
     "CommaRole": {
-      "version": "95.0.0",
+      "version": "191.0.0",
       "fingerprints": {
-        "playsHash": "1a3c1a7e8d676873f7446a5cd110e56de1cbdd19a795ddc3c1dbf25537fb5c49",
+        "playsHash": "a3a7da706e145904b09857298649756dfcf6d7a5b786c1d39a51fb6619d0be06",
         "behaviorHash": "6c9a6242fca2132097085defabab7de2d62f526f498be33d020ef4d1c8ea4c4a"
       }
     },
     "SiaRole": {
-      "version": "58.0.0",
+      "version": "122.0.0",
       "fingerprints": {
-        "playsHash": "26ceab6dc0d4f40e25f92f109ea3e9fb669de76ab6f3bd03082d8ae4dc1cfacd",
+        "playsHash": "5ba3b5d7218bafb8536ea5a0d80ca6515250538c8e5f91d406de88cb85e1c278",
         "behaviorHash": "90d1d22e125fdbed9a3af8dc227859c7d65a22e6f61a23a44c9bf8360e17026a"
       }
     },
     "BrowserRole": {
-      "version": "2.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "playsHash": "9cbfdfdd8b82d806b9c3ec536b5659ccce75f7dd767927b0544cbdecbb232d7b",
+        "playsHash": "b32d89d1ce4e0465396c48fc1e457b8c53872df138d0b09b350d1e9136167def",
         "behaviorHash": "7351d94cc4999ec93355245432dd7df7da23c97bd99c8ca3144d5127aa8fe434"
       }
     },
     "ServerRole": {
-      "version": "2.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "playsHash": "c49fce7c14d2396f8d7c6668ab9bbd9c23be6323599990b93ca04de179787a91",
+        "playsHash": "48deff06200a4bfaeb5b6f875a562a9dd379236d3b45c8c807f370e2c830ca8c",
         "behaviorHash": "755d69279f7cc97360f317ce0d189cb20b39ffab1f60d3252f985094a44c16a2"
       }
     },
     "ClientRole": {
-      "version": "24.0.0",
+      "version": "41.0.0",
       "fingerprints": {
-        "playsHash": "a872fc47c7a7206e5332071a8eb14a07039d41c82fe8e1d517ea580394efb81c",
+        "playsHash": "68e2fcb8e246c2884be088f06d9767c016dd987fd8e1e85b75e3693bc6f9ed89",
         "behaviorHash": "ba2d5f0c39c95f3dc5d75d0d68fa0fa458620ea57244b4274d28da02e160c318"
       }
     },
     "HandlerRole": {
-      "version": "2.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "playsHash": "aa7184d4d6b40e527ecd7c10a5fe441641961dd6f94c36bb0eed909b9a8d4ea3",
+        "playsHash": "e78102656263d43f609fe07b027fef49b10c8b25905e4161bac742664ddc2cbc",
         "behaviorHash": "730827edea47fb29bc679948c4ee401e1bfd419681a83ec8b2258299db79c10b"
       }
     },
     "PollerRole": {
-      "version": "2.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "playsHash": "7b0730a4a139209ef5556014bac28696793b88cf001d96dd6f911a3762a70bb9",
+        "playsHash": "eda69c36a4ccc16518b07beea97da4c6890dfbf4e76199f0f57dd450ddfc958c",
         "behaviorHash": "aa1484be716c8e03845643fc31bcbaf57d16ad58280313be37a65c50579a9f31"
       }
     },
     "ResponderRole": {
-      "version": "23.0.0",
+      "version": "39.0.0",
       "fingerprints": {
-        "playsHash": "dbe66ccbf77e4f19276924d58db5ec82337530239e373bdd41acc4b374d2ee72",
+        "playsHash": "6a9eea98fb9f1f91bf11af63b9eb521e63547e8c723f32c9a7096d470a004395",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
       }
     },
     "CoordinatorRole": {
-      "version": "24.0.0",
+      "version": "40.0.0",
       "fingerprints": {
-        "playsHash": "eb65870da7788c774d5bae0996fee75b45cdded252603b118ecf7013163e17f3",
+        "playsHash": "8488af9b04665ce87c950d57fa030d31285ba9da3b07d0343346aa15b8c18677",
         "behaviorHash": "995b644300b189b4641ffd1df5e563f14cd2a0ceeeb1133c867698328de1ca21"
       }
     },
     "WorkerARole": {
-      "version": "2.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "playsHash": "0a8750d63009b307426a0856a40895ddebf977e874c7865738681a19cc845836",
+        "playsHash": "6657d8f40bdd82099ce99da8e4f093022a8c6155f6ad3a88a200d569a5244eff",
         "behaviorHash": "2dedb6e4e9d2db514e5b44f18adff9db8805956e9c1b1202b7bfa8c136b8b022"
       }
     },
     "WorkerBRole": {
-      "version": "2.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "playsHash": "83a68f494b422ea1b650b2119103d2d25e7c47f3894684cc5e05a9457a6ebddb",
+        "playsHash": "5eb2d1a9957f8b991d027b884f6129aadfe1d7a63cd0eab460329641f3e6648a",
         "behaviorHash": "2dedb6e4e9d2db514e5b44f18adff9db8805956e9c1b1202b7bfa8c136b8b022"
       }
     },
     "SenderRole": {
-      "version": "2.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "playsHash": "0db421d5b9c8b25e933d979f1f7d3aeea18487c1f9f51ae3e9da2e7bb87117bd",
+        "playsHash": "ab63928d37ef02bc1c54ca5b0a071fdd4872ad40830c00e882535b84a65db454",
         "behaviorHash": "f7154e029490bf5da3b6c2934eb6bcd1e5283bb0d22b0e131362aaabbbda98c0"
       }
     },
     "ProcessorRole": {
-      "version": "2.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "playsHash": "5d71b1f0f27e6f715b92bda853280d53355276d85027d35d217f5bb88da5962c",
+        "playsHash": "7ef1769021f4fdf9b2f21028c51ae311a8f86d922d68ec1c7239dbd3e63d11de",
         "behaviorHash": "afea9621a8a309f743afaa1c27ba7c4bc5627a5a7378193312fc6442cd832499"
       }
     },
     "CallerRole": {
-      "version": "2.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "playsHash": "5e68a50de192a58075b02ffcd650a4f5a40a14488857f94e4fb14bd0a06c737c",
+        "playsHash": "da164fc588113317b3b3a5673a7d909c74bccde8e59c3523c2871c457a440e44",
         "behaviorHash": "1404265da437e516a0b3fe13a2e06bd8ef62e15aec69b33eb430a8bc32a4f527"
       }
     },
     "OrchestratorRole": {
-      "version": "2.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "playsHash": "d09664e9c0fc7e2378ed44059e8b8082ad8e1d695726ce6db301e349b8fd83bb",
+        "playsHash": "52722d3c0e08d6244e36228dece760919153daa4c75a8427dbe2fcbd0e3ad2e3",
         "behaviorHash": "dd7cccb581752e52a3a3941823c7522ca72e6d025d6ac0c6617902d069b212de"
       }
     },
     "HelperRole": {
-      "version": "2.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "playsHash": "587c8a080b7baa4b154f8657d6a6251cacac471a40c62bcff10be3e235657a25",
+        "playsHash": "9fa5f845baba38f6dbae4ea35957ab9a68e77dacc825abe94d23437c4faacfd5",
         "behaviorHash": "12c20c8cd8bd2cd15c641a4709e239bec5160f5f79b6a768a820c5a3e7bb20d6"
       }
     },
     "TsRole": {
-      "version": "2.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "playsHash": "95b39b3fc9b2c7902979c919b77189427b5d6181494cffa1486c2c256ab0a639",
+        "playsHash": "2cc8fe59660c3e98aa4ab98bac5d49e3455b84d70d8a48f87f0e7f40c6b88463",
         "behaviorHash": "bce259d25a91f4eefc933b7b951ee5fb6e3356aa14ac695fea0dc20b39486763"
       }
     },
     "PyRole": {
-      "version": "2.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "playsHash": "bd46026ed002b35c5d8c47c69648c7516d544a4609470d19edfb513b828e15fd",
+        "playsHash": "a8fbd20dc544f3bf82463b447956cc23f00cbdd1b30dc8088fcbcd58d55ab4cb",
         "behaviorHash": "3738b034a36a3bee10469f1d5d40bd0c1d3d2f868ee600043518215d15a3087e"
       }
     },
     "BaseMonitored": {
-      "version": "7.0.0",
+      "version": "15.0.0",
       "fingerprints": {
-        "playsHash": "64081731006eb9771110f27168c384e1c13cc67ba2303218b4994369f21212e8",
+        "playsHash": "d8c5be00442b7752acce471d3577583bc44098006c4d011409affbbbb3d5f616",
         "behaviorHash": "7246bd57418d671816112a85ae12c0f2a2c9312dc9ba96c027adaabeb9d7a4d0"
       }
     },
     "WorkerRole": {
-      "version": "35.0.0",
+      "version": "59.0.0",
       "fingerprints": {
-        "playsHash": "590ddfae9d3d4f2292e53e5c25e145dad97c1817884b588aabe062ae8485f6bd",
+        "playsHash": "2688b1683f18bdf826de406dbf1cec310d6bc8e8efb6f4e49c4f93f19972e541",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
       }
     },
     "DispatcherRole": {
-      "version": "7.0.0",
+      "version": "15.0.0",
       "fingerprints": {
-        "playsHash": "a0c0ce3b2021d73e1f7e06b8da54b771cc53e4be3e000c178c9d9d6a2666d3b3",
+        "playsHash": "b05aec6053072299323d54a677f9d72fee374a23af8d1683a485f3732f74b627",
         "behaviorHash": "b896f9a93934f0972ca028c3432607ba47ddcffd23f8f3213378b63ef017df85"
       }
     },
     "MonitorRole": {
-      "version": "7.0.0",
+      "version": "15.0.0",
       "fingerprints": {
-        "playsHash": "5fb88e9f934c6d87c52d791c844eaa60080711b3b5fe2a47aa8d372263e5c791",
+        "playsHash": "0eeac749421a451edf19534f6a6df95cd1d3b92b528cf4c4f0a6827466ec7d59",
         "behaviorHash": "440817a688e622a6a0112cdf2dcfe55fdf457fae10cf7a848a9a73e24c1786a0"
       }
     },
     "BuyerRole": {
-      "version": "2.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "playsHash": "3d47ef8278e11ac07632bb073e9098f0ec445315dca61d8d9e5cba843efb333b",
+        "playsHash": "3005d674ccc840d7fc19fefe56180484e935bb21938976e2c0d8223a981f6fdb",
         "behaviorHash": "578289fed3c70dc78b8e58df54735401114b83be59a9a6bf2fa46bbf003fc6d8"
       }
     },
     "SellerRole": {
-      "version": "2.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "playsHash": "66b03882da75fbf937db1d2a8bec53fb8267c90b9229d70bfe2de029d4547292",
+        "playsHash": "4ae4afc14c46c91adc67e77abf622e8ab49acc71f3e2f00d4821027e0e0c6783",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
       }
     },
@@ -485,37 +485,37 @@
       }
     },
     "UserRole": {
-      "version": "49.0.0",
+      "version": "105.0.0",
       "fingerprints": {
-        "playsHash": "f0b9c4deef905845e6c4cc2daea50489175273a84a64f03602c3d9ebd82dbce5",
+        "playsHash": "57c492aea006b9eb0855185f54736932a8847c439f093ec68e94139b0de4509e",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
       }
     },
     "Worker1Role": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "playsHash": "9d855ef7461f2c0bd72be523b7252d802ad6b799d9e93cb5613e85f6e095aa84",
+        "playsHash": "9968bfdc116f1dfda11ea52ff0033f212ea09e4d3c43065d89bc0873cad5ceec",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
       }
     },
     "Worker2Role": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "playsHash": "4b4f0c2f684cdb1f1011c813c97a05d63b6785a39a627acaf2c800712d7d8656",
+        "playsHash": "58bff639217ce35d7a340d2c0a141ff7a1a9d2d1094476b89b3cd074ae3cd4cd",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
       }
     },
     "PlannerRole": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "playsHash": "a234b0538077c08a3573901a742ece13f1acfba8ed06873e37c68735afb296d2",
+        "playsHash": "dba5f86add092aa6a50ee60da429d3bee88232580a6c663ba97eefde1eadd144",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
       }
     },
     "LlmbrokaRole": {
-      "version": "1.0.0",
+      "version": "2.0.0",
       "fingerprints": {
-        "playsHash": "ef9e009460ba707ad334b4d88cba40cd689e56b416dabe3c0327640bb5b053b3",
+        "playsHash": "f3cb7d2a182225ebedcbcc306e6e351bfa887c2ed92683208d1b692a48f41a7c",
         "behaviorHash": "90d1d22e125fdbed9a3af8dc227859c7d65a22e6f61a23a44c9bf8360e17026a"
       }
     }

@@ -18,7 +18,7 @@
 - implementation wave для детерминированной части уже выполнена
 - foundation around infra presence был починен
 - `08-test-spec.md` уже переписан
-- `m15`, `m16`, `m17` уже добавлены
+- story-level deterministic suites under `runtime/ts/test/stories/` уже добавлены
 - independent review of test usefulness/stability/adequacy is still pending
 
 ---
@@ -50,8 +50,8 @@
 
 ### Зелёные (полностью проходят)
 
-Все 7 suites `runtime/ts/test/`, 23 из 27 suites `runtime/tests/` TS, 2 из 3 `lang/test/`,
-1 из 2 `tools/reagent-vscode/server/test/`, все 4 Python suite.
+Все 34 suites `runtime/ts/test/` TS, 5 из 5 `lang/test/`,
+1 из 2 `tools/reagent-vscode/server/test/lsp/`, все 4 Python suite.
 
 Подробный статус по каждому suite — в `08-test-spec.md` §4.
 
@@ -59,16 +59,16 @@
 
 | Suite | Проблема |
 |---|---|
-| `runtime/tests/e2e.test.ts` | T7: wait timing flaky (159ms vs 300ms); T8: `$self` state not persisting across loop; T11/T12: catch block sends `Failure` вместо `ErrorReport` |
-| `runtime/tests/m8b-agent-model.test.ts` | A6: async zone detection in compiled IR |
-| `lang/test/m13-compiler.test.ts` | CR.2: decompile fails for 6 newer examples (invoke-demo, spawn-emit, cross-lang, multi-protocol, scatter-gather, call-for-proposal). This is now also tracked as a separate backlog item for decompiler catch-up. |
+| `runtime/ts/test/stories/runtime-semantics-nats.test.ts` | T7: wait timing flaky (159ms vs 300ms); T8: `$self` state not persisting across loop; T11/T12: catch block sends `Failure` вместо `ErrorReport` |
+| `runtime/ts/test/core/agent-host-boundary.test.ts` | A6: async zone detection in compiled IR |
+| `lang/test/compiler/compiler-roundtrip.test.ts` | CR.2 is green again, but it still tracks 6 expected-unsupported newer examples (invoke-demo, spawn-emit, cross-lang, multi-protocol, scatter-gather, call-for-proposal). This is still tracked as a separate backlog item for decompiler catch-up. |
 
 ### Условные (не запускались)
 
 | Suite | Причина |
 |---|---|
-| `runtime/tests/m14-task-delegation-claude-live-e2e.test.ts` | Tier 3: Docker + `ANTHROPIC_API_KEY` |
-| `tools/reagent-vscode/server/test/lsp.test.ts` | Timeout on LSP initialize; likely needs specific build/env |
+| `runtime/ts/test/stories/live/task-delegation-claude.test.ts` | Tier 3: Docker + `ANTHROPIC_API_KEY` |
+| `tools/reagent-vscode/server/test/lsp/legacy-lsp.test.ts` | Timeout on LSP initialize; likely needs specific build/env |
 
 ### Что подтверждено
 
@@ -86,7 +86,7 @@
 - scatter/async, partitioned scatter
 - fingerprints, reconciler, decompiler (basic round-trip)
 - OTel interceptor, TLA+ generation
-- LSP features (m13-lsp)
+- LSP features (`tools/reagent-vscode/server/test/lsp/current-lsp.test.ts`)
 
 ### Что НЕ подтверждено
 
@@ -94,8 +94,8 @@
 - `try/catch` error message contract (T11/T12) — связано с backlog L1
 - async zone marking в compiled IR (A6)
 - decompiler round-trip для patterns с invoke, spawn, scatter, multi-protocol
-- live Claude integration path (m14)
-- older LSP smoke test (lsp.test.ts)
+- live Claude integration path (`runtime/ts/test/stories/live/task-delegation-claude.test.ts`)
+- older LSP smoke test (`tools/reagent-vscode/server/test/lsp/legacy-lsp.test.ts`)
 
 ---
 
@@ -138,14 +138,14 @@
 
 Что уже добавлено:
 
-- `m15-iot-cron-event-e2e.test.ts`
-- `m16-cross-mode-orchestration-e2e.test.ts`
-- `m17-risk-review-approval-e2e.test.ts`
+- `runtime/ts/test/stories/iot-cron-event.test.ts`
+- `runtime/ts/test/stories/cross-mode-orchestration.test.ts`
+- `runtime/ts/test/stories/risk-review-approval.test.ts`
 
 Что остаётся:
 
 - live/distributed research-swarm scenario (`P5`)
-- независимая проверка того, что `m15-m17` действительно хорошо представляют product stories, а не только проходят локально
+- независимая проверка того, что deterministic suites в `runtime/ts/test/stories/` действительно хорошо представляют product stories, а не только проходят локально
 
 ---
 
@@ -157,8 +157,8 @@
 
 Полный список test files по каталогам:
 
-- `runtime/tests/`
 - `runtime/ts/test/`
+- `runtime/ts/test/cluster/` и `runtime/ts/test/hosts/`
 - `lang/test/`
 - `tools/reagent-vscode/server/test/`
 
@@ -205,10 +205,10 @@ lease-backed live presence моделью.
 
 ### Реализовано
 
-- `runtime/ts/test/etcd-cluster.test.ts` обновлён под addressable `AgentRegistration`
+- `runtime/ts/test/cluster/etcd-cluster.test.ts` обновлён под addressable `AgentRegistration`
 - прямые устаревшие `/agents/*` payloads убраны
 - teardown cleaned up
-- `runtime/ts/test/etcd-live-presence.e2e.test.ts` сохранён зелёным и больше не ломает другие suites глобальной очисткой etcd
+- `runtime/ts/test/cluster/etcd-live-presence.e2e.test.ts` сохранён зелёным и больше не ломает другие suites глобальной очисткой etcd
 - `runtime/ts/src/cluster/etcd-membership.ts` и `runtime/ts/src/cluster/leader-election.ts` получили safer shutdown behavior
 
 ### Что ещё проверить отдельно
@@ -218,7 +218,7 @@ lease-backed live presence моделью.
 
 ### Definition of done
 
-- `runtime/ts/test/etcd-cluster.test.ts` стабильно проходит на локальном etcd
+- `runtime/ts/test/cluster/etcd-cluster.test.ts` стабильно проходит на локальном etcd
 - suite завершается чисто без repeated keepAlive errors after close
 - `08-test-spec.md` отмечает этот набор как infra-backed integration, а не как
   обычный fast validation step
@@ -266,7 +266,7 @@ Status: implemented, pending independent review
 
 ### Реализованный suite
 
-- `runtime/tests/m15-iot-cron-event-e2e.test.ts`
+- `runtime/ts/test/stories/iot-cron-event.test.ts`
 
 ### Что сейчас проверяет suite
 
@@ -304,7 +304,7 @@ Use case про кросс-языковую оркестрацию сейчас 
 
 ### Реализованный suite
 
-- `runtime/tests/m16-cross-mode-orchestration-e2e.test.ts`
+- `runtime/ts/test/stories/cross-mode-orchestration.test.ts`
 
 ### Что сейчас проверяет suite
 
@@ -343,7 +343,7 @@ Status: implemented, pending independent review
 
 ### Реализованный suite
 
-- `runtime/tests/m17-risk-review-approval-e2e.test.ts`
+- `runtime/ts/test/stories/risk-review-approval.test.ts`
 
 ### Что сейчас проверяет suite
 
@@ -372,7 +372,7 @@ Status: still pending / external-live
 
 Сейчас ближайший живой тест к этому направлению:
 
-- `runtime/tests/m14-task-delegation-claude-live-e2e.test.ts`
+- `runtime/ts/test/stories/live/task-delegation-claude.test.ts`
 
 Но это не полный аналог research swarm:
 
@@ -387,9 +387,9 @@ Status: still pending / external-live
 - сделать его не только task-delegation suite, а foundation для нескольких
   live-agent distributed scenarios
 
-Вариант B: оставить `m14` узким и добавить новый suite
+Вариант B: оставить текущий live suite узким и добавить новый suite
 
-- `runtime/tests/m18-research-swarm-live-e2e.test.ts`
+- `runtime/ts/test/stories/live/research-swarm.test.ts`
 
 ### Что должен проверять новый suite
 
@@ -411,8 +411,8 @@ Status: still pending / external-live
 
 Сейчас test surface смешивает:
 
-- milestone names (`m5`, `m8`, `m13`, `m14`)
-- conceptual names (`phase3`, `wave2`)
+- milestone names as primary taxonomy
+- conceptual milestone-era names like `phase3` / `wave2` as primary taxonomy
 - scenario names (`debug-auction-e2e`)
 
 Новый план не требует немедленного renaming, но будущие suites лучше называть по
@@ -478,12 +478,12 @@ This section remains here as a record of the intended sequencing and for the rem
 
 | Backlog | Priority | Current state | Target files | Main dependencies | Suggested order | Notes |
 |---|---|---|---|---|---|---|
-| `T1` Repair etcd membership integration tests | `P0` | Implemented, pending independent review | `runtime/ts/test/etcd-cluster.test.ts`, `runtime/ts/test/etcd-live-presence.e2e.test.ts`, `runtime/ts/src/cluster/etcd-membership.ts`, `runtime/ts/src/cluster/leader-election.ts` | current lease-backed presence semantics, addressable `AgentRegistration`, clean teardown | `1` | Foundation repair completed. Another reviewer should judge stability and adequacy. |
+| `T1` Repair etcd membership integration tests | `P0` | Implemented, pending independent review | `runtime/ts/test/cluster/etcd-cluster.test.ts`, `runtime/ts/test/cluster/etcd-live-presence.e2e.test.ts`, `runtime/ts/src/cluster/etcd-membership.ts`, `runtime/ts/src/cluster/leader-election.ts` | current lease-backed presence semantics, addressable `AgentRegistration`, clean teardown | `1` | Foundation repair completed. Another reviewer should judge stability and adequacy. |
 | `T2` Rewrite `08-test-spec.md` | `P1` | Implemented, pending independent review | `docs/current/08-test-spec.md` | actual filesystem inventory, runnable commands, tier model, known red/conditional status | `2` | Implemented after `T1`; now needs a usefulness/readability check from another reviewer. |
-| `T3` IoT cron/event story-level e2e | `P2` | Implemented, pending independent review | `runtime/tests/m15-iot-cron-event-e2e.test.ts` | stable trigger primitives, single-node deterministic runtime shape | `3` | First new story-level e2e is in place. |
-| `T4` Cross-mode orchestration e2e | `P3` | Implemented in TS-first form, pending independent review | `runtime/tests/m16-cross-mode-orchestration-e2e.test.ts` | managed/custom/gate coverage, stable payload/status semantics | `4` | Delivered as cross-mode first; Python can still be added later as a separate extension. |
-| `T5` Risk review approval e2e | `P4` | Implemented, pending independent review | `runtime/tests/m17-risk-review-approval-e2e.test.ts` | cron, approval boundary, `invokes`, `spawns`, persistent state | `5` | Deterministic advanced scenario is in place; adequacy of approval semantics still needs separate review. |
-| `T6` Research swarm live e2e | `P5` | Not implemented, intentionally deferred | `runtime/tests/m18-research-swarm-live-e2e.test.ts` or expansion of `runtime/tests/m14-task-delegation-claude-live-e2e.test.ts` | live-agent path, multi-node cluster, external/live infra, human checkpoint flow | `6` | Keep last. This remains external/live and should stay conditional. |
+| `T3` IoT cron/event story-level e2e | `P2` | Implemented, pending independent review | `runtime/ts/test/stories/iot-cron-event.test.ts` | stable trigger primitives, single-node deterministic runtime shape | `3` | First new story-level e2e is in place. |
+| `T4` Cross-mode orchestration e2e | `P3` | Implemented in TS-first form, pending independent review | `runtime/ts/test/stories/cross-mode-orchestration.test.ts` | managed/custom/gate coverage, stable payload/status semantics | `4` | Delivered as cross-mode first; Python can still be added later as a separate extension. |
+| `T5` Risk review approval e2e | `P4` | Implemented, pending independent review | `runtime/ts/test/stories/risk-review-approval.test.ts` | cron, approval boundary, `invokes`, `spawns`, persistent state | `5` | Deterministic advanced scenario is in place; adequacy of approval semantics still needs separate review. |
+| `T6` Research swarm live e2e | `P5` | Not implemented, intentionally deferred | `runtime/ts/test/stories/live/research-swarm.test.ts` or expansion of `runtime/ts/test/stories/live/task-delegation-claude.test.ts` | live-agent path, multi-node cluster, external/live infra, human checkpoint flow | `6` | Keep last. This remains external/live and should stay conditional. |
 
 ### Dependency notes
 
@@ -528,10 +528,10 @@ Implementation side of this wave is effectively complete when simultaneously:
 
 | Priority | Proposed suite | Purpose |
 |---|---|---|
-| P2 | `runtime/tests/m15-iot-cron-event-e2e.test.ts` | Story-level cron -> emit -> event flow |
-| P3 | `runtime/tests/m16-cross-mode-orchestration-e2e.test.ts` | One real TS-first cross-mode orchestration scenario |
-| P4 | `runtime/tests/m17-risk-review-approval-e2e.test.ts` | Cron + approval + invokes + spawns scenario |
-| P5 | `runtime/tests/m18-research-swarm-live-e2e.test.ts` | Distributed live-agent research swarm coverage |
+| P2 | `runtime/ts/test/stories/iot-cron-event.test.ts` | Story-level cron -> emit -> event flow |
+| P3 | `runtime/ts/test/stories/cross-mode-orchestration.test.ts` | One real TS-first cross-mode orchestration scenario |
+| P4 | `runtime/ts/test/stories/risk-review-approval.test.ts` | Cron + approval + invokes + spawns scenario |
+| P5 | `runtime/ts/test/stories/live/research-swarm.test.ts` | Distributed live-agent research swarm coverage |
 
 Порядок не означает, что все файлы обязаны называться именно так, но смысл и
 уровень покрытия должны появиться в test surface в этой последовательности.

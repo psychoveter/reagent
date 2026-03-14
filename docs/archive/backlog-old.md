@@ -457,7 +457,7 @@ Full design: [orchestrator.md (draft-1)](04-cluster-and-control-plane.md).
 | `tools/reagent-vscode/src/reagentDebugAdapter.ts` | DAP debug adapter (inline) | 4 |
 | `tools/reagent-vscode/src/debugPanelProvider.ts` | Debug panel webview | 4 |
 | `tools/reagent-vscode/src/inlineValues.ts` | Inline value decorations | 4 |
-| `runtime/tests/m6-ros.test.ts` | ROS + debug E2E tests (T21–T27) | 1–3 |
+| `runtime/ts/test/m6-ros.test.ts` | ROS + debug E2E tests (T21–T27) | 1–3 |
 
 ### Functional E2E tests
 
@@ -547,7 +547,7 @@ Full design: [orchestrator.md (draft-1)](04-cluster-and-control-plane.md).
 | `runtime/py/reagent_runtime/inproc_agent_node.py` | InprocAgentNode + InprocAgentHandle |
 | `runtime/py/reagent_runtime/ipc_agent_node.py` | IpcAgentNode + IpcAgentHandle |
 | `runtime/py/reagent_runtime/inproc_transport.py` | InprocTransport |
-| `runtime/tests/test_py_rc.py` | E2E tests |
+| `runtime/ts/test/test_py_rc.py` | E2E tests |
 
 ### E2E tests
 
@@ -676,11 +676,11 @@ Full design: [05-versioning-and-reconcile.md](05-versioning-and-reconcile.md).
 | `runtime/ts/src/controller/protocol-registry.ts` | ProtocolRegistry class for RC | 2 | ✅ |
 | `runtime/py/reagent_runtime/protocol_registry.py` | Python ProtocolRegistry | 2 | ✅ |
 | `runtime/py/reagent_runtime/ir_fingerprint.py` | Python fingerprint reader/validator | 1 | ✅ |
-| `runtime/tests/m8a-fingerprints.test.ts` | F1–F6 fingerprint E2E tests | 1 | ✅ |
-| `runtime/tests/m8a-registry.test.ts` | R1–R5 registry E2E tests | 2 | ✅ |
+| `runtime/ts/test/m8a-fingerprints.test.ts` | F1–F6 fingerprint E2E tests | 1 | ✅ |
+| `runtime/ts/test/m8a-registry.test.ts` | R1–R5 registry E2E tests | 2 | ✅ |
 | `lang/src/ir-decompiler.ts` | IR-to-.rg decompiler (single-role, multi-role merge) | 4 | ✅ |
 | `lang/src/project.ts` | reagent.json loader, glob resolution, import resolution | 4 | ✅ |
-| `runtime/tests/m8a-decompiler.test.ts` | D1 decompiler E2E test | 4 | ✅ |
+| `runtime/ts/test/m8a-decompiler.test.ts` | D1 decompiler E2E test | 4 | ✅ |
 | `docs/protocol-versioning.md` | Design document | — | ✅ |
 
 ---
@@ -781,8 +781,8 @@ ROS evolves from a session-centric compile/run/debug server into a **reconciliat
 | `tools/rap/12-cluster-status.rg` | RAP sub-protocol: aggregated cluster state | 5 | ✅ |
 | `tools/rap/13-submit-deploy-spec.rg` | RAP sub-protocol: submit desired state | 5 | ✅ |
 | `tools/rap/14-stop-agent.rg` | RAP sub-protocol: graceful agent teardown | 5 | ✅ |
-| `runtime/tests/m8b-agent-model.test.ts` | A1–A6 agent model E2E tests | 3 | ✅ |
-| `runtime/tests/m8b-reconciler.test.ts` | REC1–REC5 reconciler E2E tests | 5 | ✅ |
+| `runtime/ts/test/m8b-agent-model.test.ts` | A1–A6 agent model E2E tests | 3 | ✅ |
+| `runtime/ts/test/m8b-reconciler.test.ts` | REC1–REC5 reconciler E2E tests | 5 | ✅ |
 
 ---
 
@@ -836,7 +836,7 @@ M7-DX Phase 0 and 0.5 are done. The remaining phases (1–7) were designed again
 - Live reload: `.rg` save → recompile → re-render via `diagramPanel.ts`
 
 **Pre-requisites completed**:
-- Scatter + async zones E2E test (`runtime/tests/m9-scatter-async.test.ts`) — validates async zones within scatter branches
+- Scatter + async zones E2E test (`runtime/ts/test/m9-scatter-async.test.ts`) — validates async zones within scatter branches
 - `rc.load(ir_dir)` in Python `ReagentController` — bulk project loading for simulation workflows
 
 ### Phase 1.5-R: Infrastructure + Project Overview ✅ DONE
@@ -994,7 +994,7 @@ Full LSP design and backlog: **[07-lsp.md](07-lsp.md)**.
 | `tools/reagent-vscode/src/projectDiagramPanel.ts` | Webview panel for project architecture diagram | 1.5-R | ✅ |
 | `tools/reagent-vscode/icons/reagent-{light,dark}.svg` | Benzene hexagon file icons for `.rg` files | 1.5-R | ✅ |
 | `tools/reagent-vscode/server/src/server.ts` | LSP server (symbols, go-to-def, hover, completion, diagnostics) | 2-R | ✅ |
-| `runtime/tests/m9-scatter-async.test.ts` | E2E test for async zones in scatter branches (SA1-SA4) | Pre-req | ✅ |
+| `runtime/ts/test/m9-scatter-async.test.ts` | E2E test for async zones in scatter branches (SA1-SA4) | Pre-req | ✅ |
 | ~~`tools/reagent-vscode/server/src/flowTracker.ts`~~ | ~~LSP: $flow field tracking~~ (removed in v0.0.11) | 2-R | N/A |
 | `tools/reagent-vscode/server/src/projectIndex.ts` | LSP: reagent.json-based workspace indexing | 2-R | ⬜ |
 | `tools/reagent-vscode/src/registryPanel.ts` | Protocol registry dashboard | 4-R | ⬜ |

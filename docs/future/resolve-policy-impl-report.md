@@ -76,7 +76,7 @@ Source RFC: `resolve-policy.md`
 
 ## 2. Test coverage
 
-### 2.1 Parser / IR tests (`lang/test/m10-phase4a.test.ts`)
+### 2.1 Parser / IR tests (`lang/test/surface/ir-surface.test.ts`)
 
 | Test | What it covers |
 |------|----------------|
@@ -105,7 +105,7 @@ Source RFC: `resolve-policy.md`
 - `leastLoaded`, `fallback(...)`, `custom("name")` parsing: not tested (only `roundRobin` and `sample`)
 - Agent metadata parsing: tested in separate "agent metadata body" group (with/without body, IR emission)
 
-### 2.2 Runtime evaluator tests (`runtime/ts/test/m11-state-resolve.test.ts`)
+### 2.2 Runtime evaluator tests (`runtime/ts/test/cluster/state-resolve.test.ts`)
 
 | Test | What it covers |
 |------|----------------|
@@ -134,11 +134,11 @@ Source RFC: `resolve-policy.md`
 
 | Test file | Resolve-relevant coverage |
 |-----------|--------------------------|
-| `m5-coverage.test.ts` C23 | Send to `many` → runtime error "resolved to many agents" |
-| `m8c-rc-lifecycle.test.ts` L4 | `spawnRoleInstance` from deployed template |
-| `m8c-rc-lifecycle.test.ts` L6 | Protocol-level spawn with `bindAs` + message exchange |
-| `m17-risk-review-approval-e2e.test.ts` | Persistent spawn survives protocol |
-| `e2e.test.ts` T15/T16 | `reagent.spawn()` runtime, emit lifecycle |
+| `runtime/ts/test/contracts/lang-spec-coverage.test.ts` C23 | Send to `many` → runtime error "resolved to many agents" |
+| `runtime/ts/test/controller/protocol-run-lifecycle.test.ts` L4 | `spawnRoleInstance` from deployed template |
+| `runtime/ts/test/controller/protocol-run-lifecycle.test.ts` L6 | Protocol-level spawn with `bindAs` + message exchange |
+| `runtime/ts/test/stories/risk-review-approval.test.ts` | Persistent spawn survives protocol |
+| `runtime/ts/test/stories/runtime-semantics-nats.test.ts` T15/T16 | `reagent.spawn()` runtime, emit lifecycle |
 
 **E2E gaps:**
 - **No E2E test for any non-trivial resolve pipeline.** All E2E protocols use `resolve X = single`.

@@ -1192,6 +1192,7 @@ function pProtocolDef(c) {
         return null;
     c.next();
     let participants = [];
+    let supervisionStrategy;
     const triggers = [];
     for (;;) {
         skipWSAndComments(c);
@@ -1212,6 +1213,19 @@ function pProtocolDef(c) {
                 currentLangMap.set(p.name, p.lang);
             continue;
         }
+        if (startsWithKeyword(c, "supervision")) {
+            consumeKeyword(c, "supervision");
+            skipWSAndComments(c);
+            if (c.peek() !== ":")
+                return null;
+            c.next();
+            skipWSAndComments(c);
+            const strategy = readSupervisionStrategy(c);
+            if (!strategy)
+                return null;
+            supervisionStrategy = strategy;
+            continue;
+        }
         if (startsWithKeyword(c, "trigger")) {
             const trig = pTriggerDecl(c);
             if (!trig)
@@ -1230,10 +1244,26 @@ function pProtocolDef(c) {
         kind: "ProtocolDef",
         name: name.name,
         participants,
+        supervisionStrategy,
         triggers,
         body,
         loc: c.locFrom(start),
     };
+}
+function readSupervisionStrategy(c) {
+    const strategies = [
+        "scoped",
+        "one-for-one",
+        "all-for-one",
+        "detached",
+    ];
+    for (const strategy of strategies) {
+        if (c.startsWith(strategy) && isKeywordBoundary(c.peek(strategy.length))) {
+            c.advance(strategy.length);
+            return strategy;
+        }
+    }
+    return null;
 }
 // ── Trigger declaration ─────────────────────────────────────────────
 // trigger on invoke with MsgType

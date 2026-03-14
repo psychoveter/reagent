@@ -366,7 +366,7 @@ For Claude-backed live agents, the recommended launch UX is now slightly differe
 
 - keep core RC host settings in `RuntimeConfig`
 - wrap them in a node-kind-specific config file
-- let `live-agent.ts` read that one wrapper file, materialize the embedded runtime config, and launch `mcp-gate`
+- let `claude-node.ts` read that one wrapper file, materialize the embedded runtime config, and bootstrap an in-process RC
 
 Current canonical wrapper shape for Claude-backed nodes:
 

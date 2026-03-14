@@ -18,12 +18,10 @@ export interface ManagedBehaviorConfig {
 }
 
 export class ManagedAgentBehavior implements AgentBehavior {
-  private reagent: ReagentStub;
   private config: ManagedBehaviorConfig;
 
   constructor(config: ManagedBehaviorConfig = {}) {
     this.config = config;
-    this.reagent = this.createReagent();
   }
 
   setInvokeCallback(cb: (protoName: string, input?: Record<string, unknown>) => Promise<unknown>): void {
@@ -38,7 +36,7 @@ export class ManagedAgentBehavior implements AgentBehavior {
     this.config.emitCallback = cb;
   }
 
-  private createReagent(): ReagentStub {
+  private createReagent(config: ManagedBehaviorConfig = this.config): ReagentStub {
     return {
       invoke: (proto, args) => {
         throw new InvokeRequest(proto as string, args as Record<string, unknown> | undefined);
@@ -47,10 +45,10 @@ export class ManagedAgentBehavior implements AgentBehavior {
         throw new ReturnValue(value);
       },
       spawn: (proto, args) => {
-        this.config.spawnCallback?.(proto as string, args as Record<string, unknown> | undefined);
+        config.spawnCallback?.(proto as string, args as Record<string, unknown> | undefined);
       },
       emit: (eventName, data) => {
-        this.config.emitCallback?.(eventName, data);
+        config.emitCallback?.(eventName, data);
       },
       break: () => {
         throw new BreakRequest();
@@ -69,16 +67,29 @@ export class ManagedAgentBehavior implements AgentBehavior {
     return this.config.extras ? { $agent: this.config.extras } : undefined;
   }
 
+  private mergeCallbacks(event: {
+    invokeCallback?: (protoName: string, input?: Record<string, unknown>) => Promise<unknown>;
+    spawnCallback?: (protoName: string, input?: Record<string, unknown>) => void;
+    emitCallback?: (eventName: string, data?: Record<string, unknown>) => void;
+  }): ManagedBehaviorConfig {
+    return {
+      extras: this.config.extras,
+      invokeCallback: event.invokeCallback ?? this.config.invokeCallback,
+      spawnCallback: event.spawnCallback ?? this.config.spawnCallback,
+      emitCallback: event.emitCallback ?? this.config.emitCallback,
+    };
+  }
+
   async handle(event: ProtocolEvent): Promise<AgentResponse> {
     switch (event.type) {
       case "action":
         return this.handleAction(event);
 
       case "pre_send_action":
-        return this.handleZoneExec(event.body, event.isAsync, event.ctx, event.self);
+        return this.handleZoneExec(event.body, event.isAsync, event.ctx, event.self, this.mergeCallbacks(event));
 
       case "post_receive_action":
-        return this.handleZoneExec(event.body, event.isAsync, event.ctx, event.self);
+        return this.handleZoneExec(event.body, event.isAsync, event.ctx, event.self, this.mergeCallbacks(event));
 
       default:
         return { type: "noop" };
@@ -87,11 +98,13 @@ export class ManagedAgentBehavior implements AgentBehavior {
 
   private async handleAction(event: Extract<ProtocolEvent, { type: "action" }>): Promise<AgentResponse> {
     const { body, isAsync, ctx, self: selfRef } = event;
+    const mergedConfig = this.mergeCallbacks(event);
+    const reagent = this.createReagent(mergedConfig);
     try {
       if (isAsync) {
-        await executeZoneAsync(body, ctx, selfRef, this.reagent, this.zoneExtras());
+        await executeZoneAsync(body, ctx, selfRef, reagent, this.zoneExtras());
       } else {
-        executeZone(body, ctx, selfRef, this.reagent, this.zoneExtras());
+        executeZone(body, ctx, selfRef, reagent, this.zoneExtras());
       }
       return { type: "ctx_update", ctx };
     } catch (err) {
@@ -102,12 +115,12 @@ export class ManagedAgentBehavior implements AgentBehavior {
         return { type: "break_requested" };
       }
       if (err instanceof InvokeRequest) {
-        if (!this.config.invokeCallback) {
+        if (!mergedConfig.invokeCallback) {
           return { type: "error_thrown", error: new Error("reagent.invoke() called but no invokeCallback set") };
         }
-        const invokeResult = await this.config.invokeCallback(err.protoName, err.input);
+        const invokeResult = await mergedConfig.invokeCallback(err.protoName, err.input);
         const cachedReagent: ReagentStub = {
-          ...this.reagent,
+          ...reagent,
           invoke: () => invokeResult,
         };
         if (isAsync) {
@@ -126,12 +139,14 @@ export class ManagedAgentBehavior implements AgentBehavior {
     isAsync: boolean,
     ctx: Record<string, unknown>,
     selfRef: Record<string, unknown>,
+    mergedConfig: ManagedBehaviorConfig = this.config,
   ): Promise<AgentResponse> {
+    const reagent = this.createReagent(mergedConfig);
     try {
       if (isAsync) {
-        await executeZoneAsync(body, ctx, selfRef, this.reagent, this.zoneExtras());
+        await executeZoneAsync(body, ctx, selfRef, reagent, this.zoneExtras());
       } else {
-        executeZone(body, ctx, selfRef, this.reagent, this.zoneExtras());
+        executeZone(body, ctx, selfRef, reagent, this.zoneExtras());
       }
       return { type: "ctx_update", ctx };
     } catch (err) {

@@ -83,6 +83,7 @@ The R1 Runtime Antientropy redesign introduces a unified execution model that re
 
 - `ManagedBehaviorFactory` — creates `ManagedAgentBehavior` instances (zone executor)
 - `CustomBehaviorFactory` — wraps user-supplied `AgentBehavior` implementations
+- `ClaudeBehaviorFactory` — calls Claude API directly via `handle()` (first real custom behavior consumer)
 - `GateBehaviorFactory` — creates gate-backed proxy behaviors
 - `PythonBehaviorFactory` — bridges to the Python runtime (stub, deferred)
 
@@ -207,7 +208,11 @@ All agent modes now share a single execution path: `AgentShell` + `BehaviorFacto
 
 ### Custom agents
 
-`CustomBehaviorFactory` wraps a user-supplied `AgentBehavior`.
+`CustomBehaviorFactory` wraps a user-supplied `AgentBehavior` implementation. This is the extension point for integrating external AI providers, domain-specific executors, or any non-managed behavior.
+
+### Claude agents
+
+`ClaudeBehaviorFactory` (in `runtime/ts/src/nodes/claude-behavior-factory.ts`) creates `ClaudeBehavior` instances that call the Claude API via `@anthropic-ai/claude-agent-sdk` directly inside `handle()`. The `claude-node.ts` host bootstraps an RC in-process and registers this factory — no MCP child process or polling loop. This is the first real consumer of the `CustomBehaviorFactory` extensibility pattern.
 
 ### Python agents
 
@@ -845,6 +850,7 @@ For the current runtime core, start with:
 - `runtime/ts/src/nodes/managed-behavior-factory.ts` — `ManagedBehaviorFactory`
 - `runtime/ts/src/nodes/custom-behavior-factory.ts` — `CustomBehaviorFactory`
 - `runtime/ts/src/nodes/gate-behavior-factory.ts` — `GateBehaviorFactory`
+- `runtime/ts/src/nodes/claude-behavior-factory.ts` — `ClaudeBehaviorFactory` (Claude SDK integration)
 
 **Controller and infrastructure:**
 - `runtime/ts/src/controller/reagent-controller.ts`

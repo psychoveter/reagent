@@ -1,316 +1,192 @@
 # Test Specification And Registry
 
-This document is the canonical current map of the Reagent test surface.
-
-It is not only a file inventory.
-It also describes:
-
-- where tests live
-- which tests are part of the routine TS-first validation path
-- which suites are infra-backed or external/live
-- which areas were recently verified
-- how the current test surface maps to the product-level use cases in `09-e2e-usecases.md`
+This document is the canonical current map of the Reagent test surface after the architecture-first taxonomy migration.
 
 ## 1. Test Locations
 
 | Area | Path | Notes |
 |---|---|---|
-| TS runtime integration and architecture tests | `runtime/tests/` | Main TS integration surface and end-to-end scenarios |
-| TS runtime package and infra adapter tests | `runtime/ts/test/` | Direct tests of runtime package internals and cluster adapters |
-| Python runtime tests | `runtime/tests/*.py` | Python runtime coverage and parity scripts |
-| Language/compiler tests | `lang/test/` | Parser, trigger, and compiler regression coverage |
-| LSP tests | `tools/reagent-vscode/server/test/` | LSP smoke and feature coverage |
+| Lang surface tests | `lang/test/surface/` | Parser, trigger, and IR-surface coverage |
+| Lang compiler tests | `lang/test/compiler/` | Compiler, decompiler, fingerprint, and round-trip coverage |
+| Runtime package cluster tests | `runtime/ts/test/cluster/` | Presence, resolve, etcd, NATS, and cluster adapters |
+| Runtime package host tests | `runtime/ts/test/hosts/` | Package-local host adapter coverage |
+| Runtime controller tests | `runtime/ts/test/controller/` | RC routing, registry, reconcile, and lifecycle |
+| Runtime core tests | `runtime/ts/test/core/` | Role-run, engine, scatter, and agent-host boundary |
+| Runtime trigger tests | `runtime/ts/test/triggers/` | Trigger matcher, cron, event, and policy semantics |
+| Runtime contract tests | `runtime/ts/test/contracts/` | Surface, conformance, observability, gate/debug, utilities, regressions |
+| Runtime story tests | `runtime/ts/test/stories/` | Deterministic scenario-style runtime stories |
+| Runtime debug stories | `runtime/ts/test/stories/debug/` | Hosted debug flow coverage |
+| Runtime live stories | `runtime/ts/test/stories/live/` | External/live agent coverage |
+| Python runtime tests | `runtime/ts/test/python/` | Runtime-core, triggers, and TS/Python parity |
+| LSP tests | `tools/reagent-vscode/server/test/lsp/` | Legacy and current language-server suites |
 
-## 2. Full File Inventory
+Notes:
 
-### `runtime/ts/test/`
+- `runtime/ts/test/support/` remains the shared TS test helper layer.
+- `runtime/ts/test/py_agent_runner.py` remains helper code, not a test suite.
 
-- `agent-presence-leases.test.ts`
-- `etcd-cluster.test.ts`
-- `etcd-live-presence.e2e.test.ts`
-- `etcd-state-store.test.ts`
-- `m11-state-resolve.test.ts`
-- `mcp-adapter.test.ts`
-- `nats-node-link.test.ts`
+## 2. Script Lanes
 
-### `runtime/tests/` TypeScript
+### Root `package.json`
 
-- `e2e.test.ts`
-- `m5-ctrl.test.ts`
-- `m5-coverage.test.ts`
-- `m5-lang.test.ts`
-- `m6-admin.test.ts`
-- `m8a-decompiler.test.ts`
-- `m8a-fingerprints.test.ts`
-- `m8a-registry.test.ts`
-- `m8b-agent-model.test.ts`
-- `m8b-reconciler.test.ts`
-- `m8c-rc-lifecycle.test.ts`
-- `m9-scatter-async.test.ts`
-- `m13-conformance.test.ts`
-- `m13-debug-auction-e2e.test.ts`
-- `m13-debug.test.ts`
-- `m13-engine.test.ts`
-- `m13-gate.test.ts`
-- `m13-misc.test.ts`
-- `m14-task-delegation-claude-live-e2e.test.ts`
-- `phase3-triggers.test.ts`
-- `wave1-otel.test.ts`
-- `wave1-tla.test.ts`
-- `wave2-custom.test.ts`
-- `wave3-scatter.test.ts`
+| Lane | Script |
+|---|---|
+| Fast smoke | `npm run test:fast` |
+| Default repo validation | `npm run test:default` |
+| Full repo validation | `npm run test:all` |
+| Lang surface | `npm run test:lang:surface` |
+| Lang compiler | `npm run test:lang:compiler` |
+| Runtime fast/package | `npm run test:runtime:fast` |
+| Runtime cluster | `npm run test:runtime:cluster` |
+| Runtime hosts | `npm run test:runtime:hosts` |
+| Runtime controller | `npm run test:runtime:controller` |
+| Runtime core | `npm run test:runtime:core` |
+| Runtime triggers | `npm run test:runtime:triggers` |
+| Runtime contracts | `npm run test:runtime:contracts` |
+| Deterministic stories | `npm run test:stories` |
+| NATS-backed story | `npm run test:stories:nats` |
+| Debug story | `npm run test:stories:debug` |
+| Live story | `npm run test:stories:live` |
+| Python | `npm run test:python` |
+| LSP tooling | `npm run test:tooling:lsp` |
 
-### `runtime/tests/` Python
+### Package-level ownership
 
-- `test_m13_py_parity.py`
-- `test_phase3_triggers.py`
-- `test_py_rc.py`
-- `test_py_rc_coverage.py`
+| Package | Scripts |
+|---|---|
+| `lang` | `test:surface`, `test:compiler`, `test:all` |
+| `runtime/ts` | `test:fast`, `test:cluster`, `test:hosts`, `test:controller`, `test:core`, `test:triggers`, `test:contracts`, `test:stories`, `test:stories:nats`, `test:stories:debug`, `test:stories:live`, `test:default`, `test:all` |
+| `runtime` | proxy scripts mirroring the `runtime/ts` architecture lanes |
+| `tools/reagent-vscode` | `test:lsp:legacy`, `test:lsp:current`, `test:lsp` |
 
-Note:
+### Lane intent
 
-- `py_agent_runner.py` is helper code, not a test file.
+- `test:fast` is the short smoke path: lang surface plus runtime package-local fast suites.
+- `test:default` is the routine non-live validation path.
+- `test:runtime:cluster` adds infra-backed etcd and NATS coverage.
+- `test:stories` is for deterministic stories with no external live-agent dependency.
+- `test:stories:debug` and `test:stories:live` remain separate because they need heavier harnesses or external prerequisites.
+- `test:tooling:lsp` is tooling-specific and intentionally not part of default runtime validation.
+
+## 3. File Inventory
 
 ### `lang/test/`
 
-- `m10-phase4a.test.ts`
-- `m13-compiler.test.ts`
-- `trigger.test.ts`
+- `surface/triggers.test.ts`
+- `surface/ir-surface.test.ts`
+- `compiler/compiler-roundtrip.test.ts`
+- `compiler/fingerprints.test.ts`
+- `compiler/decompiler.test.ts`
 
-### `tools/reagent-vscode/server/test/`
+### `runtime/ts/test/`
 
-- `lsp.test.ts`
-- `m13-lsp.test.ts`
+- `cluster/agent-presence-leases.test.ts`
+- `cluster/state-resolve.test.ts`
+- `cluster/etcd-state-store.test.ts`
+- `cluster/etcd-cluster.test.ts`
+- `cluster/etcd-live-presence.e2e.test.ts`
+- `cluster/nats-node-link.test.ts`
+- `hosts/mcp-adapter.test.ts`
 
-## 3. Execution Tiers
+### `runtime/ts/test/` TypeScript
 
-The test surface is intentionally split into tiers.
-Not every suite belongs in the default smoke path.
+- `controller/routing-and-orchestration.test.ts`
+- `controller/admin-client.test.ts`
+- `controller/protocol-registry.test.ts`
+- `controller/reconcile.test.ts`
+- `controller/protocol-run-lifecycle.test.ts`
+- `core/agent-host-boundary.test.ts`
+- `core/scatter-async.test.ts`
+- `core/protocol-engine.test.ts`
+- `core/role-run.test.ts`
+- `core/scatter-runtime.test.ts`
+- `triggers/trigger-matcher.test.ts`
+- `contracts/lang-surface-runtime.test.ts`
+- `contracts/lang-spec-coverage.test.ts`
+- `contracts/observability-otel.test.ts`
+- `contracts/formal-model.test.ts`
+- `contracts/custom-hosts.test.ts`
+- `contracts/gate-session.test.ts`
+- `contracts/debug-session.test.ts`
+- `contracts/runtime-conformance.test.ts`
+- `contracts/runtime-utilities.test.ts`
+- `contracts/runtime-regressions.test.ts`
+- `stories/runtime-semantics-nats.test.ts`
+- `stories/iot-cron-event.test.ts`
+- `stories/cross-mode-orchestration.test.ts`
+- `stories/risk-review-approval.test.ts`
+- `stories/debug/auction-debug-host.test.ts`
+- `stories/live/task-delegation-claude.test.ts`
 
-Execution policy:
+### `runtime/ts/test/python/`
 
-- `Tier 0` is the default fast smoke path
-- `Tier 1`, `Tier 2`, and `Tier 3` should also run through explicit automated lanes, not through ad hoc manual commands only
-- in practice this means they should be invokable by stable scripts and/or CI jobs, even if some of them remain conditional on environment availability
+- `runtime-core/test_runtime_core.py`
+- `runtime-core/test_runtime_coverage.py`
+- `triggers/test_triggers.py`
+- `parity/test_ts_python_parity.py`
 
-### Tier 0: Build and fast local smoke
+### `tools/reagent-vscode/server/test/lsp/`
 
-Goal:
+- `legacy-lsp.test.ts`
+- `current-lsp.test.ts`
 
-- catch obvious compiler/runtime breakage quickly
-- validate the main TS runtime line after ordinary refactors
+## 4. Recommended Validation Order
 
-Typical commands:
-
-- `npm run build`
-- `npm run test:ctrl`
-- `npm run test:lang`
-- `npm run test:coverage`
-- `npm run test:admin`
-- `npm run test:m8a`
-- `npm run test:m8c:lifecycle`
-
-Important note:
-
-- `npm test` is **not** the full repository-wide test surface
-- it is only the default routine validation path defined in `package.json`
-
-### Tier 1: Routine TS integration
-
-Goal:
-
-- validate the TS runtime surface beyond the default scripts
-- especially after runtime-core, trigger, gate, debug, and agent lifecycle changes
-
-Representative suites:
-
-- `runtime/ts/test/m11-state-resolve.test.ts`
-- `runtime/ts/test/mcp-adapter.test.ts`
-- `runtime/tests/phase3-triggers.test.ts`
-- `runtime/tests/wave2-custom.test.ts`
-- `runtime/tests/m8c-rc-lifecycle.test.ts`
-- `runtime/tests/m13-debug-auction-e2e.test.ts`
-
-Automation expectation:
-
-- this tier should be runnable as an automated validation lane after routine runtime changes
-- it should not depend on one-off manual command selection
-
-### Tier 2: Infra-backed integration
-
-Goal:
-
-- validate behavior that depends on real shared infrastructure
-- especially etcd-backed presence, membership, and cluster semantics
-
-Representative suites:
-
-- `runtime/ts/test/etcd-state-store.test.ts`
-- `runtime/ts/test/etcd-cluster.test.ts`
-- `runtime/ts/test/agent-presence-leases.test.ts`
-- `runtime/ts/test/etcd-live-presence.e2e.test.ts`
-
-Prerequisites:
-
-- local/dev etcd reachable at `ETCD_HOSTS` or `http://127.0.0.1:2379`
-
-Automation expectation:
-
-- this tier should be runnable automatically when infra prerequisites are present
-- it is infra-backed, but it is still part of the intended automated test surface
-
-### Tier 3: External/live validation
-
-Goal:
-
-- validate live external integrations such as Claude-backed nodes and MCP-driven participation
-
-Representative suite:
-
-- `runtime/tests/m14-task-delegation-claude-live-e2e.test.ts`
-
-Prerequisites:
-
-- Docker
-- infra bootstrapping for live test
-- `ANTHROPIC_API_KEY` or equivalent `.env` source
-
-This tier is **conditional** and is not part of default smoke validation.
-
-Automation expectation:
-
-- this tier should still run through an explicit automated lane when credentials and external prerequisites are available
-- "conditional" means environment-gated, not manual-only
-
-## 4. Current Verification Status
-
-This section records current known status from direct execution on 2026-03-08.
-
-### Green (all assertions pass)
-
-`runtime/ts/test/` — all 7 suites green:
-
-- `agent-presence-leases.test.ts`
-- `etcd-cluster.test.ts` (requires local etcd)
-- `etcd-live-presence.e2e.test.ts` (requires local etcd)
-- `etcd-state-store.test.ts` (requires local etcd)
-- `m11-state-resolve.test.ts`
-- `mcp-adapter.test.ts`
-- `nats-node-link.test.ts` (requires local NATS)
-
-`runtime/tests/` TS — 23 of 27 suites green:
-
-- `m5-lang.test.ts` (9/9)
-- `m5-coverage.test.ts` (11/11)
-- `m5-ctrl.test.ts` (12/12)
-- `m6-admin.test.ts` (5/5)
-- `m8a-decompiler.test.ts` (1/1)
-- `m8a-fingerprints.test.ts` (6/6)
-- `m8a-registry.test.ts` (5/5)
-- `m8b-reconciler.test.ts` (5/5)
-- `m8c-rc-lifecycle.test.ts` (6/6)
-- `m9-scatter-async.test.ts` (4/4)
-- `m13-engine.test.ts` (7/7)
-- `m13-conformance.test.ts` (10/10)
-- `m13-misc.test.ts` (23/23)
-- `m13-gate.test.ts` (18/18)
-- `m13-debug.test.ts` (17/17)
-- `m13-debug-auction-e2e.test.ts` (3/3)
-- `phase3-triggers.test.ts` (24/24)
-- `wave1-otel.test.ts` (3/3)
-- `wave1-tla.test.ts` (5/5)
-- `wave2-custom.test.ts` (4/4)
-- `wave3-scatter.test.ts` (9/9)
-- `m15-iot-cron-event-e2e.test.ts` (1/1)
-- `m16-cross-mode-orchestration-e2e.test.ts` (1/1)
-- `m17-risk-review-approval-e2e.test.ts` (1/1)
-
-`lang/test/` — 2 of 3 suites green:
-
-- `m10-phase4a.test.ts`
-- `trigger.test.ts`
-
-`tools/reagent-vscode/server/test/` — 1 of 2 suites green:
-
-- `m13-lsp.test.ts` (6/6)
-
-`runtime/tests/` Python — all 4 suites green:
-
-- `test_py_rc.py` (6/6)
-- `test_py_rc_coverage.py` (8/8)
-- `test_phase3_triggers.py` (21/21)
-- `test_m13_py_parity.py` (7/7)
-
-### Known Red
-
-These suites have persistent failures unrelated to environment or infrastructure:
-
-| Suite | Failing test(s) | Nature |
-|---|---|---|
-| `runtime/tests/e2e.test.ts` | T7: Wait delays execution (timing too fast: 159ms vs expected 300ms); T8: `$self` state not accumulating across loop iterations; T11/T12: catch block sends `Failure` instead of `ErrorReport` | T7 is possibly flaky timing; T8 and T11/T12 indicate real runtime gaps in `$self` persistence and `try/catch` error-message naming |
-| `runtime/tests/m8b-agent-model.test.ts` | A6: Async zone detection in compiled IR | Compiled IR does not mark async zones as expected |
-| `lang/test/m13-compiler.test.ts` | CR.2: decompile round-trip fails for 6/26 examples (18-invoke-demo, 19-spawn-emit-demo, 20-cross-lang-e2e, 22-multi-protocol-agent, 23-scatter-gather, 24-call-for-proposal) | Decompiler throws during compile/decompile for newer protocol patterns |
-
-### Conditional / environment-dependent
-
-- `runtime/tests/m14-task-delegation-claude-live-e2e.test.ts` — requires Docker + `ANTHROPIC_API_KEY`
-- `tools/reagent-vscode/server/test/lsp.test.ts` — times out on LSP initialize; likely requires a built LSP server or specific environment setup
-
-## 5. Recommended Validation Order
-
-Recommended TS-first order after runtime and cluster refactors:
+Recommended default order after compiler or runtime work:
 
 1. `npm run build`
-2. `runtime/ts/test/m11-state-resolve.test.ts`
-3. `runtime/tests/m8c-rc-lifecycle.test.ts`
-4. `runtime/tests/phase3-triggers.test.ts`
-5. `runtime/tests/wave2-custom.test.ts`
-6. `runtime/tests/m13-debug-auction-e2e.test.ts`
-7. `runtime/ts/test/agent-presence-leases.test.ts`
-8. `runtime/ts/test/etcd-cluster.test.ts`
-9. `runtime/ts/test/etcd-live-presence.e2e.test.ts`
-10. optional Tier 3 live suites
+2. `npm run test:fast`
+3. `npm run test:default`
+4. `npm run test:runtime:cluster`
+5. `npm run test:stories:nats`
+6. `npm run test:stories:debug`
+7. optional `npm run test:stories:live`
+8. optional `npm run test:python`
+9. optional `npm run test:tooling:lsp`
 
 Practical rule:
 
-- for ordinary TS runtime work, Tier 0 + selected Tier 1 is enough
-- for state-store, membership, or control-plane changes, include Tier 2
-- for MCP/Claude/live-agent changes, include Tier 3 only when the environment is available
-- Tier 1-3 should be treated as scriptable/automated lanes, not as undocumented bespoke command sequences
+- For ordinary TS runtime work, `test:fast` or `test:default` is the routine path.
+- For cluster, transport, or membership work, include `test:runtime:cluster`.
+- For NATS-backed runtime semantics, include `test:stories:nats`.
+- For Claude/live or tooling changes, include only the relevant environment-gated lanes.
+
+## 5. Current Known Gaps
+
+Known-red suites that are not purely environment failures:
+
+| Suite | Failing test(s) | Nature |
+|---|---|---|
+| `runtime/ts/test/stories/runtime-semantics-nats.test.ts` | T7, T8, T11, T12 | Wait timing, `$self` persistence, and `try/catch` naming gaps remain |
+| `runtime/ts/test/core/agent-host-boundary.test.ts` | A6 | Async zone detection in compiled IR still diverges from expectation |
+
+Conditional or environment-dependent suites:
+
+- `runtime/ts/test/stories/live/task-delegation-claude.test.ts` requires Docker and `ANTHROPIC_API_KEY`.
+- `tools/reagent-vscode/server/test/lsp/legacy-lsp.test.ts` is still timing-sensitive during LSP initialize.
+
+Decompile note:
+
+- `lang/test/compiler/compiler-roundtrip.test.ts` is green again, but `CR.2` currently tracks a fixed expected-unsupported set for newer invoke/spawn/scatter/multi-protocol examples until decompiler catch-up work lands.
 
 ## 6. Use-Case Coverage Map
 
-This maps the current test surface to the reference use cases in `09-e2e-usecases.md`.
-
 | Use case | Current coverage | Quality | Main gaps |
 |---|---|---|---|
-| UC1 Sealed-Bid Auction Simulation | `m13-debug-auction-e2e.test.ts`, debug/gate/runtime suites | Strong | already has a direct story-level e2e |
-| UC2 Distributed LLM Research Swarm | `m14-task-delegation-claude-live-e2e.test.ts` is the closest live path | Partial | no richer distributed research-swarm story-level e2e yet (P5 in backlog) |
-| UC3 IoT Sensor Pipeline with Cron and Event Triggers | `m15-iot-cron-event-e2e.test.ts` + `phase3-triggers.test.ts` | Strong | story-level e2e covers cron -> emit -> event chain; green as of 2026-03-08 |
-| UC4 Cross-Language / Cross-Mode Orchestration | `m16-cross-mode-orchestration-e2e.test.ts` + custom/gate/conformance primitives | Strong | TS-first cross-mode story-level e2e in place; Python boundary not yet tested |
-| UC5 Scheduled Risk Review with Approval and Child Protocols | `m17-risk-review-approval-e2e.test.ts` | Strong | cron + approval + invokes + spawns + persistent state covered; green as of 2026-03-08 |
+| UC1 Sealed-Bid Auction Simulation | `runtime/ts/test/stories/debug/auction-debug-host.test.ts` plus debug/gate contracts | Strong | direct debug story already exists |
+| UC2 Distributed LLM Research Swarm | `runtime/ts/test/stories/live/task-delegation-claude.test.ts` is the closest live path | Partial | richer multi-node live swarm story still deferred |
+| UC3 IoT Sensor Pipeline with Cron and Event Triggers | `runtime/ts/test/stories/iot-cron-event.test.ts` plus `runtime/ts/test/triggers/trigger-matcher.test.ts` | Strong | good deterministic trigger chain coverage |
+| UC4 Cross-Language / Cross-Mode Orchestration | `runtime/ts/test/stories/cross-mode-orchestration.test.ts` plus custom/gate/contracts lanes | Strong | Python boundary is still a separate extension |
+| UC5 Scheduled Risk Review with Approval and Child Protocols | `runtime/ts/test/stories/risk-review-approval.test.ts` | Strong | advanced scenario is covered in a deterministic story |
 
 ## 7. Primary Breakage Zones
 
-When changing runtime internals, these areas tend to drift first:
+- Deep `runtime/ts/src/*` imports from moved tests remain sensitive to future directory churn.
+- Cluster membership and state-store suites are still the most environment-sensitive part of the TS surface.
+- Story and live lanes depend on more fixture wiring than controller/core/contract lanes.
+- Tooling tests remain coupled to compiled output paths under `tools/reagent-vscode/out/`.
 
-- direct `runtime/ts/src/*` deep imports in tests
-- RC ontology split across `AgentTemplate`, `AgentRecord`, `AgentRuntime`, and live presence
-- state-store and membership suites
-- trigger and cluster leadership behavior
-- gate/custom-agent event contracts
-- conformance runner assumptions
-
-## 8. Known Reality Notes
-
-- The TS runtime remains the primary and freshest implementation line for architecture changes.
-- Python coverage still matters, but it is not the primary reference path for current runtime evolution. All 4 Python suites are green as of 2026-03-08.
-- `m14-task-delegation-claude-live-e2e.test.ts` remains the canonical current live Claude integration test but was not run in this pass (Tier 3, external).
-- Three known-red areas exist: decompiler round-trip for newer patterns, `e2e.test.ts` gaps around `$self`/`try-catch`/wait timing, and async zone detection in compiled IR.
-- `lsp.test.ts` (the older LSP test) times out; `m13-lsp.test.ts` (the newer one) passes cleanly.
-- This document should stay aligned with `docs/future/test-spec-next.md` for the next wave of test additions.
-
-## 9. Adjacent Docs
+## 8. Adjacent Docs
 
 - Runtime architecture: [`03-runtime-core.md`](03-runtime-core.md)
 - Cluster/control-plane architecture: [`04-cluster-and-control-plane.md`](04-cluster-and-control-plane.md)

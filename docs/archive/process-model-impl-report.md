@@ -135,13 +135,13 @@ The corrected RFC model is now reflected in implementation as follows:
 
 | Test file | Coverage |
 |-----------|----------|
-| `runtime/tests/m8c-rc-lifecycle.test.ts` | durable protocol-run records, strategy-aware orphan adoption, spawn lineage, `cancelling` state, initiator loss with surviving home RC, participant re-resolve, watch-driven distributed cancellation, restart-safe spawned cleanup, bounded local retention |
-| `runtime/tests/m6-admin.test.ts` | list/inspect/cancel protocol-run flows, `cancelling` records, acknowledgement metadata surfaces |
-| `runtime/tests/r1-regression-fixes.test.ts` | bounded shell-local finished-run retention (`RF5b`) + `AgentShellImpl.stop()` race regression (`RF5c`) |
+| `runtime/ts/test/m8c-rc-lifecycle.test.ts` | durable protocol-run records, strategy-aware orphan adoption, spawn lineage, `cancelling` state, initiator loss with surviving home RC, participant re-resolve, watch-driven distributed cancellation, restart-safe spawned cleanup, bounded local retention |
+| `runtime/ts/test/m6-admin.test.ts` | list/inspect/cancel protocol-run flows, `cancelling` records, acknowledgement metadata surfaces |
+| `runtime/ts/test/r1-regression-fixes.test.ts` | bounded shell-local finished-run retention (`RF5b`) + `AgentShellImpl.stop()` race regression (`RF5c`) |
 | `runtime/ts/test/m11-state-resolve.test.ts` | in-memory `compareAndSwap()` semantics |
 | `runtime/ts/test/etcd-cluster.test.ts` | etcd-backed `compareAndSwap()` semantics + record-level orphan adoption path |
 | `lang/test/m10-phase4a.test.ts` | protocol-level `supervision:` parse/IR/default/fingerprint coverage |
-| `runtime/tests/m8a-decompiler.test.ts` | decompile round-trip preserves `supervision:` directive |
+| `runtime/ts/test/m8a-decompiler.test.ts` | decompile round-trip preserves `supervision:` directive |
 
 ### Validated behaviors
 
