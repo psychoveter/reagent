@@ -17,7 +17,8 @@ import type {
   RoleRunResult,
   ShellStatusChangeCallback,
 } from "../contracts/agent-shell.js";
-import type { RoleRunStatus } from "../contracts/protocol-run.js";
+import type { ProcessRelationKind, RoleRunStatus, SupervisionStrategy } from "../contracts/protocol-run.js";
+import { isTerminalRoleRunStatus } from "../contracts/protocol-run.js";
 import { RoleRun, type RoleRunConfig, type RoleSpawnRequest } from "./role-run.js";
 import { executeZone, createReagentStub } from "./zone-executor.js";
 import type { RoleBindingMap, RoleBindingResolver, LegacyRoleBindingMap } from "../controller/role-bindings.js";
@@ -25,6 +26,37 @@ import { mergeRoleBindings, normalizeRoleBindingMap, resolveRoleBinding, setRole
 import type { AdvanceHookContext } from "./role-run.js";
 
 export type EmitBusCallback = (topic: string, payload: Record<string, unknown>, source: { agent: string; instanceId: string }) => void;
+
+export type AgentShellRunLifecycleEvent =
+  | {
+      type: "run_created";
+      instanceId: string;
+      protocolName: string;
+      roleName: string;
+      agentName: string;
+      relationKind: ProcessRelationKind;
+      supervisionStrategy?: SupervisionStrategy;
+      origin: "trigger" | "receive_materialized" | "invoke" | "async_invoke";
+      parentInstanceId?: string;
+      parentProtocolName?: string;
+    }
+  | {
+      type: "run_completed";
+      instanceId: string;
+      protocolName: string;
+      roleName: string;
+      agentName: string;
+      status: RoleRunStatus;
+      returnValue?: unknown;
+    }
+  | {
+      type: "spawn_recorded";
+      instanceId: string;
+      roleName: string;
+      agentName: string;
+      bindAs?: string;
+      persistent: boolean;
+    };
 
 export interface AgentShellConfig {
   agentName: string;
@@ -39,6 +71,8 @@ export interface AgentShellConfig {
   emitBusCallback?: EmitBusCallback;
   roleSpawnCallback?: (request: RoleSpawnRequest) => string;
   onStatusChange?: ShellStatusChangeCallback;
+  onRunLifecycleEvent?: (event: AgentShellRunLifecycleEvent) => void | Promise<void>;
+  finishedRunRetentionLimit?: number;
 }
 
 export class AgentShellImpl implements AgentShell {
@@ -53,6 +87,7 @@ export class AgentShellImpl implements AgentShell {
   private activeRuns = new Map<string, RoleRun>();
   private finishedRuns = new Map<string, RoleRun>();
   private completedRunResults: RoleRunResult[] = [];
+  private finishedRunOrder: string[] = [];
   private onRunCompletedCallbacks: Array<(run: RoleRunHandle, status: RoleRunStatus) => void> = [];
 
   private graphs: Map<string, IRGraph>;
@@ -65,6 +100,9 @@ export class AgentShellImpl implements AgentShell {
   private emitBusCb?: EmitBusCallback;
   private roleSpawnCb?: (request: RoleSpawnRequest) => string;
   private statusChangeCb?: ShellStatusChangeCallback;
+  private runLifecycleCb?: (event: AgentShellRunLifecycleEvent) => void | Promise<void>;
+  private runLifecycleChain: Promise<void> = Promise.resolve();
+  private finishedRunRetentionLimit: number;
 
   private completionCount = 0;
   private completionWaiters: Array<{ target: number; resolve: () => void }> = [];
@@ -82,6 +120,8 @@ export class AgentShellImpl implements AgentShell {
     this.emitBusCb = config.emitBusCallback;
     this.roleSpawnCb = config.roleSpawnCallback;
     this.statusChangeCb = config.onStatusChange;
+    this.runLifecycleCb = config.onRunLifecycleEvent;
+    this.finishedRunRetentionLimit = Math.max(0, config.finishedRunRetentionLimit ?? 100);
   }
 
   get status(): AgentShellStatus { return this._status; }
@@ -115,6 +155,11 @@ export class AgentShellImpl implements AgentShell {
   }
 
   async stop(): Promise<void> {
+    const active = [...this.activeRuns.values()];
+    for (const run of active) {
+      run.cancel("agent shell stopped");
+    }
+    await Promise.allSettled(active.map((run) => this.waitForRunStop(run)));
     console.log(`[${this.name}] AgentShell stopped`);
   }
 
@@ -155,16 +200,26 @@ export class AgentShellImpl implements AgentShell {
       input: trigger.input as Record<string, unknown>,
       traceHook: this.traceHook,
       advanceHook: this.advanceHook,
-      roleSpawnCallback: this.roleSpawnCb,
+      roleSpawnCallback: (request) => this.performRoleSpawn(request),
       invokeCallback: (protoName, input, roleMapping) =>
-        this.invokeChildProtocol(trigger.protocolName, protoName, input, roleMapping, rta),
+        this.invokeChildProtocol(trigger.instanceId, trigger.protocolName, protoName, input, roleMapping, rta),
       spawnCallback: (protoName, input, roleMapping) =>
-        this.spawnChildProtocol(trigger.protocolName, protoName, input, roleMapping, rta),
+        this.spawnChildProtocol(trigger.instanceId, trigger.protocolName, protoName, input, roleMapping, rta),
       emitCallback: (eventName, data) =>
         this.handleEmit(trigger.protocolName, trigger.instanceId, eventName, data),
     };
 
     const run = new RoleRun(graph, this.behavior, this.transport, this.selfState, runConfig);
+    this.emitRunLifecycle({
+      type: "run_created",
+      instanceId: trigger.instanceId,
+      protocolName: trigger.protocolName,
+      roleName,
+      agentName: this.name,
+      relationKind: "root",
+      supervisionStrategy: graph.supervisionStrategy,
+      origin: "trigger",
+    });
     this.activeRuns.set(trigger.instanceId, run);
 
     run.onComplete((status) => {
@@ -190,6 +245,20 @@ export class AgentShellImpl implements AgentShell {
 
   onRunCompleted(cb: (run: RoleRunHandle, status: RoleRunStatus) => void): void {
     this.onRunCompletedCallbacks.push(cb);
+  }
+
+  cancelRun(instanceId: string, reason = "cancelled"): boolean {
+    const run = this.activeRuns.get(instanceId);
+    if (!run) return false;
+    run.cancel(reason);
+    return true;
+  }
+
+  rebindRunRole(instanceId: string, roleName: string, agentName: string): boolean {
+    const run = this.activeRuns.get(instanceId);
+    if (!run) return false;
+    run.rebindRole(roleName, agentName);
+    return true;
   }
 
   toRecord(nodeId: string): AgentRecordDTO {
@@ -260,16 +329,26 @@ export class AgentShellImpl implements AgentShell {
       roleToAgent: roleBindings,
       traceHook: this.traceHook,
       advanceHook: this.advanceHook,
-      roleSpawnCallback: this.roleSpawnCb,
+      roleSpawnCallback: (request) => this.performRoleSpawn(request),
       invokeCallback: (protoName, input, roleMapping) =>
-        this.invokeChildProtocol(env.protocolName, protoName, input, roleMapping, roleBindings),
+        this.invokeChildProtocol(env.instanceId, env.protocolName, protoName, input, roleMapping, roleBindings),
       spawnCallback: (protoName, input, roleMapping) =>
-        this.spawnChildProtocol(env.protocolName, protoName, input, roleMapping, roleBindings),
+        this.spawnChildProtocol(env.instanceId, env.protocolName, protoName, input, roleMapping, roleBindings),
       emitCallback: (eventName, data) =>
         this.handleEmit(env.protocolName, env.instanceId, eventName, data),
     };
 
     const run = new RoleRun(graph, this.behavior, this.transport, this.selfState, runConfig);
+    this.emitRunLifecycle({
+      type: "run_created",
+      instanceId: env.instanceId,
+      protocolName: env.protocolName,
+      roleName: env.to.role,
+      agentName: this.name,
+      relationKind: "root",
+      supervisionStrategy: graph.supervisionStrategy,
+      origin: "receive_materialized",
+    });
     this.activeRuns.set(env.instanceId, run);
 
     run.onComplete((status) => {
@@ -283,24 +362,44 @@ export class AgentShellImpl implements AgentShell {
     return run;
   }
 
-  private handleRunComplete(run: RoleRun, status: "completed" | "failed"): void {
+  private waitForRunStop(run: RoleRun): Promise<void> {
+    if (isTerminalRoleRunStatus(run.status)) {
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      run.onComplete(() => finish());
+      if (isTerminalRoleRunStatus(run.status)) {
+        finish();
+      }
+    });
+  }
+
+  private handleRunComplete(run: RoleRun, status: "completed" | "failed" | "cancelled"): void {
     const instanceId = run.identity.instanceId;
     this.activeRuns.delete(instanceId);
     this.finishedRuns.set(instanceId, run);
+    this.finishedRunOrder.push(instanceId);
     this.completedRunResults.push({
       instanceId,
       protocolName: run.identity.protocolName,
       roleName: run.identity.roleName,
-      status: status === "completed" ? "completed" : "failed",
+      status,
       returnValue: run.getReturnValue().has ? run.getReturnValue().value : undefined,
     });
+    this.pruneFinishedRuns();
     this.completionCount++;
 
     if (this.agentIR) {
       for (const handler of this.agentIR.lifecycleHandlers) {
         let shouldFire = false;
         if (handler.event === "protocolCompleted" && status === "completed") shouldFire = true;
-        if (handler.event === "protocolFailed" && status === "failed") shouldFire = true;
+        if (handler.event === "protocolFailed" && (status === "failed" || status === "cancelled")) shouldFire = true;
         if (shouldFire && handler.protocolFilter) {
           shouldFire = handler.protocolFilter === run.identity.protocolName;
         }
@@ -319,8 +418,18 @@ export class AgentShellImpl implements AgentShell {
       status: run.status,
       dispatchMessage: (env) => run.dispatchMessage(env),
       run: () => run.run(),
+      cancel: (reason?: string) => run.cancel(reason),
       getReturnValue: () => run.getReturnValue(),
     };
+    this.emitRunLifecycle({
+      type: "run_completed",
+      instanceId: run.identity.instanceId,
+      protocolName: run.identity.protocolName,
+      roleName: run.identity.roleName,
+      agentName: run.identity.agentName,
+      status,
+      returnValue: run.getReturnValue().has ? run.getReturnValue().value : undefined,
+    });
     for (const cb of this.onRunCompletedCallbacks) cb(runHandle, status);
     for (const w of this.completionWaiters) {
       if (this.completionCount >= w.target) w.resolve();
@@ -329,10 +438,36 @@ export class AgentShellImpl implements AgentShell {
   }
 
   /** Clean up a child (invoke/spawn) run without counting toward top-level completion. */
-  private handleChildRunComplete(run: RoleRun): void {
+  private handleChildRunComplete(run: RoleRun, status: "completed" | "failed" | "cancelled"): void {
     const instanceId = run.identity.instanceId;
     this.activeRuns.delete(instanceId);
     this.finishedRuns.set(instanceId, run);
+    this.finishedRunOrder.push(instanceId);
+    this.pruneFinishedRuns();
+    this.emitRunLifecycle({
+      type: "run_completed",
+      instanceId: run.identity.instanceId,
+      protocolName: run.identity.protocolName,
+      roleName: run.identity.roleName,
+      agentName: run.identity.agentName,
+      status,
+      returnValue: run.getReturnValue().has ? run.getReturnValue().value : undefined,
+    });
+  }
+
+  private pruneFinishedRuns(): void {
+    if (this.finishedRunRetentionLimit < 0) {
+      return;
+    }
+    while (this.finishedRunOrder.length > this.finishedRunRetentionLimit) {
+      const evictedInstanceId = this.finishedRunOrder.shift();
+      if (!evictedInstanceId) break;
+      this.finishedRuns.delete(evictedInstanceId);
+      const resultIdx = this.completedRunResults.findIndex((result) => result.instanceId === evictedInstanceId);
+      if (resultIdx >= 0) {
+        this.completedRunResults.splice(resultIdx, 1);
+      }
+    }
   }
 
   private buildRoleBindings(
@@ -365,6 +500,7 @@ export class AgentShellImpl implements AgentShell {
   }
 
   private async invokeChildProtocol(
+    parentInstanceId: string,
     parentProtoName: string,
     childProtoName: string,
     childInput?: Record<string, unknown>,
@@ -392,21 +528,33 @@ export class AgentShellImpl implements AgentShell {
       input: childInput,
       traceHook: this.traceHook,
       advanceHook: this.advanceHook,
-      roleSpawnCallback: this.roleSpawnCb,
+      roleSpawnCallback: (request) => this.performRoleSpawn(request),
       invokeCallback: (nestedProto, nestedInput, nestedRoleMapping) =>
-        this.invokeChildProtocol(childProtoName, nestedProto, nestedInput, nestedRoleMapping, childRoleToAgent),
+        this.invokeChildProtocol(childInstanceId, childProtoName, nestedProto, nestedInput, nestedRoleMapping, childRoleToAgent),
       spawnCallback: (nestedProto, nestedInput, nestedRoleMapping) =>
-        this.spawnChildProtocol(childProtoName, nestedProto, nestedInput, nestedRoleMapping, childRoleToAgent),
+        this.spawnChildProtocol(childInstanceId, childProtoName, nestedProto, nestedInput, nestedRoleMapping, childRoleToAgent),
       emitCallback: (eventName, data) =>
         this.handleEmit(childProtoName, childInstanceId, eventName, data),
     };
 
     const childRun = new RoleRun(graph, this.behavior, this.transport, this.selfState, childConfig);
+    this.emitRunLifecycle({
+      type: "run_created",
+      instanceId: childInstanceId,
+      protocolName: childProtoName,
+      roleName: binding.roleName,
+      agentName: this.name,
+      relationKind: "invoke",
+      supervisionStrategy: graph.supervisionStrategy,
+      origin: "invoke",
+      parentInstanceId,
+      parentProtocolName: parentProtoName,
+    });
     this.activeRuns.set(childInstanceId, childRun);
 
     return new Promise<unknown>((resolve, reject) => {
       childRun.onComplete((status) => {
-        this.handleChildRunComplete(childRun);
+        this.handleChildRunComplete(childRun, status);
         if (status === "completed") {
           const ret = childRun.getReturnValue();
           resolve(ret.has ? ret.value : undefined);
@@ -419,6 +567,7 @@ export class AgentShellImpl implements AgentShell {
   }
 
   private spawnChildProtocol(
+    parentInstanceId: string,
     parentProtoName: string,
     childProtoName: string,
     childInput?: Record<string, unknown>,
@@ -444,20 +593,32 @@ export class AgentShellImpl implements AgentShell {
       input: childInput,
       traceHook: this.traceHook,
       advanceHook: this.advanceHook,
-      roleSpawnCallback: this.roleSpawnCb,
+      roleSpawnCallback: (request) => this.performRoleSpawn(request),
       invokeCallback: (nestedProto, nestedInput, nestedRoleMapping) =>
-        this.invokeChildProtocol(childProtoName, nestedProto, nestedInput, nestedRoleMapping, override),
+        this.invokeChildProtocol(childInstanceId, childProtoName, nestedProto, nestedInput, nestedRoleMapping, override),
       spawnCallback: (nestedProto, nestedInput, nestedRoleMapping) =>
-        this.spawnChildProtocol(childProtoName, nestedProto, nestedInput, nestedRoleMapping, override),
+        this.spawnChildProtocol(childInstanceId, childProtoName, nestedProto, nestedInput, nestedRoleMapping, override),
       emitCallback: (eventName, data) =>
         this.handleEmit(childProtoName, childInstanceId, eventName, data),
     };
 
     const childRun = new RoleRun(graph, this.behavior, this.transport, this.selfState, childConfig);
+    this.emitRunLifecycle({
+      type: "run_created",
+      instanceId: childInstanceId,
+      protocolName: childProtoName,
+      roleName: binding.roleName,
+      agentName: this.name,
+      relationKind: "async_invoke",
+      supervisionStrategy: graph.supervisionStrategy,
+      origin: "async_invoke",
+      parentInstanceId,
+      parentProtocolName: parentProtoName,
+    });
     this.activeRuns.set(childInstanceId, childRun);
 
-    childRun.onComplete(() => {
-      this.handleChildRunComplete(childRun);
+    childRun.onComplete((status) => {
+      this.handleChildRunComplete(childRun, status);
     });
 
     childRun.run().catch(err => {
@@ -499,5 +660,31 @@ export class AgentShellImpl implements AgentShell {
     if (this.emitBusCb) {
       this.emitBusCb(eventName, data ?? {}, { agent: this.name, instanceId });
     }
+  }
+
+  private emitRunLifecycle(event: AgentShellRunLifecycleEvent): void {
+    this.runLifecycleChain = this.runLifecycleChain
+      .then(async () => {
+        await this.runLifecycleCb?.(event);
+      })
+      .catch(() => {
+        // Keep the chain alive even if bookkeeping fails.
+      });
+  }
+
+  private performRoleSpawn(request: RoleSpawnRequest): string {
+    if (!this.roleSpawnCb) {
+      throw new Error(`role spawn for "${request.roleName}" but no roleSpawnCallback set`);
+    }
+    const agentName = this.roleSpawnCb(request);
+    this.emitRunLifecycle({
+      type: "spawn_recorded",
+      instanceId: request.instanceId,
+      roleName: request.roleName,
+      agentName,
+      bindAs: request.bindAs,
+      persistent: request.persistent,
+    });
+    return agentName;
   }
 }

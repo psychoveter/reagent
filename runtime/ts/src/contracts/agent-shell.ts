@@ -55,6 +55,7 @@ export interface RoleRunHandle {
 
   dispatchMessage(env: MessageEnvelope): void;
   run(): Promise<void>;
+  cancel(reason?: string): void;
   getReturnValue(): { has: boolean; value: unknown };
 }
 
@@ -74,6 +75,7 @@ export interface AgentShell {
 
   getSelf(): Record<string, unknown>;
   getActiveRuns(): Map<string, RoleRunHandle>;
+  /** Returns the retained local completion history; older finished runs may be evicted by shell policy. */
   getCompletedRuns(): RoleRunResult[];
 
   triggerProtocol(trigger: ProtocolTrigger): void;

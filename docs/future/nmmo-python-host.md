@@ -341,7 +341,7 @@ This gives the NMMO case what it needs without multiplying engines.
 | `agent-types.md` | Provides the language-level model for participant/role typing independent of host selection. |
 | `backlog.md` | Tracks the shift away from a separate deferred Python runtime toward embedded Rust-core Python hosts. |
 | `../current/09-e2e-usecases.md` | Contains the NMMO simulation use case that this document makes concrete. |
-| `process-model.md` | Defines process/lifecycle semantics that embedded Rust-core hosts should follow. |
+| `../archive/process-model.md` | Defines process/lifecycle semantics that embedded Rust-core hosts should follow. Current docs: `../current/03-runtime-core.md §9`. |
 
 ---
 

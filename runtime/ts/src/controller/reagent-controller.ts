@@ -22,10 +22,23 @@ import type {
 } from "../contracts/types.js";
 import { createMessageEnvelope, createTraceEvent } from "../contracts/types.js";
 import { isAddressableAgentRecord } from "../contracts/types.js";
+import type {
+  ProcessRelationKind,
+  ProtocolCancellationState,
+  ParticipantLossRecord,
+  ProtocolRunStatus,
+  ProtocolRunRecord,
+  ProtocolRunRef,
+  ProtocolRunSnapshot,
+  RoleRunStatus,
+  SpawnOwnershipRecord,
+  SupervisionStrategy,
+} from "../contracts/protocol-run.js";
+import { isTerminalProtocolRunStatus, isTerminalRoleRunStatus } from "../contracts/protocol-run.js";
 import type { NodeRef, AgentRef, ReagentTransport, NodeLink } from "../contracts/transport.js";
 import type { BehaviorFactory } from "../contracts/behavior-factory.js";
 import type { InterceptorFn, InterceptorContext, MessageDirection, TraceHook, AddressPage } from "../contracts/interceptor.js";
-import { AgentShellImpl, type AgentShellConfig } from "../core/agent-shell-impl.js";
+import { AgentShellImpl, type AgentShellConfig, type AgentShellRunLifecycleEvent } from "../core/agent-shell-impl.js";
 import type { AgentShellStatus } from "../contracts/agent-shell.js";
 import type { AdvanceHookContext } from "../core/role-run.js";
 import { ProtocolRegistry, type ProtocolEntry, type CompatibilityReport } from "./protocol-registry.js";
@@ -34,7 +47,7 @@ import { CronAgent } from "../triggers/cron-agent.js";
 import type { LeaderElection } from "../cluster/leader-election.js";
 import { TriggerMatcher } from "../triggers/trigger-matcher.js";
 import type { TriggerPolicy } from "../triggers/trigger-policy.js";
-import type { StateStore } from "../cluster/state-store.js";
+import type { Disposable, StateStore, WatchEvent } from "../cluster/state-store.js";
 import { InMemoryStateStore } from "../cluster/state-store.js";
 import { StateStoreAgentRegistry, type AgentRegistration } from "../cluster/state-store-agent-registry.js";
 import { ResolvePolicyEvaluator } from "../triggers/resolve-policy-evaluator.js";
@@ -75,8 +88,18 @@ export interface ReagentControllerConfig {
   cronLeaderElection?: LeaderElection;
   /** Debug hook that fires after resolve pipeline evaluation, before protocol instantiation. */
   debugResolveHook?: DebugResolveHookFn;
+  /** Maximum retained local finished runs/results per AgentShell. Durable protocol-run records are not evicted. */
+  finishedRunRetentionLimit?: number;
 }
 
+const PROTOCOL_RUNS_PREFIX = "/protocol-runs/";
+
+class ProtocolRunMutationError extends Error {
+  constructor(instanceId: string, retries: number) {
+    super(`Failed to persist protocol-run mutation for ${instanceId} after ${retries} CAS retries`);
+    this.name = "ProtocolRunMutationError";
+  }
+}
 // ── Controller ──────────────────────────────────────────────────────
 
 export class ReagentController {
@@ -97,6 +120,7 @@ export class ReagentController {
   private traceCallback?: (event: TraceEvent) => void;
   private traceHook?: TraceHook;
   private debugResolveHook?: DebugResolveHookFn;
+  private finishedRunRetentionLimit: number;
 
   /** agentName → AgentShellImpl (local agents on this node) */
   private shells = new Map<string, AgentShellImpl>();
@@ -110,6 +134,10 @@ export class ReagentController {
   private agentRuntimeStates = new Map<string, AgentRuntimeLifecycle>();
   /** agentName → lang key of the factory that created the behavior */
   private shellFactoryLangs = new Map<string, string>();
+  /** protocol instanceId -> durable process record owned by this RC */
+  private protocolRuns = new Map<string, ProtocolRunRecord>();
+  /** protocol instanceId -> lightweight tracker snapshot */
+  private protocolRunSnapshots = new Map<string, ProtocolRunSnapshot>();
   /** agentName → message handler registered via transport.onMessage() */
   private messageHandlers = new Map<string, (env: MessageEnvelope) => void>();
   /** agentName → NodeRef (routing table: local → loopbackRef, remote → link-backed NodeRef) */
@@ -119,6 +147,7 @@ export class ReagentController {
   /** NodeLinks managed by this controller */
   private links: NodeLink[] = [];
   private membership: EtcdMembership | null = null;
+  private protocolRunWatch?: Disposable;
   private started = false;
 
   private loopbackRef: NodeRef;
@@ -137,10 +166,14 @@ export class ReagentController {
     this.interceptors = [...(config.interceptors ?? [])];
     this.traceCallback = config.traceCallback;
     this.traceHook = config.traceHook;
+    this.finishedRunRetentionLimit = Math.max(0, config.finishedRunRetentionLimit ?? 100);
     this.registry = new ProtocolRegistry();
     this.stateStore = config.stateStore ?? new InMemoryStateStore();
     this.agentRegistry = new StateStoreAgentRegistry(this.stateStore);
     this.resolvePolicyEvaluator = new ResolvePolicyEvaluator(this.agentRegistry, config.traceCallback);
+    this.protocolRunWatch = this.stateStore.watch(PROTOCOL_RUNS_PREFIX, (event) => {
+      void this.handleProtocolRunWatchEvent(event);
+    });
 
     if (config.debugResolveHook) {
       this.debugResolveHook = config.debugResolveHook;
@@ -337,6 +370,7 @@ export class ReagentController {
       ? { ...record.runtime, lifecycle: "detached" }
       : undefined;
     this.agentRegistry.deregister(agentName).catch(() => false);
+    void this.handleAgentUnavailable(agentName, `local runtime for ${agentName} detached`);
   }
 
   private handleShellStatusChange(agentName: string, newStatus: AgentShellStatus): void {
@@ -359,6 +393,7 @@ export class ReagentController {
           record.runtime = { ...record.runtime, lifecycle: "detached" };
         }
       }
+      void this.handleAgentUnavailable(agentName, `local runtime for ${agentName} detached`);
     }
 
     this.publishAgentPresence(agentName);
@@ -409,6 +444,8 @@ export class ReagentController {
         request.bindAs,
         request.persistent,
       ),
+      onRunLifecycleEvent: (event) => this.handleShellRunLifecycleEvent(event),
+      finishedRunRetentionLimit: this.finishedRunRetentionLimit,
     };
 
     const shell = new AgentShellImpl(shellConfig);
@@ -582,6 +619,7 @@ export class ReagentController {
     protocols: Array<{ name: string; version: string; agents: string[]; graphs: string[] }>;
     routing: Record<string, string>;
     behaviorFactories: string[];
+    protocolRuns: ProtocolRunRecord[];
   } {
     const agentsList: Array<{ name: string; lang: string; route: string }> = [];
     for (const [name, record] of this.agentRecords) {
@@ -614,7 +652,726 @@ export class ReagentController {
       protocols: protoList,
       routing,
       behaviorFactories: Object.keys(this.behaviorFactories),
+      protocolRuns: [...this.protocolRuns.values()],
     };
+  }
+
+  getRun(ref: ProtocolRunRef): ProtocolRunSnapshot | undefined {
+    return this.protocolRunSnapshots.get(ref.instanceId);
+  }
+
+  async getRunRecord(ref: ProtocolRunRef): Promise<ProtocolRunRecord | undefined> {
+    return this.loadProtocolRunRecord(ref.instanceId);
+  }
+
+  async listRuns(): Promise<ProtocolRunRecord[]> {
+    return this.listProtocolRuns();
+  }
+
+  async listProtocolRuns(): Promise<ProtocolRunRecord[]> {
+    const entries = await this.stateStore.list(PROTOCOL_RUNS_PREFIX);
+    const records: ProtocolRunRecord[] = [];
+    for (const entry of entries) {
+      const record = this.parseProtocolRunRecord(entry.value);
+      if (!record) continue;
+      this.cacheProtocolRunRecord(record);
+      records.push(record);
+    }
+    return records.sort((a, b) => b.startedAt - a.startedAt);
+  }
+
+  async inspectProtocolRun(instanceId: string): Promise<{
+    record?: ProtocolRunRecord;
+    parent?: ProtocolRunRecord;
+    children: ProtocolRunRecord[];
+  }> {
+    const record = await this.loadProtocolRunRecord(instanceId);
+    if (!record) {
+      return { children: [] };
+    }
+    const parent = record.parentInstanceId
+      ? await this.loadProtocolRunRecord(record.parentInstanceId)
+      : undefined;
+    const children = await Promise.all(record.childInstanceIds.map((childId) => this.loadProtocolRunRecord(childId)));
+    return {
+      record,
+      parent,
+      children: children.filter((value): value is ProtocolRunRecord => value != null),
+    };
+  }
+
+  async cancelRun(ref: ProtocolRunRef): Promise<void> {
+    await this.cancelProtocolRun(ref.instanceId);
+  }
+
+  async cancelProtocolRun(instanceId: string, reason = "cancelled by control plane"): Promise<boolean> {
+    const record = await this.loadProtocolRunRecord(instanceId);
+    if (!record) return false;
+    if (isTerminalProtocolRunStatus(record.status)) return true;
+
+    const nextRecord = await this.mutateProtocolRunRecord(instanceId, (current) => {
+      if (!current || isTerminalProtocolRunStatus(current.status)) return current;
+      const now = Date.now();
+      return {
+        ...current,
+        status: "cancelling",
+        updatedAt: now,
+        failureReason: reason,
+        cancellation: this.mergeCancellationState(current, {
+          reason,
+          requestedByNodeId: this.nodeId,
+        }),
+      };
+    });
+    if (!nextRecord) return false;
+
+    await this.handleCancellationConvergence(nextRecord);
+    const finalRecord = await this.loadProtocolRunRecord(instanceId, { fresh: true });
+    if (finalRecord && isTerminalProtocolRunStatus(finalRecord.status)) {
+      this.cleanupSpawnedAgents(instanceId);
+    }
+    return true;
+  }
+
+  async handleNodeDeparture(nodeId: string): Promise<void> {
+    const runs = await this.listProtocolRuns();
+    const candidates = runs.filter((record) =>
+      record.homeNodeId === nodeId && !isTerminalProtocolRunStatus(record.status),
+    );
+    for (const record of candidates) {
+      const fresh = await this.loadProtocolRunRecord(record.instanceId);
+      if (!fresh || fresh.homeNodeId !== nodeId || isTerminalProtocolRunStatus(fresh.status)) {
+        continue;
+      }
+      await this.adoptProtocolRunAfterHomeLoss(fresh, nodeId);
+    }
+
+    const impactedParticipants = runs.filter((record) =>
+      this.isHomeRcSupervisor(record)
+      && record.homeNodeId !== nodeId
+      && !isTerminalProtocolRunStatus(record.status)
+      && record.status !== "cancelling"
+      && Object.values(record.roles).some((role) => role.nodeId === nodeId),
+    );
+    for (const record of impactedParticipants) {
+      for (const [roleName, role] of Object.entries(record.roles)) {
+        if (role.nodeId !== nodeId) continue;
+        await this.handleParticipantLoss(record.instanceId, roleName, role.agentName, `participant node ${nodeId} left cluster`);
+      }
+    }
+  }
+
+  private async adoptProtocolRunAfterHomeLoss(record: ProtocolRunRecord, lostNodeId: string): Promise<void> {
+    const orphanedAt = Date.now();
+    const adoptingRecord: ProtocolRunRecord = {
+      ...record,
+      status: "adopting",
+      orphanedAt,
+      adoptedByNodeId: this.nodeId,
+      homeNodeId: this.nodeId,
+      updatedAt: orphanedAt,
+      failureReason: `home node ${lostNodeId} left cluster`,
+    };
+    const acquired = await this.compareAndSwapProtocolRun(record, adoptingRecord);
+    if (!acquired) {
+      return;
+    }
+
+    const impactedRoles = Object.entries(adoptingRecord.roles)
+      .filter(([, role]) => role.nodeId === lostNodeId)
+      .map(([roleName, role]) => ({ roleName, agentName: role.agentName }));
+
+    if (adoptingRecord.supervisionStrategy === "one-for-one" || adoptingRecord.supervisionStrategy === "all-for-one") {
+      for (const impactedRole of impactedRoles) {
+        await this.handleParticipantLoss(
+          adoptingRecord.instanceId,
+          impactedRole.roleName,
+          impactedRole.agentName,
+          `home node ${lostNodeId} left cluster`,
+        );
+      }
+      const reconciled = await this.loadProtocolRunRecord(adoptingRecord.instanceId, { fresh: true });
+      if (!reconciled || isTerminalProtocolRunStatus(reconciled.status)) {
+        return;
+      }
+      const stillMissingOwner = Object.values(reconciled.roles).some((role) => role.nodeId === lostNodeId);
+      if (!stillMissingOwner) {
+        await this.persistProtocolRun({
+          ...reconciled,
+          status: "running",
+          updatedAt: Date.now(),
+          completedAt: undefined,
+        });
+        return;
+      }
+    }
+
+    const finalizedAt = Date.now();
+    const finalStatus: ProtocolRunStatus =
+      adoptingRecord.supervisionStrategy === "scoped" ? "cancelled" : "failed";
+    await this.persistProtocolRun({
+      ...adoptingRecord,
+      status: finalStatus,
+      updatedAt: finalizedAt,
+      completedAt: finalizedAt,
+      failureReason: adoptingRecord.failureReason,
+      roles: Object.fromEntries(
+        Object.entries(adoptingRecord.roles).map(([roleName, role]) => [
+          roleName,
+          {
+            ...role,
+            status: isTerminalRoleRunStatus(role.status)
+              ? role.status
+              : (finalStatus === "cancelled" ? "cancelled" : "failed"),
+            updatedAt: finalizedAt,
+            lossDetectedAt: role.nodeId === lostNodeId ? finalizedAt : role.lossDetectedAt,
+          },
+        ]),
+      ),
+    });
+    for (const shell of this.shells.values()) {
+      shell.cancelRun(adoptingRecord.instanceId, adoptingRecord.failureReason ?? "home node departed");
+    }
+    this.cleanupSpawnedAgents(adoptingRecord.instanceId, adoptingRecord);
+  }
+
+  private protocolRunKey(instanceId: string): string {
+    return `${PROTOCOL_RUNS_PREFIX}${instanceId}`;
+  }
+
+  private cacheProtocolRunRecord(record: ProtocolRunRecord): void {
+    this.protocolRuns.set(record.instanceId, record);
+    this.protocolRunSnapshots.set(record.instanceId, this.buildProtocolRunSnapshot(record));
+  }
+
+  private evictProtocolRunRecord(instanceId: string): void {
+    this.protocolRuns.delete(instanceId);
+    this.protocolRunSnapshots.delete(instanceId);
+  }
+
+  private parseProtocolRunRecord(raw: unknown): ProtocolRunRecord | undefined {
+    if (raw == null) return undefined;
+    try {
+      return JSON.parse(typeof raw === "string" ? raw : (raw as Buffer).toString("utf8")) as ProtocolRunRecord;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async loadProtocolRunRecord(
+    instanceId: string,
+    opts?: { fresh?: boolean },
+  ): Promise<ProtocolRunRecord | undefined> {
+    if (!opts?.fresh) {
+      const cached = this.protocolRuns.get(instanceId);
+      if (cached) return cached;
+    }
+    const raw = await this.stateStore.get(this.protocolRunKey(instanceId));
+    const record = this.parseProtocolRunRecord(raw);
+    if (!record) {
+      this.evictProtocolRunRecord(instanceId);
+      return undefined;
+    }
+    this.cacheProtocolRunRecord(record);
+    return record;
+  }
+
+  private async persistProtocolRun(record: ProtocolRunRecord): Promise<void> {
+    await this.stateStore.put(this.protocolRunKey(record.instanceId), JSON.stringify(record));
+    this.cacheProtocolRunRecord(record);
+  }
+
+  private async compareAndSwapProtocolRun(
+    expectedRecord: ProtocolRunRecord | null,
+    nextRecord: ProtocolRunRecord,
+  ): Promise<boolean> {
+    const key = this.protocolRunKey(nextRecord.instanceId);
+    const succeeded = await this.stateStore.compareAndSwap(
+      key,
+      expectedRecord ? JSON.stringify(expectedRecord) : null,
+      JSON.stringify(nextRecord),
+    );
+    if (succeeded) {
+      this.cacheProtocolRunRecord(nextRecord);
+    } else {
+      this.evictProtocolRunRecord(nextRecord.instanceId);
+    }
+    return succeeded;
+  }
+
+  private async mutateProtocolRunRecord(
+    instanceId: string,
+    mutate: (record: ProtocolRunRecord | undefined) => ProtocolRunRecord | undefined,
+    opts?: { retries?: number },
+  ): Promise<ProtocolRunRecord | undefined> {
+    const retries = opts?.retries ?? 6;
+    for (let attempt = 0; attempt < retries; attempt += 1) {
+      const current = await this.loadProtocolRunRecord(instanceId, { fresh: true });
+      const next = mutate(current);
+      if (!next) {
+        return current;
+      }
+      const currentJson = current ? JSON.stringify(current) : null;
+      const nextJson = JSON.stringify(next);
+      if (currentJson === nextJson) {
+        this.cacheProtocolRunRecord(next);
+        return next;
+      }
+      const swapped = await this.compareAndSwapProtocolRun(current ?? null, next);
+      if (swapped) {
+        return next;
+      }
+    }
+    throw new ProtocolRunMutationError(instanceId, retries);
+  }
+
+  private buildProtocolRunSnapshot(record: ProtocolRunRecord): ProtocolRunSnapshot {
+    return {
+      ref: { instanceId: record.instanceId, protocolName: record.protocolName },
+      roles: new Map(
+        Object.entries(record.roles).map(([roleName, role]) => [
+          roleName,
+          { agentName: role.agentName, status: role.status },
+        ]),
+      ),
+      startedAt: record.startedAt,
+      completedAt: record.completedAt,
+    };
+  }
+
+  private async ensureProtocolRunRecord(args: {
+    instanceId: string;
+    protocolName: string;
+    agentName: string;
+    roleName: string;
+    relationKind: ProcessRelationKind;
+    parentInstanceId?: string;
+    parentProtocolName?: string;
+    createIfMissing: boolean;
+    supervisionStrategy?: SupervisionStrategy;
+  }): Promise<ProtocolRunRecord | undefined> {
+    let rootInstanceId = args.instanceId;
+    if (args.parentInstanceId) {
+      const parent = await this.loadProtocolRunRecord(args.parentInstanceId);
+      rootInstanceId = parent?.rootInstanceId ?? args.parentInstanceId;
+    }
+
+    const merged = await this.mutateProtocolRunRecord(args.instanceId, (existing) => {
+      const now = Date.now();
+      if (!existing && !args.createIfMissing) {
+        return undefined;
+      }
+      const next: ProtocolRunRecord = existing ?? {
+        instanceId: args.instanceId,
+        protocolName: args.protocolName,
+        status: "running",
+        homeNodeId: this.nodeId,
+        relationKind: args.relationKind,
+        supervisionStrategy: args.supervisionStrategy ?? "scoped",
+        rootInstanceId,
+        createdAt: now,
+        updatedAt: now,
+        startedAt: now,
+        parentInstanceId: args.parentInstanceId,
+        parentProtocolName: args.parentProtocolName,
+        ownerAgentName: args.agentName,
+        ownerRoleName: args.roleName,
+        roles: {},
+        childInstanceIds: [],
+        spawnedAgents: [],
+        participantLosses: [],
+      };
+
+      return {
+        ...next,
+        protocolName: args.protocolName,
+        relationKind: args.relationKind,
+        parentInstanceId: args.parentInstanceId ?? next.parentInstanceId,
+        parentProtocolName: args.parentProtocolName ?? next.parentProtocolName,
+        ownerAgentName: next.ownerAgentName ?? args.agentName,
+        ownerRoleName: next.ownerRoleName ?? args.roleName,
+        updatedAt: now,
+        status: isTerminalProtocolRunStatus(next.status) ? next.status : (next.status === "cancelling" ? "cancelling" : "running"),
+        roles: {
+          ...next.roles,
+          [args.roleName]: {
+            agentName: args.agentName,
+            roleName: args.roleName,
+            nodeId: this.nodeId,
+            status: "running",
+            updatedAt: now,
+          },
+        },
+      };
+    });
+    if (args.parentInstanceId) {
+      await this.appendChildToParent(args.parentInstanceId, args.instanceId);
+    }
+    return merged;
+  }
+
+  private async appendChildToParent(parentInstanceId: string, childInstanceId: string): Promise<void> {
+    await this.mutateProtocolRunRecord(parentInstanceId, (parent) => {
+      if (!parent || parent.childInstanceIds.includes(childInstanceId)) return parent;
+      return {
+        ...parent,
+        updatedAt: Date.now(),
+        childInstanceIds: [...parent.childInstanceIds, childInstanceId],
+      };
+    });
+  }
+
+  private async appendSpawnOwnership(instanceId: string, spawn: SpawnOwnershipRecord): Promise<void> {
+    await this.mutateProtocolRunRecord(instanceId, (record) => {
+      if (!record || record.spawnedAgents.some((entry) => entry.agentName === spawn.agentName)) {
+        return record;
+      }
+      return {
+        ...record,
+        updatedAt: Date.now(),
+        spawnedAgents: [...record.spawnedAgents, spawn],
+      };
+    });
+  }
+
+  private async updateProtocolRunStatus(
+    instanceId: string,
+    status: ProtocolRunStatus,
+    opts?: { failureReason?: string },
+  ): Promise<void> {
+    await this.mutateProtocolRunRecord(instanceId, (record) => {
+      if (!record) return record;
+      const now = Date.now();
+      return {
+        ...record,
+        status,
+        updatedAt: now,
+        completedAt: isTerminalProtocolRunStatus(status) ? (record.completedAt ?? now) : record.completedAt,
+        failureReason: opts?.failureReason ?? record.failureReason,
+      };
+    });
+  }
+
+  private isHomeRcSupervisor(record: ProtocolRunRecord): boolean {
+    return record.homeNodeId === this.nodeId;
+  }
+
+  private deriveProtocolRunStatusFromRoles(record: ProtocolRunRecord): ProtocolRunStatus {
+    const roleStates = Object.values(record.roles);
+    if (record.status === "adopting") {
+      return "adopting";
+    }
+    if (record.status === "cancelling") {
+      return roleStates.length > 0 && roleStates.every((role) => isTerminalRoleRunStatus(role.status))
+        ? "cancelled"
+        : "cancelling";
+    }
+    if (roleStates.some((role) => role.status === "failed")) {
+      return "failed";
+    }
+    if (roleStates.some((role) => !isTerminalRoleRunStatus(role.status))) {
+      return "running";
+    }
+    if (roleStates.some((role) => role.status === "cancelled")) {
+      return "cancelled";
+    }
+    return roleStates.length > 0 ? "completed" : record.status;
+  }
+
+  private mergeCancellationState(
+    record: ProtocolRunRecord,
+    args: {
+      reason?: string;
+      requestedByNodeId?: string;
+      ackRoleNames?: string[];
+      ackNodeIds?: string[];
+    },
+  ): ProtocolCancellationState {
+    const existing = record.cancellation;
+    const acknowledgedRoleNames = new Set(existing?.acknowledgedRoleNames ?? []);
+    const acknowledgedNodeIds = new Set(existing?.acknowledgedNodeIds ?? []);
+    for (const roleName of args.ackRoleNames ?? []) {
+      acknowledgedRoleNames.add(roleName);
+    }
+    for (const nodeId of args.ackNodeIds ?? []) {
+      acknowledgedNodeIds.add(nodeId);
+    }
+    return {
+      requestedAt: existing?.requestedAt ?? Date.now(),
+      requestedByNodeId: existing?.requestedByNodeId ?? args.requestedByNodeId ?? this.nodeId,
+      reason: args.reason ?? existing?.reason,
+      acknowledgedRoleNames: [...acknowledgedRoleNames].sort(),
+      acknowledgedNodeIds: [...acknowledgedNodeIds].sort(),
+    };
+  }
+
+  private buildParticipantLossRecord(
+    roleName: string,
+    previousAgentName: string,
+    reason: string,
+    replacementAgentName?: string,
+  ): ParticipantLossRecord {
+    return {
+      roleName,
+      previousAgentName,
+      detectedByNodeId: this.nodeId,
+      detectedAt: Date.now(),
+      reason,
+      replacementAgentName,
+    };
+  }
+
+  private async acknowledgeCancellationForNode(record: ProtocolRunRecord): Promise<void> {
+    const localTerminalRoles = Object.values(record.roles)
+      .filter((role) => role.nodeId === this.nodeId && isTerminalRoleRunStatus(role.status))
+      .map((role) => role.roleName);
+    if (localTerminalRoles.length === 0 && !(record.cancellation?.acknowledgedNodeIds ?? []).includes(this.nodeId)) {
+      return;
+    }
+    await this.mutateProtocolRunRecord(record.instanceId, (current) => {
+      if (!current || current.status !== "cancelling") return current;
+      return {
+        ...current,
+        updatedAt: Date.now(),
+        cancellation: this.mergeCancellationState(current, {
+          ackRoleNames: localTerminalRoles,
+          ackNodeIds: [this.nodeId],
+        }),
+      };
+    });
+  }
+
+  private async finalizeCancellationIfConverged(instanceId: string): Promise<void> {
+    await this.mutateProtocolRunRecord(instanceId, (record) => {
+      if (!record || record.status !== "cancelling") return record;
+      const expectedRoleNames = Object.keys(record.roles).sort();
+      const ackedRoleNames = new Set(record.cancellation?.acknowledgedRoleNames ?? []);
+      const allRolesAcked = expectedRoleNames.every((roleName) => ackedRoleNames.has(roleName));
+      const allRolesTerminal = expectedRoleNames.every((roleName) => {
+        const role = record.roles[roleName];
+        return role ? isTerminalRoleRunStatus(role.status) : false;
+      });
+      if (!allRolesAcked && !allRolesTerminal) {
+        return record;
+      }
+      const now = Date.now();
+      return {
+        ...record,
+        status: "cancelled",
+        updatedAt: now,
+        completedAt: record.completedAt ?? now,
+      };
+    });
+  }
+
+  private async handleCancellationConvergence(record: ProtocolRunRecord): Promise<void> {
+    if (record.status !== "cancelling") return;
+
+    const reason = record.cancellation?.reason ?? "cancelled by control plane";
+    for (const shell of this.shells.values()) {
+      shell.cancelRun(record.instanceId, reason);
+    }
+
+    await this.acknowledgeCancellationForNode(record);
+    if (this.isHomeRcSupervisor(record)) {
+      await this.finalizeCancellationIfConverged(record.instanceId);
+    }
+  }
+
+  private async handleProtocolRunWatchEvent(event: WatchEvent): Promise<void> {
+    if (!event.key.startsWith(PROTOCOL_RUNS_PREFIX)) return;
+    const instanceId = event.key.slice(PROTOCOL_RUNS_PREFIX.length);
+    if (event.kind === "delete") {
+      this.evictProtocolRunRecord(instanceId);
+      return;
+    }
+    const record = this.parseProtocolRunRecord(event.value);
+    if (!record) {
+      this.evictProtocolRunRecord(instanceId);
+      return;
+    }
+    this.cacheProtocolRunRecord(record);
+    if (record.status === "cancelling") {
+      await this.handleCancellationConvergence(record);
+    }
+  }
+
+  private async handleAgentUnavailable(agentName: string, reason: string): Promise<void> {
+    const runs = await this.listProtocolRuns();
+    const impacted = runs.filter((record) =>
+      this.isHomeRcSupervisor(record)
+      && !isTerminalProtocolRunStatus(record.status)
+      && record.status !== "cancelling"
+      && Object.values(record.roles).some((role) => role.agentName === agentName),
+    );
+    for (const record of impacted) {
+      for (const [roleName, roleStatus] of Object.entries(record.roles)) {
+        if (roleStatus.agentName !== agentName) continue;
+        await this.handleParticipantLoss(record.instanceId, roleName, agentName, reason);
+      }
+    }
+  }
+
+  private async handleParticipantLoss(
+    instanceId: string,
+    roleName: string,
+    lostAgentName: string,
+    reason: string,
+  ): Promise<ProtocolRunRecord | undefined> {
+    const replacementAgentName = this.resolveRoleBinding(
+      (await this.loadProtocolRunRecord(instanceId))?.protocolName ?? "",
+      roleName,
+    );
+    const replacementRecord = replacementAgentName ? this.getAgentRecord(replacementAgentName) : undefined;
+
+    const nextRecord = await this.mutateProtocolRunRecord(instanceId, (record) => {
+      if (!record || !this.isHomeRcSupervisor(record) || isTerminalProtocolRunStatus(record.status)) {
+        return record;
+      }
+      if (record.status === "cancelling") {
+        return record;
+      }
+      const role = record.roles[roleName];
+      if (!role || role.agentName !== lostAgentName) {
+        return record;
+      }
+
+      const losses = [
+        ...(record.participantLosses ?? []),
+        this.buildParticipantLossRecord(roleName, lostAgentName, reason, replacementAgentName && replacementAgentName !== lostAgentName ? replacementAgentName : undefined),
+      ];
+
+      if (replacementAgentName && replacementAgentName !== lostAgentName) {
+        return {
+          ...record,
+          updatedAt: Date.now(),
+          participantLosses: losses,
+          roles: {
+            ...record.roles,
+            [roleName]: {
+              agentName: replacementAgentName,
+              roleName,
+              nodeId: replacementRecord?.nodeId,
+              status: "running",
+              updatedAt: Date.now(),
+              lossDetectedAt: Date.now(),
+            },
+          },
+        };
+      }
+
+      const now = Date.now();
+      return {
+        ...record,
+        status: "failed",
+        updatedAt: now,
+        completedAt: record.completedAt ?? now,
+        failureReason: reason,
+        participantLosses: losses,
+        roles: {
+          ...record.roles,
+          [roleName]: {
+            ...role,
+            status: "failed",
+            updatedAt: now,
+            lossDetectedAt: now,
+          },
+        },
+      };
+    });
+
+    if (nextRecord && isTerminalProtocolRunStatus(nextRecord.status)) {
+      this.cleanupSpawnedAgents(instanceId, nextRecord);
+      if (nextRecord.status === "failed") {
+        for (const shell of this.shells.values()) {
+          shell.cancelRun(instanceId, reason);
+        }
+      }
+    }
+    if (
+      nextRecord
+      && !isTerminalProtocolRunStatus(nextRecord.status)
+      && replacementAgentName
+      && replacementAgentName !== lostAgentName
+      && nextRecord.roles[roleName]?.agentName === replacementAgentName
+    ) {
+      this.rebindLiveRole(instanceId, nextRecord.protocolName, roleName, replacementAgentName);
+    }
+    return nextRecord;
+  }
+
+  private async handleShellRunLifecycleEvent(event: AgentShellRunLifecycleEvent): Promise<void> {
+    switch (event.type) {
+      case "run_created": {
+        await this.ensureProtocolRunRecord({
+          instanceId: event.instanceId,
+          protocolName: event.protocolName,
+          agentName: event.agentName,
+          roleName: event.roleName,
+          relationKind: event.relationKind,
+          parentInstanceId: event.parentInstanceId,
+          parentProtocolName: event.parentProtocolName,
+          createIfMissing: event.origin !== "receive_materialized",
+          supervisionStrategy: event.supervisionStrategy,
+        });
+        break;
+      }
+      case "run_completed": {
+        const nextRecord = await this.mutateProtocolRunRecord(event.instanceId, (record) => {
+          if (!record) return record;
+          const now = Date.now();
+          const updatedRecord: ProtocolRunRecord = {
+            ...record,
+            updatedAt: now,
+            failureReason: event.status === "failed" && typeof event.returnValue === "string"
+              ? event.returnValue
+              : record.failureReason,
+            roles: {
+              ...record.roles,
+              [event.roleName]: {
+                agentName: event.agentName,
+                roleName: event.roleName,
+                nodeId: this.nodeId,
+                status: event.status,
+                updatedAt: now,
+              },
+            },
+          };
+          const nextStatus = this.deriveProtocolRunStatusFromRoles(updatedRecord);
+          return {
+            ...updatedRecord,
+            status: nextStatus,
+            completedAt: isTerminalProtocolRunStatus(nextStatus)
+              ? (updatedRecord.completedAt ?? now)
+              : updatedRecord.completedAt,
+            cancellation: record.status === "cancelling" || nextStatus === "cancelling" || nextStatus === "cancelled"
+              ? this.mergeCancellationState(updatedRecord, {
+                  ackRoleNames: event.status === "cancelled" || isTerminalRoleRunStatus(event.status) ? [event.roleName] : [],
+                  ackNodeIds: isTerminalRoleRunStatus(event.status) ? [this.nodeId] : [],
+                })
+              : record.cancellation,
+          };
+        });
+        if (!nextRecord) break;
+        if (nextRecord.status === "cancelling") {
+          await this.finalizeCancellationIfConverged(event.instanceId);
+        }
+        if (isTerminalProtocolRunStatus(nextRecord.status)) {
+          this.cleanupSpawnedAgents(event.instanceId);
+        }
+        break;
+      }
+      case "spawn_recorded": {
+        await this.appendSpawnOwnership(event.instanceId, {
+          agentName: event.agentName,
+          roleName: event.roleName,
+          bindAs: event.bindAs,
+          persistent: event.persistent,
+          createdAt: Date.now(),
+        });
+        break;
+      }
+    }
   }
 
   private shellLang(agentName: string): string {
@@ -682,6 +1439,10 @@ export class ReagentController {
       },
       onRemoteAgentRemoved: (agentName) => {
         this.routingTable.delete(agentName);
+        void this.handleAgentUnavailable(agentName, `remote agent ${agentName} disappeared`);
+      },
+      onNodeLeave: (leftNodeId) => {
+        void this.handleNodeDeparture(leftNodeId);
       },
     });
     await this.membership.start();
@@ -703,10 +1464,15 @@ export class ReagentController {
     if (this.cronIntervalMs > 0) {
       await this.cronAgent.start(this.cronIntervalMs);
     }
+    this.reconcileSpawnedAgentCleanup().catch((err) => {
+      console.warn(`[RC ${this.nodeId}] spawned-agent reconciliation failed: ${String(err)}`);
+    });
   }
 
   async stop(): Promise<void> {
     this.started = false;
+    this.protocolRunWatch?.dispose();
+    this.protocolRunWatch = undefined;
     this.triggerMatcher.destroy();
     this.eventBus.clear();
     await this.cronAgent.stop();
@@ -905,6 +1671,10 @@ export class ReagentController {
 
     if (!targetNodeRef) {
       console.warn(`[RC ${this.nodeId}] No route for agent ${targetAgent}`);
+      void this.handleUndeliverableParticipantMessage(
+        envelope,
+        `no route for participant agent ${targetAgent}`,
+      );
       return;
     }
 
@@ -914,6 +1684,30 @@ export class ReagentController {
     this.runInterceptors(envelope, direction, () => {
       targetNodeRef.send(envelope);
     });
+  }
+
+  private async handleUndeliverableParticipantMessage(
+    envelope: MessageEnvelope,
+    reason: string,
+  ): Promise<void> {
+    const updatedRecord = await this.handleParticipantLoss(
+      envelope.instanceId,
+      envelope.to.role,
+      envelope.to.agent,
+      reason,
+    );
+    const replacementAgentName = updatedRecord?.roles[envelope.to.role]?.agentName;
+    if (!updatedRecord || !replacementAgentName || replacementAgentName === envelope.to.agent) {
+      return;
+    }
+    const redirectedEnvelope: MessageEnvelope = {
+      ...envelope,
+      to: {
+        ...envelope.to,
+        agent: replacementAgentName,
+      },
+    };
+    this.routeEnvelope(redirectedEnvelope, envelope.from.agent);
   }
 
   private loopbackDeliver(envelope: MessageEnvelope): void {
@@ -931,6 +1725,31 @@ export class ReagentController {
       } else {
         console.warn(`[RC ${this.nodeId}] No handler/agent for ${envelope.to.agent}`);
       }
+    }
+  }
+
+  private rebindLiveRole(
+    instanceId: string,
+    protocolName: string,
+    roleName: string,
+    agentName: string,
+  ): void {
+    for (const shell of this.shells.values()) {
+      shell.rebindRunRole(instanceId, roleName, agentName);
+    }
+    const run = this.protocolRuns.get(instanceId);
+    if (run && run.protocolName === protocolName) {
+      this.protocolRunSnapshots.set(instanceId, this.buildProtocolRunSnapshot(run));
+    }
+  }
+
+  private async reconcileSpawnedAgentCleanup(): Promise<void> {
+    const runs = await this.listProtocolRuns();
+    for (const record of runs) {
+      if (record.homeNodeId !== this.nodeId || !isTerminalProtocolRunStatus(record.status)) {
+        continue;
+      }
+      this.cleanupSpawnedAgents(record.instanceId, record);
     }
   }
 
@@ -1096,9 +1915,14 @@ export class ReagentController {
     return undefined;
   }
 
-  cleanupSpawnedAgents(instanceId: string): void {
-    const agents = this.spawnedAgents.get(instanceId);
-    if (!agents) return;
+  cleanupSpawnedAgents(instanceId: string, record?: ProtocolRunRecord): void {
+    const agents = new Set(this.spawnedAgents.get(instanceId) ?? []);
+    for (const entry of (record ?? this.protocolRuns.get(instanceId))?.spawnedAgents ?? []) {
+      if (!entry.persistent) {
+        agents.add(entry.agentName);
+      }
+    }
+    if (agents.size === 0) return;
     for (const name of agents) {
       this.destroyAgent(name).catch(() => {});
     }

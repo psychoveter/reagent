@@ -48,6 +48,10 @@ class ProxiedStateStore implements StateStore {
     throw new Error("ProxiedStateStore is read-only");
   }
 
+  async compareAndSwap(): Promise<boolean> {
+    throw new Error("ProxiedStateStore is read-only");
+  }
+
   watch(): Disposable {
     return {
       dispose: () => {

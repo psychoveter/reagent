@@ -66,6 +66,20 @@ Practical consequence:
 - node startup can hydrate awareness from shared state
 - resolution does not depend on a central server already having seen every node
 
+### Protocol run records
+
+Protocol process state is persisted in the state store under the `/protocol-runs/` prefix.
+
+Each running or terminal protocol has a `ProtocolRunRecord` at `/protocol-runs/{instanceId}` (JSON, CAS-updated). Records track:
+
+- home RC (`homeNodeId`), lifecycle status, supervision strategy
+- participant roles, parent/child lineage, spawned-agent ownership
+- cancellation state and participant-loss history
+
+The `compareAndSwap()` primitive on `StateStore` provides atomic ownership transfer during orphan adoption: exactly one surviving RC wins a CAS race to claim an orphaned record.
+
+These records are the cluster-visible foundation for the process model described in `03-runtime-core.md §9`.
+
 ### Membership
 
 `EtcdMembership` provides:
@@ -73,8 +87,9 @@ Practical consequence:
 - node presence
 - remote agent discovery
 - leave callbacks
+- **RC failure detection** for orphan adoption — when a node's lease expires, surviving RCs receive a watch notification and scan `/protocol-runs/` for orphaned entries homed on the dead node (see `03-runtime-core.md §9.8`)
 
-Membership is runtime-facing infrastructure. It supports routing and discovery, not just admin UX.
+Membership is runtime-facing infrastructure. It supports routing, discovery, and supervision, not just admin UX.
 
 ### Leader election
 
@@ -243,7 +258,7 @@ Current intended cluster trigger flow:
 
 1. A tool calls `AdminClient.triggerProtocol(...)`.
 2. `AdminClient` resolves the owning node for the initiator agent.
-3. `AdminClient` talks directly to that node’s control endpoint.
+3. `AdminClient` talks directly to that node's control endpoint.
 4. The node-local RC invokes the protocol locally.
 5. Participant resolution uses cluster-backed runtime state, not a central startup map.
 
@@ -251,7 +266,7 @@ Important runtime ontology:
 
 - deploy can create logical agent presence and install protocol artifacts
 - trigger should target an agent that is actually attached and reachable
-- control plane must not assume that “deployed” automatically means “runtime attached”
+- control plane must not assume that "deployed" automatically means "runtime attached"
 
 ## 10. Inspect And Cluster Status
 
@@ -268,7 +283,13 @@ Inspect is now conceptually two-layered:
 
 `AdminClient.inspectNode(nodeId)` resolves a node endpoint and asks that node directly.
 
-This is the current control-plane model. It is more accurate than a “central server knows everything” story.
+`AdminClient` also exposes protocol run surfaces:
+
+- **list protocol runs** — returns all durable `ProtocolRunRecord`s, including those in `cancelling` state
+- **inspect protocol run** — returns the record plus parent and child relationships
+- **cancel protocol run** — initiates distributed cancellation convergence (see `03-runtime-core.md §9.7`)
+
+This is the current control-plane model.
 
 ## 11. Debug
 

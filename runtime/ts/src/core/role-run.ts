@@ -39,8 +39,9 @@ export interface RoleRunInterface {
 
   dispatchMessage(env: MessageEnvelope): void;
   run(): Promise<void>;
+  cancel(reason?: string): void;
 
-  onComplete(cb: (status: "completed" | "failed") => void): void;
+  onComplete(cb: (status: "completed" | "failed" | "cancelled") => void): void;
   getTraces(): TraceEvent[];
   getReturnValue(): { has: boolean; value: unknown };
 }
@@ -90,6 +91,16 @@ type MessageExpectation = {
   fromRole?: string;
 };
 
+class RoleRunCancelledError extends Error {
+  readonly reason: string;
+
+  constructor(reason: string) {
+    super(reason);
+    this.name = "RoleRunCancelledError";
+    this.reason = reason;
+  }
+}
+
 // ── RoleRun implementation ───────────────────────────────────────────
 
 export class RoleRun implements RoleRunInterface {
@@ -106,14 +117,26 @@ export class RoleRun implements RoleRunInterface {
   private baseRoleBindings: RoleBindingSource;
   private roleToAgent: RoleBindingSource;
 
-  private messageResolvers: Array<{ expectation: MessageExpectation; resolve: (env: MessageEnvelope) => void }> = [];
-  private xorResolvers = new Map<string, { expectation: MessageExpectation; resolve: (env: MessageEnvelope) => void }[]>();
+  private messageResolvers: Array<{
+    expectation: MessageExpectation;
+    resolve: (env: MessageEnvelope) => void;
+    reject: (err: Error) => void;
+  }> = [];
+  private xorResolvers = new Map<string, Array<{
+    expectation: MessageExpectation;
+    resolve: (env: MessageEnvelope) => void;
+    reject: (err: Error) => void;
+  }>>();
   private messageInbox: MessageEnvelope[] = [];
 
-  private onCompleteCallbacks: Array<(status: "completed" | "failed") => void> = [];
+  private onCompleteCallbacks: Array<(status: "completed" | "failed" | "cancelled") => void> = [];
   private traces: TraceEvent[] = [];
   private returnValue: unknown = undefined;
   private hasReturnValue = false;
+  private cancelReason: string | null = null;
+  private completionFired = false;
+  private timerHandles = new Set<ReturnType<typeof setTimeout>>();
+  private sleepRejectors = new Map<ReturnType<typeof setTimeout>, (err: Error) => void>();
 
   constructor(
     graph: IRGraph,
@@ -145,6 +168,21 @@ export class RoleRun implements RoleRunInterface {
 
   getStatus(): RoleRunStatus { return this._status; }
 
+  rebindRole(roleName: string, agentName: string): void {
+    this.learnDynamicBinding(roleName, agentName);
+  }
+
+  cancel(reason = "cancelled"): void {
+    if (this._status === "completed" || this._status === "failed" || this._status === "cancelled") {
+      return;
+    }
+    this.cancelReason = reason;
+    this._status = "cancelled";
+    this.engine.setStatus("failed");
+    this.rejectPendingWaiters(new RoleRunCancelledError(reason));
+    this.clearPendingTimers(new RoleRunCancelledError(reason));
+  }
+
   dispatchMessage(env: MessageEnvelope): void {
     for (const [guardId, resolvers] of this.xorResolvers) {
       for (const r of resolvers) {
@@ -174,7 +212,21 @@ export class RoleRun implements RoleRunInterface {
     try {
       this.emitTrace("ProtocolStarted", { protocolName: this.identity.protocolName });
       await this.advance();
+      if (this.cancelReason && !this.completionFired) {
+        this._status = "cancelled";
+        this.engine.setStatus("failed");
+        this.emitTrace("ProtocolFailed", { error: this.cancelReason, cancelled: true });
+        this.fireOnComplete("cancelled");
+      }
     } catch (err) {
+      if (err instanceof RoleRunCancelledError || this.cancelReason) {
+        const reason = err instanceof RoleRunCancelledError ? err.reason : (this.cancelReason ?? "cancelled");
+        this._status = "cancelled";
+        this.engine.setStatus("failed");
+        this.emitTrace("ProtocolFailed", { error: reason, cancelled: true });
+        this.fireOnComplete("cancelled");
+        return;
+      }
       console.error(`[RoleRun ${this.identity.instanceId}] Fatal error:`, err);
       this._status = "failed";
       this.engine.setStatus("failed");
@@ -183,7 +235,7 @@ export class RoleRun implements RoleRunInterface {
     }
   }
 
-  onComplete(cb: (status: "completed" | "failed") => void): void {
+  onComplete(cb: (status: "completed" | "failed" | "cancelled") => void): void {
     this.onCompleteCallbacks.push(cb);
   }
 
@@ -199,6 +251,7 @@ export class RoleRun implements RoleRunInterface {
     const engine = this.engine;
 
     while (engine.status === "running") {
+      this.throwIfCancelled();
       const state = engine.getStateMap().get(engine.getCurrentStateId());
       if (!state) throw new Error(`State ${engine.getCurrentStateId()} not found`);
 
@@ -556,7 +609,7 @@ export class RoleRun implements RoleRunInterface {
     const data = state.data as { kind: "timer"; duration: { value: number; unit: string } };
     const ms = durationToMs(data.duration);
     this.emitTrace("TimerStarted", { stateId: state.id, durationMs: ms });
-    await new Promise<void>(resolve => setTimeout(resolve, ms));
+    await this.sleep(ms);
     this.emitTrace("TimerFired", { stateId: state.id });
   }
 
@@ -767,7 +820,7 @@ export class RoleRun implements RoleRunInterface {
           const data = state.data as { kind: "timer"; duration: { value: number; unit: string } };
           const ms = durationToMs(data.duration);
           this.emitTrace("TimerStarted", { stateId: state.id, durationMs: ms });
-          await new Promise<void>(r => setTimeout(r, ms));
+          await this.sleep(ms);
           this.emitTrace("TimerFired", { stateId: state.id });
           currentId = this.branchFollowDefault(currentId);
           break;
@@ -798,8 +851,18 @@ export class RoleRun implements RoleRunInterface {
   private waitForMessage(expectation: MessageExpectation): Promise<MessageEnvelope> {
     const idx = this.messageInbox.findIndex(e => this.matchesMessageExpectation(e, expectation));
     if (idx >= 0) return Promise.resolve(this.messageInbox.splice(idx, 1)[0]);
-    return new Promise<MessageEnvelope>(resolve => {
-      this.messageResolvers.push({ expectation, resolve });
+    return new Promise<MessageEnvelope>((resolve, reject) => {
+      this.messageResolvers.push({
+        expectation,
+        resolve: (env) => {
+          if (this.cancelReason) {
+            reject(new RoleRunCancelledError(this.cancelReason));
+            return;
+          }
+          resolve(env);
+        },
+        reject,
+      });
     });
   }
 
@@ -813,10 +876,17 @@ export class RoleRun implements RoleRunInterface {
         return Promise.resolve({ env: this.messageInbox.splice(idx, 1)[0], targetStateId: e.targetStateId });
       }
     }
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
       const resolvers = expectations.map(e => ({
         expectation: e,
-        resolve: (env: MessageEnvelope) => resolve({ env, targetStateId: e.targetStateId }),
+        resolve: (env: MessageEnvelope) => {
+          if (this.cancelReason) {
+            reject(new RoleRunCancelledError(this.cancelReason));
+            return;
+          }
+          resolve({ env, targetStateId: e.targetStateId });
+        },
+        reject,
       }));
       this.xorResolvers.set(guardId, resolvers);
     });
@@ -951,8 +1021,67 @@ export class RoleRun implements RoleRunInterface {
     this.fireOnComplete("completed");
   }
 
-  private fireOnComplete(status: "completed" | "failed"): void {
+  private fireOnComplete(status: "completed" | "failed" | "cancelled"): void {
+    if (this.completionFired) return;
+    this.completionFired = true;
+    this.rejectPendingWaiters(new RoleRunCancelledError(this.cancelReason ?? status));
+    this.clearPendingTimers();
     for (const cb of this.onCompleteCallbacks) cb(status);
+  }
+
+  private throwIfCancelled(): void {
+    if (this.cancelReason) {
+      throw new RoleRunCancelledError(this.cancelReason);
+    }
+  }
+
+  private rejectPendingWaiters(err: RoleRunCancelledError): void {
+    if (this.messageResolvers.length > 0) {
+      for (const resolver of this.messageResolvers) {
+        resolver.reject(err);
+      }
+      this.messageResolvers = [];
+    }
+    if (this.xorResolvers.size > 0) {
+      for (const resolvers of this.xorResolvers.values()) {
+        for (const resolver of resolvers) {
+          resolver.reject(err);
+        }
+      }
+      this.xorResolvers.clear();
+    }
+    if (this.cancelReason == null) {
+      this.cancelReason = err.reason;
+    }
+  }
+
+  private clearPendingTimers(err?: Error): void {
+    for (const handle of this.timerHandles) {
+      clearTimeout(handle);
+      this.sleepRejectors.get(handle)?.(err ?? new Error("timer cleared"));
+      this.sleepRejectors.delete(handle);
+    }
+    this.timerHandles.clear();
+  }
+
+  private async sleep(ms: number): Promise<void> {
+    this.throwIfCancelled();
+    await new Promise<void>((resolve, reject) => {
+      const handle = setTimeout(() => {
+        this.timerHandles.delete(handle);
+        this.sleepRejectors.delete(handle);
+        resolve();
+      }, ms);
+      this.timerHandles.add(handle);
+      this.sleepRejectors.set(handle, reject);
+      if (this.cancelReason) {
+        clearTimeout(handle);
+        this.timerHandles.delete(handle);
+        this.sleepRejectors.delete(handle);
+        reject(new RoleRunCancelledError(this.cancelReason));
+      }
+    });
+    this.throwIfCancelled();
   }
 
   private participantCardinality(roleName: string): "single" | "many" {

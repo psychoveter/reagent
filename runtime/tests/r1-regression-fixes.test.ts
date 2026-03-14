@@ -411,6 +411,88 @@ describe("RF5: activeRuns cleanup", () => {
 
     await shell.stop();
   });
+
+  test("RF5b: finished-run retention evicts oldest local history predictably", async () => {
+    const behavior: AgentBehavior = {
+      async handle(event: ProtocolEvent): Promise<AgentResponse> {
+        if (event.type === "action") {
+          return { type: "ctx_update", ctx: event.ctx };
+        }
+        return { type: "noop" };
+      },
+    };
+
+    const graph = buildGraph({
+      protocolName: "SimpleProto",
+      role: "worker",
+      states: [
+        { id: "init", data: { kind: "initial" } },
+        { id: "act1", data: { kind: "action", body: "$ctx.done = true", lang: "ts" } },
+        { id: "end", data: { kind: "terminal", status: "completed" } },
+      ],
+    });
+
+    const sent: MessageEnvelope[] = [];
+    const transport = makeTransport("WorkerAgent", sent);
+
+    const shell = new AgentShellImpl({
+      agentName: "WorkerAgent",
+      roleName: "worker",
+      graphs: new Map([["SimpleProto.worker", graph]]),
+      transport,
+      roleToAgent: makeBindings({ "SimpleProto.worker": "WorkerAgent" }),
+      finishedRunRetentionLimit: 1,
+    });
+    shell.attachBehavior(behavior);
+    await shell.start();
+
+    shell.triggerProtocol({
+      instanceId: "rf5b-1",
+      protocolName: "SimpleProto",
+      input: {},
+      roleToAgent: {},
+    });
+    shell.triggerProtocol({
+      instanceId: "rf5b-2",
+      protocolName: "SimpleProto",
+      input: {},
+      roleToAgent: {},
+    });
+
+    await shell.waitForCompletion(2, 3000);
+
+    const instances = shell.getInstances();
+    assert.equal(instances.has("rf5b-1"), false, "oldest completed run should be evicted from local history");
+    assert.equal(instances.get("rf5b-2")?.getStatus(), "completed");
+
+    const completed = shell.getCompletedRuns();
+    assert.equal(completed.length, 1, "completed results should respect the same retention limit");
+    assert.equal(completed[0].instanceId, "rf5b-2");
+
+    await shell.stop();
+  });
+
+  test("RF5c: shell.stop resolves even when a run is already terminal before onComplete subscription", async () => {
+    const transport = makeTransport("WorkerAgent", []);
+    const shell = new AgentShellImpl({
+      agentName: "WorkerAgent",
+      roleName: "worker",
+      graphs: new Map(),
+      transport,
+      roleToAgent: {},
+    });
+
+    const fakeRun = {
+      status: "cancelled",
+      cancel() {},
+      onComplete() {},
+    };
+    (shell as any).activeRuns.set("rf5c-1", fakeRun);
+
+    const startedAt = Date.now();
+    await shell.stop();
+    assert.ok(Date.now() - startedAt < 25, "stop should resolve from terminal status instead of waiting on a timeout");
+  });
 });
 
 // ── RF2: child protocol runs are routable ────────────────────────────

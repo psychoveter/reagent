@@ -1,5 +1,9 @@
 # Unified Process Model
 
+> **Archived 2026-03-08.** This RFC has been implemented and integrated into
+> canonical documentation at `../current/03-runtime-core.md §9`.
+> Implementation report companion: `process-model-impl-report.md` (also archived).
+
 Status: RFC draft | Date: 2026-03-13
 
 ---
@@ -12,7 +16,7 @@ It answers a single question: how do protocols and agents relate as processes �
 who creates whom, who owns whom, what happens when something fails, and how does
 the cluster recover.
 
-The [R1 Runtime Antientropy](r1-runtime-antientropy.md) document defines **what things are**
+The [R1 Runtime Antientropy](../archive/r1-runtime-antientropy.md) document defines **what things are**
 (AgentShell, RoleRun, AgentRecord). This document defines **how they behave as processes** —
 ownership, lifecycle coupling, supervision, and fault propagation.
 
@@ -21,7 +25,7 @@ ownership, lifecycle coupling, supervision, and fault propagation.
 - Process kinds and their relationships
 - Node-local and cluster-wide process trees
 - Ownership semantics and lifecycle coupling
-- Unified process lifecycle state machine
+- Unified protocol-process lifecycle state machine
 - Supervision model (four layers)
 - Fault propagation rules (local and distributed)
 - Process identity and lineage
@@ -218,7 +222,7 @@ has four properties:
 | Parent | Child | Coupling | On parent complete | On parent fail | On home RC dies |
 |--------|-------|----------|-------------------|----------------|-----------------|
 | RC | AgentShell | **strong** | `shell.stop()` | shell dies with RC | shell dies with RC |
-| AgentShell (initiator) | ProtocolRun | **trigger** | run continues independently | run continues independently | run orphaned (§9) |
+| AgentShell (initiator host) | ProtocolRun | **trigger** | run continues independently | initiator RoleRun fails, but home RC continues supervision | run orphaned (§9) |
 | ProtocolRun | child ProtocolRun (sync `invokes`) | **strong** | n/a — child finishes first by definition | cancel child, propagate error | child orphaned |
 | ProtocolRun | child ProtocolRun (async `invokes`) | **scoped** | cancel child | cancel child | child orphaned |
 | ProtocolRun | spawned Agent (non-persistent) | **scoped** | destroy agent | destroy agent | agent orphaned |
@@ -232,12 +236,18 @@ before completing. If parent fails, child is cancelled immediately.
 **Scoped coupling.** Child's lifetime is bounded by parent's lifetime. When parent
 completes (success or failure), all scoped children are cancelled/destroyed.
 Parent does not wait for scoped children before completing — it triggers their
-cleanup as a side effect of its own completion.
+cleanup as a side effect of its own completion. This is intentionally not
+classical structured concurrency join semantics. In Reagent, `async invokes` and
+non-persistent `spawns` are supervised descendants whose cleanup is guaranteed by
+ownership, but they are not required to join before the parent reaches a terminal
+state.
 
 **Trigger coupling.** The initiator agent creates the protocol process via a trigger.
-After creation, the agent has no lifecycle authority over the protocol — the
+After creation, the initiator shell has no lifecycle authority over the protocol.
+Supervision transfers immediately to the protocol's **home RC**, which remains
+responsible even if the initiator shell or initiator RoleRun later fails. The
 protocol's lifetime is self-determined (it runs until its FSM reaches a terminal
-state). The agent merely hosts one RoleRun fiber.
+state); the initiator merely hosts one participating fiber.
 
 **Detached.** No lifecycle dependency. The child is a fully independent process
 that happens to have been created by the parent. The `persistent` flag on
@@ -247,23 +257,30 @@ that happens to have been created by the parent. The `persistent` flag on
 
 ## 5. Process Lifecycle
 
-### 5.1 Unified State Machine
+### 5.1 Unified State Machine For Protocol Processes
 
-All process kinds share a base lifecycle state machine:
+The unified state machine in this section applies to **protocol processes** only.
+Agent processes and RoleRun fibers retain their own existing lifecycle machines
+described below.
 
 ```mermaid
 stateDiagram-v2
-  [*] --> created
-  created --> starting
+  [*] --> starting
   starting --> running
-  running --> completing : FSM terminal / success
-  running --> failing : error / exception
+  running --> completed : FSM terminal / success
+  running --> failed : error / exception
   running --> cancelling : cancel request
-  completing --> terminated
-  failing --> terminated
-  cancelling --> terminated
-  terminated --> [*]
+  cancelling --> cancelled : all roles terminal / acked
+  completed --> [*]
+  failed --> [*]
+  cancelled --> [*]
 ```
+
+Current implementation note: the runtime uses a **collapsed terminal model**.
+There is no separate durable `created`, `completing`, `failing`, or `terminated`
+state today. The durable status surface is:
+
+`starting | running | cancelling | completed | failed | cancelled | orphaned | adopting`
 
 ### 5.2 Additional States for Distributed Processes
 
@@ -272,21 +289,19 @@ Protocol processes have extra states that reflect their distributed nature:
 ```mermaid
 stateDiagram-v2
   state "running" as R
-  state "orphaned" as O
   state "adopting" as AD
-  state "terminated" as T
+  state "cancelled/failed" as T
 
-  R --> O : home RC dies (lease expiry)
-  O --> AD : surviving RC claims via CAS
+  R --> AD : surviving RC claims via CAS after lease expiry
   AD --> R : adoption successful, process resumed
   AD --> T : adoption decides to fail/cancel
-  O --> T : no RC adopts within deadline
 ```
 
-- **orphaned** — home RC died. The process has no active supervisor. Its local
-  RoleRuns on surviving nodes continue running but have no coordinator.
+- **orphaned** — conceptual state: home RC died and no survivor has claimed the
+  record yet. The current MVP usually moves directly from `running` to `adopting`
+  once a survivor wins the record CAS.
 - **adopting** — a surviving RC has claimed ownership via etcd CAS and is
-  evaluating the process state to decide: resume, restart, or fail.
+  evaluating the process state to decide: narrow re-resolve/rebind or terminate.
 
 ### 5.3 Agent Process Lifecycle
 
@@ -307,12 +322,12 @@ With one addition for supervision:
 RoleRun fibers retain their existing lifecycle:
 
 ```
-idle → running → completed | failed
+idle → running → completed | failed | cancelled
 ```
 
-No additional states. A RoleRun dies with its host shell. Cancellation of a
-RoleRun manifests as an immediate transition to `failed` with a cancellation
-reason.
+A RoleRun dies with its host shell. Cancellation is tracked explicitly as
+`cancelled` in the shell/run contracts even though the engine still uses a
+failed terminal internally for interruption bookkeeping.
 
 ---
 
@@ -383,17 +398,34 @@ that the current AgentShell supports structurally but does not exploit.
 ### 6.5 Supervision Strategies
 
 Each protocol process can declare a supervision strategy for its children.
-The default is **scoped**.
+The default is **scoped**. This surface is now implemented end-to-end:
+
+```rg
+protocol Example {
+  supervision: one-for-one
+  // ...
+}
+```
+
+The strategy is carried through parser -> AST -> IR -> decompile -> runtime
+record persistence.
 
 | Strategy | On child fail | On parent complete |
 |----------|--------------|-------------------|
-| **one-for-one** | Restart failed child only | Cancel remaining children |
-| **all-for-one** | Cancel all siblings, restart all | Cancel all children |
+| **one-for-one** | MVP: re-resolve lost participants and continue if replacement exists | Cancel remaining children |
+| **all-for-one** | MVP: same first-wave re-resolve path as `one-for-one`; no full sibling restart yet | Cancel all children |
 | **scoped** | Notify parent (lifecycle handler), do not restart | Cancel/destroy all scoped children |
 | **detached** | No action — child is independent | No action |
 
-The strategy applies to all non-detached children uniformly. Per-child
-strategy overrides are a possible future extension.
+Current MVP limits:
+
+- `scoped` orphan adoption terminates the adopted run conservatively and cleans
+  up non-persistent spawned agents
+- `detached` preserves detached-child semantics where possible, but still
+  terminates an unrecoverable adopted owner run
+- `one-for-one` / `all-for-one` do **not** checkpoint/resume RoleRun position;
+  they only attempt narrow re-resolve/rebind of lost participants
+- Per-child strategy overrides are still a future extension
 
 ---
 
@@ -427,6 +459,18 @@ These faults occur within a single node and are handled by the node-local tree.
 4. The RC updates the AgentRecord to `detached` / `destroyed`
 5. All protocol processes that had a RoleRun on this shell detect participant loss
 
+**Participant agent/behavior fails locally while the home RC remains alive:**
+
+1. The host shell loses the local participant RoleRun due to behavior failure,
+   shell stop, or an explicit local destroy operation
+2. The home RC remains alive and continues supervising the protocol process
+3. The home RC treats this as a **participant loss**, not as RC/node loss
+4. The supervision response is chosen locally:
+   - re-resolve the role to a different agent
+   - fail/cancel the protocol
+   - trigger future compensation logic when that exists
+5. No orphan/adoption protocol is involved, because the home RC itself did not die
+
 ### 7.2 Distributed Faults
 
 These faults involve multiple nodes and require cluster-wide coordination.
@@ -445,7 +489,7 @@ sequenceDiagram
   Surv ->> etcd: Scan /protocol-runs/ where homeNodeId == node-alpha
   etcd -->> Surv: List of orphaned protocol runs
   loop For each orphaned run
-    Surv ->> etcd: CAS: putIfAbsent /protocol-runs/{id}/adoption = node-beta
+    Surv ->> etcd: CAS /protocol-runs/{id}: homeNodeId dead->node-beta, status orphaned->adopting
     alt CAS succeeds
       Surv ->> Surv: Evaluate adoption decision
       Note over Surv: Resume / Restart / Fail based on strategy
@@ -518,26 +562,36 @@ The parent-child relationship is stored as a field on the child, not encoded
 in the identity string. Each protocol process record contains:
 
 ```typescript
+type ParticipantEntry = {
+  roleName: string;
+  agentName: string;
+  nodeId: string;
+  status: "idle" | "running" | "completed" | "failed" | "cancelled";
+};
+
 type ProtocolProcessRecord = {
   instanceId: string;
   protocolName: string;
   homeNodeId: string;
   parentInstanceId: string | null;   // null for root protocols
-  status: ProcessStatus;
+  status: ProtocolRunStatus;
   supervisionStrategy: SupervisionStrategy;
-  participants: ParticipantEntry[];
+  roles: Record<string, ParticipantEntry>;
   createdAt: number;
   updatedAt: number;
 };
 ```
+
+Current runtime note: `roles` is a map keyed by role name, so the MVP storage
+model still assumes **one live owner entry per role name**. Richer `many`
+cardinality ownership will need a broader storage model later.
 
 ### 8.2 Etcd Schema
 
 Protocol process records are stored at:
 
 ```
-/protocol-runs/{instanceId}          → ProtocolProcessRecord (JSON)
-/protocol-runs/{instanceId}/adoption → adopting nodeId (CAS-guarded)
+/protocol-runs/{instanceId}          → ProtocolProcessRecord (JSON, CAS-updated)
 ```
 
 Agent process records (already exist):
@@ -550,14 +604,32 @@ The ownership tree is reconstructed by reading `/protocol-runs/` and following
 `parentInstanceId` links. This is an on-demand operation, not a pre-materialized
 tree.
 
-### 8.3 Current State
+### 8.3 Retention And Eviction
 
-Today, `instanceId` is generated as `{protocolName}-{timestamp}` or a UUID.
-There is no `ProtocolProcessRecord` in etcd — protocol runs exist only as
-in-memory state within AgentShell's `activeRuns` / `finishedRuns` maps.
+Finished protocol processes cannot live in local memory forever.
 
-The `_parentInstanceId` metadata on spawned agents is the only existing
-lineage link, and it is informational only.
+- The in-memory `finishedRuns` cache on each node should be treated as a bounded
+  operational cache, not an unbounded historical log
+- Durable `/protocol-runs/*` entries need an explicit retention policy
+  (TTL, archival sweep, or external export)
+- Eviction policy is operationally important because process supervision adds far
+  more terminal records than the pre-supervision runtime model
+
+The exact retention defaults are **TBD**, but the runtime should not assume
+unbounded growth of local `finishedRuns` or etcd-stored terminal records.
+
+### 8.4 Current State
+
+Today, the TS runtime already has a **partial** implementation of this model:
+
+- `instanceId` is generated as a UUID (or equivalent unique runtime id)
+- protocol runs are persisted under `/protocol-runs/{instanceId}`
+- parent-child links and spawned-agent ownership are recorded
+- control-plane list/inspect/cancel surfaces exist
+
+What is still missing is captured in `process-model-impl-report.md`: notably
+TTL/retention policy for durable terminal records, richer cardinality modeling,
+and any checkpointed re-homing beyond the current narrow re-resolve/rebind MVP.
 
 ---
 
@@ -580,7 +652,7 @@ On the home RC:
 When a protocol process has participants on multiple nodes:
 
 1. The home RC writes `status: cancelling` to `/protocol-runs/{instanceId}` in etcd
-2. All participating RCs watch this key (or the prefix)
+2. RCs watch the `/protocol-runs/` prefix and filter relevant instances client-side
 3. On observing the status change, each RC cancels its local RoleRuns for this instance
 4. Each RC reports local cancellation status back to etcd (or via message plane)
 5. The home RC considers cancellation complete when all participants have acknowledged
@@ -601,7 +673,7 @@ It does not undo side effects that have already occurred.
 
 Compensation is a **semantic rollback** — it runs compensating actions to undo
 the effects of already-completed steps. This is the domain of saga patterns
-and is out of scope for this document (see backlog L1: distributed try/catch, and `distributed-try-catch.md`).
+and is out of scope for this document (see backlog L1: distributed try/catch, and `../future/distributed-try-catch.md`).
 
 ---
 
@@ -624,7 +696,8 @@ disappears (lease-bound key deleted), the surviving RCs know that node is gone.
 ### 10.2 Orphan Identification
 
 After detecting a dead RC, each surviving RC scans `/protocol-runs/` for entries
-where `homeNodeId` matches the dead node and `status` is not `terminated`.
+where `homeNodeId` matches the dead node and the status is not terminal
+(`completed`, `failed`, or `cancelled`).
 
 These are the **orphaned protocol processes**.
 
@@ -636,34 +709,41 @@ identify orphaned agents — they are implicitly gone.
 
 For each orphaned protocol process:
 
-1. **Claim**: A surviving RC attempts `putIfAbsent` on `/protocol-runs/{id}/adoption`
-   with its own `nodeId`. Exactly one RC wins the CAS.
+1. **Claim**: A surviving RC performs a compare-and-swap on the
+   `/protocol-runs/{id}` record itself, transitioning it from
+   `{ homeNodeId: dead-node, status: orphaned }` to
+   `{ homeNodeId: survivor-node, status: adopting }`. Exactly one RC wins.
 
-2. **Evaluate**: The adopting RC reads the orphaned process's `ProtocolProcessRecord`
-   and its child tree. It evaluates the supervision strategy:
+2. **Evaluate**: The adopting RC reads the orphaned process's record and applies
+   the current MVP strategy branch:
 
-   - **Strategy is `scoped` or `all-for-one`** → cancel all remnants, optionally restart
-   - **Strategy is `one-for-one`** → attempt to resume by re-resolving lost participants
-   - **No strategy specified** → default to `scoped` (cancel and mark failed)
+   - **`scoped`** → terminate conservatively as `cancelled`, clean up non-persistent spawned agents
+   - **`detached`** → terminate the unrecoverable owned run conservatively (current MVP uses `failed`)
+   - **`one-for-one` / `all-for-one`** → attempt narrow re-resolve/rebind for participants lost with the dead node
 
-3. **Resume or Restart**: If resuming:
-   - Re-resolve all participants using the resolve pipeline
-   - For participants that were on the dead node, find new agents or spawn new ones
-   - Re-send any pending messages (requires message journaling, which is a future feature)
-   - If resumption is not possible (state lost), fall back to restart or fail
+3. **Continue or Terminate**:
+   - If all lost participants can be rebound to live replacements, the adopted
+     record returns to `running`
+   - If rebind is not possible, the adopted run terminates conservatively
+   - Message journaling / full replay is still out of scope; the supported MVP
+     operational path is live binding update plus redirection of route-loss sends
 
-4. **Update**: Write the new `homeNodeId` and updated `status` to etcd.
+4. **Update**: Continue updating the same record in etcd. Ownership transfer must
+   remain atomic with respect to the record; it is not modeled as a second separate key.
 
 5. **Cascade**: For child processes also orphaned, adoption cascades — the adopting
    RC becomes responsible for the entire sub-tree.
 
 ### 10.4 State Loss
 
-When an RC dies, the following state is lost:
+Current runtime choice: `$self`, `$ctx`, RoleRun position, and the shell-local
+run maps are all in-memory only.
+
+When an RC dies, the following state is lost today:
 
 | State | Location | Recoverable? |
 |-------|----------|-------------|
-| `$self` (agent persistent state) | In-memory only | **No** — unless checkpointed to etcd |
+| `$self` (agent persistent state) | In-memory only today | **No** — unless persisted/checkpointed |
 | `$ctx` (protocol run context) | In-memory only | **No** — unless checkpointed |
 | `activeRuns` map | In-memory only | **No** |
 | `finishedRuns` map | In-memory only | **No** |
@@ -675,11 +755,15 @@ This means that **stateful re-homing** (transferring `$ctx` and FSM state) is
 only possible if the runtime implements **checkpointing** — periodic persistence
 of run state to etcd or another durable store.
 
+Whether `$self` should remain in-memory by default or gain a default durable
+backing store is a separate design decision. This RFC does not assume that the
+current in-memory-only choice is the final production default.
+
 Without checkpointing, adoption can only offer:
 
-- **Restart**: re-run the protocol from the beginning
-- **Fail**: mark as failed, cascade to children, notify parent
-- **Compensate**: run compensation logic (future)
+- **Narrow re-resolve/rebind**: replace lost participants when a live agent is available
+- **Fail/cancel conservatively**: terminate the adopted run and clean up scoped resources
+- **Compensate**: future work, not part of the current runtime
 
 Checkpointing is a significant feature that is not in scope for the initial
 process model implementation. The model is designed to accommodate it as a
@@ -722,7 +806,7 @@ A root protocol is started by one of:
 The cluster bootstrap case is new. It requires:
 
 - A deployment manifest declaring which protocols auto-start
-- The first RC to start (or a leader-elected RC) fires the triggers
+- A leader-elected RC fires the triggers
 - The protocol process record is written to etcd immediately
 - If the starting RC dies before the protocol is fully initialized, another RC adopts
 
@@ -733,13 +817,15 @@ When a root protocol's home RC dies:
 1. The root protocol becomes orphaned (detected via lease expiry)
 2. A surviving RC adopts it via the standard adoption protocol (§10.3)
 3. The adopting RC becomes the new home RC
-4. If no RC adopts within the deadline, the root protocol is marked `terminated`
+4. If no RC adopts within the deadline, the root protocol is marked with one of
+   the existing terminal statuses (`failed` / `cancelled`) rather than a separate
+   `terminated` state
    with reason `orphan-timeout`
 
 When the cluster restarts from scratch (all RCs died):
 
-1. The new first RC reads `/protocol-runs/` from etcd (if etcd survived)
-2. All non-terminated root protocols are candidates for re-adoption
+1. The new elected leader RC reads `/protocol-runs/` from etcd (if etcd survived)
+2. All non-terminal root protocols are candidates for re-adoption
 3. The RC re-adopts them and applies their supervision strategy
 4. If etcd is also lost, the cluster starts clean — autostart protocols are
    re-triggered from the deployment manifest
@@ -750,49 +836,49 @@ When the cluster restarts from scratch (all RCs died):
 
 ### Extends
 
-- **[R1 Runtime Antientropy](r1-runtime-antientropy.md)** — adds operational
+- **[R1 Runtime Antientropy](../archive/r1-runtime-antientropy.md)** — adds operational
   semantics (ownership, supervision, fault propagation) on top of the ontology.
 
 ### Subsumes
 
-- **[Resolve Policy](resolve-policy.md) §7.3** — spawn lifecycle (persistent vs.
+- **[Resolve Policy](../future/resolve-policy.md) §7.3** — spawn lifecycle (persistent vs.
   scoped) is now a special case of ownership coupling (detached vs. scoped).
 - **`cleanupSpawnedAgents()` in RC** — the existing method is the seed of scoped
   cleanup; this model defines when and why it must be called.
 
 ### Informs
 
-- **[Agent Types](agent-types.md)** — the process model defines the lifecycle
+- **[Agent Types](../future/agent-types.md)** — the process model defines the lifecycle
   context in which agent types are materialized and supervised.
-- **Backlog F6** (exception/compensation semantics) — this model defines fault
+- **[Backlog F6](../future/backlog.md)** (exception/compensation semantics) — this model defines fault
   propagation; F6 adds compensation on top.
-- **Backlog F7** (trigger supervision) — trigger retry/throttle is a special case
+- **[Backlog F7](../future/backlog.md)** (trigger supervision) — trigger retry/throttle is a special case
   of the protocol supervisor layer.
-- **Backlog L1** (distributed try/catch) — requires the distributed cancellation
+- **[Backlog L1](../future/backlog.md)** (distributed try/catch) — requires the distributed cancellation
   and fault propagation defined here.
 
 ### New Primitives Required
 
 | Primitive | Purpose | Exists today? |
 |-----------|---------|--------------|
-| `ProtocolProcessRecord` | etcd-persisted protocol process state | No |
-| `/protocol-runs/` etcd prefix | cluster-wide protocol tree | No |
-| Adoption CAS protocol | orphan re-homing | No |
-| `SupervisionStrategy` type | per-protocol failure policy | No |
-| `ProcessStatus` type | unified lifecycle state | Partially (`RoleRunStatus` exists) |
-| `cancelRun()` implementation | process cancellation | Interface exists, no implementation |
-| Cluster supervisor loop | lease watch + orphan scan | No (lease watch exists for membership) |
+| `ProtocolProcessRecord` | etcd-persisted protocol process state | Partial |
+| `/protocol-runs/` etcd prefix | cluster-wide protocol tree | Yes |
+| Adoption CAS protocol | orphan re-homing | Partial |
+| `SupervisionStrategy` type | per-protocol failure policy | Yes |
+| `ProtocolRunStatus` type | unified lifecycle state | Yes, with collapsed terminal model |
+| `cancelRun()` implementation | process cancellation | Partial |
+| Cluster supervisor loop | lease watch + orphan scan | Partial |
 | Checkpoint API | durable run state for stateful re-homing | No |
 
 ### Current Implementation Mapping
 
 | This model | Current code | Gap |
 |-----------|-------------|-----|
-| Agent process | `AgentShellImpl` | No supervision, no restart policy |
-| Protocol process | Implicit — correlated `RoleRun` instances | No etcd record, no distributed coordination |
-| RoleRun fiber | `RoleRun` class | No cancellation support |
-| Home RC | `ReagentController` | No ownership tracking beyond `spawnedAgents` map |
-| Cluster supervisor | `EtcdMembership` (lease management) | Detects membership changes but does not adopt orphans |
-| Process tree | `spawnedAgents: Map<instanceId, Set<agentName>>` | Flat, local-only, no protocol-to-protocol links |
-| Scoped cleanup | `cleanupSpawnedAgents()` | Exists but never called |
-| Cancellation | `ProtocolRunTracker.cancelRun()` | Interface only, no implementation |
+| Agent process | `AgentShellImpl` | No restart/self-healing supervision policy |
+| Protocol process | `ProtocolRunRecord` + correlated `RoleRun`s | No checkpointed resume; `many` cardinality still modeled as one owner entry per role |
+| RoleRun fiber | `RoleRun` class | Cooperative cancellation exists; no checkpointed continuation |
+| Home RC | `ReagentController` | Explicit in record + supervision helpers |
+| Cluster supervisor | `EtcdMembership` + `ReagentController.handleNodeDeparture()` | Record-level CAS adoption implemented; strategy branching still MVP-scoped |
+| Process tree | `/protocol-runs/*` + spawned-agent ownership | Durable retention/TTL policy still missing |
+| Scoped cleanup | `cleanupSpawnedAgents()` | Wired, including durable spawned-lineage cleanup on restart/reconciliation |
+| Cancellation | `cancelRun()` / admin cancel surfaces | Prefix-watch convergence implemented; timeout/fencing policies still open |

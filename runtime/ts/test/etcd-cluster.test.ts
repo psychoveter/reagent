@@ -12,6 +12,9 @@ import { EtcdStateStore } from "../src/cluster/etcd-state-store.js";
 import { LeaderElection } from "../src/cluster/leader-election.js";
 import { EtcdMembership } from "../src/cluster/etcd-membership.js";
 import { StateStoreAgentRegistry, type AgentRegistration } from "../src/cluster/state-store-agent-registry.js";
+import { ReagentController } from "../src/controller/reagent-controller.js";
+import { ManagedBehaviorFactory } from "../src/nodes/managed-behavior-factory.js";
+import type { ProtocolRunRecord } from "../src/contracts/protocol-run.js";
 
 const ETCD_HOSTS = (process.env.ETCD_HOSTS ?? "http://127.0.0.1:2379").split(",");
 
@@ -187,6 +190,39 @@ describe("LeaderElection (integration)", () => {
       await le2.stop().catch(() => {});
       await store.delete(key).catch(() => {});
     }
+  });
+});
+
+describe("EtcdStateStore compareAndSwap (integration)", () => {
+  let available = false;
+  let store: EtcdStateStore;
+  const key = `/__test_cas_${Date.now()}`;
+
+  before(async () => {
+    available = await etcdReachable();
+    if (!available) {
+      console.log("  ⚠ etcd not reachable — skipping");
+      return;
+    }
+    store = new EtcdStateStore({ hosts: ETCD_HOSTS });
+  });
+
+  after(async () => {
+    if (!available) return;
+    await store.delete(key).catch(() => {});
+    await store.close();
+  });
+
+  it("atomically updates only when expected value matches", async (t) => {
+    if (!available) { t.skip(); return; }
+
+    await store.delete(key).catch(() => {});
+    assert.equal(await store.compareAndSwap(key, null, "v1"), true);
+    assert.equal(await store.compareAndSwap(key, null, "v2"), false);
+    assert.equal(await store.get(key), "v1");
+    assert.equal(await store.compareAndSwap(key, "v0", "v2"), false);
+    assert.equal(await store.compareAndSwap(key, "v1", "v2"), true);
+    assert.equal(await store.get(key), "v2");
   });
 });
 
@@ -366,5 +402,77 @@ describe("Trigger dedup via StateStore (integration)", () => {
 
     const winners = results.filter((r) => r === true);
     assert.strictEqual(winners.length, 1, `Expected exactly 1 winner, got ${winners.length}`);
+  });
+});
+
+describe("Protocol-run adoption via Etcd CAS (integration)", () => {
+  let available = false;
+  let store: EtcdStateStore;
+  const instanceId = `etcd-adoption-${Date.now()}`;
+  const key = `/protocol-runs/${instanceId}`;
+
+  before(async () => {
+    available = await etcdReachable();
+    if (!available) {
+      console.log("  ⚠ etcd not reachable — skipping");
+      return;
+    }
+    store = new EtcdStateStore({ hosts: ETCD_HOSTS });
+  });
+
+  after(async () => {
+    if (!available) return;
+    await store.delete(key).catch(() => {});
+    await store.close();
+  });
+
+  it("updates the durable record in-place when a survivor adopts a lost home node", async (t) => {
+    if (!available) { t.skip(); return; }
+
+    const record: ProtocolRunRecord = {
+      instanceId,
+      protocolName: "EtcdProto",
+      status: "running",
+      homeNodeId: "lost-node",
+      relationKind: "root",
+      supervisionStrategy: "scoped",
+      rootInstanceId: instanceId,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      startedAt: Date.now(),
+      ownerAgentName: "OwnerAgent",
+      ownerRoleName: "owner",
+      roles: {
+        owner: {
+          agentName: "OwnerAgent",
+          roleName: "owner",
+          nodeId: "lost-node",
+          status: "running",
+          updatedAt: Date.now(),
+        },
+      },
+      childInstanceIds: [],
+      spawnedAgents: [],
+      participantLosses: [],
+    };
+    await store.put(key, JSON.stringify(record));
+
+    const rc = new ReagentController({
+      nodeId: "survivor-node",
+      behaviorFactory: new ManagedBehaviorFactory(),
+      stateStore: store,
+    });
+
+    try {
+      await rc.handleNodeDeparture("lost-node");
+      const raw = await store.get(key);
+      assert.ok(raw);
+      const updated = JSON.parse(String(raw)) as ProtocolRunRecord;
+      assert.equal(updated.homeNodeId, "survivor-node");
+      assert.equal(updated.adoptedByNodeId, "survivor-node");
+      assert.equal(updated.status, "cancelled");
+    } finally {
+      await rc.stop().catch(() => {});
+    }
   });
 });

@@ -34,10 +34,17 @@ export type ProtocolDef = {
   kind: "ProtocolDef";
   name: string;
   participants: ParticipantDecl[];
+  supervisionStrategy?: SupervisionStrategy;
   triggers: TriggerDecl[];
   body: ProtocolItem[];
   loc: Loc;
 };
+
+export type SupervisionStrategy =
+  | "scoped"
+  | "one-for-one"
+  | "all-for-one"
+  | "detached";
 
 // ── Trigger declarations ────────────────────────────────────────────
 

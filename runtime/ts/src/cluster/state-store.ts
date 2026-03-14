@@ -39,6 +39,12 @@ export interface StateStore {
   delete(key: string): Promise<boolean>;
   list(prefix: string): Promise<StoreEntry[]>;
   putIfAbsent(key: string, value: StoreValue, opts?: { lease?: string }): Promise<boolean>;
+  compareAndSwap(
+    key: string,
+    expectedValue: StoreValue | null,
+    nextValue: StoreValue,
+    opts?: { lease?: string },
+  ): Promise<boolean>;
   watch(prefix: string, cb: (event: WatchEvent) => void): Disposable;
   createLease(ttlSeconds: number): Promise<Lease>;
   close(): Promise<void>;
@@ -106,6 +112,22 @@ export class InMemoryStateStore implements StateStore {
   async putIfAbsent(key: string, value: StoreValue, opts?: { lease?: string }): Promise<boolean> {
     if (this.data.has(key)) return false;
     await this.put(key, value, opts);
+    return true;
+  }
+
+  async compareAndSwap(
+    key: string,
+    expectedValue: StoreValue | null,
+    nextValue: StoreValue,
+    opts?: { lease?: string },
+  ): Promise<boolean> {
+    const current = this.data.get(key) ?? null;
+    const currentText = current == null ? null : (typeof current === "string" ? current : current.toString("utf8"));
+    const expectedText = expectedValue == null ? null : (typeof expectedValue === "string" ? expectedValue : expectedValue.toString("utf8"));
+    if (currentText !== expectedText) {
+      return false;
+    }
+    await this.put(key, nextValue, opts);
     return true;
   }
 

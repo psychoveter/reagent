@@ -390,7 +390,397 @@ Together these layers explain why the runtime distinguishes:
 - node-visible liveness (`/nodes/*`)
 - per-run execution (`RoleRun`)
 
-## 9. Runtime Config Boundary
+For the operational semantics of these lifecycle entities — ownership, supervision, fault propagation, and re-homing — see §9.
+
+## 9. Process Model and Supervision
+
+This section defines the **operational process model** for the Reagent runtime.
+It describes how protocols and agents relate as processes — who creates whom,
+who owns whom, what happens when something fails, and how the cluster recovers.
+
+The R1 ontology (§3, §8) defines **what things are** (AgentShell, RoleRun, AgentRecord).
+This section defines **how they behave as processes**.
+
+Design rationale and the original RFC are archived in `../archive/process-model.md`.
+
+### 9.1 Process Kinds
+
+**Protocol process** — a distributed process spanning one or more nodes.
+Represented by correlated `RoleRun` instances across participating agents.
+
+- Globally unique `instanceId` + `protocolName`
+- Has a **home RC** — the RC whose initiator agent fired the trigger
+- May have child protocol processes (via `invokes` / `async invokes`) and spawned agents (via `spawns`)
+- Tracked locally in the home RC and globally in etcd at `/protocol-runs/{instanceId}`
+- There is no single `ProtocolRun` class — the distributed identity is a `ProtocolRunRef`, an etcd record, and a set of local `RoleRun` fibers
+
+**Agent process** — a local process on exactly one node.
+Represented by an `AgentShellImpl` inside a `ReagentController`.
+
+- Globally unique `agentName`
+- Bound to exactly **one role** (the role may `plays` multiple protocols)
+- Hosts zero or more `RoleRun` fibers concurrently
+- Projected as an `AgentRecord` in the registry
+
+**RoleRun (fiber)** — not a standalone process but a lightweight execution
+context inside an agent process, participating in one protocol process.
+
+- Bound to one agent process (host shell) and one protocol process (correlation)
+- Has its own `$ctx`, FSM state (`RoleEngine`), inbox, and completion callbacks
+- Cannot outlive its host agent process
+
+The key insight: an agent process is the **execution host**, a protocol process
+is the **coordination scope**, and a RoleRun is the **intersection** of the two.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Agent Process (AgentShell: coordinator)                      │
+│ Role: CoordinatorRole (plays Auction/seller, Scoring/eval)  │
+│                                                             │
+│  ┌─────────────────┐  ┌─────────────────┐                  │
+│  │ RoleRun          │  │ RoleRun          │                  │
+│  │ auction-1/seller │  │ scoring-1/eval  │                  │
+│  │ (protocol fiber) │  │ (protocol fiber) │                  │
+│  └────────┬─────────┘  └────────┬─────────┘                  │
+│           │                     │                            │
+│      participates in       participates in                   │
+│           │                     │                            │
+│  ┌────────▼─────────┐  ┌───────▼──────────┐                 │
+│  │ Protocol Process  │  │ Protocol Process  │                 │
+│  │ Auction:inst-1    │  │ Scoring:inst-1    │                 │
+│  │ (distributed)     │  │ (distributed)     │                 │
+│  └───────────────────┘  └──────────────────┘                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 9.2 Process Tree
+
+The process tree exists at two levels.
+
+**Node-local tree.** Each RC maintains an in-memory tree that is always consistent.
+
+```mermaid
+graph TD
+  RC["RC: node-alpha"]
+  RC --> S1["AgentShell: coordinator (CoordinatorRole)"]
+  RC --> S2["AgentShell: worker-1 (WorkerRole)"]
+  RC --> S3["AgentShell: worker-2 (WorkerRole)"]
+  S1 --> R1["RoleRun: coordinator / auction-1"]
+  S1 --> R2["RoleRun: coordinator / scoring-1"]
+  S2 --> R3["RoleRun: worker-1 / auction-1"]
+  S3 --> R4["RoleRun: worker-2 / audit-1"]
+```
+
+Ownership edges: RC → AgentShell is **strong** (shell cannot outlive RC).
+AgentShell → RoleRun is **hosting** (RoleRun cannot outlive its shell).
+The local tree does not track cross-node relationships.
+
+**Cluster-wide protocol tree.** A logical structure tracked in etcd.
+Represents parent-child relationships between protocol processes and their
+spawned agents, regardless of which node they run on.
+
+```mermaid
+graph TD
+  Root["root-workflow-1 (home: node-alpha)"]
+  Root -->|"async invokes"| P1["auction-1 (home: node-alpha)"]
+  Root -->|"async invokes"| P2["audit-1 (home: node-beta)"]
+  P1 -->|"invokes (sync)"| P3["scoring-1 (home: node-alpha)"]
+  P1 -->|"spawns"| A1["worker-3 (home: node-gamma, scoped)"]
+  P2 -->|"spawns"| A2["auditor-1 (home: node-beta, persistent)"]
+```
+
+Properties: eventually consistent (etcd projection), rooted at one or more
+root protocols, each edge carries ownership semantics (§9.3).
+
+| Aspect | Node-local | Cluster-wide |
+|--------|-----------|--------------|
+| Scope | One node | Entire cluster |
+| Granularity | Down to RoleRun fibers | Protocol and agent processes |
+| Consistency | Strong (in-memory) | Eventually consistent (etcd) |
+| Purpose | Execution, routing, dispatch | Supervision, ownership, re-homing |
+| Lifetime | Dies with RC | Survives individual RC failures |
+
+### 9.3 Ownership Semantics
+
+Every edge in the process tree is an ownership relationship with four
+properties: creator, owner, coupling, and detach behavior.
+
+| Parent | Child | Coupling | On parent complete | On parent fail | On home RC dies |
+|--------|-------|----------|-------------------|----------------|-----------------|
+| RC | AgentShell | **strong** | `shell.stop()` | shell dies with RC | shell dies with RC |
+| AgentShell (initiator) | ProtocolRun | **trigger** | run continues independently | initiator RoleRun fails, home RC continues supervision | run orphaned (§9.8) |
+| ProtocolRun | child ProtocolRun (sync `invokes`) | **strong** | n/a — child finishes first | cancel child, propagate error | child orphaned |
+| ProtocolRun | child ProtocolRun (async `invokes`) | **scoped** | cancel child | cancel child | child orphaned |
+| ProtocolRun | spawned Agent (non-persistent) | **scoped** | destroy agent | destroy agent | agent orphaned |
+| ProtocolRun | spawned Agent (`persistent`) | **detached** | agent survives | agent survives | agent survives |
+
+**Coupling kinds:**
+
+- **Strong** — child cannot outlive parent. Parent waits for child before completing. Parent failure cancels child immediately.
+- **Scoped** — child's lifetime bounded by parent's lifetime. Parent triggers cleanup as a side effect of its own completion but does not join scoped children before reaching terminal state.
+- **Trigger** — the initiator agent creates the protocol via a trigger. Supervision transfers immediately to the home RC. The protocol's lifetime is self-determined.
+- **Detached** — no lifecycle dependency. The `persistent` flag on `spawns` produces this coupling.
+
+### 9.4 Protocol Process Lifecycle
+
+The runtime uses a **collapsed terminal model** for protocol process status:
+
+```
+starting | running | cancelling | completed | failed | cancelled | orphaned | adopting
+```
+
+```mermaid
+stateDiagram-v2
+  [*] --> starting
+  starting --> running
+  running --> completed : FSM terminal / success
+  running --> failed : error / exception
+  running --> cancelling : cancel request
+  cancelling --> cancelled : all roles terminal / acked
+  completed --> [*]
+  failed --> [*]
+  cancelled --> [*]
+```
+
+Additional distributed states:
+
+```mermaid
+stateDiagram-v2
+  state "running" as R
+  state "adopting" as AD
+  state "cancelled/failed" as T
+
+  R --> AD : surviving RC claims via CAS after lease expiry
+  AD --> R : adoption successful, process resumed
+  AD --> T : adoption decides to fail/cancel
+```
+
+- **orphaned** — home RC died and no survivor has claimed the record yet
+- **adopting** — a surviving RC has claimed ownership via etcd CAS and is evaluating the process state
+
+Agent process and RoleRun lifecycles remain as described in §8.
+
+### 9.5 Supervision Model
+
+Supervision is organized in four layers.
+
+**Layer 1: Cluster Supervisor** (scope: entire cluster). Not a single process
+but an emergent behavior of all surviving RCs cooperating through etcd.
+Detects RC failure via lease expiry, scans for orphaned protocols, claims
+them via CAS, and executes the adoption decision. Always active.
+
+**Layer 2: RC / Node Supervisor** (scope: one node). `ReagentController`
+supervises all agent processes on its node. Creates/destroys shells,
+propagates `stop()` on shutdown. Current state: no restart policy yet.
+
+**Layer 3: Protocol Supervisor** (scope: one protocol process, distributed).
+The home RC of the protocol. Tracks child processes and spawned agents,
+applies supervision strategy on child failure, executes scoped cleanup,
+and propagates cancellation.
+
+**Layer 4: Agent Supervisor** (scope: one agent process, **future**).
+Self-healing agent that can restart its own behavior on failure and
+re-attach to in-progress RoleRuns. Requires stateful detach/re-attach
+that AgentShell supports structurally but does not exploit yet.
+
+**Supervision strategies.** Each protocol can declare a strategy via the
+`supervision:` directive in `.rg`:
+
+```rg
+protocol Example {
+  supervision: one-for-one
+  // ...
+}
+```
+
+The strategy is carried through parser → AST → IR → decompile → runtime
+record persistence. Default is **scoped**.
+
+| Strategy | On child fail | On parent complete |
+|----------|--------------|-------------------|
+| **one-for-one** | Re-resolve lost participants, continue if replacement found | Cancel remaining children |
+| **all-for-one** | Same first-wave re-resolve as one-for-one (MVP; no full sibling restart yet) | Cancel all children |
+| **scoped** | Notify parent via lifecycle handler, do not restart | Cancel/destroy all scoped children |
+| **detached** | No action — child is independent | No action |
+
+MVP limitations: `one-for-one` / `all-for-one` do not checkpoint/resume
+RoleRun position — they only attempt narrow re-resolve/rebind of lost
+participants. Per-child strategy overrides are a future extension.
+
+### 9.6 Fault Propagation
+
+**Local faults** (within one node):
+
+1. *Behavior throws during zone execution* — RoleRun catches the exception; if a `try/catch` block exists, the catch path executes; otherwise the run transitions to `failed`. `handleRunComplete` fires, lifecycle handlers for `protocolFailed` execute, and the home RC records partial failure.
+
+2. *RoleRun reaches terminal state with error* — removed from `activeRuns`, added to `finishedRuns`. Completion callbacks fire. If the initiator RoleRun, the home RC marks the protocol as failing. Scoped children are cancelled/destroyed.
+
+3. *AgentShell stops* — all active RoleRuns are cancelled (via `run.cancel()`), the shell awaits their terminal status via `waitForRunStop()`, detaches behavior, notifies RC. All protocol processes with a RoleRun on this shell detect participant loss.
+
+4. *Participant agent fails locally while the home RC remains alive* — the home RC treats this as participant loss (not RC/node loss), applies supervision: re-resolve, fail/cancel, or future compensation. No orphan/adoption protocol involved.
+
+**Distributed faults** (multiple nodes):
+
+1. *RC dies* — detected via etcd lease expiry. Surviving RCs scan `/protocol-runs/` for orphaned entries and claim them via CAS (see §9.8).
+
+```mermaid
+sequenceDiagram
+  participant Dead as RC-A (dead)
+  participant etcd
+  participant Surv as RC-B (surviving)
+
+  Note over Dead: Process dies
+  Dead -x etcd: Lease expires (TTL)
+  etcd ->> Surv: Watch notification: node-alpha lease expired
+  Surv ->> etcd: Scan /protocol-runs/ where homeNodeId == node-alpha
+  etcd -->> Surv: List of orphaned protocol runs
+  loop For each orphaned run
+    Surv ->> etcd: CAS /protocol-runs/{id}: homeNodeId dead->node-beta, status orphaned->adopting
+    alt CAS succeeds
+      Surv ->> Surv: Evaluate adoption decision
+      Note over Surv: Resume / Restart / Fail based on strategy
+    else CAS fails (another RC won)
+      Note over Surv: Skip, another RC handles this run
+    end
+  end
+```
+
+2. *Participant node dies* — the home RC (if alive) detects undeliverable messages, checks etcd for lease expiry, and applies the protocol's fault strategy (re-resolve, fail, or future compensate).
+
+3. *Home RC dies with active children* — child protocol processes become orphaned. Surviving RCs adopt them independently (each child is a separate etcd entry). An adopted child discovers its parent is also orphaned; the adopting RC walks up the tree to find the nearest living ancestor.
+
+**Fault propagation direction:**
+
+- *Downward* (parent → children): parent failure cascades to scoped children
+- *Upward* (child → parent): child failure notifies parent via lifecycle handler; the supervision strategy decides the response
+- *Lateral* (sibling → sibling): only under `all-for-one`
+
+### 9.7 Cancellation
+
+**Local cancellation.** Targets a protocol process by `instanceId`. The home RC
+transitions the process to `cancelling`, cancels local RoleRuns, recursively
+cancels scoped children, and destroys scoped spawned agents.
+
+**Distributed cancellation.** When participants span multiple nodes:
+
+1. Home RC writes `status: cancelling` to `/protocol-runs/{instanceId}` in etcd
+2. Other RCs observe the change via prefix watch on `/protocol-runs/`, cancel their local RoleRuns
+3. Each RC reports local cancellation status back (via etcd or message plane)
+4. Home RC considers cancellation complete when all participants have acknowledged
+
+Tracked durably on the record via `ProtocolCancellationState` (stores `requestedByNodeId`, reason, acked roles, acked nodes).
+
+**Cancellation triggers:** external request (admin API / `cancelRun()`), parent failure (scoped coupling), timeout (future), or supervision decision.
+
+**Cancellation vs. compensation.** Cancellation is a hard stop — it interrupts execution and cleans up resources but does not undo side effects. Compensation (semantic rollback) is out of scope here (see backlog L1 / `distributed-try-catch.md`).
+
+### 9.8 RC Failure and Protocol Re-homing
+
+**Detection.** Each RC holds an etcd lease (configurable TTL, default 10s).
+When the RC dies, the lease expires. Surviving RCs watch `/nodes/` and detect
+the disappearance.
+
+**Orphan identification.** Surviving RCs scan `/protocol-runs/` for entries
+where `homeNodeId` matches the dead node and status is not terminal
+(`completed`, `failed`, or `cancelled`).
+
+**Adoption protocol:**
+
+1. **Claim** — a surviving RC performs CAS on `/protocol-runs/{id}`, transitioning from `{ homeNodeId: dead, status: orphaned }` to `{ homeNodeId: survivor, status: adopting }`. Exactly one RC wins.
+2. **Evaluate** — the adopting RC branches on `supervisionStrategy`:
+   - `scoped` → terminate as `cancelled`, clean up non-persistent spawned agents
+   - `detached` → terminate as `failed` (conservative MVP)
+   - `one-for-one` / `all-for-one` → attempt re-resolve/rebind for participants lost with the dead node
+3. **Continue or terminate** — if all lost participants can be rebound, the record returns to `running`; otherwise it terminates conservatively
+4. **Cascade** — for child processes also orphaned, adoption cascades
+
+**Spawned agent cleanup after restart.** `cleanupSpawnedAgents()` merges the
+durable `record.spawnedAgents` lineage with the in-memory map to ensure
+non-persistent agents are destroyed even after RC restart. A startup
+reconciliation pass (`reconcileSpawnedAgentCleanup()`) iterates terminal
+durable records on the node to catch anything missed.
+
+**State loss.** When an RC dies, the following state is lost:
+
+| State | Location | Recoverable? |
+|-------|----------|-------------|
+| `$self` (agent persistent state) | In-memory only | No — unless checkpointed (G5, deferred) |
+| `$ctx` (protocol run context) | In-memory only | No |
+| `activeRuns` / `finishedRuns` maps | In-memory only | No |
+| RoleRun FSM position | In-memory only | No — unless checkpointed |
+| `ProtocolRunRecord` | etcd | Yes |
+| `AgentRecord` | etcd | Yes (lease-bound copy expires) |
+
+Without checkpointing, adoption offers narrow re-resolve/rebind or
+conservative fail/cancel. Checkpointing is a future extension.
+
+### 9.9 Root Protocol
+
+A **root protocol** has no parent (`parentInstanceId` is null). It is the
+top of a cluster-wide process tree. Multiple root protocols can coexist.
+
+Its owner is the cluster itself (the etcd record). The home RC acts as local
+supervisor; if it dies, the root protocol is adopted like any other orphan.
+
+Root protocols are started by: external trigger (admin API), cron trigger,
+event trigger (gate/MCP), or cluster bootstrap (autostart from deployment
+manifest, leader-elected RC fires triggers).
+
+### 9.10 Process Identity and Lineage
+
+**Agent process identity:** `{nodeId}/{agentName}`
+
+**Protocol process identity:** `{protocolName}:{instanceId}` (instanceId is a globally unique string)
+
+**Lineage** is stored as a field on the child, not encoded in the identity string. Each `ProtocolRunRecord` contains:
+
+```typescript
+interface ProtocolRunRecord {
+  instanceId: string;
+  protocolName: string;
+  homeNodeId: string;
+  status: ProtocolRunStatus;
+  supervisionStrategy: SupervisionStrategy;
+  parentInstanceId?: string;      // null for root protocols
+  rootInstanceId: string;
+  roles: Record<string, ProtocolRunRoleStatus>;
+  childInstanceIds: string[];
+  spawnedAgents: Array<{ agentName: string; persistent: boolean }>;
+  createdAt: number;
+  updatedAt: number;
+  startedAt?: number;
+  completedAt?: number;
+  cancellation?: ProtocolCancellationState;
+  participantLosses?: Array<{ roleName: string; agentName: string; reason: string }>;
+  failureReason?: string;
+}
+```
+
+`roles` is keyed by role name — the MVP assumes one live owner entry per role name. Richer `many`-cardinality ownership requires a broader storage model.
+
+**Etcd schema:**
+
+- `/protocol-runs/{instanceId}` → `ProtocolRunRecord` (JSON, CAS-updated)
+- `/agents/{agentName}` → `AgentRecord` (JSON, lease-bound)
+
+The ownership tree is reconstructed on demand by following `parentInstanceId` links.
+
+**Retention.** In-memory `finishedRuns` is bounded by `finishedRunRetentionLimit` (default 100, FIFO eviction). Durable `/protocol-runs/*` entries need an explicit retention policy (TTL, archival sweep, or external export) — this is still open.
+
+### 9.11 Current Implementation Mapping
+
+| This model | Current code | Gap |
+|-----------|-------------|-----|
+| Agent process | `AgentShellImpl` | No restart/self-healing supervision policy |
+| Protocol process | `ProtocolRunRecord` + correlated `RoleRun`s | No checkpointed resume; `many` cardinality modeled as one owner per role |
+| RoleRun fiber | `RoleRun` class | Cooperative cancellation exists; no checkpointed continuation |
+| Home RC | `ReagentController` | Explicit in record + supervision helpers |
+| Cluster supervisor | `EtcdMembership` + `handleNodeDeparture()` | Record-level CAS adoption implemented; strategy branching MVP-scoped |
+| Process tree | `/protocol-runs/*` + spawned-agent ownership | Durable retention/TTL policy missing |
+| Scoped cleanup | `cleanupSpawnedAgents()` | Wired, including durable spawned-lineage cleanup on restart |
+| Cancellation | `cancelRun()` / admin cancel surfaces | Prefix-watch convergence implemented; timeout/fencing open |
+
+## 10. Runtime Config Boundary
 
 The runtime config boundary is now explicit.
 
@@ -431,7 +821,7 @@ current Claude path, the UX-facing launch file is a wrapper config of the form:
 That wrapper is a launch artifact for a specific node kind. It is not part of
 the core RC runtime model itself.
 
-## 10. What Changed Relative To Older Docs
+## 11. What Changed Relative To Older Docs
 
 - RC now owns local protocol invocation through `invokeProtocol()`.
 - cluster state is part of runtime behavior, not just an orchestration side-channel.
@@ -440,7 +830,7 @@ the core RC runtime model itself.
 - the TS runtime filesystem now matches the architecture described here.
 - the Python runtime remains implemented but structurally asymmetric relative to TS.
 
-## 11. Primary Files
+## 12. Primary Files
 
 For the current runtime core, start with:
 

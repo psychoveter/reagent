@@ -119,6 +119,11 @@ export function decompileMultiRole(graphs: IRGraph[]): string {
   lines.push(`  participants:`);
   lines.push(...participantLines.map(p => p + ","));
 
+  const supervisionStrategy = graphs[0].supervisionStrategy;
+  if (supervisionStrategy) {
+    lines.push(`  supervision: ${supervisionStrategy}`);
+  }
+
   const triggers = graphs[0].triggers;
   if (triggers && triggers.length > 0) {
     lines.push("");

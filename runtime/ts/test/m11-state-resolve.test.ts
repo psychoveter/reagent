@@ -60,6 +60,21 @@ describe("InMemoryStateStore", () => {
     assert.equal(await store.get("/k"), "first");
   });
 
+  it("compareAndSwap updates only when expected value matches", async () => {
+    await store.put("/cas", "v1");
+    assert.equal(await store.compareAndSwap("/cas", "v0", "v2"), false);
+    assert.equal(await store.get("/cas"), "v1");
+    assert.equal(await store.compareAndSwap("/cas", "v1", "v2"), true);
+    assert.equal(await store.get("/cas"), "v2");
+  });
+
+  it("compareAndSwap can create when expecting null", async () => {
+    assert.equal(await store.compareAndSwap("/new", null, "created"), true);
+    assert.equal(await store.get("/new"), "created");
+    assert.equal(await store.compareAndSwap("/new", null, "other"), false);
+    assert.equal(await store.get("/new"), "created");
+  });
+
   it("watch emits put and delete events", async () => {
     const events: string[] = [];
     store.watch("/agents/", (e) => events.push(`${e.kind}:${e.key}`));

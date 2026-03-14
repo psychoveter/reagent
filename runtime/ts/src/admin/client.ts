@@ -3,6 +3,7 @@ import { WebSocket } from "ws";
 import type { AgentRegistration } from "../cluster/state-store-agent-registry.js";
 import type { StateStore } from "../cluster/state-store.js";
 import type { NodeRegistration } from "../contracts/types.js";
+import type { ProtocolRunRecord } from "../contracts/protocol-run.js";
 import { DirectStateStoreProvider, type StateStoreProvider } from "./state-store-provider.js";
 import { NodeControlClient } from "./node-control-client.js";
 import { StoreBackedNodeEndpointResolver, type NodeEndpointResolver } from "./node-endpoint-resolver.js";
@@ -30,6 +31,7 @@ export interface AdminClientConfig {
 
 const NODES_PREFIX = "/nodes/";
 const AGENTS_PREFIX = "/agents/";
+const PROTOCOL_RUNS_PREFIX = "/protocol-runs/";
 
 function decodeJson<T>(value: string | Buffer): T {
   const raw = typeof value === "string" ? value : value.toString("utf8");
@@ -302,6 +304,88 @@ export class AdminClient {
       rap: "StopAgentSuccess",
       payload: {
         nodeId,
+        ...payload,
+      },
+    };
+  }
+
+  async listProtocolRuns(): Promise<AdminResponse> {
+    if (!this.stateStoreProvider) {
+      return this.send("ListProtocolRuns", {});
+    }
+    const store = await this.getStateStore();
+    const entries = await store.list(PROTOCOL_RUNS_PREFIX);
+    const runs = entries.map((entry) => decodeJson<ProtocolRunRecord>(entry.value));
+    runs.sort((a, b) => b.startedAt - a.startedAt);
+    return {
+      rap: "ListProtocolRunsResponse",
+      payload: {
+        runs,
+        total: runs.length,
+      },
+    };
+  }
+
+  async inspectProtocolRun(instanceId: string): Promise<AdminResponse> {
+    if (!this.stateStoreProvider) {
+      return this.send("InspectProtocolRun", { instanceId });
+    }
+    const store = await this.getStateStore();
+    const raw = await store.get(`${PROTOCOL_RUNS_PREFIX}${instanceId}`);
+    if (raw == null) {
+      return {
+        rap: "InspectProtocolRunResponse",
+        payload: {
+          instanceId,
+          found: false,
+          children: [],
+        },
+      };
+    }
+    const record = decodeJson<ProtocolRunRecord>(raw);
+    const parent = record.parentInstanceId
+      ? await store.get(`${PROTOCOL_RUNS_PREFIX}${record.parentInstanceId}`)
+      : null;
+    const children = await Promise.all(
+      record.childInstanceIds.map(async (childId) => {
+        const value = await store.get(`${PROTOCOL_RUNS_PREFIX}${childId}`);
+        return value ? decodeJson<ProtocolRunRecord>(value) : null;
+      }),
+    );
+    return {
+      rap: "InspectProtocolRunResponse",
+      payload: {
+        instanceId,
+        found: true,
+        record,
+        parent: parent ? decodeJson<ProtocolRunRecord>(parent) : undefined,
+        children: children.filter((child): child is ProtocolRunRecord => child != null),
+      },
+    };
+  }
+
+  async cancelProtocolRun(instanceId: string): Promise<AdminResponse> {
+    if (!this.stateStoreProvider) {
+      return this.send("CancelProtocolRun", { instanceId });
+    }
+    const store = await this.getStateStore();
+    const raw = await store.get(`${PROTOCOL_RUNS_PREFIX}${instanceId}`);
+    if (raw == null) {
+      return {
+        rap: "CancelProtocolRunResponse",
+        payload: { instanceId, cancelled: false, reason: "not_found" },
+      };
+    }
+    const record = decodeJson<ProtocolRunRecord>(raw);
+    const resolver = await this.getResolver();
+    const endpoint = await resolver.resolveNode(record.homeNodeId);
+    const client = new NodeControlClient(endpoint.url);
+    const payload = await client.request("CancelProtocolRun", { instanceId });
+    client.close();
+    return {
+      rap: "CancelProtocolRunResponse",
+      payload: {
+        homeNodeId: record.homeNodeId,
         ...payload,
       },
     };

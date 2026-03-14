@@ -47,6 +47,7 @@ import type {
   RoleOnHandler,
   ScatterStmt,
   SpawnStmt,
+  SupervisionStrategy,
   TopLevelItem,
   TriggerDecl,
   TriggerKind,
@@ -1219,6 +1220,7 @@ function pProtocolDef(c: Cursor): ProtocolDef | null {
   c.next();
 
   let participants: ParticipantDecl[] = [];
+  let supervisionStrategy: SupervisionStrategy | undefined;
   const triggers: TriggerDecl[] = [];
 
   for (;;) {
@@ -1236,6 +1238,18 @@ function pProtocolDef(c: Cursor): ProtocolDef | null {
 
       currentLangMap = new Map();
       for (const p of participants) currentLangMap.set(p.name, p.lang);
+      continue;
+    }
+
+    if (startsWithKeyword(c, "supervision")) {
+      consumeKeyword(c, "supervision");
+      skipWSAndComments(c);
+      if (c.peek() !== ":") return null;
+      c.next();
+      skipWSAndComments(c);
+      const strategy = readSupervisionStrategy(c);
+      if (!strategy) return null;
+      supervisionStrategy = strategy;
       continue;
     }
 
@@ -1259,10 +1273,27 @@ function pProtocolDef(c: Cursor): ProtocolDef | null {
     kind: "ProtocolDef",
     name: name.name,
     participants,
+    supervisionStrategy,
     triggers,
     body,
     loc: c.locFrom(start),
   };
+}
+
+function readSupervisionStrategy(c: Cursor): SupervisionStrategy | null {
+  const strategies: SupervisionStrategy[] = [
+    "scoped",
+    "one-for-one",
+    "all-for-one",
+    "detached",
+  ];
+  for (const strategy of strategies) {
+    if (c.startsWith(strategy) && isKeywordBoundary(c.peek(strategy.length))) {
+      c.advance(strategy.length);
+      return strategy;
+    }
+  }
+  return null;
 }
 
 // ── Trigger declaration ─────────────────────────────────────────────

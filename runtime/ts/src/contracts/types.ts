@@ -45,6 +45,7 @@ export type ProtocolDependency = {
 
 export type ParticipantBinding = "static" | "dynamic";
 export type ParticipantCardinality = "single" | "many";
+export type SupervisionStrategy = "scoped" | "one-for-one" | "all-for-one" | "detached";
 
 // ── From lang/src/ir.ts — Participant IR ─────────────────────────────
 
@@ -96,6 +97,7 @@ export type IRGraph = {
   protocolName: string;
   role: string;
   lang: LangTag;
+  supervisionStrategy?: SupervisionStrategy;
   version?: string;
   fingerprints?: ProtocolFingerprint;
   dependencies?: ProtocolDependency[];

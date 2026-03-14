@@ -283,6 +283,156 @@ async function testT25(): Promise<TestResult> {
   }
 }
 
+async function testT26(): Promise<TestResult> {
+  const name = "T26: protocol-run list/inspect/cancel use StateStore plus home-node control endpoint";
+  const store = new InMemoryStateStore();
+  let node: { close(): Promise<void> } | null = null;
+  try {
+    let cancelCalled = false;
+    await store.put("/protocol-runs/run-1", JSON.stringify({
+      instanceId: "run-1",
+      protocolName: "Demo",
+      status: "running",
+      homeNodeId: "node-run",
+      relationKind: "root",
+      supervisionStrategy: "scoped",
+      rootInstanceId: "run-1",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      startedAt: Date.now(),
+      ownerAgentName: "OwnerAgent",
+      ownerRoleName: "owner",
+      roles: {
+        owner: {
+          agentName: "OwnerAgent",
+          roleName: "owner",
+          nodeId: "node-run",
+          status: "running",
+          updatedAt: Date.now(),
+        },
+      },
+      childInstanceIds: ["run-1-child"],
+      spawnedAgents: [],
+    }));
+    await store.put("/protocol-runs/run-1-child", JSON.stringify({
+      instanceId: "run-1-child",
+      protocolName: "ChildDemo",
+      status: "completed",
+      homeNodeId: "node-run",
+      relationKind: "invoke",
+      supervisionStrategy: "scoped",
+      rootInstanceId: "run-1",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      startedAt: Date.now(),
+      completedAt: Date.now(),
+      parentInstanceId: "run-1",
+      parentProtocolName: "Demo",
+      ownerAgentName: "OwnerAgent",
+      ownerRoleName: "owner",
+      roles: {},
+      childInstanceIds: [],
+      spawnedAgents: [],
+    }));
+
+    node = await withNode("node-run", store, async (op, payload) => {
+      if (op === "CancelProtocolRun") {
+        cancelCalled = true;
+        assert(payload.instanceId === "run-1", "cancel should target requested protocol run");
+        return { instanceId: "run-1", cancelled: true };
+      }
+      if (op === "InspectNode") {
+        return { nodeId: "node-run", agents: [], protocols: [], routing: {}, agentNodes: ["node-run"] };
+      }
+      throw new Error(`Unexpected op: ${op}`);
+    });
+
+    const client = new AdminClient({
+      stateStoreProvider: { getStateStore: async () => store },
+    });
+
+    const listed = await client.listProtocolRuns();
+    const inspected = await client.inspectProtocolRun("run-1");
+    const cancelled = await client.cancelProtocolRun("run-1");
+
+    assert((listed.payload.total as number) === 2, "listProtocolRuns should read store-backed records");
+    assert((inspected.payload.found as boolean) === true, "inspectProtocolRun should find stored record");
+    assert(((inspected.payload.children as Array<{ instanceId: string }>)[0]?.instanceId) === "run-1-child", "inspect should expand stored child lineage");
+    assert(cancelCalled, "cancel should route to the home node control endpoint");
+    assert((cancelled.payload.cancelled as boolean) === true, "cancelProtocolRun should surface endpoint acknowledgement");
+
+    await node.close();
+    await store.close();
+    return { name, passed: true };
+  } catch (err) {
+    if (node) await node.close();
+    await store.close();
+    return { name, passed: false, error: String(err) };
+  }
+}
+
+async function testT27(): Promise<TestResult> {
+  const name = "T27: inspect/list surface cancelling protocol runs with acknowledgement metadata";
+  const store = new InMemoryStateStore();
+  try {
+    await store.put("/protocol-runs/run-cancelling", JSON.stringify({
+      instanceId: "run-cancelling",
+      protocolName: "Demo",
+      status: "cancelling",
+      homeNodeId: "node-run",
+      relationKind: "root",
+      supervisionStrategy: "detached",
+      rootInstanceId: "run-cancelling",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      startedAt: Date.now(),
+      ownerAgentName: "OwnerAgent",
+      ownerRoleName: "owner",
+      cancellation: {
+        requestedAt: Date.now(),
+        requestedByNodeId: "node-run",
+        reason: "operator cancel",
+        acknowledgedRoleNames: ["owner"],
+        acknowledgedNodeIds: ["node-run"],
+      },
+      roles: {
+        owner: {
+          agentName: "OwnerAgent",
+          roleName: "owner",
+          nodeId: "node-run",
+          status: "cancelled",
+          updatedAt: Date.now(),
+        },
+      },
+      childInstanceIds: [],
+      spawnedAgents: [],
+      participantLosses: [],
+    }));
+
+    const client = new AdminClient({
+      stateStoreProvider: { getStateStore: async () => store },
+    });
+
+    const listed = await client.listProtocolRuns();
+    const inspected = await client.inspectProtocolRun("run-cancelling");
+    const listedRecord = (listed.payload.runs as Array<Record<string, unknown>>)[0];
+    const inspectedRecord = inspected.payload.record as Record<string, unknown>;
+    const cancellation = inspectedRecord.cancellation as Record<string, unknown>;
+
+    assert((listed.payload.total as number) === 1, "list should include cancelling protocol run");
+    assert(listedRecord.status === "cancelling", "list should preserve non-terminal cancelling state");
+    assert(inspectedRecord.supervisionStrategy === "detached", "inspect should surface persisted supervision strategy");
+    assert(cancellation.requestedByNodeId === "node-run", "inspect should surface cancellation metadata");
+    assert(Array.isArray(cancellation.acknowledgedNodeIds), "inspect should surface acknowledgement arrays");
+
+    await store.close();
+    return { name, passed: true };
+  } catch (err) {
+    await store.close();
+    return { name, passed: false, error: String(err) };
+  }
+}
+
 async function main() {
   console.log("=== M6 AdminClient / NodeControlEndpoint Tests ===\n");
 
@@ -292,6 +442,8 @@ async function main() {
     await testT23(),
     await testT24(),
     await testT25(),
+    await testT26(),
+    await testT27(),
   ];
 
   let passed = 0;

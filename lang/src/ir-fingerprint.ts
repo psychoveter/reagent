@@ -170,6 +170,10 @@ export function computeStructureHash(graphs: Map<string, IRGraph>): string {
     }
   }
 
+  if (firstGraph?.supervisionStrategy) {
+    parts.push(`supervision:${firstGraph.supervisionStrategy}`);
+  }
+
   if (firstGraph?.triggers) {
     for (const t of firstGraph.triggers) {
       parts.push(canonicalizeTrigger(t));

@@ -68,6 +68,29 @@ export class EtcdStateStore implements StateStore {
     return resp.succeeded;
   }
 
+  async compareAndSwap(
+    key: string,
+    expectedValue: StoreValue | null,
+    nextValue: StoreValue,
+    opts?: { lease?: string },
+  ): Promise<boolean> {
+    const nextStr = typeof nextValue === "string" ? nextValue : nextValue.toString("utf8");
+    let putOp = this.client.put(key).value(nextStr);
+    if (opts?.lease) {
+      putOp = putOp.lease(opts.lease);
+    }
+
+    const txn = expectedValue == null
+      ? this.client.if(key, "Version", "==", 0).then(putOp).else(this.client.get(key))
+      : this.client
+          .if(key, "Value", "==", (typeof expectedValue === "string" ? expectedValue : expectedValue.toString("utf8")))
+          .then(putOp)
+          .else(this.client.get(key));
+
+    const resp = await txn.commit();
+    return resp.succeeded;
+  }
+
   watch(prefix: string, cb: (event: WatchEvent) => void): Disposable {
     let watcher: Watcher | null = null;
 

@@ -251,10 +251,13 @@ message Res { data: string }
 
 protocol AsyncProto {
   participants:
-    a [ts],
+    a [ts] initiator,
     b [ts]
 
-  initiator: a
+  trigger on invoke with Req {
+    resolve a = single
+    resolve b = single
+  }
 
   a --> b: Req
 

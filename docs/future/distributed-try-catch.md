@@ -442,7 +442,7 @@ At minimum add/refresh:
 | Document | Relationship |
 |---|---|
 | `../current/02-lang-spec.md` | Current surface syntax exists there, but semantics need this RFC. |
-| `process-model.md` | Provides the larger ownership/failure model this RFC plugs into. |
+| `../archive/process-model.md` | Provides the larger ownership/failure model this RFC plugs into. Current docs: `../current/03-runtime-core.md §9`. |
 | `../current/09-e2e-usecases.md` | Payment use case explicitly avoids `try/catch` today because this semantics is not yet settled. |
 | `backlog.md` | Tracks this as `L1` and `F6`. |
 

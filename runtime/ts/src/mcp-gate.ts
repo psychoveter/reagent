@@ -236,6 +236,7 @@ async function main(): Promise<void> {
       nodeId,
       agents,
       protocols,
+      protocolRuns: rc.inspect().protocolRuns,
       routing,
       agentNodes: [nodeId],
       projectedState: {
@@ -433,6 +434,36 @@ async function main(): Promise<void> {
     };
   }
 
+  async function handleListProtocolRuns(): Promise<Record<string, unknown>> {
+    const runs = await rc.listProtocolRuns();
+    return {
+      nodeId,
+      runs,
+      total: runs.length,
+    };
+  }
+
+  async function handleInspectProtocolRun(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const instanceId = payload.instanceId as string;
+    const inspected = await rc.inspectProtocolRun(instanceId);
+    return {
+      nodeId,
+      instanceId,
+      found: !!inspected.record,
+      ...inspected,
+    };
+  }
+
+  async function handleCancelProtocolRun(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const instanceId = payload.instanceId as string;
+    const cancelled = await rc.cancelProtocolRun(instanceId);
+    return {
+      nodeId,
+      instanceId,
+      cancelled,
+    };
+  }
+
   function encodeStoreValue(value: string | Buffer | null): string | null {
     if (value == null) return null;
     return typeof value === "string" ? value : value.toString("utf8");
@@ -459,6 +490,12 @@ async function main(): Promise<void> {
           return handleStopAgent(payload);
         case "GetDeployedIR":
           return handleGetDeployedIR(payload);
+        case "ListProtocolRuns":
+          return await handleListProtocolRuns();
+        case "InspectProtocolRun":
+          return await handleInspectProtocolRun(payload);
+        case "CancelProtocolRun":
+          return await handleCancelProtocolRun(payload);
         case "StoreGet": {
           const key = payload.key as string;
           return { value: encodeStoreValue(await runtime.stateStore.get(key)) };

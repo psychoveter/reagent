@@ -2,13 +2,24 @@
 export type { AgentBehavior } from "./contracts/agent-behavior.js";
 export type { BehaviorFactory } from "./contracts/behavior-factory.js";
 export type { AgentShell, AgentShellStatus, AgentRecordDTO, RoleRunHandle, RoleRunResult, ShellStatusChangeCallback } from "./contracts/agent-shell.js";
-export type { ProtocolRunRef, ProtocolRunTracker, ProtocolRunSnapshot, RoleRunIdentity, RoleRunStatus } from "./contracts/protocol-run.js";
+export type {
+  ProcessRelationKind,
+  ProtocolRunStatus,
+  ProtocolRunRecord,
+  ProtocolRunRef,
+  ProtocolRunSnapshot,
+  ProtocolRunTracker,
+  RoleRunIdentity,
+  RoleRunStatus,
+  SpawnOwnershipRecord,
+  SupervisionStrategy,
+} from "./contracts/protocol-run.js";
 export { RoleEngine } from "./core/role-engine.js";
 export type { RoleEngineInterface, RoleEngineConfig } from "./core/role-engine.js";
 export { RoleRun } from "./core/role-run.js";
 export type { RoleRunInterface, RoleRunConfig, RoleSpawnRequest, AdvanceHookContext, AdvanceHook } from "./core/role-run.js";
 export { AgentShellImpl } from "./core/agent-shell-impl.js";
-export type { AgentShellConfig } from "./core/agent-shell-impl.js";
+export type { AgentShellConfig, AgentShellRunLifecycleEvent } from "./core/agent-shell-impl.js";
 export { ManagedBehaviorFactory } from "./nodes/managed-behavior-factory.js";
 export { CustomBehaviorFactory } from "./nodes/custom-behavior-factory.js";
 export type { CustomBehaviorFactoryConfig } from "./nodes/custom-behavior-factory.js";

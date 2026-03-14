@@ -11,7 +11,14 @@
     "reagent-rgctl": "./dist/rgctl.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "test:unit": "node --import tsx --test test/agent-presence-leases.test.ts test/m11-state-resolve.test.ts test/mcp-adapter.test.ts",
+    "test:etcd": "node --import tsx test/etcd-state-store.test.ts && node --import tsx test/etcd-cluster.test.ts && node --import tsx test/etcd-live-presence.e2e.test.ts",
+    "test:runtime": "node --import tsx --test ../tests/m5-ctrl.test.ts && node --import tsx --test ../tests/m5-lang.test.ts && node --import tsx --test ../tests/m5-coverage.test.ts && node --import tsx ../tests/m6-admin.test.ts && node --import tsx --test ../tests/m8a-fingerprints.test.ts && node --import tsx --test ../tests/m8a-registry.test.ts && node --import tsx --test ../tests/m8a-decompiler.test.ts && node --import tsx --test ../tests/m8b-agent-model.test.ts && node --import tsx --test ../tests/m8b-reconciler.test.ts && node --import tsx --test ../tests/m8c-rc-lifecycle.test.ts && node --import tsx --test ../tests/m9-scatter-async.test.ts && node --import tsx --test ../tests/r1-regression-fixes.test.ts",
+    "test": "npm run test:unit && npm run test:runtime",
+    "test:all": "npm run test && npm run test:etcd",
+    "check": "npm run build && npm run test",
+    "check:all": "npm run build && npm run test:all"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",

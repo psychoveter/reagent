@@ -66,6 +66,9 @@ export async function bootstrapRuntime(
         opts?.onNodeJoin?.(nodeId);
       },
       onNodeLeave: async (nodeId) => {
+        if (rc) {
+          await rc.handleNodeDeparture(nodeId);
+        }
         await opts?.onNodeLeave?.(nodeId);
       },
     });

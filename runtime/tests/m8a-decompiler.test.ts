@@ -53,6 +53,7 @@ protocol SimpleTask {
   participants:
     client [ts] initiator,
     worker [ts]
+  supervision: one-for-one
   trigger on invoke with TaskRequest {
     resolve client = single
     resolve worker = single
@@ -101,6 +102,7 @@ agent workerAgent runs WorkerRole
   const decompiledSource = decompile(outDir1);
   assert.ok(decompiledSource.length > 0, "Decompiled output should not be empty");
   assert.ok(decompiledSource.includes("SimpleTask"), "Should contain protocol name");
+  assert.ok(decompiledSource.includes("supervision: one-for-one"), "Should preserve supervision directive");
   assert.ok(decompiledSource.includes("client"), "Should contain role name");
   assert.ok(decompiledSource.includes("TaskRequest"), "Should contain message name");
 

@@ -8,6 +8,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { parseProgram } from "../src/parser.js";
 import { emitIR, resetIdCounter, emitAgentIR, emitRoleIR, emitAgentRegistrationIR } from "../src/ir-emitter.js";
+import { computeStructureHash } from "../src/ir-fingerprint.js";
 import type { ProtocolDef, AgentDef, ParticipantDecl } from "../src/ast.js";
 
 function parse(src: string) {
@@ -96,6 +97,97 @@ describe("participant modifiers", () => {
       // initiator should not appear as protocol-level field
       assert.ok(proto);
     }
+  });
+});
+
+describe("protocol supervision directive", () => {
+  it("parses supervision strategy as a protocol-level directive", () => {
+    const proto = parseProto(`
+      protocol P {
+        participants:
+          a [ts] initiator,
+          b [py]
+        supervision: one-for-one
+        trigger on invoke with M {
+          resolve a = single
+          resolve b = single
+        }
+        a --> b: Msg
+      }
+    `);
+    assert.equal(proto.supervisionStrategy, "one-for-one");
+  });
+
+  it("emits supervision strategy into every role graph and defaults to scoped", () => {
+    const explicit = emit(parseProto(`
+      protocol P {
+        participants:
+          a [ts] initiator,
+          b [py]
+        supervision: detached
+        trigger on invoke with M {
+          resolve a = single
+          resolve b = single
+        }
+        a --> b: Msg
+      }
+    `));
+    assert.ok(explicit.ok, explicit.errors.join("\n"));
+    for (const graph of explicit.graphs.values()) {
+      assert.equal(graph.supervisionStrategy, "detached");
+    }
+
+    const implicit = emit(parseProto(`
+      protocol P {
+        participants:
+          a [ts] initiator,
+          b [py]
+        trigger on invoke with M {
+          resolve a = single
+          resolve b = single
+        }
+        a --> b: Msg
+      }
+    `));
+    assert.ok(implicit.ok, implicit.errors.join("\n"));
+    for (const graph of implicit.graphs.values()) {
+      assert.equal(graph.supervisionStrategy, "scoped");
+    }
+  });
+
+  it("changes protocol structure fingerprint when supervision strategy changes", () => {
+    const scoped = emit(parseProto(`
+      protocol P {
+        participants:
+          a [ts] initiator,
+          b [py]
+        supervision: scoped
+        trigger on invoke with M {
+          resolve a = single
+          resolve b = single
+        }
+        a --> b: Msg
+      }
+    `));
+    const detached = emit(parseProto(`
+      protocol P {
+        participants:
+          a [ts] initiator,
+          b [py]
+        supervision: detached
+        trigger on invoke with M {
+          resolve a = single
+          resolve b = single
+        }
+        a --> b: Msg
+      }
+    `));
+    assert.ok(scoped.ok && detached.ok);
+    assert.notEqual(
+      computeStructureHash(scoped.graphs),
+      computeStructureHash(detached.graphs),
+      "fingerprint should capture protocol-level supervision semantics",
+    );
   });
 });
 
