@@ -23,7 +23,7 @@ import { spawn as spawnProcess } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { AgentShellImpl, type AgentShellConfig } from "../../src/core/agent-shell-impl.js";
-import { ManagedBehaviorFactory } from "../../src/nodes/managed-behavior-factory.js";
+import { ManagedBehaviorFactory } from "../../src/nodes/managed/managed-behavior-factory.js";
 import { validateTrace } from "../../src/admin/trace-validator.js";
 import type { AgentIR, IRGraph, ThinAgentIR, RoleIR, ProtocolTrigger } from "../../src/contracts/types.js";
 import { resolveAgentIR } from "../../src/contracts/types.js";

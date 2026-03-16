@@ -16,7 +16,7 @@
  * Integration tests are skipped if NATS is unreachable. Set NATS_URL to override.
  */
 import { describe, it, before, after } from "node:test";
-import assert from "node:assert/strict";
+import * as assert from "node:assert/strict";
 import { NatsNodeLink } from "../../src/network/nats-node-link.js";
 import type { MessageEnvelope } from "../../src/contracts/types.js";
 import { DEFAULT_NATS_URL, natsReachable } from "../support/infra.js";

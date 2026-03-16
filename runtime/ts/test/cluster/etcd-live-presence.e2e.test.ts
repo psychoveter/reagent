@@ -6,7 +6,7 @@
  * Run: npx tsx --test test/etcd-live-presence.e2e.test.ts
  */
 import { describe, it, before, beforeEach, after } from "node:test";
-import assert from "node:assert/strict";
+import * as assert from "node:assert/strict";
 import { Etcd3 } from "etcd3";
 import { EtcdStateStore } from "../../src/cluster/etcd-state-store.js";
 import { EtcdMembership } from "../../src/cluster/etcd-membership.js";

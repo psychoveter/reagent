@@ -3,7 +3,7 @@
     "reagent": {
       "command": "node",
       "args": [
-        "../../runtime/ts/dist/mcp-gate.js",
+        "../../runtime/ts/dist/nodes/mcp/mcp-gate.js",
         "--runtime-config", "config/human.runtime.json"
       ]
     }

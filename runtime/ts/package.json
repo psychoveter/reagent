@@ -7,8 +7,8 @@
   "types": "./dist/index.d.ts",
   "bin": {
     "reagent-agent": "./dist/main.js",
-    "reagent-mcp-gate": "./dist/mcp-gate.js",
-    "reagent-claude-node": "./dist/claude-node.js",
+    "reagent-mcp-gate": "./dist/nodes/mcp/mcp-gate.js",
+    "reagent-claude-node": "./dist/nodes/claude/claude-node.js",
     "reagent-rgctl": "./dist/rgctl.js"
   },
   "scripts": {

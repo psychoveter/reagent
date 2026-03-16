@@ -97,7 +97,7 @@ trigger on cron "0 9 * * MON" { $ctx.input = { day: $ctx.input.firedAt } }
 
 #### Resolve declarations (participant resolution in triggers)
 
-Triggers for external stimuli (cron, event) must specify how to resolve each participant role to a concrete agent. This is done via `resolve` declarations inside the trigger body:
+Trigger bodies can specify how each `static` participant role resolves to a concrete agent. In current Reagent, every static participant must have an explicit `resolve` declaration in every trigger, including `invoke` triggers:
 
 ```rg
 trigger on cron "0 9 * * MON" {
@@ -108,13 +108,13 @@ trigger on cron "0 9 * * MON" {
 
 Syntax: `resolve <role> = <pipeline>` where `<pipeline>` is a sequence of steps separated by `|`:
 
-- **Source step** (first): `all` (all registered agents for this role), `single` (exactly one expected), `from($ctx.input.field)` (agent ref from input payload).
+- **Source step** (first): `all` (all addressable registered agents for this role), `single` (current runtime selects the first addressable agent for the role; use it only when the deployment is intended to have a singleton binding), `from($ctx.input.field)` (agent ref or refs from input payload).
 - **Filter steps** (middle, zero or more):
-  - `filter(hasTag("tag"))`, `filter(hasCapability("cap"))`, `filter(label("key") == "value")` — generic filter with predicate expression.
+  - `filter("tag" in agent.tags)`, `filter("cap" in agent.capabilities)`, `filter(agent.labels.region == "eu-west")` — generic filter with predicate expression over agent metadata.
   - Shorthand forms are also accepted as direct pipeline steps: `hasTag("tag")`, `hasCapability("cap")`, `hasLabel("key", "value")`, `isAlive`. These desugar to `filter(...)` internally.
 - **Selection step** (last, optional): `roundRobin`, `random`, `leastLoaded`, `first`, `sample(N)` (select N agents randomly).
 - **Fallback step**: `fallback(<pipeline>)` — if the preceding steps produce an empty result, evaluate the nested pipeline instead.
-- **Custom step**: `custom("resolverName")` — delegate to a named resolver function registered in the runtime.
+- **Custom step**: `custom("resolverName")` — delegate to a named resolver function registered in the runtime (via controller-side policy registration).
 
 **Resolve rules for participants**:
 
@@ -122,6 +122,12 @@ Syntax: `resolve <role> = <pipeline>` where `<pipeline>` is a sequence of steps 
 - `dynamic` participants MUST NOT have a `resolve` declaration. They are resolved at runtime (e.g. via `spawns`).
 
 The resolve pipeline is evaluated by `ResolvePolicyEvaluator` in the RC when TriggerMatcher fires.
+
+Current implementation notes:
+
+- `roundRobin`, `random`, `sample`, `fallback`, and `custom` are implemented in the TS runtime evaluator.
+- `leastLoaded` is parsed and emitted in IR, but its current evaluator behavior is still a stub equivalent to first-candidate selection.
+- Zone-level dynamic resolution helpers such as `reagent.resolve()` / `reagent.registry` are not yet part of the stable current runtime surface.
 
 ### 1.2 Message step
 
@@ -243,6 +249,14 @@ See also: `01-user-guide.md` §6.1 for `agent.json` format and native module loa
 Every agent zone has access to the `reagent` runtime library, **auto-imported** by the engine. It provides functions for protocol-level operations, written in native host-language syntax.
 
 The `reagent` library is the **bridge** between host-language code in zones and the Reagent protocol runtime.
+
+Current stable surface in managed zones:
+
+- `reagent.return(...)`
+- `reagent.emit(...)`
+- `reagent.break()`
+
+Do not treat `reagent.resolve()` or `reagent.registry` as part of the stable current surface yet. They remain deferred runtime work rather than shipped language-facing behavior.
 
 #### `reagent.return(value)` — return a value to the invoker
 

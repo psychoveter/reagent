@@ -130,9 +130,10 @@ describe("UC.1: RegistryView", () => {
 
 // ── UC.2: diagram.ts ────────────────────────────────────────────────
 
+const diagramMod = await import("../../../../lang/src/diagram.js");
+
 describe("UC.2: diagram.ts — buildSequenceDiagram + buildStateMachineDiagram", () => {
-  const { buildSequenceDiagram, buildStateMachineDiagram } =
-    require("../../../lang/src/diagram.js") as typeof import("../../lang/src/diagram.js");
+  const { buildSequenceDiagram, buildStateMachineDiagram } = diagramMod;
 
   function loadGraphs(example: string): Map<string, any> {
     const dir = join(__dirname, "..", "..", "..", "..", "examples", "out", example);
@@ -198,8 +199,10 @@ describe("UC.2: diagram.ts — buildSequenceDiagram + buildStateMachineDiagram",
 
 // ── UC.3: ir-validator ──────────────────────────────────────────────
 
+const validatorMod = await import("../../../../lang/src/ir-validator.js");
+
 describe("UC.3: ir-validator edge cases", () => {
-  const { validateIRGraph } = require("../../../lang/src/ir-validator.js");
+  const { validateIRGraph } = validatorMod;
 
   it("valid linear graph passes", () => {
     const graph = {
@@ -322,8 +325,10 @@ describe("UC.3: ir-validator edge cases", () => {
 
 // ── UC.4: project.ts — scaffoldProject ──────────────────────────────
 
+const projectMod = await import("../../../../lang/src/project.js");
+
 describe("UC.4: scaffoldProject", () => {
-  const { scaffoldProject, loadManifest } = require("../../../lang/src/project.js");
+  const { scaffoldProject, loadManifest } = projectMod;
 
   before(() => {
     rmSync(TMP_DIR, { recursive: true, force: true });

@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 
 import { ReagentController } from "../../src/controller/reagent-controller.js";
 import { InMemoryStateStore } from "../../src/cluster/state-store.js";
-import { ManagedBehaviorFactory } from "../../src/nodes/managed-behavior-factory.js";
+import { ManagedBehaviorFactory } from "../../src/nodes/managed/managed-behavior-factory.js";
 import { createInMemoryLinkPair } from "../../src/network/inmemory-node-link.js";
 import type { IRGraph } from "../../src/contracts/types.js";
 import type { ProtocolRunRecord } from "../../src/contracts/protocol-run.js";

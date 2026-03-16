@@ -934,7 +934,7 @@ This RFC implies the following eventual delta to `docs/current/02-lang-spec.md`:
 
 Use this RFC as the semantic anchor for follow-up work:
 
-1. align `resolve-policy.md` with the removal of `agent ... runs ...`
+1. close the `resolve-policy-wave-2.md` alignment item for removing resolve metadata from `agent ... runs ...`
 2. choose one concrete surface syntax for role/participant parameterization
 3. define the initial closed vocabulary of capability names (content formats + interaction forms)
 4. prototype content negotiation in the runtime as a lightweight `$ctx.target` population pass

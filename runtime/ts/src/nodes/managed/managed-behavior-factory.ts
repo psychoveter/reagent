@@ -3,10 +3,10 @@
  * that execute .rg zone code.
  */
 
-import type { RoleIR, IRGraph } from "../contracts/types.js";
-import type { AgentBehavior } from "../contracts/agent-behavior.js";
-import type { BehaviorFactory } from "../contracts/behavior-factory.js";
-import { ManagedAgentBehavior, type ManagedBehaviorConfig } from "../core/agent-interface.js";
+import type { RoleIR, IRGraph } from "../../contracts/types.js";
+import type { AgentBehavior } from "../../contracts/agent-behavior.js";
+import type { BehaviorFactory } from "../../contracts/behavior-factory.js";
+import { ManagedAgentBehavior, type ManagedBehaviorConfig } from "./managed-behavior.js";
 
 export class ManagedBehaviorFactory implements BehaviorFactory {
   readonly runtimeName = "managed-ts";

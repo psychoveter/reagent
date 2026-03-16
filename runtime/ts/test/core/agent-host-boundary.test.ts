@@ -19,7 +19,7 @@ import { execSync } from "node:child_process";
 import { emitAgentIR } from "../../../../lang/src/ir-emitter.js";
 
 import { ReagentController } from "../../src/controller/reagent-controller.js";
-import { ManagedBehaviorFactory } from "../../src/nodes/managed-behavior-factory.js";
+import { ManagedBehaviorFactory } from "../../src/nodes/managed/managed-behavior-factory.js";
 import { executeZone, createReagentStub } from "../../src/core/zone-executor.js";
 import { executeZoneAsync } from "../../src/core/zone-executor.js";
 import { loadAgentManifest, type AgentManifest } from "../../src/support/agent-manifest.js";

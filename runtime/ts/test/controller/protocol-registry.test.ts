@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
 import { ReagentController } from "../../src/controller/reagent-controller.js";
-import { ManagedBehaviorFactory } from "../../src/nodes/managed-behavior-factory.js";
+import { ManagedBehaviorFactory } from "../../src/nodes/managed/managed-behavior-factory.js";
 import type { MessageEnvelope } from "../../src/contracts/types.js";
 import type { ProtocolEntry } from "../../src/controller/protocol-registry.js";
 import { execFileSync } from "node:child_process";

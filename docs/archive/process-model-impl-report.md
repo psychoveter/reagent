@@ -71,8 +71,8 @@ RoleRun continuation after RC death.
 
 | Feature | Status | Location | Notes |
 |---------|--------|----------|-------|
-| List protocol runs | Done | `runtime/ts/src/admin/client.ts`, `runtime/ts/src/mcp-gate.ts` | Includes `cancelling` records |
-| Inspect protocol run | Done | `runtime/ts/src/admin/client.ts`, `runtime/ts/src/mcp-gate.ts` | Returns record + parent + children |
+| List protocol runs | Done | `runtime/ts/src/admin/client.ts`, `runtime/ts/src/nodes/mcp/mcp-gate.ts` | Includes `cancelling` records |
+| Inspect protocol run | Done | `runtime/ts/src/admin/client.ts`, `runtime/ts/src/nodes/mcp/mcp-gate.ts` | Returns record + parent + children |
 | Cancel protocol run | Done | `runtime/ts/src/admin/client.ts`, `ReagentController` | Cancellation now enters convergence path |
 | `cancelling` protocol-run state | Done | `runtime/ts/src/contracts/protocol-run.ts` | Non-terminal convergence state added |
 | Cancellation acknowledgements on durable record | Done | `ProtocolCancellationState` | Stores `requestedByNodeId`, reason, acked roles, acked nodes |

@@ -5,8 +5,8 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { AsyncQueue } from "../../src/gate/async-queue.js";
-import { McpAgentAdapter } from "../../src/mcp/mcp-agent-adapter.js";
+import { AsyncQueue } from "../../src/nodes/gate/async-queue.js";
+import { McpAgentAdapter } from "../../src/nodes/mcp/mcp-agent-adapter.js";
 import type { ProtocolEvent, AgentResponse } from "../../src/core/protocol-engine.js";
 
 describe("AsyncQueue", () => {

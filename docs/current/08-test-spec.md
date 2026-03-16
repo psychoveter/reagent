@@ -130,6 +130,14 @@ Notes:
 - `legacy-lsp.test.ts`
 - `current-lsp.test.ts`
 
+### Resolve-policy coverage snapshot
+
+Current implemented resolve-policy behavior is covered at several layers:
+
+- `lang/test/surface/ir-surface.test.ts` covers participant modifiers, trigger `resolve`, `resolveMap`, and spawn IR surface
+- `runtime/ts/test/cluster/state-resolve.test.ts` covers trigger-level evaluator behavior for `all`, `single`, `filter`, `roundRobin`, `sample`, `fallback`, `custom`, and scalar `from(...)`
+- `runtime/ts/test/controller/protocol-run-lifecycle.test.ts` covers spawn lineage, scoped cleanup, and restart-time cleanup reconciliation
+
 ## 4. Recommended Validation Order
 
 Recommended default order after compiler or runtime work:
@@ -168,6 +176,12 @@ Conditional or environment-dependent suites:
 Decompile note:
 
 - `lang/test/compiler/compiler-roundtrip.test.ts` is green again, but `CR.2` currently tracks a fixed expected-unsupported set for newer invoke/spawn/scatter/multi-protocol examples until decompiler catch-up work lands.
+
+Resolve-policy-specific gaps:
+
+- no deterministic story or e2e test currently exercises a non-trivial trigger pipeline such as `all | filter(...) | roundRobin`
+- no current test covers zone-level `reagent.resolve()` / `reagent.registry` because that runtime surface is not wired yet
+- `leastLoaded` remains stubbed and does not yet have behavior-level test coverage
 
 ## 6. Use-Case Coverage Map
 

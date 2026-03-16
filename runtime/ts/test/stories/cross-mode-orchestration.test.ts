@@ -16,13 +16,13 @@ import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 
 import { ReagentController } from "../../src/controller/reagent-controller.js";
-import { ManagedBehaviorFactory } from "../../src/nodes/managed-behavior-factory.js";
+import { ManagedBehaviorFactory } from "../../src/nodes/managed/managed-behavior-factory.js";
 import { CustomBehaviorFactory } from "../../src/nodes/custom-behavior-factory.js";
-import { ManagedAgentBehavior } from "../../src/core/agent-interface.js";
+import { ManagedAgentBehavior } from "../../src/nodes/managed/managed-behavior.js";
 import type { AgentBehavior } from "../../src/contracts/agent-behavior.js";
 import type { AgentResponse, ProtocolEvent } from "../../src/core/protocol-engine.js";
-import { GateSession } from "../../src/gate/gate-session.js";
-import type { GateTransport } from "../../src/gate/gate-transport.js";
+import { GateSession } from "../../src/nodes/gate/gate-session.js";
+import type { GateTransport } from "../../src/nodes/gate/gate-transport.js";
 import { compileSource } from "../support/compile-fixtures.js";
 import { getHandle as getManagedHandle } from "../support/runtime-fixtures.js";
 

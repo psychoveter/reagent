@@ -12,8 +12,8 @@
  * Run: npx tsx test/cluster/etcd-state-store.test.ts
  */
 import { describe, it, before, after, beforeEach } from "node:test";
-import assert from "node:assert/strict";
-import { EtcdStateStore } from "../../src/cluster/etcd-state-store.js";
+import * as assert from "node:assert/strict";
+import { EtcdStateStore } from "../../src";
 import { DEFAULT_ETCD_HOSTS, etcdReachable } from "../support/infra.js";
 
 const ETCD_HOSTS = DEFAULT_ETCD_HOSTS;
@@ -133,6 +133,7 @@ describe("EtcdStateStore (integration)", () => {
     if (!available) { t.skip(); return; }
 
     const events: WatchEvent[] = [];
+    //@ts-ignore
     const watcher = store.watch(key("watch/"), (ev) => events.push(ev));
 
     // Give the watcher time to set up
@@ -155,6 +156,7 @@ describe("EtcdStateStore (integration)", () => {
     await store.put(key("watch-del/y"), "temp");
 
     const events: WatchEvent[] = [];
+    // @ts-ignore
     const watcher = store.watch(key("watch-del/"), (ev) => events.push(ev));
     await sleep(500);
 

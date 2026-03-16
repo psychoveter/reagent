@@ -16,9 +16,9 @@ import { describe, it } from "node:test";
 import * as assert from "node:assert/strict";
 import { PassThrough } from "node:stream";
 
-import { GateSession, GateValidationError } from "../../src/gate/gate-session.js";
-import { StdioGateTransport } from "../../src/gate/gate-transport.js";
-import type { GateTransport } from "../../src/gate/gate-transport.js";
+import { GateSession, GateValidationError } from "../../src/nodes/gate/gate-session.js";
+import { StdioGateTransport } from "../../src/nodes/gate/gate-transport.js";
+import type { GateTransport } from "../../src/nodes/gate/gate-transport.js";
 import type { ProtocolEvent, AgentResponse } from "../../src/core/protocol-engine.js";
 
 class MockTransport implements GateTransport {

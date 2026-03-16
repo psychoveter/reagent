@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 import { ReagentController } from "../../runtime/ts/src/controller/reagent-controller.js";
 import { ManagedBehaviorFactory } from "../../runtime/ts/src/nodes/managed-behavior-factory.js";
 import { CustomBehaviorFactory } from "../../runtime/ts/src/nodes/custom-behavior-factory.js";
-import { ManagedAgentBehavior } from "../../runtime/ts/src/core/agent-interface.js";
+import { ManagedAgentBehavior } from "../../runtime/ts/src/nodes/managed/managed-behavior.js";
 import { AgentShellImpl } from "../../runtime/ts/src/core/agent-shell-impl.js";
 import type { ProtocolEvent, AgentResponse } from "../../runtime/ts/src/core/protocol-engine.js";
 import type { IRGraph, ThinAgentIR, RoleIR, TraceEvent } from "../../runtime/ts/src/contracts/types.js";

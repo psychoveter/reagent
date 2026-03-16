@@ -27,7 +27,7 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { ReagentController, type ReagentControllerConfig } from "../../src/controller/reagent-controller.js";
-import { ManagedBehaviorFactory } from "../../src/nodes/managed-behavior-factory.js";
+import { ManagedBehaviorFactory } from "../../src/nodes/managed/managed-behavior-factory.js";
 import { PythonBehaviorFactory } from "../../src/nodes/python-behavior-factory.js";
 import { AgentShellImpl } from "../../src/core/agent-shell-impl.js";
 import { createInMemoryLinkPair } from "../../src/network/inmemory-node-link.js";

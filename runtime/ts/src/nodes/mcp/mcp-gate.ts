@@ -21,20 +21,20 @@
  */
 
 import { readFileSync } from "node:fs";
-import { ReagentController } from "./controller/reagent-controller.js";
-import { CustomBehaviorFactory } from "./nodes/custom-behavior-factory.js";
-import { McpAgentAdapter } from "./mcp/mcp-agent-adapter.js";
-import { ReagentMcpServer } from "./mcp/mcp-server.js";
-import { NatsNodeLink } from "./network/nats-node-link.js";
-import type { IRGraph, RoleIR } from "./contracts/types.js";
-import type { LegacyRoleBindingMap, RoleBindingMap } from "./controller/role-bindings.js";
-import { mergeRoleBindings } from "./controller/role-bindings.js";
-import { createDefaultRuntimeConfig, type RuntimeConfig } from "./cluster/runtime-config.js";
-import { bootstrapRuntime } from "./cluster/runtime-bootstrap.js";
-import { EtcdStateStore } from "./cluster/etcd-state-store.js";
-import { InMemoryStateStore, type Lease } from "./cluster/state-store.js";
-import { NodeControlEndpoint } from "./admin/node-control-endpoint.js";
-import { DebugAdvanceHook } from "./admin/debug-advance-hook.js";
+import { ReagentController } from "../../controller/reagent-controller.js";
+import { CustomBehaviorFactory } from "../custom-behavior-factory.js";
+import { McpAgentAdapter } from "./mcp-agent-adapter.js";
+import { ReagentMcpServer } from "./mcp-server.js";
+import { NatsNodeLink } from "../../network/nats-node-link.js";
+import type { IRGraph, RoleIR } from "../../contracts/types.js";
+import type { LegacyRoleBindingMap, RoleBindingMap } from "../../controller/role-bindings.js";
+import { mergeRoleBindings } from "../../controller/role-bindings.js";
+import { createDefaultRuntimeConfig, type RuntimeConfig } from "../../cluster/runtime-config.js";
+import { bootstrapRuntime } from "../../cluster/runtime-bootstrap.js";
+import { EtcdStateStore } from "../../cluster/etcd-state-store.js";
+import { InMemoryStateStore, type Lease } from "../../cluster/state-store.js";
+import { NodeControlEndpoint } from "../../admin/node-control-endpoint.js";
+import { DebugAdvanceHook } from "../../admin/debug-advance-hook.js";
 
 // ── CLI args ─────────────────────────────────────────────────────────
 

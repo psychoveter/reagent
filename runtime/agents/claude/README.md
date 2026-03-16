@@ -42,5 +42,5 @@ runtime/agents/claude/          ← this directory
 # From the runtime root
 cd runtime/ts
 npm run build
-node dist/claude-node.js
+node dist/nodes/claude/claude-node.js
 ```

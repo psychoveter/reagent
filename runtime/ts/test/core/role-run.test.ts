@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 import { RoleRun } from "../../src/core/role-run.js";
 import type { RoleRunConfig } from "../../src/core/role-run.js";
 import { RoleEngine } from "../../src/core/role-engine.js";
-import { ManagedAgentBehavior } from "../../src/core/agent-interface.js";
+import { ManagedAgentBehavior } from "../../src/nodes/managed/managed-behavior.js";
 import type { AgentBehavior } from "../../src/contracts/agent-behavior.js";
 import type { IRGraph, MessageEnvelope } from "../../src/contracts/types.js";
 import { createMessageEnvelope } from "../../src/contracts/types.js";

@@ -9,7 +9,7 @@
 
 import { readFileSync } from "node:fs";
 import { AgentShellImpl, type AgentShellConfig } from "./core/agent-shell-impl.js";
-import { ManagedBehaviorFactory } from "./nodes/managed-behavior-factory.js";
+import { ManagedBehaviorFactory } from "./nodes/managed/managed-behavior-factory.js";
 import type { AgentIR, IRGraph, DeploymentPlan, ProtocolTrigger } from "./contracts/types.js";
 import { NatsTransport } from "./network/nats-transport.js";
 import { NatsCompatTransport } from "./network/nats-compat-transport.js";

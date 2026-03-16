@@ -1,5 +1,5 @@
 import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import * as assert from "node:assert/strict";
 import { InMemoryStateStore } from "../../src/cluster/state-store.js";
 import { StateStoreAgentRegistry } from "../../src/cluster/state-store-agent-registry.js";
 import { ReagentController } from "../../src/controller/reagent-controller.js";
@@ -52,6 +52,7 @@ describe("lease-backed agent presence", () => {
     const lease = await store.createLease(30);
 
     await registry.register({
+      capabilities: [], labels: undefined, metadata: undefined, tags: [],
       name: "LeaseAgent",
       role: "WorkerRole",
       nodeId: "node-a",
@@ -62,7 +63,7 @@ describe("lease-backed agent presence", () => {
         nodeId: "node-a",
         attachedAt: Date.now(),
         readyAt: Date.now(),
-      },
+      }
     }, { lease: lease.id });
 
     assert.ok(await store.get("/agents/LeaseAgent"));

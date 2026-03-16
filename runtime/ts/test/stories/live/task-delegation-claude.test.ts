@@ -27,7 +27,7 @@ import { fileURLToPath } from "node:url";
 import { AdminClient } from "../../../src/admin/client.js";
 import { NodeControlClient } from "../../../src/admin/node-control-client.js";
 import type { RuntimeConfig } from "../../../src/cluster/runtime-config.js";
-import type { ClaudeLiveAgentNodeConfig } from "../../../src/nodes/claude-config.js";
+import type { ClaudeLiveAgentNodeConfig } from "../../../src/nodes/claude/claude-config.js";
 import { exitForSeriesResults, failSeriesRun, type TestResult } from "../../support/test-output.js";
 
 type DeploymentPlan = {
@@ -65,7 +65,7 @@ const TASK_ROOT = join(REAGENT_ROOT, "examples", "projects", "task-delegation");
 const TASK_OUT = join(TASK_ROOT, "out");
 const TASK_CONFIG_ROOT = join(TASK_ROOT, "config");
 const CLAUDE_AGENT_ROOT = join(REAGENT_ROOT, "runtime", "agents", "claude");
-const CLAUDE_NODE_DIST = join(REAGENT_ROOT, "runtime", "ts", "dist", "claude-node.js");
+const CLAUDE_NODE_DIST = join(REAGENT_ROOT, "runtime", "ts", "dist", "nodes", "claude", "claude-node.js");
 const PROJECT_ENV_PATH = join(REAGENT_ROOT, ".env");
 const CLAUDE_ENV_PATH = join(CLAUDE_AGENT_ROOT, ".env");
 const HUMAN_NODE_TEMPLATE = join(TASK_CONFIG_ROOT, "human.claude-node.json");

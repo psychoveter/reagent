@@ -841,7 +841,8 @@ When the cluster restarts from scratch (all RCs died):
 
 ### Subsumes
 
-- **[Resolve Policy](../future/resolve-policy.md) §7.3** — spawn lifecycle (persistent vs.
+- **[Resolve Policy Wave 2](../future/resolve-policy-wave-2.md)** — remaining spawn/resolve follow-up work now lives there; the implemented baseline moved into `docs/current/`.
+  Spawn lifecycle (persistent vs.
   scoped) is now a special case of ownership coupling (detached vs. scoped).
 - **`cleanupSpawnedAgents()` in RC** — the existing method is the seed of scoped
   cleanup; this model defines when and why it must be called.

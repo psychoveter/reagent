@@ -168,7 +168,11 @@ Current behavior:
 
 - invoke, event, and cron triggers are registered from protocol metadata
 - trigger firing can use cluster-backed dedup and leader coordination when the state store provides it
-- participant resolution is no longer implicitly "first matching local agent only"
+- trigger-level participant resolution is driven by compiled `resolveMap` metadata and evaluated through `ResolvePolicyEvaluator`
+- resolution targets addressable registry entries, not only local in-memory agents
+- `roundRobin`, `random`, `sample`, `fallback`, and controller-registered `custom(...)` policies are implemented in the TS evaluator
+- `leastLoaded` is still a stub in the evaluator and should not be treated as a fully implemented runtime policy
+- zone-level `reagent.resolve()` / `reagent.registry` remain unavailable in managed-zone execution; current resolve behavior is trigger-level only
 
 ## 7. Cluster-Aware Runtime State
 
@@ -194,6 +198,10 @@ With a configured cluster state backend, RC can:
 - support cron singleton leadership
 - support membership-driven remote agent discovery
 
+Current limitation:
+
+- stateful resolve policy state is not yet persisted as shared cluster truth; evaluator state such as `roundRobin` cursors remains controller-local today
+
 Protocol launch is a node-local RC responsibility, not a centralized server concern.
 
 ## 8. Managed, Custom, Python, And Gate Hosts
@@ -212,7 +220,7 @@ All agent modes now share a single execution path: `AgentShell` + `BehaviorFacto
 
 ### Claude agents
 
-`ClaudeBehaviorFactory` (in `runtime/ts/src/nodes/claude-behavior-factory.ts`) creates `ClaudeBehavior` instances that call the Claude API via `@anthropic-ai/claude-agent-sdk` directly inside `handle()`. The `claude-node.ts` host bootstraps an RC in-process and registers this factory — no MCP child process or polling loop. This is the first real consumer of the `CustomBehaviorFactory` extensibility pattern.
+`ClaudeBehaviorFactory` (in `runtime/ts/src/nodes/claude/claude-behavior-factory.ts`) creates `ClaudeBehavior` instances that call the Claude API via `@anthropic-ai/claude-agent-sdk` directly inside `handle()`. The `claude-node.ts` host bootstraps an RC in-process and registers this factory — no MCP child process or polling loop. This is the first real consumer of the `CustomBehaviorFactory` extensibility pattern.
 
 ### Python agents
 
@@ -847,10 +855,10 @@ For the current runtime core, start with:
 - `runtime/ts/src/core/role-engine.ts` — `RoleEngine` class (extends `ProtocolEngine`)
 - `runtime/ts/src/core/role-run.ts` — `RoleRun` class (unified orchestration)
 - `runtime/ts/src/core/agent-shell-impl.ts` — `AgentShellImpl` class (unified shell)
-- `runtime/ts/src/nodes/managed-behavior-factory.ts` — `ManagedBehaviorFactory`
+- `runtime/ts/src/nodes/managed/managed-behavior-factory.ts` — `ManagedBehaviorFactory`
 - `runtime/ts/src/nodes/custom-behavior-factory.ts` — `CustomBehaviorFactory`
-- `runtime/ts/src/nodes/gate-behavior-factory.ts` — `GateBehaviorFactory`
-- `runtime/ts/src/nodes/claude-behavior-factory.ts` — `ClaudeBehaviorFactory` (Claude SDK integration)
+- `runtime/ts/src/nodes/gate/gate-behavior-factory.ts` — `GateBehaviorFactory`
+- `runtime/ts/src/nodes/claude/claude-behavior-factory.ts` — `ClaudeBehaviorFactory` (Claude SDK integration)
 
 **Controller and infrastructure:**
 - `runtime/ts/src/controller/reagent-controller.ts`

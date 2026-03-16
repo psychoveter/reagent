@@ -16,30 +16,30 @@
  */
 
 import { readFileSync } from "node:fs";
-import { ReagentController } from "./controller/reagent-controller.js";
-import { NatsNodeLink } from "./network/nats-node-link.js";
-import { EtcdStateStore } from "./cluster/etcd-state-store.js";
-import { InMemoryStateStore } from "./cluster/state-store.js";
-import { NodeControlEndpoint } from "./admin/node-control-endpoint.js";
-import { DebugAdvanceHook } from "./admin/debug-advance-hook.js";
-import { createDefaultRuntimeConfig } from "./cluster/runtime-config.js";
-import { bootstrapRuntime } from "./cluster/runtime-bootstrap.js";
-import { mergeRoleBindings } from "./controller/role-bindings.js";
-import type { RuntimeConfig } from "./cluster/runtime-config.js";
-import type { RoleIR, IRGraph } from "./contracts/types.js";
-import type { RoleBindingMap, LegacyRoleBindingMap } from "./controller/role-bindings.js";
-import type { Lease } from "./cluster/state-store.js";
-import { ClaudeBehaviorFactory } from "./nodes/claude-behavior-factory.js";
-import type { AgentBehavior } from "./contracts/agent-behavior.js";
-import type { BehaviorFactory } from "./contracts/behavior-factory.js";
-import type { ProtocolEvent, AgentResponse } from "./core/protocol-engine.js";
+import { ReagentController } from "../../controller/reagent-controller.js";
+import { NatsNodeLink } from "../../network/nats-node-link.js";
+import { EtcdStateStore } from "../../cluster/etcd-state-store.js";
+import { InMemoryStateStore } from "../../cluster/state-store.js";
+import { NodeControlEndpoint } from "../../admin/node-control-endpoint.js";
+import { DebugAdvanceHook } from "../../admin/debug-advance-hook.js";
+import { createDefaultRuntimeConfig } from "../../cluster/runtime-config.js";
+import { bootstrapRuntime } from "../../cluster/runtime-bootstrap.js";
+import { mergeRoleBindings } from "../../controller/role-bindings.js";
+import type { RuntimeConfig } from "../../cluster/runtime-config.js";
+import type { RoleIR, IRGraph } from "../../contracts/types.js";
+import type { RoleBindingMap, LegacyRoleBindingMap } from "../../controller/role-bindings.js";
+import type { Lease } from "../../cluster/state-store.js";
+import { ClaudeBehaviorFactory } from "./claude-behavior-factory.js";
+import type { AgentBehavior } from "../../contracts/agent-behavior.js";
+import type { BehaviorFactory } from "../../contracts/behavior-factory.js";
+import type { ProtocolEvent, AgentResponse } from "../../core/protocol-engine.js";
 import {
   loadClaudeLiveAgentNodeConfig,
   resolveClaudeCwd,
   type ClaudePermissionMode,
   type ClaudeToolsConfig,
   type ClaudeMcpServersConfig,
-} from "./nodes/claude-config.js";
+} from "./claude-config.js";
 
 // ── Config resolution ────────────────────────────────────────────────
 

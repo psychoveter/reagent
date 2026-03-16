@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { ReagentController } from "../../src/controller/reagent-controller.js";
-import { ManagedBehaviorFactory } from "../../src/nodes/managed-behavior-factory.js";
+import { ManagedBehaviorFactory } from "../../src/nodes/managed/managed-behavior-factory.js";
 import { compileSource } from "../support/compile-fixtures.js";
 import { getHandle } from "../support/runtime-fixtures.js";
 

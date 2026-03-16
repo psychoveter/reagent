@@ -4,7 +4,7 @@
  * Run: npx tsx test/cluster/state-resolve.test.ts
  */
 import { describe, it, beforeEach } from "node:test";
-import assert from "node:assert/strict";
+import * as assert from "node:assert/strict";
 import { InMemoryStateStore } from "../../src/cluster/state-store.js";
 import { StateStoreAgentRegistry, type AgentRegistration } from "../../src/cluster/state-store-agent-registry.js";
 import { ResolvePolicyEvaluator } from "../../src/triggers/resolve-policy-evaluator.js";

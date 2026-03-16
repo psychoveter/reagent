@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "node ../../ts/dist/claude-node.js",
+    "start": "node ../../ts/dist/nodes/claude/claude-node.js",
     "start:legacy": "node dist/worker-agent.js"
   },
   "dependencies": {

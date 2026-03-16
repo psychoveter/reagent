@@ -33,8 +33,8 @@ Relevant TypeScript source areas:
 | Cluster infrastructure | `runtime/ts/src/cluster/` | State store, membership, leader election, runtime bootstrap |
 | Message plane | `runtime/ts/src/network/` | `NodeLink` implementations |
 | Control plane | `runtime/ts/src/admin/` | `AdminClient`, node endpoint client/server, endpoint resolver |
-| MCP integration | `runtime/ts/src/mcp/` | MCP adapter and MCP server |
-| Runnable hosts | `runtime/ts/src/mcp-gate.ts`, `runtime/ts/src/claude-node.ts` | Real host entrypoints that embed RCs |
+| MCP integration | `runtime/ts/src/nodes/mcp/` | MCP adapter and MCP server |
+| Runnable hosts | `runtime/ts/src/nodes/mcp/mcp-gate.ts`, `runtime/ts/src/nodes/claude/claude-node.ts` | Real host entrypoints that embed RCs |
 
 ## 3. Shared Cluster Truth
 
@@ -65,6 +65,12 @@ Practical consequence:
 - tools can list agents from shared state
 - node startup can hydrate awareness from shared state
 - resolution does not depend on a central server already having seen every node
+- trigger-level resolve policies can match against cluster-visible agent metadata (`tags`, `capabilities`, `labels`) rather than only node-local process inventory
+
+Current boundary:
+
+- shared state currently covers agent presence and metadata
+- controller-local evaluator state such as `roundRobin` cursors is not yet persisted as cluster-shared policy state
 
 ### Protocol run records
 
@@ -224,7 +230,7 @@ Current role:
 
 ### Claude node host
 
-`runtime/ts/src/claude-node.ts` is a standalone host for Claude-backed nodes.
+`runtime/ts/src/nodes/claude/claude-node.ts` is a standalone host for Claude-backed nodes.
 
 It bootstraps a `ReagentController` directly in-process and registers a `ClaudeBehaviorFactory` — an `AgentBehavior` implementation that calls the Claude API via `handle()`. No MCP child process or polling loop; protocol events are handled synchronously inside the behavior.
 
@@ -358,10 +364,10 @@ For the current cluster/control-plane behavior, start with:
 - `runtime/ts/src/cluster/etcd-membership.ts`
 - `runtime/ts/src/network/nats-node-link.ts`
 - `runtime/ts/src/network/ws-node-link.ts`
-- `runtime/ts/src/mcp/mcp-server.ts`
-- `runtime/ts/src/mcp/mcp-agent-adapter.ts`
-- `runtime/ts/src/mcp-gate.ts`
-- `runtime/ts/src/claude-node.ts`
+- `runtime/ts/src/nodes/mcp/mcp-server.ts`
+- `runtime/ts/src/nodes/mcp/mcp-agent-adapter.ts`
+- `runtime/ts/src/nodes/mcp/mcp-gate.ts`
+- `runtime/ts/src/nodes/claude/claude-node.ts`
 
 ## 15. Short Version
 

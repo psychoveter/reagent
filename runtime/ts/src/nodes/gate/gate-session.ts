@@ -7,7 +7,7 @@
  * - State frame emission (periodic snapshots of agent state for debugging)
  */
 
-import type { ProtocolEvent, AgentResponse } from "../core/protocol-engine.js";
+import type { ProtocolEvent, AgentResponse } from "../../core/protocol-engine.js";
 import type { GateTransport } from "./gate-transport.js";
 
 export type GateSessionStatus = "idle" | "active" | "completed" | "error";

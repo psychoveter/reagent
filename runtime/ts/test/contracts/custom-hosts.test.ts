@@ -13,16 +13,16 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { ReagentController } from "../../src/controller/reagent-controller.js";
-import { ManagedBehaviorFactory } from "../../src/nodes/managed-behavior-factory.js";
+import { ManagedBehaviorFactory } from "../../src/nodes/managed/managed-behavior-factory.js";
 import { CustomBehaviorFactory } from "../../src/nodes/custom-behavior-factory.js";
 import { AgentShellImpl } from "../../src/core/agent-shell-impl.js";
-import { GateSession, GateValidationError } from "../../src/gate/gate-session.js";
-import { ManagedAgentBehavior } from "../../src/core/agent-interface.js";
+import { GateSession, GateValidationError } from "../../src/nodes/gate/gate-session.js";
+import { ManagedAgentBehavior } from "../../src/nodes/managed/managed-behavior.js";
 import type { AgentBehavior } from "../../src/contracts/agent-behavior.js";
 import type { ProtocolEvent, AgentResponse } from "../../src/core/protocol-engine.js";
 import type { AgentIR, IRGraph, ThinAgentIR, RoleIR, TraceEvent } from "../../src/contracts/types.js";
 import { resolveAgentIR } from "../../src/contracts/types.js";
-import type { GateTransport } from "../../src/gate/gate-transport.js";
+import type { GateTransport } from "../../src/nodes/gate/gate-transport.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = join(__dirname, "..", "..", "..", "..", "examples", "out", "14-ts-only-demo");

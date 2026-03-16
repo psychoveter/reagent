@@ -12,4 +12,4 @@ RUN useradd -m -s /bin/sh worker && mkdir -p /workspace && chown worker:worker /
 USER worker
 WORKDIR /workspace
 
-CMD ["node", "/opt/reagent/dist/claude-node.js"]
+CMD ["node", "/opt/reagent/dist/nodes/claude/claude-node.js"]

@@ -9,8 +9,8 @@
  * post_receive_action) and lifecycle notifications.
  */
 
-import type { AgentBehavior } from "../contracts/agent-behavior.js";
-import type { ProtocolEvent, AgentResponse } from "../core/protocol-engine.js";
+import type { AgentBehavior } from "../../contracts/agent-behavior.js";
+import type { ProtocolEvent, AgentResponse } from "../../core/protocol-engine.js";
 import { AsyncQueue } from "../gate/async-queue.js";
 
 export interface QueuedEvent {

@@ -7,13 +7,13 @@
  * Run: npx tsx test/cluster/etcd-cluster.test.ts
  */
 import { describe, it, before, after } from "node:test";
-import assert from "node:assert/strict";
+import * as assert from "node:assert/strict";
 import { EtcdStateStore } from "../../src/cluster/etcd-state-store.js";
 import { LeaderElection } from "../../src/cluster/leader-election.js";
 import { EtcdMembership } from "../../src/cluster/etcd-membership.js";
 import { StateStoreAgentRegistry, type AgentRegistration } from "../../src/cluster/state-store-agent-registry.js";
 import { ReagentController } from "../../src/controller/reagent-controller.js";
-import { ManagedBehaviorFactory } from "../../src/nodes/managed-behavior-factory.js";
+import { ManagedBehaviorFactory } from "../../src/nodes/managed/managed-behavior-factory.js";
 import type { ProtocolRunRecord } from "../../src/contracts/protocol-run.js";
 import { DEFAULT_ETCD_HOSTS, etcdReachable, sleep, waitFor } from "../support/infra.js";
 

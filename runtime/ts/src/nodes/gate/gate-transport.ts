@@ -5,7 +5,7 @@
  * agents to the RC via the Message Gate pattern.
  */
 
-import type { ProtocolEvent, AgentResponse } from "../core/protocol-engine.js";
+import type { ProtocolEvent, AgentResponse } from "../../core/protocol-engine.js";
 
 /**
  * Bidirectional transport for gate sessions.

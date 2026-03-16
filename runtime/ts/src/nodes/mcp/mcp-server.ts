@@ -22,7 +22,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { McpAgentAdapter, type QueuedEvent } from "./mcp-agent-adapter.js";
-import type { AgentResponse } from "../core/protocol-engine.js";
+import type { AgentResponse } from "../../core/protocol-engine.js";
 
 // ── Serialization helpers ────────────────────────────────────────────
 

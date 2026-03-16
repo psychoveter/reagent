@@ -8,11 +8,11 @@
  * collects AgentResponses back.
  */
 
-import type { RoleIR, IRGraph } from "../contracts/types.js";
-import type { AgentBehavior } from "../contracts/agent-behavior.js";
-import type { BehaviorFactory } from "../contracts/behavior-factory.js";
-import type { GateTransport } from "../gate/gate-transport.js";
-import type { ProtocolEvent, AgentResponse } from "../core/protocol-engine.js";
+import type { RoleIR, IRGraph } from "../../contracts/types.js";
+import type { AgentBehavior } from "../../contracts/agent-behavior.js";
+import type { BehaviorFactory } from "../../contracts/behavior-factory.js";
+import type { GateTransport } from "./gate-transport.js";
+import type { ProtocolEvent, AgentResponse } from "../../core/protocol-engine.js";
 
 export interface GateBehaviorFactoryConfig {
   transportFactory: (agentName: string) => GateTransport;

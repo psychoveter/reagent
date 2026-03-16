@@ -111,7 +111,7 @@ The source of truth remains:
 For MCP-based agent participation, the current practical split is:
 
 - Cursor usually launches `mcp-gate` directly as an MCP server subprocess
-- Claude-backed live agents launch through `runtime/ts/src/claude-node.ts`
+- Claude-backed live agents launch through `runtime/ts/src/nodes/claude/claude-node.ts`
 - wrapper node configs embed `RuntimeConfig` plus agent/provider-specific settings
 
 Tooling should preserve that distinction rather than pushing Claude-specific settings into the core RC runtime config schema.
@@ -174,9 +174,9 @@ For the current tooling surface, start with:
 - `runtime/ts/src/admin/node-control-client.ts`
 - `runtime/ts/src/admin/node-control-endpoint.ts`
 - `runtime/ts/src/rgctl.ts`
-- `runtime/ts/src/claude-node.ts`
-- `runtime/ts/src/mcp/mcp-server.ts`
-- `runtime/ts/src/mcp/mcp-agent-adapter.ts`
+- `runtime/ts/src/nodes/claude/claude-node.ts`
+- `runtime/ts/src/nodes/mcp/mcp-server.ts`
+- `runtime/ts/src/nodes/mcp/mcp-agent-adapter.ts`
 
 ## 11. Where To Read Next
 

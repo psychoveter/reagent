@@ -20,18 +20,18 @@ export { RoleRun } from "./core/role-run.js";
 export type { RoleRunInterface, RoleRunConfig, RoleSpawnRequest, AdvanceHookContext, AdvanceHook } from "./core/role-run.js";
 export { AgentShellImpl } from "./core/agent-shell-impl.js";
 export type { AgentShellConfig, AgentShellRunLifecycleEvent } from "./core/agent-shell-impl.js";
-export { ManagedBehaviorFactory } from "./nodes/managed-behavior-factory.js";
+export { ManagedBehaviorFactory } from "./nodes/managed/managed-behavior-factory.js";
 export { CustomBehaviorFactory } from "./nodes/custom-behavior-factory.js";
 export type { CustomBehaviorFactoryConfig } from "./nodes/custom-behavior-factory.js";
-export { GateBehaviorFactory } from "./nodes/gate-behavior-factory.js";
-export type { GateBehaviorFactoryConfig } from "./nodes/gate-behavior-factory.js";
+export { GateBehaviorFactory } from "./nodes/gate/gate-behavior-factory.js";
+export type { GateBehaviorFactoryConfig } from "./nodes/gate/gate-behavior-factory.js";
 export { PythonBehaviorFactory } from "./nodes/python-behavior-factory.js";
-export { ClaudeBehaviorFactory } from "./nodes/claude-behavior-factory.js";
-export type { ClaudeBehaviorConfig } from "./nodes/claude-behavior-factory.js";
+export { ClaudeBehaviorFactory } from "./nodes/claude/claude-behavior-factory.js";
+export type { ClaudeBehaviorConfig } from "./nodes/claude/claude-behavior-factory.js";
 export {
   loadClaudeLiveAgentNodeConfig,
   resolveClaudeCwd,
-} from "./nodes/claude-config.js";
+} from "./nodes/claude/claude-config.js";
 export type {
   ClaudePermissionMode,
   ClaudeToolsConfig,
@@ -39,15 +39,15 @@ export type {
   ClaudeLiveAgentSettings,
   ClaudeLiveAgentNodeConfig,
   LoadedClaudeLiveAgentNodeConfig,
-} from "./nodes/claude-config.js";
+} from "./nodes/claude/claude-config.js";
 export { ProtocolEngine, durationToMs } from "./core/protocol-engine.js";
 export type { ProtocolEvent, AgentResponse, EngineStatus } from "./core/protocol-engine.js";
-export { ManagedAgentBehavior } from "./core/agent-interface.js";
-export type { ManagedBehaviorConfig } from "./core/agent-interface.js";
+export { ManagedAgentBehavior } from "./nodes/managed/managed-behavior.js";
+export type { ManagedBehaviorConfig } from "./nodes/managed/managed-behavior.js";
 /** @deprecated use ManagedAgentBehavior */
-export { ManagedAgentBehavior as ManagedAgentAdapter } from "./core/agent-interface.js";
+export { ManagedAgentBehavior as ManagedAgentAdapter } from "./nodes/managed/managed-behavior.js";
 /** @deprecated use ManagedBehaviorConfig */
-export type { ManagedBehaviorConfig as ManagedAgentConfig } from "./core/agent-interface.js";
+export type { ManagedBehaviorConfig as ManagedAgentConfig } from "./nodes/managed/managed-behavior.js";
 /** @deprecated use AgentBehavior */
 export type { AgentBehavior as AgentInterface } from "./contracts/agent-behavior.js";
 export { executeZone, createReagentStub } from "./core/zone-executor.js";
@@ -95,15 +95,15 @@ export { RemoteNode } from "./admin/remote-node.js";
 export type { RemoteNodeConfig } from "./admin/remote-node.js";
 
 // ── Gate ────────────────────────────────────────────────────────────
-export type { GateTransport } from "./gate/gate-transport.js";
-export { WsGateTransport, StdioGateTransport, HttpGateTransport } from "./gate/gate-transport.js";
-export { GateSession, GateValidationError } from "./gate/gate-session.js";
-export type { GateSessionConfig, GateSessionStatus } from "./gate/gate-session.js";
-export { AsyncQueue } from "./gate/async-queue.js";
-export { McpAgentAdapter } from "./mcp/mcp-agent-adapter.js";
-export type { QueuedEvent } from "./mcp/mcp-agent-adapter.js";
-export { ReagentMcpServer } from "./mcp/mcp-server.js";
-export type { ReagentMcpServerConfig } from "./mcp/mcp-server.js";
+export type { GateTransport } from "./nodes/gate/gate-transport.js";
+export { WsGateTransport, StdioGateTransport, HttpGateTransport } from "./nodes/gate/gate-transport.js";
+export { GateSession, GateValidationError } from "./nodes/gate/gate-session.js";
+export type { GateSessionConfig, GateSessionStatus } from "./nodes/gate/gate-session.js";
+export { AsyncQueue } from "./nodes/gate/async-queue.js";
+export { McpAgentAdapter } from "./nodes/mcp/mcp-agent-adapter.js";
+export type { QueuedEvent } from "./nodes/mcp/mcp-agent-adapter.js";
+export { ReagentMcpServer } from "./nodes/mcp/mcp-server.js";
+export type { ReagentMcpServerConfig } from "./nodes/mcp/mcp-server.js";
 
 // ── Observability ───────────────────────────────────────────────────
 export { createOTelInterceptor, endInstanceSpan } from "./observability/otel-interceptor.js";

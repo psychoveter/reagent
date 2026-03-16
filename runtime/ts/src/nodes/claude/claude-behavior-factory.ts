@@ -6,10 +6,10 @@
  */
 
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { AgentBehavior } from "../contracts/agent-behavior.js";
-import type { BehaviorFactory } from "../contracts/behavior-factory.js";
-import type { ProtocolEvent, AgentResponse } from "../core/protocol-engine.js";
-import type { RoleIR, IRGraph } from "../contracts/types.js";
+import type { AgentBehavior } from "../../contracts/agent-behavior.js";
+import type { BehaviorFactory } from "../../contracts/behavior-factory.js";
+import type { ProtocolEvent, AgentResponse } from "../../core/protocol-engine.js";
+import type { RoleIR, IRGraph } from "../../contracts/types.js";
 import type {
   ClaudeToolsConfig,
   ClaudeMcpServersConfig,

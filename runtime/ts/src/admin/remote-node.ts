@@ -7,7 +7,7 @@
 
 import { WebSocket } from "ws";
 import { ReagentController } from "../controller/reagent-controller.js";
-import { ManagedBehaviorFactory } from "../nodes/managed-behavior-factory.js";
+import { ManagedBehaviorFactory } from "../nodes/managed/managed-behavior-factory.js";
 import type { BehaviorFactory } from "../contracts/behavior-factory.js";
 import { WsNodeLink } from "../network/ws-node-link.js";
 import type { IRGraph, RoleIR, TraceEvent, MessageEnvelope } from "../contracts/types.js";

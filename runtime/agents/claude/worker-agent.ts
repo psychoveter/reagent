@@ -36,7 +36,7 @@ const restartDelayMs = parseInt(process.env.RESTART_DELAY_MS ?? "3000", 10);
 
 const mcpGatePath =
   process.env.MCP_GATE_PATH ??
-  path.resolve("/opt/reagent/dist/mcp-gate.js");
+  path.resolve("/opt/reagent/dist/nodes/mcp/mcp-gate.js");
 
 const log = (msg: string) =>
   process.stderr.write(`[worker-agent] ${msg}\n`);

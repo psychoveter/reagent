@@ -6,9 +6,9 @@
  * whose logic is embedded in .rg protocol zones.
  */
 
-import type { ProtocolEvent, AgentResponse } from "./protocol-engine.js";
-import type { AgentBehavior } from "../contracts/agent-behavior.js";
-import { executeZone, executeZoneAsync, InvokeRequest, ReturnValue, BreakRequest, type ReagentStub } from "./zone-executor.js";
+import type { ProtocolEvent, AgentResponse } from "../../core/protocol-engine.js";
+import type { AgentBehavior } from "../../contracts/agent-behavior.js";
+import { executeZone, executeZoneAsync, InvokeRequest, ReturnValue, BreakRequest, type ReagentStub } from "../../core/zone-executor.js";
 
 export interface ManagedBehaviorConfig {
   extras?: Record<string, unknown>;
@@ -22,18 +22,6 @@ export class ManagedAgentBehavior implements AgentBehavior {
 
   constructor(config: ManagedBehaviorConfig = {}) {
     this.config = config;
-  }
-
-  setInvokeCallback(cb: (protoName: string, input?: Record<string, unknown>) => Promise<unknown>): void {
-    this.config.invokeCallback = cb;
-  }
-
-  setSpawnCallback(cb: (protoName: string, input?: Record<string, unknown>) => void): void {
-    this.config.spawnCallback = cb;
-  }
-
-  setEmitCallback(cb: (eventName: string, data?: Record<string, unknown>) => void): void {
-    this.config.emitCallback = cb;
   }
 
   private createReagent(config: ManagedBehaviorConfig = this.config): ReagentStub {
@@ -160,10 +148,3 @@ export class ManagedAgentBehavior implements AgentBehavior {
     }
   }
 }
-
-/** @deprecated Use ManagedAgentBehavior */
-export const ManagedAgentAdapter = ManagedAgentBehavior;
-/** @deprecated Use ManagedBehaviorConfig */
-export type ManagedAgentConfig = ManagedBehaviorConfig;
-/** @deprecated Use AgentBehavior from contracts/agent-behavior.ts */
-export type AgentInterface = AgentBehavior;

@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { ReagentController } from "../../src/controller/reagent-controller.js";
-import { ManagedBehaviorFactory } from "../../src/nodes/managed-behavior-factory.js";
+import { ManagedBehaviorFactory } from "../../src/nodes/managed/managed-behavior-factory.js";
 import { AgentShellImpl } from "../../src/core/agent-shell-impl.js";
 import type { IRGraph, ThinAgentIR, RoleIR, AgentIR, TraceEvent } from "../../src/contracts/types.js";
 import { resolveAgentIR } from "../../src/contracts/types.js";
