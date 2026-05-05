@@ -4,96 +4,96 @@
       "stateId": "act_2",
       "protocolName": "LoopWaitDemo",
       "role": "poller",
-      "file": "examples/protocols/src/15-loop-and-wait-demo.rg",
-      "line": 13,
+      "file": "../examples/protocols/src/15-loop-and-wait-demo.rg",
+      "line": 17,
       "column": 3
     },
     {
       "stateId": "act_5",
       "protocolName": "LoopWaitDemo",
       "role": "poller",
-      "file": "examples/protocols/src/15-loop-and-wait-demo.rg",
-      "line": 19,
+      "file": "../examples/protocols/src/15-loop-and-wait-demo.rg",
+      "line": 23,
       "column": 5
     },
     {
       "stateId": "send_6",
       "protocolName": "LoopWaitDemo",
       "role": "poller",
-      "file": "examples/protocols/src/15-loop-and-wait-demo.rg",
-      "line": 23,
+      "file": "../examples/protocols/src/15-loop-and-wait-demo.rg",
+      "line": 27,
       "column": 5
     },
     {
       "stateId": "recv_7",
       "protocolName": "LoopWaitDemo",
       "role": "poller",
-      "file": "examples/protocols/src/15-loop-and-wait-demo.rg",
-      "line": 37,
+      "file": "../examples/protocols/src/15-loop-and-wait-demo.rg",
+      "line": 41,
       "column": 5
     },
     {
       "stateId": "timer_8",
       "protocolName": "LoopWaitDemo",
       "role": "poller",
-      "file": "examples/protocols/src/15-loop-and-wait-demo.rg",
-      "line": 46,
+      "file": "../examples/protocols/src/15-loop-and-wait-demo.rg",
+      "line": 50,
       "column": 5
     },
     {
       "stateId": "send_9",
       "protocolName": "LoopWaitDemo",
       "role": "poller",
-      "file": "examples/protocols/src/15-loop-and-wait-demo.rg",
-      "line": 49,
+      "file": "../examples/protocols/src/15-loop-and-wait-demo.rg",
+      "line": 53,
       "column": 3
     },
     {
       "stateId": "recv_14",
       "protocolName": "LoopWaitDemo",
       "role": "responder",
-      "file": "examples/protocols/src/15-loop-and-wait-demo.rg",
-      "line": 23,
+      "file": "../examples/protocols/src/15-loop-and-wait-demo.rg",
+      "line": 27,
       "column": 5
     },
     {
       "stateId": "act_15",
       "protocolName": "LoopWaitDemo",
       "role": "responder",
-      "file": "examples/protocols/src/15-loop-and-wait-demo.rg",
-      "line": 32,
+      "file": "../examples/protocols/src/15-loop-and-wait-demo.rg",
+      "line": 36,
       "column": 5
     },
     {
       "stateId": "send_16",
       "protocolName": "LoopWaitDemo",
       "role": "responder",
-      "file": "examples/protocols/src/15-loop-and-wait-demo.rg",
-      "line": 37,
+      "file": "../examples/protocols/src/15-loop-and-wait-demo.rg",
+      "line": 41,
       "column": 5
     },
     {
       "stateId": "timer_17",
       "protocolName": "LoopWaitDemo",
       "role": "responder",
-      "file": "examples/protocols/src/15-loop-and-wait-demo.rg",
-      "line": 46,
+      "file": "../examples/protocols/src/15-loop-and-wait-demo.rg",
+      "line": 50,
       "column": 5
     },
     {
       "stateId": "recv_18",
       "protocolName": "LoopWaitDemo",
       "role": "responder",
-      "file": "examples/protocols/src/15-loop-and-wait-demo.rg",
-      "line": 49,
+      "file": "../examples/protocols/src/15-loop-and-wait-demo.rg",
+      "line": 53,
       "column": 3
     },
     {
       "stateId": "act_19",
       "protocolName": "LoopWaitDemo",
       "role": "responder",
-      "file": "examples/protocols/src/15-loop-and-wait-demo.rg",
-      "line": 58,
+      "file": "../examples/protocols/src/15-loop-and-wait-demo.rg",
+      "line": 62,
       "column": 3
     }
   ]

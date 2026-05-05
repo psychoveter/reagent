@@ -4,72 +4,72 @@
       "stateId": "act_2",
       "protocolName": "CommaAsksLlmAndReplies",
       "role": "user",
-      "file": "examples/protocols/src/11-llmbroka-call-and-return.rg",
-      "line": 15,
+      "file": "../examples/protocols/src/11-llmbroka-call-and-return.rg",
+      "line": 21,
       "column": 3
     },
     {
       "stateId": "send_3",
       "protocolName": "CommaAsksLlmAndReplies",
       "role": "user",
-      "file": "examples/protocols/src/11-llmbroka-call-and-return.rg",
-      "line": 18,
+      "file": "../examples/protocols/src/11-llmbroka-call-and-return.rg",
+      "line": 24,
       "column": 3
     },
     {
       "stateId": "recv_4",
       "protocolName": "CommaAsksLlmAndReplies",
       "role": "user",
-      "file": "examples/protocols/src/11-llmbroka-call-and-return.rg",
-      "line": 20,
+      "file": "../examples/protocols/src/11-llmbroka-call-and-return.rg",
+      "line": 26,
       "column": 3
     },
     {
       "stateId": "recv_5",
       "protocolName": "CommaAsksLlmAndReplies",
       "role": "user",
-      "file": "examples/protocols/src/11-llmbroka-call-and-return.rg",
-      "line": 35,
+      "file": "../examples/protocols/src/11-llmbroka-call-and-return.rg",
+      "line": 41,
       "column": 3
     },
     {
       "stateId": "recv_8",
       "protocolName": "CommaAsksLlmAndReplies",
       "role": "comma",
-      "file": "examples/protocols/src/11-llmbroka-call-and-return.rg",
-      "line": 18,
+      "file": "../examples/protocols/src/11-llmbroka-call-and-return.rg",
+      "line": 24,
       "column": 3
     },
     {
       "stateId": "send_9",
       "protocolName": "CommaAsksLlmAndReplies",
       "role": "comma",
-      "file": "examples/protocols/src/11-llmbroka-call-and-return.rg",
-      "line": 20,
+      "file": "../examples/protocols/src/11-llmbroka-call-and-return.rg",
+      "line": 26,
       "column": 3
     },
     {
       "stateId": "act_10",
       "protocolName": "CommaAsksLlmAndReplies",
       "role": "comma",
-      "file": "examples/protocols/src/11-llmbroka-call-and-return.rg",
-      "line": 22,
+      "file": "../examples/protocols/src/11-llmbroka-call-and-return.rg",
+      "line": 28,
       "column": 3
     },
     {
       "stateId": "invoke_11",
       "protocolName": "CommaAsksLlmAndReplies",
       "role": "comma",
-      "file": "examples/protocols/src/11-llmbroka-call-and-return.rg",
-      "line": 31,
+      "file": "../examples/protocols/src/11-llmbroka-call-and-return.rg",
+      "line": 37,
       "column": 3
     },
     {
       "stateId": "send_12",
       "protocolName": "CommaAsksLlmAndReplies",
       "role": "comma",
-      "file": "examples/protocols/src/11-llmbroka-call-and-return.rg",
-      "line": 35,
+      "file": "../examples/protocols/src/11-llmbroka-call-and-return.rg",
+      "line": 41,
       "column": 3
     }
   ]

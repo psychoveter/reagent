@@ -60,13 +60,13 @@
           "unit": "ms",
           "loc": {
             "start": {
-              "index": 938,
-              "line": 46,
+              "index": 1017,
+              "line": 50,
               "col": 10
             },
             "end": {
-              "index": 942,
-              "line": 46,
+              "index": 1021,
+              "line": 50,
               "col": 14
             }
           }
@@ -186,10 +186,45 @@
   "terminalStateIds": [
     "end_20"
   ],
-  "initiator": "poller",
-  "version": "0.1.0",
+  "participants": [
+    {
+      "name": "poller",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "responder",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "supervisionStrategy": "scoped",
+  "triggers": [
+    {
+      "kind": "invoke",
+      "withType": "Start",
+      "resolveMap": {
+        "poller": [
+          {
+            "step": "single"
+          }
+        ],
+        "responder": [
+          {
+            "step": "single"
+          }
+        ]
+      }
+    }
+  ],
+  "invocable": true,
+  "version": "2.0.0",
   "fingerprints": {
-    "structureHash": "32b611bcf1aed8a2071bebbe0e9a49f48ade4eaefb78468d8233d4a8ab8a6d18",
+    "structureHash": "bae31a9f5d2a0a6564bcda061dbef3985659311f78fb492bb7acb664080efaff",
     "schemaHash": "8b388792b6e99d4cc071c0e21653a3c70a550ac008ae13dbd50897689c689a49",
     "implHash": "11872d568bfb6f62cbf32740927a58cf6d7a3f46378ef935a852ba0aec39faa8"
   }

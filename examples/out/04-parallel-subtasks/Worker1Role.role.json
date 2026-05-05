@@ -5,13 +5,13 @@
     {
       "protocolName": "ParallelSubtasks",
       "roleName": "worker1",
-      "protocolVersion": "0.1.1"
+      "protocolVersion": "2.0.0"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "0.1.0",
+  "version": "2.0.0",
   "fingerprints": {
-    "playsHash": "9cba83332340f4c6483469adb13ba80c843e0eb66859d410388b0e671e5cde3e",
+    "playsHash": "9968bfdc116f1dfda11ea52ff0033f212ea09e4d3c43065d89bc0873cad5ceec",
     "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
   }
 }

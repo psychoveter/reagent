@@ -191,6 +191,39 @@ describe("protocol supervision directive", () => {
   });
 });
 
+describe("alt decision maker", () => {
+  it("parses explicit decision role and emits it into XOR guard IR", () => {
+    const proto = parseProto(`
+      protocol P {
+        participants:
+          reviewer [ts] initiator,
+          worker [ts]
+        trigger on invoke with M {
+          resolve reviewer = single
+          resolve worker = single
+        }
+        worker { $ctx.approved = true }
+        alt at worker ($ctx.approved == true) {
+          worker --> reviewer: Accept
+        } else {
+          worker --> reviewer: Reject
+        }
+      }
+    `);
+
+    assert.equal(proto.body.find((i): i is any => i.kind === "AltStmt")?.decisionRole, "worker");
+
+    const emitted = emit(proto);
+    assert.ok(emitted.ok, emitted.errors.join("\n"));
+
+    const workerGraph = [...emitted.graphs.values()].find(g => g.role === "worker");
+    assert.ok(workerGraph, "Expected worker graph");
+    const xor = workerGraph.states.find(s => s.kind === "guard" && (s.data as any).guardType === "xor");
+    assert.ok(xor, "Expected XOR guard");
+    assert.equal((xor!.data as any).decisionRole, "worker");
+  });
+});
+
 // ── Resolve pipeline parsing ──────────────────────────────────────
 
 describe("resolve pipeline parsing", () => {

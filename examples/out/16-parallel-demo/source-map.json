@@ -4,128 +4,128 @@
       "stateId": "act_2",
       "protocolName": "ParDemo",
       "role": "coordinator",
-      "file": "examples/protocols/src/16-parallel-demo.rg",
-      "line": 16,
+      "file": "../examples/protocols/src/16-parallel-demo.rg",
+      "line": 22,
       "column": 3
     },
     {
       "stateId": "send_3",
       "protocolName": "ParDemo",
       "role": "coordinator",
-      "file": "examples/protocols/src/16-parallel-demo.rg",
-      "line": 20,
+      "file": "../examples/protocols/src/16-parallel-demo.rg",
+      "line": 26,
       "column": 3
     },
     {
       "stateId": "send_4",
       "protocolName": "ParDemo",
       "role": "coordinator",
-      "file": "examples/protocols/src/16-parallel-demo.rg",
-      "line": 28,
+      "file": "../examples/protocols/src/16-parallel-demo.rg",
+      "line": 34,
       "column": 3
     },
     {
       "stateId": "recv_8",
       "protocolName": "ParDemo",
       "role": "coordinator",
-      "file": "examples/protocols/src/16-parallel-demo.rg",
-      "line": 42,
+      "file": "../examples/protocols/src/16-parallel-demo.rg",
+      "line": 48,
       "column": 5
     },
     {
       "stateId": "recv_10",
       "protocolName": "ParDemo",
       "role": "coordinator",
-      "file": "examples/protocols/src/16-parallel-demo.rg",
-      "line": 55,
+      "file": "../examples/protocols/src/16-parallel-demo.rg",
+      "line": 61,
       "column": 5
     },
     {
       "stateId": "act_11",
       "protocolName": "ParDemo",
       "role": "coordinator",
-      "file": "examples/protocols/src/16-parallel-demo.rg",
-      "line": 65,
+      "file": "../examples/protocols/src/16-parallel-demo.rg",
+      "line": 71,
       "column": 3
     },
     {
       "stateId": "send_12",
       "protocolName": "ParDemo",
       "role": "coordinator",
-      "file": "examples/protocols/src/16-parallel-demo.rg",
-      "line": 70,
+      "file": "../examples/protocols/src/16-parallel-demo.rg",
+      "line": 76,
       "column": 3
     },
     {
       "stateId": "send_13",
       "protocolName": "ParDemo",
       "role": "coordinator",
-      "file": "examples/protocols/src/16-parallel-demo.rg",
-      "line": 75,
+      "file": "../examples/protocols/src/16-parallel-demo.rg",
+      "line": 81,
       "column": 3
     },
     {
       "stateId": "recv_16",
       "protocolName": "ParDemo",
       "role": "workerA",
-      "file": "examples/protocols/src/16-parallel-demo.rg",
-      "line": 20,
+      "file": "../examples/protocols/src/16-parallel-demo.rg",
+      "line": 26,
       "column": 3
     },
     {
       "stateId": "act_20",
       "protocolName": "ParDemo",
       "role": "workerA",
-      "file": "examples/protocols/src/16-parallel-demo.rg",
-      "line": 38,
+      "file": "../examples/protocols/src/16-parallel-demo.rg",
+      "line": 44,
       "column": 5
     },
     {
       "stateId": "send_21",
       "protocolName": "ParDemo",
       "role": "workerA",
-      "file": "examples/protocols/src/16-parallel-demo.rg",
-      "line": 42,
+      "file": "../examples/protocols/src/16-parallel-demo.rg",
+      "line": 48,
       "column": 5
     },
     {
       "stateId": "recv_23",
       "protocolName": "ParDemo",
       "role": "workerA",
-      "file": "examples/protocols/src/16-parallel-demo.rg",
-      "line": 70,
+      "file": "../examples/protocols/src/16-parallel-demo.rg",
+      "line": 76,
       "column": 3
     },
     {
       "stateId": "recv_26",
       "protocolName": "ParDemo",
       "role": "workerB",
-      "file": "examples/protocols/src/16-parallel-demo.rg",
-      "line": 28,
+      "file": "../examples/protocols/src/16-parallel-demo.rg",
+      "line": 34,
       "column": 3
     },
     {
       "stateId": "act_31",
       "protocolName": "ParDemo",
       "role": "workerB",
-      "file": "examples/protocols/src/16-parallel-demo.rg",
-      "line": 51,
+      "file": "../examples/protocols/src/16-parallel-demo.rg",
+      "line": 57,
       "column": 5
     },
     {
       "stateId": "send_32",
       "protocolName": "ParDemo",
       "role": "workerB",
-      "file": "examples/protocols/src/16-parallel-demo.rg",
-      "line": 55,
+      "file": "../examples/protocols/src/16-parallel-demo.rg",
+      "line": 61,
       "column": 5
     },
     {
       "stateId": "recv_33",
       "protocolName": "ParDemo",
       "role": "workerB",
-      "file": "examples/protocols/src/16-parallel-demo.rg",
-      "line": 75,
+      "file": "../examples/protocols/src/16-parallel-demo.rg",
+      "line": 81,
       "column": 3
     }
   ]

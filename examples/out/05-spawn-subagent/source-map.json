@@ -4,80 +4,80 @@
       "stateId": "act_2",
       "protocolName": "SpawnSubagent",
       "role": "user",
-      "file": "examples/protocols/src/05-spawn-subagent.rg",
-      "line": 15,
+      "file": "../examples/protocols/src/05-spawn-subagent.rg",
+      "line": 21,
       "column": 3
     },
     {
       "stateId": "send_3",
       "protocolName": "SpawnSubagent",
       "role": "user",
-      "file": "examples/protocols/src/05-spawn-subagent.rg",
-      "line": 18,
+      "file": "../examples/protocols/src/05-spawn-subagent.rg",
+      "line": 24,
       "column": 3
     },
     {
       "stateId": "recv_4",
       "protocolName": "SpawnSubagent",
       "role": "user",
-      "file": "examples/protocols/src/05-spawn-subagent.rg",
-      "line": 20,
+      "file": "../examples/protocols/src/05-spawn-subagent.rg",
+      "line": 26,
       "column": 3
     },
     {
       "stateId": "recv_5",
       "protocolName": "SpawnSubagent",
       "role": "user",
-      "file": "examples/protocols/src/05-spawn-subagent.rg",
-      "line": 33,
+      "file": "../examples/protocols/src/05-spawn-subagent.rg",
+      "line": 39,
       "column": 3
     },
     {
       "stateId": "recv_8",
       "protocolName": "SpawnSubagent",
       "role": "comma",
-      "file": "examples/protocols/src/05-spawn-subagent.rg",
-      "line": 18,
+      "file": "../examples/protocols/src/05-spawn-subagent.rg",
+      "line": 24,
       "column": 3
     },
     {
       "stateId": "send_9",
       "protocolName": "SpawnSubagent",
       "role": "comma",
-      "file": "examples/protocols/src/05-spawn-subagent.rg",
-      "line": 20,
+      "file": "../examples/protocols/src/05-spawn-subagent.rg",
+      "line": 26,
       "column": 3
     },
     {
       "stateId": "async_invoke_10",
       "protocolName": "SpawnSubagent",
       "role": "comma",
-      "file": "examples/protocols/src/05-spawn-subagent.rg",
-      "line": 22,
+      "file": "../examples/protocols/src/05-spawn-subagent.rg",
+      "line": 28,
       "column": 3
     },
     {
       "stateId": "recv_11",
       "protocolName": "SpawnSubagent",
       "role": "comma",
-      "file": "examples/protocols/src/05-spawn-subagent.rg",
-      "line": 26,
+      "file": "../examples/protocols/src/05-spawn-subagent.rg",
+      "line": 32,
       "column": 3
     },
     {
       "stateId": "send_12",
       "protocolName": "SpawnSubagent",
       "role": "comma",
-      "file": "examples/protocols/src/05-spawn-subagent.rg",
-      "line": 33,
+      "file": "../examples/protocols/src/05-spawn-subagent.rg",
+      "line": 39,
       "column": 3
     },
     {
       "stateId": "send_15",
       "protocolName": "SpawnSubagent",
       "role": "planner",
-      "file": "examples/protocols/src/05-spawn-subagent.rg",
-      "line": 26,
+      "file": "../examples/protocols/src/05-spawn-subagent.rg",
+      "line": 32,
       "column": 3
     }
   ]

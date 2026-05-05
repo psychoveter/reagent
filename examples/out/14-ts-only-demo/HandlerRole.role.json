@@ -5,7 +5,7 @@
     {
       "protocolName": "TsDemo",
       "roleName": "handler",
-      "protocolVersion": "0.1.1"
+      "protocolVersion": "3.0.0"
     }
   ],
   "initAction": {
@@ -22,9 +22,9 @@
       }
     }
   ],
-  "version": "1.0.0",
+  "version": "4.0.0",
   "fingerprints": {
-    "playsHash": "1d3adbd0cbea0c240ebccf222d6d209f9fbc86977be02d4f8f017daa5f3464a7",
+    "playsHash": "b3300ef2018b243e6ad57fd9d876bd8b6c3d74cd2aee386b3e4ea7488dbcc2c5",
     "behaviorHash": "730827edea47fb29bc679948c4ee401e1bfd419681a83ec8b2258299db79c10b"
   }
 }

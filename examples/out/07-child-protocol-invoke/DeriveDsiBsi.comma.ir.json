@@ -48,9 +48,33 @@
   "terminalStateIds": [
     "end_3"
   ],
-  "version": "0.1.0",
+  "participants": [
+    {
+      "name": "comma",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    }
+  ],
+  "supervisionStrategy": "scoped",
+  "triggers": [
+    {
+      "kind": "invoke",
+      "withType": "DeriveRequest",
+      "resolveMap": {
+        "comma": [
+          {
+            "step": "single"
+          }
+        ]
+      }
+    }
+  ],
+  "invocable": true,
+  "version": "3.0.0",
   "fingerprints": {
-    "structureHash": "075bd4a0778079275c6c058cacf873254a679da9b91628582022e94e29d02541",
+    "structureHash": "875d885639861a11572a80906016d68c8105e260e30928cf1028b281a6ea32e6",
     "schemaHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "implHash": "5b41dd44480c7ea9ffe4d0da0a33bc53f0c393ea344504773293ed8c88cfd8a3"
   }

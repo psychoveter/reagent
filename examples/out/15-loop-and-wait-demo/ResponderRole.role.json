@@ -5,7 +5,7 @@
     {
       "protocolName": "LoopWaitDemo",
       "roleName": "responder",
-      "protocolVersion": "0.1.0"
+      "protocolVersion": "2.0.0"
     }
   ],
   "initAction": {
@@ -22,9 +22,9 @@
       }
     }
   ],
-  "version": "12.0.0",
+  "version": "40.0.0",
   "fingerprints": {
-    "playsHash": "4f8a406a3b66f17d8764d481f1af1817172e138590dde66c024f802cb628d930",
+    "playsHash": "0decfda2cfa5f65ecf8f5206333c5eea9c53cc3cb5559f0805301490cb2ca135",
     "behaviorHash": "8e44e71cc190f92d33ab7a43eb964452f7458ab76e4aee797a6d1aa619ae0532"
   }
 }

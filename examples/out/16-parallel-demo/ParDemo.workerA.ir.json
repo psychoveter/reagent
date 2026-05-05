@@ -173,10 +173,57 @@
   "terminalStateIds": [
     "end_24"
   ],
-  "initiator": "coordinator",
-  "version": "0.1.1",
+  "participants": [
+    {
+      "name": "coordinator",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "workerA",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    },
+    {
+      "name": "workerB",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "supervisionStrategy": "scoped",
+  "triggers": [
+    {
+      "kind": "invoke",
+      "withType": "Start",
+      "resolveMap": {
+        "coordinator": [
+          {
+            "step": "single"
+          }
+        ],
+        "workerA": [
+          {
+            "step": "single"
+          }
+        ],
+        "workerB": [
+          {
+            "step": "single"
+          }
+        ]
+      }
+    }
+  ],
+  "invocable": true,
+  "version": "2.0.0",
   "fingerprints": {
-    "structureHash": "d2fac41295cf2a6bdce86f98b25c172f74e575ae23267e1a9054fca96f2734ea",
+    "structureHash": "1904d523926cd71a655df23c8a1c1b6bf127d3f3f8a3ee4f2cce9484f8e8568f",
     "schemaHash": "c4f91c4ce4cb60ad11853016042bc74c93236aab14f530e7602457fb53bfbe4a",
     "implHash": "b7140f33582a82db2841d00bea7e5bf3315745c68aa275fa5367639798527529"
   }

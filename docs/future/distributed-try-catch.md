@@ -1,12 +1,12 @@
 # Distributed Try/Catch Semantics
 
-Status: RFC draft | Date: 2026-03-13
+Status: Implemented in TS-first MVP | Date: 2026-03-13
 
 ---
 
 ## 1. Problem
 
-Reagent already has surface syntax for protocol-level `try/catch`:
+Reagent already has protocol-level `try/catch` syntax:
 
 ```rg
 try {
@@ -16,83 +16,135 @@ try {
 }
 ```
 
-This works as a local intuition, but becomes underspecified as soon as failures may originate on
-different roles or inside parallel/distributed execution.
+The current surface is clear, but the distributed semantics are still underspecified when failures
+originate on other roles or inside concurrent execution.
 
-Today the language leaves several critical questions open:
+The unresolved questions are no longer purely theoretical:
 
-- which role is considered the fault originator
-- how the failure reaches the `catch` scope
-- what happens to in-flight work on sibling roles
-- whether the `catch` body runs only on the home/deciding role or as a distributed compensation path
-- how `par`, `scatter`, `invokes`, and `spawns` interact with failure
+- which role is the fault originator
+- how the failure reaches the enclosing `try`
+- what happens to in-flight `par` / `scatter` siblings
+- whether `catch` entry is a local guess or a protocol control decision
+- how child `invokes`, `async invokes`, and `spawns` interact with the failure boundary
+- whether catch-path steps may still involve the faulting role
 
-This RFC defines a practical first version of distributed `try/catch`.
+The current TS runtime already supports local `try/catch` intuition, but it still behaves largely as:
+
+- local exceptions
+- local catch stacks
+- ordinary protocol messages for other roles
+
+That is not yet a good distributed model.
+
+This RFC defines the first practical distributed `try/catch` semantics on top of the current
+process model.
 
 ---
 
 ## 2. Goals
 
 - Preserve `try/catch` as a protocol-level construct.
-- Make failure origin explicit in runtime semantics, even if not explicit in syntax.
-- Keep catch execution deterministic.
-- Define what gets cancelled when one branch faults.
-- Make the model compatible with current `RoleRun` / `AgentShell` / distributed process semantics.
+- Make fault origin explicit in runtime semantics, even if not explicit in syntax.
+- Keep catch entry deterministic and centralized.
+- Define fail-fast behavior for `par` and `scatter` inside `try`.
+- Normalize failures into a structured runtime fault object.
+- Align the model with the current process model in `../current/03-runtime-core.md`.
 
 ## 3. Non-goals
 
 - Full saga/compensation algebra
-- User-defined supervision trees
-- Recovering arbitrary partially completed side effects automatically
+- Automatic rollback of already visible remote side effects
+- User-defined supervision trees as part of `try/catch`
 - Rich typed exception hierarchies in v1
+- Tolerant per-item scatter semantics in v1
+- Checkpointed resume of in-flight `try` state across RC failure
+- Automatic propagation from `async invokes` child failure into the parent `catch`
 
 ---
 
-## 4. Core decision
+## 4. Dependencies and framing
 
-### 4.1 `try/catch` is owned by one protocol control scope
+This RFC should be read together with:
 
-A `try/catch` block belongs to the protocol control flow, not to any one agent zone.
+- `../current/02-lang-spec.md` for the current `try/catch` surface
+- `../current/03-runtime-core.md` for the implemented process model, cancellation, and participant-loss model
+- `backlog.md` where this work is tracked as `L1` and `F6`
 
-Its execution is anchored at a **control role**:
+Important framing rules:
 
-- by default, the role that enters the `try` block first in the protocol flow
-- for child protocols, the role that issued the `invokes`
-- for top-level protocol execution, usually the initiator-side active role run
+- the process model in `../current/03-runtime-core.md` is the runtime foundation
+- `try/catch` is a protocol control feature, not a convenience wrapper around local exceptions
+- failure propagation is a runtime/control event, not an ordinary protocol message
+- `catch (error)` remains syntactic sugar; the runtime value lives in `$ctx.error`
 
-This role is the one that decides whether the `catch` path is taken.
+---
 
-### 4.2 Faults become protocol failures, not raw host exceptions
+## 5. Core semantic contract
 
-Any host-language throw or runtime error inside the `try` region is normalized into a protocol fault:
+### 5.1 `try/catch` belongs to one protocol control scope
+
+A `try/catch` block belongs to the protocol control flow, not to any single agent zone.
+
+Its execution is anchored at one **control scope** on the protocol control path:
+
+- for ordinary protocol flow, the scope that first enters the `try`
+- for synchronous child calls, the parent scope that issued the `invokes`
+- for distributed execution, the branch commitment remains owned by the protocol's home RC / supervisor path
+
+This means:
+
+- many roles may execute steps inside the `try`
+- exactly one enclosing protocol control scope decides that the `catch` transition is taken
+
+### 5.2 Any in-scope failure becomes a normalized protocol fault
+
+Any host-language throw or runtime error inside the active `try` region is normalized into a
+runtime fault object:
 
 ```ts
 interface ProtocolFault {
   sourceRole: string;
   sourceAgent?: string;
-  phase: "action" | "send" | "receive" | "guard" | "invoke" | "spawn" | "parallel" | "scatter";
+  phase:
+    | "action"
+    | "send"
+    | "receive"
+    | "guard"
+    | "invoke"
+    | "spawn"
+    | "parallel"
+    | "scatter";
   code: string;
   message: string;
   detail?: unknown;
 }
 ```
 
-That normalized fault is what flows into `$ctx.error`.
+That normalized object is what becomes `$ctx.error`.
 
-### 4.3 Fault propagation is out-of-band relative to protocol messages
+Minimum v1 requirements:
+
+- `sourceRole`
+- `sourceAgent` when known
+- `phase`
+- `message`
+- implementation-defined `code`
+- optional `detail`
+
+### 5.3 Catch entry is out-of-band relative to choreography messages
 
 The transition from `try` to `catch` does **not** require the faulting role to send an ordinary
 protocol message.
 
-This is a critical distinction:
+This distinction is essential:
 
-- protocol messages are part of the choreography
-- fault propagation is a runtime/control event
+- choreography messages remain part of the protocol surface
+- fault propagation is a runtime control event
 
-So if role `B` fails, the runtime may move the protocol into the `catch` continuation without any
-explicit `B --> ...: Error` step having occurred.
+Therefore, if role `B` faults, the runtime may move the enclosing protocol scope into `catch`
+without any explicit `B --> ...: Error` step.
 
-This is what allows a catch body such as:
+This is what makes a catch like the following well-defined:
 
 ```rg
 try {
@@ -106,42 +158,42 @@ even when the original fault originated on `B`.
 
 ---
 
-## 5. Proposed semantics
+## 6. Proposed v1 semantics
 
-### 5.1 Single-origin failure
+### 6.1 Single-origin failure
 
-If any operation inside the `try` region fails:
+If any operation inside the active `try` region fails:
 
 1. the runtime records the originating role/agent and failure phase
 2. the enclosing `try` scope becomes `failing`
-3. sibling work inside that same `try` scope is cancelled
-4. the control role enters the `catch` path
+3. sibling in-scope work is cancelled
+4. the control path enters the `catch` continuation
 5. `$ctx.error` is bound to the normalized `ProtocolFault`
 
 Important point:
 
-- `catch (error)` remains syntactic sugar
-- the actual value always lives in `$ctx.error`
+- `catch (error)` stays only a syntactic label
+- the actual runtime value is always `$ctx.error`
 
-### 5.2 Catch path is deterministic and centralized
+### 6.2 Catch path is deterministic and centralized
 
-The `catch` body executes as a normal protocol path after cancellation settles.
+The `catch` body executes as a normal protocol continuation after the failure has been committed
+and in-scope cancellation bookkeeping has been applied.
 
 First-version rule:
 
-- the `catch` path is **single control path**
-- the transition into `catch` is triggered by runtime fault propagation, not by an ordinary protocol message from the faulting role
-- roles named in the catch body execute their message steps and zones only if they are still available after the fault transition
-- but the decision to enter catch is centralized at the control role
+- the `catch` path is one centralized control continuation
+- the transition into `catch` is driven by runtime failure propagation, not by ordinary protocol messaging
+- roles mentioned in the `catch` body execute only if they remain available after the fault transition
 
-This avoids the ambiguity where multiple roles independently "notice" the error and race into
-different recoveries.
+This avoids the broken model where multiple roles independently \"notice\" the same fault and race
+into different recoveries.
 
-### 5.3 Recoverable role fault vs participant loss
+### 6.3 Recoverable role fault vs participant loss
 
-Not every failure means the faulting role is gone.
+Not every fault means the faulting role is gone.
 
-The runtime should distinguish at least two classes:
+The runtime must distinguish at least two classes:
 
 #### Recoverable role fault
 
@@ -149,13 +201,13 @@ Examples:
 
 - zone code throws
 - a guard evaluation fails
-- a synchronous child invoke fails and propagates
-- a send/receive handler fails, but the host runtime for that role remains attached
+- synchronous child `invokes` fails and propagates
+- a send/receive hook fails, but the role's host runtime remains attached
 
 Meaning:
 
 - the role caused the fault
-- the role may still be available for subsequent catch-path work
+- the role may still be available for catch-path work
 
 So a catch such as:
 
@@ -165,15 +217,15 @@ catch (error) {
 }
 ```
 
-may be legal if `B` is still attached and routable.
+may be legal if `B` is still attached and routable after the fault transition.
 
 #### Participant loss / unavailable role
 
 Examples:
 
-- agent shell stops
-- host process dies
-- RC loses the participant
+- `AgentShell` stops
+- the host process dies
+- RC detects participant loss
 - transport/attachment loss makes the role unavailable
 
 Meaning:
@@ -182,18 +234,18 @@ Meaning:
 
 So the catch body must not require that role to take further protocol actions.
 
-This is the case your mental model should treat as:
+This is the intended mental model:
 
-- error on `B`
-- runtime propagates `ProtocolFault(sourceRole=B, ...)`
-- catch continuation may still do `A --> C`
-- but catch must not depend on `B` replying unless availability says it can
+- fault on `B`
+- runtime propagates `ProtocolFault(sourceRole = B, ...)`
+- `A --> C` in `catch` may still be legal
+- but `B --> A` in `catch` is only legal if `B` is still available
 
 ---
 
-## 6. Interaction with concurrency
+## 7. Interaction with concurrency
 
-### 6.1 `par`
+### 7.1 `par`
 
 Inside:
 
@@ -205,75 +257,76 @@ try {
 
 if any branch fails:
 
-- the entire `par` inside the `try` is considered failed
+- the enclosing in-scope `par` is considered failed
 - all sibling branches are cancelled
-- no branch may continue producing visible protocol effects after cancellation is acknowledged
-- the `catch` path begins only after the runtime completes branch cancellation bookkeeping
+- no sibling branch may continue producing new protocol-visible effects after cancellation is acknowledged
+- the `catch` path begins only after branch cancellation bookkeeping completes
 
 This gives `par` fail-fast semantics inside `try`.
 
-### 6.2 `scatter`
+### 7.2 `scatter`
 
-Scatter branches inside a `try` are treated similarly:
+Scatter branches inside a `try` behave similarly:
 
 - one branch fault fails the enclosing `try`
 - remaining scatter branches are cancelled
-- the failure is reported with the failing branch's concrete participant/agent identity
+- the propagated `ProtocolFault` reports the concrete failing participant/agent identity when known
 
-Future extension may add per-item tolerant scatter, but v1 should stay fail-fast.
+Future work may introduce tolerant scatter semantics, but v1 should remain fail-fast.
 
-### 6.3 `timeout` and `alt`
+### 7.3 `timeout` and `alt`
 
 Timeout is **not** a fault by itself.
 
 - `timeout` remains a normal `alt` branch outcome
 - only actual runtime/zone/protocol failures trigger `catch`
 
-This keeps "no message arrived" separate from "something failed".
+This keeps \"no message arrived\" separate from \"something failed\".
 
 ---
 
-## 7. Interaction with child protocols and spawn
+## 8. Interaction with child protocols and spawn
 
-### 7.1 `invokes`
+### 8.1 `invokes`
 
 If a synchronous child protocol invoked inside the `try` fails without handling the fault internally:
 
-- the child returns a propagated `ProtocolFault`
+- the child returns or propagates a normalized `ProtocolFault`
 - the parent `try` fails
 - the parent enters `catch`
 
-This makes `invokes` the natural fault-propagation boundary.
+This makes synchronous `invokes` the main fault-propagation boundary.
 
-### 7.2 `async invokes`
+### 8.2 `async invokes`
 
 `async invokes` is detached from the parent synchronous control flow.
 
 First-version rule:
 
 - failure of an `async invokes` child does **not** automatically trigger the parent's `catch`
-- it is handled through lifecycle events / emitted error protocols / future supervision work
+- it is handled through lifecycle events, emitted error protocols, or later supervision work
 
 Reason:
 
-- otherwise the parent would need to remain implicitly coupled to all async descendants
+- otherwise the parent would remain implicitly coupled to all async descendants
 
-### 7.3 `spawns`
+### 8.3 `spawns`
 
 If `spawn` itself fails inside the `try`, it triggers the catch path normally.
 
 If a spawned participant later fails while still executing inside the parent's active `try` scope:
 
 - it counts as a fault of that scope
-- the parent `try` fails and enters catch
+- the parent `try` fails and enters `catch`
 
-If a persistent spawned agent outlives the scope and fails later, that is not retroactively part of the old `try`.
+If a persistent spawned agent outlives that scope and fails later, it is not retroactively part of
+the old `try`.
 
 ---
 
-## 8. Cancellation semantics
+## 9. Cancellation semantics
 
-When `try` fails, the runtime must cancel all still-running work in the same scope:
+When a `try` scope fails, the runtime must cancel all still-running work in the same scope:
 
 - active `par` siblings
 - active `scatter` siblings
@@ -286,16 +339,16 @@ Cancellation is cooperative at the runtime level:
 - no new protocol-visible sends may start from cancelled siblings
 - already delivered messages remain real historical effects
 
-This is important:
+This is crucial:
 
 - `try/catch` is not transactional rollback
-- it is structured failure containment + compensation
+- it is structured failure containment plus controlled catch continuation
 
 ---
 
-## 9. What `catch` is allowed to do
+## 10. What `catch` is allowed to do
 
-The `catch` body is just normal protocol flow, so it may:
+The `catch` body remains ordinary protocol flow, so it may:
 
 - execute zones
 - send error or compensation messages
@@ -339,36 +392,36 @@ try {
 }
 ```
 
-Here the fault originates on `B`, but `A --> C` is still legal because catch entry is driven by
-runtime fault propagation, not by an explicit failure message from `B`.
+Here the fault originates on `B`, but `A --> C` remains legal because catch entry is driven by
+runtime fault propagation rather than by an explicit failure message from `B`.
 
-What it should not imply:
+What this should **not** imply:
 
 - automatic rollback of already completed remote side effects
 - re-entry into unfinished sibling branches
 
-### 9.1 Catch-body legality depends on post-fault availability
+### 10.1 Catch-body legality depends on post-fault availability
 
-The catch body is validated/executed under one additional rule:
+The `catch` body is executed under one additional rule:
 
 - a role may participate in the catch path only if it is still available after the fault transition
 
 Implications:
 
 - `A --> C` after a fault on `B` is fine if `A` and `C` remain available
-- `B --> A` in catch is only valid for recoverable faults where `B` is still attached
+- `B --> A` in catch is only valid for recoverable faults where `B` remains attached
 - hard participant loss on `B` makes any required catch-path step involving `B` semantically invalid
 
-This keeps the model realistic: `catch` is a continuation of the protocol, but not a magical
-ability to force actions from a dead participant.
+This keeps the model realistic: `catch` is a protocol continuation, but not a magical ability to
+force actions from a dead participant.
 
 ---
 
-## 10. Example
+## 11. Example
 
-### 10.1 Current intuition
+### 11.1 Current intuition
 
-The current demo:
+The current demo shape:
 
 ```rg
 try {
@@ -389,22 +442,22 @@ try {
 }
 ```
 
-### 10.2 Meaning under this RFC
+### 11.2 Meaning under this RFC
 
 - `processor` is the fault originator
 - the enclosing try scope fails
 - no further success-path send occurs
-- control transfers to catch
+- control transfers to `catch`
 - `$ctx.error = { sourceRole: "processor", code: "processing_failed", ... }`
 - `Failure` is sent as part of the catch path
 
 ---
 
-## 11. Runtime impact
+## 12. Runtime and IR impact
 
-### 11.1 IR
+### 12.1 IR
 
-The IR needs explicit try-scope metadata:
+The IR needs explicit try-scope metadata, not just a local `error` edge:
 
 ```ts
 interface TryScopeIR {
@@ -413,49 +466,74 @@ interface TryScopeIR {
 }
 ```
 
-Failures inside any state tagged with the scope propagate to that catch target.
+Failures inside any state tagged with that scope should propagate to the same catch target under one
+centralized try-scope decision.
 
-### 11.2 Runtime
+### 12.2 Runtime
 
 The runtime needs:
 
 - normalized `ProtocolFault`
+- try-scope metadata and catch ownership
 - scope-local cancellation of sibling work
-- fault propagation from child `invokes`
-- deterministic catch entry on the control role
+- fault propagation from synchronous child `invokes`
+- deterministic catch entry on the protocol control path
 
-### 11.3 Tests
+### 12.3 Current implementation gap
 
-At minimum add/refresh:
+The current TS runtime already has:
 
-- single-role throw -> catch
+- parser and surface syntax
+- local catch stacks
+- catch-path execution
+
+But it does **not** yet fully provide:
+
+- structured `$ctx.error`
+- centralized distributed catch entry
+- fail-fast `par` / `scatter` cancellation under `try`
+- out-of-band distributed fault propagation as a first-class control event
+
+---
+
+## 13. Test surface required for v1
+
+At minimum, add or refresh tests for:
+
+- single-role throw -> catch with structured `$ctx.error`
 - remote role throw -> catch on another role's control path
 - `par` branch failure cancels sibling branch
 - `scatter` branch failure cancels siblings
 - child `invokes` failure propagates to parent catch
 - `async invokes` failure does not automatically trip parent catch
+- uncaught in-scope failure still ends as protocol failure
 
 ---
 
-## 12. Relationship to other docs
+## 14. Relationship to other docs
 
 | Document | Relationship |
 |---|---|
-| `../current/02-lang-spec.md` | Current surface syntax exists there, but semantics need this RFC. |
-| `../archive/process-model.md` | Provides the larger ownership/failure model this RFC plugs into. Current docs: `../current/03-runtime-core.md §9`. |
-| `../current/09-e2e-usecases.md` | Payment use case explicitly avoids `try/catch` today because this semantics is not yet settled. |
+| `../current/02-lang-spec.md` | Current syntax exists there, but distributed semantics are not yet fully current-doc material. |
+| `../current/03-runtime-core.md` | Process model foundation: control path, cancellation, participant loss, supervisor behavior, and non-checkpointed continuation assumptions. |
+| `../current/08-test-spec.md` | Current test inventory already notes try/catch naming and coverage gaps. |
+| `../current/09-e2e-usecases.md` | Payment use case explicitly avoids distributed `try/catch` today because these semantics are not settled in current docs yet. |
 | `backlog.md` | Tracks this as `L1` and `F6`. |
 
 ---
 
-## 13. Recommended first implementation boundary
+## 15. Recommended first implementation boundary
 
-Keep v1 narrow:
+Keep v1 narrow and TS-first:
 
+- no syntax change
+- normalized `ProtocolFault` in `$ctx.error`
+- centralized catch decision
 - fail-fast `par`
 - fail-fast `scatter`
 - synchronous `invokes` propagate faults
 - `async invokes` do not
-- centralized catch decision
+- participant availability still constrains catch-body legality
 
-That gives a coherent model without forcing immediate compensation/saga design.
+That boundary is large enough to make distributed `try/catch` coherent, but small enough to avoid
+premature compensation or supervision-language design.

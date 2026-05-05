@@ -119,6 +119,12 @@ export type IRState = {
   id: string;
   kind: IRStateKind;
   data: IRStateData;
+  tryScope?: {
+    scopeId: string;
+    phase: "try" | "catch";
+    catchStateId: string;
+    catchLabel: string;
+  };
 };
 
 export type IRStateData =
@@ -126,7 +132,7 @@ export type IRStateData =
   | { kind: "send"; to: string; arrow: ArrowKind; messageName: string; preSendZone?: string; propagateFlow?: boolean }
   | { kind: "receive"; from: string; arrow: ArrowKind; messageName: string; postReceiveZone?: string; pattern?: Record<string, string>; propagateFlow?: boolean }
   | { kind: "action"; body: string; lang: LangTag }
-  | { kind: "guard"; guardType: "expression" | "message" | "timeout" | "xor"; expr?: string }
+  | { kind: "guard"; guardType: "expression" | "message" | "timeout" | "xor"; expr?: string; decisionRole?: string }
   | { kind: "fork"; branchStartIds: string[] }
   | { kind: "join"; branchCount: number }
   | { kind: "timer"; duration: Duration }
@@ -320,6 +326,8 @@ export type TraceEventKind =
   | "ActionStarted"
   | "ActionFinished"
   | "GuardEvaluated"
+  | "AltEvaluated"
+  | "AltBranchChosen"
   | "TimerStarted"
   | "TimerFired"
   | "ForkStarted"
@@ -351,6 +359,28 @@ export type TraceEvent = {
   protocolName?: string;
   data?: Record<string, unknown>;
   cause?: string;
+};
+
+export type ProtocolFaultKind =
+  | "zone_error"
+  | "invoke_error"
+  | "branch_error"
+  | "scatter_error"
+  | "remote_error"
+  | "runtime_error";
+
+export type ProtocolFault = {
+  kind: ProtocolFaultKind;
+  message: string;
+  instanceId?: string;
+  scopeId?: string;
+  protocolName?: string;
+  roleName?: string;
+  agentName?: string;
+  stateId?: string;
+  phase?: "action" | "send" | "receive" | "guard" | "timer" | "fork" | "scatter" | "invoke" | "runtime";
+  source?: "local" | "distributed" | "invoke_child";
+  cause?: Record<string, unknown>;
 };
 
 // ── Protocol Trigger ────────────────────────────────────────────────

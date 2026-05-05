@@ -4,72 +4,72 @@
       "stateId": "act_2",
       "protocolName": "TryCatchDemo",
       "role": "sender",
-      "file": "examples/protocols/src/17-try-catch-demo.rg",
-      "line": 13,
+      "file": "../examples/protocols/src/17-try-catch-demo.rg",
+      "line": 17,
       "column": 3
     },
     {
       "stateId": "send_3",
       "protocolName": "TryCatchDemo",
       "role": "sender",
-      "file": "examples/protocols/src/17-try-catch-demo.rg",
-      "line": 17,
+      "file": "../examples/protocols/src/17-try-catch-demo.rg",
+      "line": 21,
       "column": 3
     },
     {
       "stateId": "recv_4",
       "protocolName": "TryCatchDemo",
       "role": "sender",
-      "file": "examples/protocols/src/17-try-catch-demo.rg",
-      "line": 34,
+      "file": "../examples/protocols/src/17-try-catch-demo.rg",
+      "line": 38,
       "column": 5
     },
     {
       "stateId": "recv_7",
       "protocolName": "TryCatchDemo",
       "role": "sender",
-      "file": "examples/protocols/src/17-try-catch-demo.rg",
-      "line": 48,
+      "file": "../examples/protocols/src/17-try-catch-demo.rg",
+      "line": 52,
       "column": 5
     },
     {
       "stateId": "recv_10",
       "protocolName": "TryCatchDemo",
       "role": "processor",
-      "file": "examples/protocols/src/17-try-catch-demo.rg",
-      "line": 17,
+      "file": "../examples/protocols/src/17-try-catch-demo.rg",
+      "line": 21,
       "column": 3
     },
     {
       "stateId": "act_11",
       "protocolName": "TryCatchDemo",
       "role": "processor",
-      "file": "examples/protocols/src/17-try-catch-demo.rg",
-      "line": 27,
+      "file": "../examples/protocols/src/17-try-catch-demo.rg",
+      "line": 31,
       "column": 5
     },
     {
       "stateId": "send_12",
       "protocolName": "TryCatchDemo",
       "role": "processor",
-      "file": "examples/protocols/src/17-try-catch-demo.rg",
-      "line": 34,
+      "file": "../examples/protocols/src/17-try-catch-demo.rg",
+      "line": 38,
       "column": 5
     },
     {
       "stateId": "act_15",
       "protocolName": "TryCatchDemo",
       "role": "processor",
-      "file": "examples/protocols/src/17-try-catch-demo.rg",
-      "line": 44,
+      "file": "../examples/protocols/src/17-try-catch-demo.rg",
+      "line": 48,
       "column": 5
     },
     {
       "stateId": "send_16",
       "protocolName": "TryCatchDemo",
       "role": "processor",
-      "file": "examples/protocols/src/17-try-catch-demo.rg",
-      "line": 48,
+      "file": "../examples/protocols/src/17-try-catch-demo.rg",
+      "line": 52,
       "column": 5
     }
   ]

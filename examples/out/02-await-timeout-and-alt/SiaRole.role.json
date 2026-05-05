@@ -5,13 +5,13 @@
     {
       "protocolName": "AwaitTimeoutAlt",
       "roleName": "sia",
-      "protocolVersion": "0.1.1"
+      "protocolVersion": "3.0.0"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "4.0.0",
+  "version": "134.0.0",
   "fingerprints": {
-    "playsHash": "af2b0496b9d7e494b0b79f19bd064dc8e3b8ea1860b8c0e7897bf24ea3afe906",
+    "playsHash": "4a385b4d1ca4215dae2a8902f6ec270d69e0718ce26d733ee7b7bcca665d96ca",
     "behaviorHash": "90d1d22e125fdbed9a3af8dc227859c7d65a22e6f61a23a44c9bf8360e17026a"
   }
 }

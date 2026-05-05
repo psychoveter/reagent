@@ -4,48 +4,48 @@
       "stateId": "act_2",
       "protocolName": "TaskExecutionWithImport",
       "role": "user",
-      "file": "examples/protocols/src/08-import-and-invoke.rg",
-      "line": 14,
+      "file": "../examples/protocols/src/08-import-and-invoke.rg",
+      "line": 20,
       "column": 3
     },
     {
       "stateId": "send_3",
       "protocolName": "TaskExecutionWithImport",
       "role": "user",
-      "file": "examples/protocols/src/08-import-and-invoke.rg",
-      "line": 17,
+      "file": "../examples/protocols/src/08-import-and-invoke.rg",
+      "line": 23,
       "column": 3
     },
     {
       "stateId": "recv_6",
       "protocolName": "TaskExecutionWithImport",
       "role": "comma",
-      "file": "examples/protocols/src/08-import-and-invoke.rg",
-      "line": 17,
+      "file": "../examples/protocols/src/08-import-and-invoke.rg",
+      "line": 23,
       "column": 3
     },
     {
       "stateId": "invoke_7",
       "protocolName": "TaskExecutionWithImport",
       "role": "comma",
-      "file": "examples/protocols/src/08-import-and-invoke.rg",
-      "line": 19,
+      "file": "../examples/protocols/src/08-import-and-invoke.rg",
+      "line": 25,
       "column": 3
     },
     {
       "stateId": "send_8",
       "protocolName": "TaskExecutionWithImport",
       "role": "comma",
-      "file": "examples/protocols/src/08-import-and-invoke.rg",
-      "line": 21,
+      "file": "../examples/protocols/src/08-import-and-invoke.rg",
+      "line": 27,
       "column": 3
     },
     {
       "stateId": "recv_11",
       "protocolName": "TaskExecutionWithImport",
       "role": "sia",
-      "file": "examples/protocols/src/08-import-and-invoke.rg",
-      "line": 21,
+      "file": "../examples/protocols/src/08-import-and-invoke.rg",
+      "line": 27,
       "column": 3
     }
   ]

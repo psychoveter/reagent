@@ -305,7 +305,8 @@ function decompileAlt(ctx, state, transitions, indent) {
     const elseBranch = transitions.find(t => t.label.kind === "else");
     const defaultBranch = transitions.find(t => t.label.kind === "default");
     const expr = d.expr ?? "";
-    lines.push(`${pad}alt (${expr}) {`);
+    const atClause = d.decisionRole ? ` at ${d.decisionRole}` : "";
+    lines.push(`${pad}alt${atClause} (${expr}) {`);
     for (const branch of exprOrMsg) {
         const branchCtx = { ...ctx, visited: new Set(ctx.visited) };
         const branchLines = decompileFromState(branchCtx, branch.to, indent + 1);

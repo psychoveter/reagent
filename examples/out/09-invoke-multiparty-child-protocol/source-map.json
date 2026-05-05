@@ -4,72 +4,72 @@
       "stateId": "act_2",
       "protocolName": "TaskExecutionWithMultipartyChild",
       "role": "user",
-      "file": "examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
-      "line": 15,
+      "file": "../examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 21,
       "column": 3
     },
     {
       "stateId": "send_3",
       "protocolName": "TaskExecutionWithMultipartyChild",
       "role": "user",
-      "file": "examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
-      "line": 18,
+      "file": "../examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 24,
       "column": 3
     },
     {
       "stateId": "recv_7",
       "protocolName": "TaskExecutionWithMultipartyChild",
       "role": "user",
-      "file": "examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
-      "line": 29,
+      "file": "../examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 35,
       "column": 5
     },
     {
       "stateId": "recv_9",
       "protocolName": "TaskExecutionWithMultipartyChild",
       "role": "user",
-      "file": "examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
-      "line": 31,
+      "file": "../examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 37,
       "column": 5
     },
     {
       "stateId": "recv_12",
       "protocolName": "TaskExecutionWithMultipartyChild",
       "role": "comma",
-      "file": "examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
-      "line": 18,
+      "file": "../examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 24,
       "column": 3
     },
     {
       "stateId": "act_13",
       "protocolName": "TaskExecutionWithMultipartyChild",
       "role": "comma",
-      "file": "examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
-      "line": 20,
+      "file": "../examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 26,
       "column": 3
     },
     {
       "stateId": "invoke_14",
       "protocolName": "TaskExecutionWithMultipartyChild",
       "role": "comma",
-      "file": "examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
-      "line": 24,
+      "file": "../examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 30,
       "column": 3
     },
     {
       "stateId": "send_18",
       "protocolName": "TaskExecutionWithMultipartyChild",
       "role": "comma",
-      "file": "examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
-      "line": 29,
+      "file": "../examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 35,
       "column": 5
     },
     {
       "stateId": "send_20",
       "protocolName": "TaskExecutionWithMultipartyChild",
       "role": "comma",
-      "file": "examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
-      "line": 31,
+      "file": "../examples/protocols/src/09-invoke-multiparty-child-protocol.rg",
+      "line": 37,
       "column": 5
     }
   ]

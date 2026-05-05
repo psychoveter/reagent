@@ -155,10 +155,45 @@
   "terminalStateIds": [
     "end_17"
   ],
-  "initiator": "sender",
-  "version": "0.1.1",
+  "participants": [
+    {
+      "name": "sender",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "processor",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "supervisionStrategy": "scoped",
+  "triggers": [
+    {
+      "kind": "invoke",
+      "withType": "Request",
+      "resolveMap": {
+        "sender": [
+          {
+            "step": "single"
+          }
+        ],
+        "processor": [
+          {
+            "step": "single"
+          }
+        ]
+      }
+    }
+  ],
+  "invocable": true,
+  "version": "2.0.0",
   "fingerprints": {
-    "structureHash": "bcee1b17024896cdc164d157cfc12b2cf33be88a9572b5eee8723daeaf024068",
+    "structureHash": "865807069f230d632635bb41015dd1e57900a21c235f90696fe1436549b2230e",
     "schemaHash": "5f820fe374633d60719ae594bc675b225a0bfaf011f72203bd1f8857a096e135",
     "implHash": "8574c7861f088802b5fb8bc5bcf3b8944d20a27c0829c0d0fa0b2a18d99419e4"
   }

@@ -171,7 +171,7 @@ comma --> sia: SubmitIntent = {
 Props inside `alt` guards have a **different** semantic — they act as **value patterns** for message dispatch. Use the `where` keyword to introduce patterns:
 
 ```
-alt (sia --> comma: ValidationError where { code: "TRANSIENT" }) { ... }
+alt at comma (sia --> comma: ValidationError where { code: "TRANSIENT" }) { ... }
 ```
 
 Here `where { code: "TRANSIENT" }` is a **pattern/guard**: the branch matches only when the incoming message has `code == "TRANSIENT"`. This is NOT a hook.
@@ -394,7 +394,7 @@ Two modes:
 **Message-based (reactive)**: waits for one of several possible messages. Use `where` for pattern matching:
 
 ```
-alt (B --> A: Accept) {
+alt at A (B --> A: Accept) {
   ...
 } else (B --> A: Reject) {
   ...
@@ -406,7 +406,7 @@ alt (B --> A: Accept) {
 With pattern matching (`where` keyword):
 
 ```
-alt (sia --> comma: ValidationError where { code: "TRANSIENT" }) {
+alt at comma (sia --> comma: ValidationError where { code: "TRANSIENT" }) {
   // transient error — retry
 } else (sia --> comma: ValidationError where { code: "FATAL" }) {
   // fatal error — abort
@@ -418,12 +418,16 @@ alt (sia --> comma: ValidationError where { code: "TRANSIENT" }) {
 **Expression-based (evaluative)**: checks `$ctx` predicates.
 
 ```
-alt ($ctx.outcome == "done") {
+alt at worker ($ctx.outcome == "done") {
   ...
 } else {
   ...
 }
 ```
+
+- `alt at <role>` makes the deciding role explicit.
+- For message-based `alt`, the deciding role should be the receiver that observes the candidate messages.
+- For expression-based `alt`, the deciding role is the role whose local `$ctx` is used to evaluate the predicate.
 
 #### `loop` — repetition
 
@@ -448,6 +452,8 @@ par {
 ```
 
 All branches run concurrently. The `par` completes when **all** branches complete (join semantics). `and` is a keyword separating branches.
+
+If a branch faults inside an enclosing `try`, `par` is fail-fast: sibling branches are cancelled and the enclosing `catch` path becomes active.
 
 `**$ctx.msg` isolation**: each parallel branch gets its own isolated `$ctx.msg`. Messages received in one branch do not overwrite `$ctx.msg` in another branch.
 
@@ -479,7 +485,25 @@ try {
 }
 ```
 
-The `(error)` in `catch (error)` is a **syntactic label** (for readability). The actual error value is always bound to `$ctx.error` by the runtime. Inside the `catch` body, `$ctx.error` contains the exception/failure object.
+The `(error)` in `catch (error)` is a **syntactic label** (for readability). The actual error value is always bound to `$ctx.error` by the runtime.
+
+In the TS runtime MVP, `$ctx.error` is a structured runtime fault object with stable fields such as:
+
+- `kind`
+- `message`
+- `instanceId`
+- `protocolName`
+- `roleName`
+- `agentName`
+- `stateId`
+- `phase`
+- `scopeId`
+
+`try/catch` is protocol-level, not just local exception handling:
+
+- a fault on one role may move other in-scope roles into the matching `catch` continuation
+- the transition into `catch` is a runtime control event, not an ordinary protocol message
+- inside `try`, `par` and `scatter` are fail-fast
 
 #### `<role> invokes` — synchronous child protocol call (protocol-level)
 
@@ -492,6 +516,7 @@ responder invokes ComputeSquare({ value: $ctx.receivedValue }) -> $ctx.squared
 - The calling role blocks until the child completes.
 - The child's `reagent.return()` value is the result.
 - The role is explicit — no ambiguity about which participant initiates the call.
+- If the child fails without handling the fault internally, the failure propagates back to the parent call site. Inside an enclosing `try`, this trips the parent `catch` and binds the propagated fault to `$ctx.error`.
 
 With role mapping for multi-party child protocols:
 
@@ -511,6 +536,7 @@ orchestrator async invokes BackgroundTask({ taskName: $ctx.taskName })
 - **Fire-and-forget**: the parent does not block; no result is captured.
 - The role is explicit.
 - IR state kind: `async_invoke`.
+- Failure of an `async invokes` child does not automatically trigger the parent's `catch`.
 
 #### `<role> spawns` — create a new role instance (protocol-level)
 
@@ -543,6 +569,7 @@ scatter ($ctx.workers as worker) {
 - `collection` is an expression evaluating to an array (from `$ctx`).
 - `itemRole` is a role identifier used as a placeholder within the body.
 - All branches execute concurrently and join when all complete (like `par`).
+- Inside an enclosing `try`, `scatter` is fail-fast: one branch fault cancels sibling branches and transfers control to the enclosing `catch`.
 - Designed for patterns like **Call for Proposal** (CFP), map-reduce, and fan-out/fan-in.
 
 **Per-branch variables**: inside each scatter branch, the runtime injects two special `$ctx` fields:
@@ -889,7 +916,7 @@ TypeExpr        ::= ScalarType ("[]")*
 ScalarType      ::= "string" | "number" | "boolean"
 
 ReservedStmt    ::= AltStmt | LoopStmt | ParStmt | WaitStmt | TryStmt | ScatterStmt
-AltStmt         ::= "alt" .*
+AltStmt         ::= "alt" ("at" WS+ Ident)? .*
 AltGuard        ::= "(" Ident Arrow Ident ":" MessageName ("where" WS* Object)? ")"
                   | "(" Expr ")"
                   | "(" "timeout" WS+ Duration ")"

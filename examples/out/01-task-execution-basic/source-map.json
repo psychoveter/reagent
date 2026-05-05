@@ -4,64 +4,64 @@
       "stateId": "act_2",
       "protocolName": "TaskExecutionBasic",
       "role": "user",
-      "file": "examples/protocols/src/01-task-execution-basic.rg",
-      "line": 15,
+      "file": "../examples/protocols/src/01-task-execution-basic.rg",
+      "line": 21,
       "column": 3
     },
     {
       "stateId": "send_3",
       "protocolName": "TaskExecutionBasic",
       "role": "user",
-      "file": "examples/protocols/src/01-task-execution-basic.rg",
-      "line": 18,
+      "file": "../examples/protocols/src/01-task-execution-basic.rg",
+      "line": 24,
       "column": 3
     },
     {
       "stateId": "recv_4",
       "protocolName": "TaskExecutionBasic",
       "role": "user",
-      "file": "examples/protocols/src/01-task-execution-basic.rg",
-      "line": 20,
+      "file": "../examples/protocols/src/01-task-execution-basic.rg",
+      "line": 26,
       "column": 3
     },
     {
       "stateId": "recv_7",
       "protocolName": "TaskExecutionBasic",
       "role": "comma",
-      "file": "examples/protocols/src/01-task-execution-basic.rg",
-      "line": 18,
+      "file": "../examples/protocols/src/01-task-execution-basic.rg",
+      "line": 24,
       "column": 3
     },
     {
       "stateId": "send_8",
       "protocolName": "TaskExecutionBasic",
       "role": "comma",
-      "file": "examples/protocols/src/01-task-execution-basic.rg",
-      "line": 20,
+      "file": "../examples/protocols/src/01-task-execution-basic.rg",
+      "line": 26,
       "column": 3
     },
     {
       "stateId": "act_9",
       "protocolName": "TaskExecutionBasic",
       "role": "comma",
-      "file": "examples/protocols/src/01-task-execution-basic.rg",
-      "line": 26,
+      "file": "../examples/protocols/src/01-task-execution-basic.rg",
+      "line": 32,
       "column": 3
     },
     {
       "stateId": "send_10",
       "protocolName": "TaskExecutionBasic",
       "role": "comma",
-      "file": "examples/protocols/src/01-task-execution-basic.rg",
-      "line": 30,
+      "file": "../examples/protocols/src/01-task-execution-basic.rg",
+      "line": 36,
       "column": 3
     },
     {
       "stateId": "recv_13",
       "protocolName": "TaskExecutionBasic",
       "role": "sia",
-      "file": "examples/protocols/src/01-task-execution-basic.rg",
-      "line": 30,
+      "file": "../examples/protocols/src/01-task-execution-basic.rg",
+      "line": 36,
       "column": 3
     }
   ]

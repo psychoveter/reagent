@@ -5,7 +5,7 @@
     {
       "protocolName": "ParDemo",
       "roleName": "coordinator",
-      "protocolVersion": "0.1.1"
+      "protocolVersion": "2.0.0"
     }
   ],
   "initAction": {
@@ -22,9 +22,9 @@
       }
     }
   ],
-  "version": "13.0.0",
+  "version": "41.0.0",
   "fingerprints": {
-    "playsHash": "aabe404ab7f131f087f7ddcf66793afe5d81bdd1f9bde2f811b1bc33223b0046",
+    "playsHash": "981c1837e3f3f911da888855f4d1cdaca1c5bfa8cda028490eed0c10baed49a2",
     "behaviorHash": "d2df6896dd3f310a9f7061abe277c22dd9c644a317d6e8810a0be8d21313c571"
   }
 }

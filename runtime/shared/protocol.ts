@@ -92,7 +92,9 @@ export type TraceEventKind =
   | "MessageReceived"
   | "ActionStarted"
   | "ActionFinished"
-  | "GuardEvaluated";
+  | "GuardEvaluated"
+  | "AltEvaluated"
+  | "AltBranchChosen";
 
 export type TraceEvent = {
   instanceId: string;

@@ -353,7 +353,7 @@ function decompileLoop(
 function decompileAlt(
   ctx: DecompileContext, state: IRState, transitions: IRTransition[], indent: number,
 ): { lines: string[]; nextId: string | null } {
-  const d = state.data as { kind: "guard"; guardType: string; expr?: string };
+  const d = state.data as { kind: "guard"; guardType: string; expr?: string; decisionRole?: string };
   const pad = "  ".repeat(indent);
   const lines: string[] = [];
 
@@ -362,7 +362,8 @@ function decompileAlt(
   const defaultBranch = transitions.find(t => t.label.kind === "default");
 
   const expr = d.expr ?? "";
-  lines.push(`${pad}alt (${expr}) {`);
+  const atClause = d.decisionRole ? ` at ${d.decisionRole}` : "";
+  lines.push(`${pad}alt${atClause} (${expr}) {`);
 
   for (const branch of exprOrMsg) {
     const branchCtx: DecompileContext = { ...ctx, visited: new Set(ctx.visited) };

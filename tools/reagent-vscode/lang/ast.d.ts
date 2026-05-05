@@ -138,6 +138,7 @@ export type AgentZone = {
 };
 export type AltStmt = {
     kind: "AltStmt";
+    decisionRole?: string;
     branches: AltBranch[];
     loc: Loc;
 };

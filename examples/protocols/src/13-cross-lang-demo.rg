@@ -32,7 +32,7 @@ protocol CrossLangDemo {
     $self.queriesHandled += 1
   }
 
-  alt ($ctx.result.status == "ok") {
+  alt at server ($ctx.result.status == "ok") {
     server --> browser: Accept = {
       onSend {
         $ctx.msg.data = $ctx.result.data

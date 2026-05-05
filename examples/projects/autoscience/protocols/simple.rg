@@ -125,7 +125,7 @@ protocol SimpleResearch {
       $ctx.nextAction = await $agent.decide($ctx.msg, $ctx.liveClaims)
     }
 
-    alt ($ctx.nextAction == "critique") {
+    alt at human ($ctx.nextAction == "critique") {
 
       // ── CRITIQUE ──
 

@@ -12,6 +12,7 @@
 import type {
   MessageEnvelope,
   IRGraph,
+  ProtocolFault,
   RoleIR,
   ProtocolTrigger,
   TraceEvent,
@@ -121,6 +122,7 @@ export class ReagentController {
   private traceHook?: TraceHook;
   private debugResolveHook?: DebugResolveHookFn;
   private finishedRunRetentionLimit: number;
+  private activeTryScopeFaults = new Map<string, ProtocolFault>();
 
   /** agentName → AgentShellImpl (local agents on this node) */
   private shells = new Map<string, AgentShellImpl>();
@@ -445,6 +447,7 @@ export class ReagentController {
         request.persistent,
       ),
       onRunLifecycleEvent: (event) => this.handleShellRunLifecycleEvent(event),
+      reportTryScopeFault: (fault) => this.reportTryScopeFault(fault),
       finishedRunRetentionLimit: this.finishedRunRetentionLimit,
     };
 
@@ -1357,6 +1360,11 @@ export class ReagentController {
           await this.finalizeCancellationIfConverged(event.instanceId);
         }
         if (isTerminalProtocolRunStatus(nextRecord.status)) {
+          for (const key of this.activeTryScopeFaults.keys()) {
+            if (key.includes(`:${event.instanceId}:`)) {
+              this.activeTryScopeFaults.delete(key);
+            }
+          }
           this.cleanupSpawnedAgents(event.instanceId);
         }
         break;
@@ -1372,6 +1380,23 @@ export class ReagentController {
         break;
       }
     }
+  }
+
+  private async reportTryScopeFault(fault: ProtocolFault): Promise<ProtocolFault> {
+    const scopeId = fault.scopeId;
+    const instanceId = fault.instanceId;
+    if (!scopeId || !instanceId) {
+      return fault;
+    }
+    const key = `${fault.protocolName ?? ""}:${instanceId}:${scopeId}`;
+    const canonical = this.activeTryScopeFaults.get(key) ?? fault;
+    if (!this.activeTryScopeFaults.has(key)) {
+      this.activeTryScopeFaults.set(key, canonical);
+      for (const shell of this.shells.values()) {
+        shell.notifyTryScopeFault(instanceId, canonical);
+      }
+    }
+    return canonical;
   }
 
   private shellLang(agentName: string): string {

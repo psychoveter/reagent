@@ -5,7 +5,7 @@
     {
       "protocolName": "ParDemo",
       "roleName": "workerA",
-      "protocolVersion": "0.1.1"
+      "protocolVersion": "2.0.0"
     }
   ],
   "initAction": {
@@ -22,9 +22,9 @@
       }
     }
   ],
-  "version": "1.0.0",
+  "version": "3.0.0",
   "fingerprints": {
-    "playsHash": "92cd9e140851762f78f5ca94e1402d5cb2284db28b8be1f2773045ee095e9b77",
+    "playsHash": "6657d8f40bdd82099ce99da8e4f093022a8c6155f6ad3a88a200d569a5244eff",
     "behaviorHash": "2dedb6e4e9d2db514e5b44f18adff9db8805956e9c1b1202b7bfa8c136b8b022"
   }
 }

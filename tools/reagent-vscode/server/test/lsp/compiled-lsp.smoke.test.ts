@@ -1,11 +1,11 @@
 /**
- * Smoke tests for the Reagent LSP server.
+ * Smoke tests for the compiled Reagent LSP server.
  *
- * Spawns the server as a child process using stdio transport,
+ * Spawns the built server artifact over stdio,
  * sends JSON-RPC protocol messages, and asserts responses.
  *
- * Run: npx tsx server/test/lsp/legacy-lsp.test.ts
- *   or after compile: node out/server/test/lsp/legacy-lsp.test.js
+ * Run: npx tsx server/test/lsp/compiled-lsp.smoke.test.ts
+ *   or after compile: node out/server/server.js --stdio
  */
 
 import { test, describe, before, after } from "node:test";
@@ -95,16 +95,16 @@ agent SenderAgent[py] runs SenderRole
 
 let initCapabilities: any;
 
-describe("Reagent LSP server", () => {
+describe("Compiled Reagent LSP server", () => {
   before(async () => {
-    const serverPath = path.resolve(__dirname, "..", "src", "server.js");
+    const serverPath = path.resolve(process.cwd(), "out", "server", "server.js");
     serverProcess = spawn("node", ["--enable-source-maps", serverPath, "--stdio"], {
       stdio: ["pipe", "pipe", "pipe"],
     });
     serverProcess.stdout!.on("data", handleData);
-    serverProcess.stderr!.on("data", (d: Buffer) => {
+    serverProcess.stderr!.on("data", (_d: Buffer) => {
       // Optionally log server stderr for debugging
-      // process.stderr.write(d);
+      // process.stderr.write(_d);
     });
 
     const initResult = await sendRequest("initialize", {
@@ -138,9 +138,7 @@ describe("Reagent LSP server", () => {
         text: FIXTURE_CONTENT,
       },
     });
-    // Give the server time to parse and publish diagnostics
     await new Promise(r => setTimeout(r, 1000));
-    // If we got here without the server crashing, the open + parse succeeded
     assert.ok(true, "Document opened without server crash");
   });
 

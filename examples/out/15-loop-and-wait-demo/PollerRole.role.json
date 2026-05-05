@@ -5,7 +5,7 @@
     {
       "protocolName": "LoopWaitDemo",
       "roleName": "poller",
-      "protocolVersion": "0.1.0"
+      "protocolVersion": "2.0.0"
     }
   ],
   "initAction": {
@@ -22,9 +22,9 @@
       }
     }
   ],
-  "version": "1.0.0",
+  "version": "3.0.0",
   "fingerprints": {
-    "playsHash": "d310ed4fe7a5256a2022e9d3fbbc2abc9ba8ed53e69de66c8c17cc09561f56f7",
+    "playsHash": "eda69c36a4ccc16518b07beea97da4c6890dfbf4e76199f0f57dd450ddfc958c",
     "behaviorHash": "aa1484be716c8e03845643fc31bcbaf57d16ad58280313be37a65c50579a9f31"
   }
 }

@@ -27,7 +27,7 @@ export type MessageEnvelope = {
     idempotencyKey: string;
 };
 export declare function createMessageEnvelope(instanceId: string, protocolName: string, fromAgent: string, fromRole: string, toAgent: string, toRole: string, messageName: string, payload: Record<string, unknown>): MessageEnvelope;
-export type TraceEventKind = "ProtocolStarted" | "ProtocolCompleted" | "ProtocolFailed" | "MessageSent" | "MessageReceived" | "ActionStarted" | "ActionFinished" | "GuardEvaluated";
+export type TraceEventKind = "ProtocolStarted" | "ProtocolCompleted" | "ProtocolFailed" | "MessageSent" | "MessageReceived" | "ActionStarted" | "ActionFinished" | "GuardEvaluated" | "AltEvaluated" | "AltBranchChosen";
 export type TraceEvent = {
     instanceId: string;
     eventId: string;

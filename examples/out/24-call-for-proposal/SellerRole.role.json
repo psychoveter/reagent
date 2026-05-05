@@ -5,13 +5,13 @@
     {
       "protocolName": "CallForProposal",
       "roleName": "seller",
-      "protocolVersion": "2.0.0"
+      "protocolVersion": "7.0.0"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "1.0.0",
+  "version": "6.0.0",
   "fingerprints": {
-    "playsHash": "c8b41dc9527db5196c1b4c56f719a19b830d4c0cf93973dea5e9de17e0106cb0",
+    "playsHash": "dfc5796e1d2d65020af78fcd91a1d49902f7a6b96d68aa1148cf910a915990c0",
     "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
   }
 }

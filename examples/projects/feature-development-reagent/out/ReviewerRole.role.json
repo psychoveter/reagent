@@ -5,28 +5,28 @@
     {
       "protocolName": "FeatureDevelopmentReagent",
       "roleName": "reviewer",
-      "protocolVersion": "0.1.0"
+      "protocolVersion": "1.0.0"
     },
     {
       "protocolName": "DesignStage",
       "roleName": "reviewer",
-      "protocolVersion": "0.1.0"
+      "protocolVersion": "1.0.0"
     },
     {
       "protocolName": "ImplementationStage",
       "roleName": "reviewer",
-      "protocolVersion": "0.1.0"
+      "protocolVersion": "1.0.0"
     },
     {
       "protocolName": "FinalizationStage",
       "roleName": "reviewer",
-      "protocolVersion": "0.1.0"
+      "protocolVersion": "1.0.0"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "0.1.0",
+  "version": "1.0.0",
   "fingerprints": {
-    "playsHash": "d99dcfc9b1164ae56c0a841635363dc312c9f2e70dbbe1dbbaaf9631f037d748",
+    "playsHash": "beab0759cccf14e36dbdd1922c32d2820e7d702cc094bf9d3a1a9c7d5ac19fcc",
     "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
   }
 }

@@ -85,18 +85,34 @@
   "terminalStateIds": [
     "end_10"
   ],
-  "initiator": "caller",
-  "version": "0.1.1",
+  "participants": [
+    {
+      "name": "caller",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "responder",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "supervisionStrategy": "scoped",
+  "version": "2.0.0",
   "fingerprints": {
-    "structureHash": "4a061b1a788075f188c4d94ace03e9ad338a65e95430c16a10dcbca7671528c1",
+    "structureHash": "b7ad48da40c5b1d14ce6995cbdb8471191dbe4daf6c84f7d49b5f0fca5761489",
     "schemaHash": "38619be48e8c92713d985a46f3a64c2d864543de5ddcf289f0024992d97e89f1",
     "implHash": "443c7195f8628169e0b14967a590ed2b7d1c1a18d2b6f41281a5c818dc9af0f2"
   },
   "dependencies": [
     {
       "protocolName": "ComputeSquare",
-      "structureHash": "f80c2de181c1fe0c44f9ddad622b67a344552d3676b560c48dc7679ef687fa5c",
-      "version": "0.1.0"
+      "structureHash": "4960a1d599e5900bf0108af3c9afa2203646ee0db63890171e9e563b09985388",
+      "version": "2.0.0"
     }
   ]
 }

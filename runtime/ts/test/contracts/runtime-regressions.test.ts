@@ -75,7 +75,11 @@ function makeBindings(map: Record<string, string>) {
 function buildGraph(opts: {
   protocolName: string;
   role: string;
-  states: Array<{ id: string; data: Record<string, unknown> }>;
+  states: Array<{
+    id: string;
+    data: Record<string, unknown>;
+    tryScope?: { scopeId: string; phase: "try" | "catch"; catchStateId: string; catchLabel: string };
+  }>;
   transitions?: Array<{ from: string; to: string; label?: Record<string, unknown> }>;
   participants?: Array<{ name: string; cardinality?: string }>;
 }): IRGraph {
@@ -90,7 +94,7 @@ function buildGraph(opts: {
     protocolName: opts.protocolName,
     role: opts.role,
     lang: "*",
-    states: opts.states.map(s => ({ id: s.id, data: s.data })),
+    states: opts.states.map(s => ({ id: s.id, kind: (s.data as any).kind, data: s.data, tryScope: s.tryScope })),
     transitions,
     initialStateId: initialState?.id ?? opts.states[0].id,
     terminalStateIds: terminalStates.map(s => s.id),
@@ -689,5 +693,241 @@ describe("F4: Shell status → RC publication", () => {
       "callback was cleared — shell attach should NOT update the orphaned record");
 
     await rc.stop();
+  });
+});
+
+describe("L1: distributed try/catch and fail-fast", () => {
+  test("L1a: remote role fault moves peer role into catch path", async () => {
+    const sent: MessageEnvelope[] = [];
+    let senderRun!: RoleRun;
+    let processorRun!: RoleRun;
+
+    const reportTryScopeFault = async (fault: any) => {
+      senderRun.notifyTryScopeFault(fault);
+      processorRun.notifyTryScopeFault(fault);
+      return fault;
+    };
+
+    const senderTransport = makeTransport("SenderAgent", sent, (env) => {
+      processorRun?.dispatchMessage(env);
+    });
+    const processorTransport = makeTransport("ProcessorAgent", sent, (env) => {
+      senderRun?.dispatchMessage(env);
+    });
+
+    const senderGraph = buildGraph({
+      protocolName: "TryProto",
+      role: "sender",
+      states: [
+        { id: "init", data: { kind: "initial" } },
+        {
+          id: "recv_ok",
+          data: { kind: "receive", from: "processor", messageName: "Result" },
+          tryScope: { scopeId: "try_scope_1", phase: "try", catchStateId: "catch_sender", catchLabel: "error" },
+        },
+        { id: "end_ok", data: { kind: "terminal", status: "completed" } },
+        {
+          id: "catch_sender",
+          data: { kind: "error", label: "error" },
+          tryScope: { scopeId: "try_scope_1", phase: "catch", catchStateId: "catch_sender", catchLabel: "error" },
+        },
+        {
+          id: "recv_fail",
+          data: { kind: "receive", from: "processor", messageName: "Failure" },
+          tryScope: { scopeId: "try_scope_1", phase: "catch", catchStateId: "catch_sender", catchLabel: "error" },
+        },
+        { id: "end_fail", data: { kind: "terminal", status: "completed" } },
+      ],
+      transitions: [
+        { from: "init", to: "recv_ok", label: { kind: "default" } },
+        { from: "recv_ok", to: "end_ok", label: { kind: "default" } },
+        { from: "catch_sender", to: "recv_fail", label: { kind: "default" } },
+        { from: "recv_fail", to: "end_fail", label: { kind: "default" } },
+      ],
+      participants: [{ name: "sender" }, { name: "processor" }],
+    });
+
+    const processorGraph = buildGraph({
+      protocolName: "TryProto",
+      role: "processor",
+      states: [
+        { id: "init", data: { kind: "initial" } },
+        {
+          id: "process",
+          data: { kind: "action", body: "throw", lang: "ts" },
+          tryScope: { scopeId: "try_scope_1", phase: "try", catchStateId: "catch_processor", catchLabel: "error" },
+        },
+        {
+          id: "send_ok",
+          data: { kind: "send", to: "sender", messageName: "Result" },
+          tryScope: { scopeId: "try_scope_1", phase: "try", catchStateId: "catch_processor", catchLabel: "error" },
+        },
+        { id: "end_ok", data: { kind: "terminal", status: "completed" } },
+        {
+          id: "catch_processor",
+          data: { kind: "error", label: "error" },
+          tryScope: { scopeId: "try_scope_1", phase: "catch", catchStateId: "catch_processor", catchLabel: "error" },
+        },
+        {
+          id: "prepare_fail",
+          data: { kind: "action", body: "$ctx.msg.reason = 'processing_failed'", lang: "ts" },
+          tryScope: { scopeId: "try_scope_1", phase: "catch", catchStateId: "catch_processor", catchLabel: "error" },
+        },
+        {
+          id: "send_fail",
+          data: {
+            kind: "send",
+            to: "sender",
+            messageName: "Failure",
+            preSendZone: "$ctx.msg.reason = $ctx.errorReason",
+            preSendAsync: false,
+          },
+          tryScope: { scopeId: "try_scope_1", phase: "catch", catchStateId: "catch_processor", catchLabel: "error" },
+        },
+        { id: "end_fail", data: { kind: "terminal", status: "completed" } },
+      ],
+      transitions: [
+        { from: "init", to: "process", label: { kind: "default" } },
+        { from: "process", to: "send_ok", label: { kind: "default" } },
+        { from: "send_ok", to: "end_ok", label: { kind: "default" } },
+        { from: "catch_processor", to: "prepare_fail", label: { kind: "default" } },
+        { from: "prepare_fail", to: "send_fail", label: { kind: "default" } },
+        { from: "send_fail", to: "end_fail", label: { kind: "default" } },
+      ],
+      participants: [{ name: "sender" }, { name: "processor" }],
+    });
+
+    const senderBehavior: AgentBehavior = {
+      async handle() { return { type: "noop" }; },
+    };
+    const processorBehavior: AgentBehavior = {
+      async handle(event: ProtocolEvent): Promise<AgentResponse> {
+        if (event.type === "action" && event.stateId === "process") {
+          return { type: "error_thrown", error: new Error("processing_failed") };
+        }
+        if (event.type === "action" && event.stateId === "prepare_fail") {
+          return { type: "ctx_update", ctx: { ...event.ctx, errorReason: "processing_failed" } };
+        }
+        if (event.type === "pre_send_action" && event.stateId === "send_fail") {
+          return {
+            type: "ctx_update",
+            ctx: { ...event.ctx, msg: { reason: String((event.ctx as any).errorReason ?? "") } },
+          };
+        }
+        return { type: "noop" };
+      },
+    };
+
+    senderRun = new RoleRun(senderGraph, senderBehavior, senderTransport, {}, {
+      instanceId: "l1a-1",
+      protocolName: "TryProto",
+      agentName: "SenderAgent",
+      roleName: "sender",
+      roleToAgent: makeBindings({ "TryProto.processor": "ProcessorAgent" }),
+      reportTryScopeFault,
+    });
+    processorRun = new RoleRun(processorGraph, processorBehavior, processorTransport, {}, {
+      instanceId: "l1a-1",
+      protocolName: "TryProto",
+      agentName: "ProcessorAgent",
+      roleName: "processor",
+      roleToAgent: makeBindings({ "TryProto.sender": "SenderAgent" }),
+      reportTryScopeFault,
+    });
+
+    const senderPromise = senderRun.run();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const processorPromise = processorRun.run();
+
+    await Promise.all([senderPromise, processorPromise]);
+
+    assert.equal(senderRun.status, "completed");
+    assert.equal(processorRun.status, "completed");
+    assert.equal((senderRun.engine.ctx.error as any)?.message, "processing_failed");
+    assert.ok(
+      senderRun.getTraces().some((trace) => trace.kind === "MessageReceived" && trace.data?.messageName === "Failure"),
+      "sender should receive catch-path failure message",
+    );
+    assert.ok(
+      senderRun.getTraces().some((trace) => trace.kind === "ErrorCaught"),
+      "sender should record distributed ErrorCaught",
+    );
+  });
+
+  test("L1b: par branch failure cancels siblings and enters catch quickly", async () => {
+    const behavior: AgentBehavior = {
+      async handle(event: ProtocolEvent): Promise<AgentResponse> {
+        if (event.type === "action" && event.stateId === "boom") {
+          return { type: "error_thrown", error: new Error("branch exploded") };
+        }
+        if (event.type === "action" && event.stateId === "mark") {
+          return { type: "ctx_update", ctx: { ...event.ctx, caught: true } };
+        }
+        return { type: "noop" };
+      },
+    };
+
+    const graph = buildGraph({
+      protocolName: "ParTryProto",
+      role: "worker",
+      states: [
+        { id: "init", data: { kind: "initial" } },
+        {
+          id: "fork1",
+          data: { kind: "fork" },
+          tryScope: { scopeId: "try_scope_par", phase: "try", catchStateId: "catch1", catchLabel: "error" },
+        },
+        {
+          id: "slow_timer",
+          data: { kind: "timer", duration: { value: 5, unit: "s" } },
+          tryScope: { scopeId: "try_scope_par", phase: "try", catchStateId: "catch1", catchLabel: "error" },
+        },
+        {
+          id: "boom",
+          data: { kind: "action", body: "throw", lang: "ts" },
+          tryScope: { scopeId: "try_scope_par", phase: "try", catchStateId: "catch1", catchLabel: "error" },
+        },
+        { id: "join1", data: { kind: "join" } },
+        { id: "end_ok", data: { kind: "terminal", status: "completed" } },
+        {
+          id: "catch1",
+          data: { kind: "error", label: "error" },
+          tryScope: { scopeId: "try_scope_par", phase: "catch", catchStateId: "catch1", catchLabel: "error" },
+        },
+        {
+          id: "mark",
+          data: { kind: "action", body: "$ctx.caught = true", lang: "ts" },
+          tryScope: { scopeId: "try_scope_par", phase: "catch", catchStateId: "catch1", catchLabel: "error" },
+        },
+        { id: "end_caught", data: { kind: "terminal", status: "completed" } },
+      ],
+      transitions: [
+        { from: "init", to: "fork1", label: { kind: "default" } },
+        { from: "fork1", to: "slow_timer", label: { kind: "branch", branchIndex: 0 } },
+        { from: "fork1", to: "boom", label: { kind: "branch", branchIndex: 1 } },
+        { from: "slow_timer", to: "join1", label: { kind: "default" } },
+        { from: "boom", to: "join1", label: { kind: "default" } },
+        { from: "join1", to: "end_ok", label: { kind: "default" } },
+        { from: "catch1", to: "mark", label: { kind: "default" } },
+        { from: "mark", to: "end_caught", label: { kind: "default" } },
+      ],
+    });
+
+    const transport = makeTransport("Worker", []);
+    const run = new RoleRun(graph, behavior, transport, {}, {
+      instanceId: "l1b-1",
+      protocolName: "ParTryProto",
+      agentName: "Worker",
+      roleName: "worker",
+      roleToAgent: makeBindings({}),
+    });
+
+    const startedAt = Date.now();
+    await run.run();
+    const elapsedMs = Date.now() - startedAt;
+
+    assert.equal(run.status, "completed");
+    assert.equal((run.engine.ctx as any).caught, true);
+    assert.ok(elapsedMs < 1000, `fail-fast catch should not wait 5s timer, got ${elapsedMs}ms`);
   });
 });

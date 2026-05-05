@@ -26,7 +26,8 @@
       "kind": "guard",
       "data": {
         "kind": "guard",
-        "guardType": "xor"
+        "guardType": "xor",
+        "decisionRole": "comma"
       }
     },
     {
@@ -77,13 +78,13 @@
           "unit": "s",
           "loc": {
             "start": {
-              "index": 670,
-              "line": 29,
+              "index": 752,
+              "line": 33,
               "col": 19
             },
             "end": {
-              "index": 673,
-              "line": 29,
+              "index": 755,
+              "line": 33,
               "col": 22
             }
           }
@@ -185,13 +186,13 @@
           "unit": "s",
           "loc": {
             "start": {
-              "index": 670,
-              "line": 29,
+              "index": 752,
+              "line": 33,
               "col": 19
             },
             "end": {
-              "index": 673,
-              "line": 29,
+              "index": 755,
+              "line": 33,
               "col": 22
             }
           }
@@ -224,10 +225,45 @@
   "terminalStateIds": [
     "end_11"
   ],
-  "initiator": "comma",
-  "version": "0.1.1",
+  "participants": [
+    {
+      "name": "comma",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "sia",
+      "lang": "*",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "supervisionStrategy": "scoped",
+  "triggers": [
+    {
+      "kind": "invoke",
+      "withType": "SubmitIntent",
+      "resolveMap": {
+        "comma": [
+          {
+            "step": "single"
+          }
+        ],
+        "sia": [
+          {
+            "step": "single"
+          }
+        ]
+      }
+    }
+  ],
+  "invocable": true,
+  "version": "3.0.0",
   "fingerprints": {
-    "structureHash": "187718fdb749868ce2f3681150042183a46dd9a521e9a49661c771c25fb2506b",
+    "structureHash": "918bf05df86005b81ebea5d8294731eaa077b5ac1bb2195f90b4bf54a8c03931",
     "schemaHash": "b4b468dce867d440078b91f987672e1805f52e137ceff63f2831c6edd844739a",
     "implHash": "d6ddcc64e2c39c70b911b87aad1160aff7df6fe324656e5563dc2880304bf192"
   }

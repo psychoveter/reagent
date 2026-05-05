@@ -55,7 +55,8 @@
       "kind": "guard",
       "data": {
         "kind": "guard",
-        "guardType": "xor"
+        "guardType": "xor",
+        "decisionRole": "analyst"
       }
     },
     {
@@ -221,6 +222,7 @@
       "initiator": false
     }
   ],
+  "supervisionStrategy": "scoped",
   "triggers": [
     {
       "kind": "invoke",
@@ -250,9 +252,9 @@
     }
   ],
   "invocable": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "fingerprints": {
-    "structureHash": "1918858bc6cffd9aa41c5e730c9263c85e612dcc0223218ce46de0de246d18c8",
+    "structureHash": "a78d5fcccc83fdc46192b9c7b4209f53ff4cb82edac1609fdfbd6a482dcc46f0",
     "schemaHash": "8f3160a8648d6cd672b52f9fb93a721104ba8eed1d6663b6ce341bbe1c0f7761",
     "implHash": "ee029b28b91de03577fb8a0683f87ae3242a8ad90dc723257e1044eda7988669"
   }

@@ -86,6 +86,7 @@ function canonicalizeState(state: IRState): string {
     case "guard":
       parts.push(d.guardType);
       if (d.expr) parts.push(d.expr);
+      if (d.decisionRole) parts.push(`at:${d.decisionRole}`);
       break;
     case "fork":
       parts.push(String(d.branchStartIds.length));

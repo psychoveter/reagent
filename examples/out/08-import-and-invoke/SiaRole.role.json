@@ -5,13 +5,13 @@
     {
       "protocolName": "TaskExecutionWithImport",
       "roleName": "sia",
-      "protocolVersion": "1.0.0"
+      "protocolVersion": "2.0.0"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "8.0.0",
+  "version": "131.0.0",
   "fingerprints": {
-    "playsHash": "8a7aee1d0bc8a9b3c736cd52308fb8243e96be2906a95ac51919d5ad09c95881",
+    "playsHash": "bb63a07e86ec75adb6159c3b6f7fd4b05f68b82d69587cad88f996d2779a16d9",
     "behaviorHash": "90d1d22e125fdbed9a3af8dc227859c7d65a22e6f61a23a44c9bf8360e17026a"
   }
 }

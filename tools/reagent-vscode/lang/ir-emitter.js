@@ -392,7 +392,11 @@ class GraphBuilder {
     emitAlt(alt) {
         // Create a guard (decision) node
         const guardId = nextId("xor");
-        this.advance(guardId, { kind: "guard", guardType: "xor" });
+        this.advance(guardId, {
+            kind: "guard",
+            guardType: "xor",
+            ...(alt.decisionRole ? { decisionRole: alt.decisionRole } : {}),
+        });
         // Create a merge (join) node after all branches
         const mergeId = nextId("merge");
         const savedCurrent = this.currentId;

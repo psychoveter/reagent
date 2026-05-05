@@ -1,0 +1,24 @@
+wing: reagent
+rooms:
+- name: scripts
+  description: Files from tools/
+- name: runtime
+  description: Files from runtime/
+- name: spec_fixtures
+  description: Files from spec_fixtures/
+- name: spec
+  description: Files from spec/
+- name: documentation
+  description: Files from docs/
+- name: lang
+  description: Files from lang/
+- name: examples
+  description: Files from examples/
+- name: packages
+  description: Files from packages/
+- name: testing
+  description: Files from test/
+- name: configuration
+  description: Files from configs/
+- name: general
+  description: Files that don't fit other rooms

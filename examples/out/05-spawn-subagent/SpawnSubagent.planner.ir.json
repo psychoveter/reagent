@@ -49,10 +49,57 @@
   "terminalStateIds": [
     "end_16"
   ],
-  "initiator": "user",
-  "version": "2.0.0",
+  "participants": [
+    {
+      "name": "user",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "comma",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    },
+    {
+      "name": "planner",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "supervisionStrategy": "scoped",
+  "triggers": [
+    {
+      "kind": "invoke",
+      "withType": "TaskRequest",
+      "resolveMap": {
+        "user": [
+          {
+            "step": "single"
+          }
+        ],
+        "comma": [
+          {
+            "step": "single"
+          }
+        ],
+        "planner": [
+          {
+            "step": "single"
+          }
+        ]
+      }
+    }
+  ],
+  "invocable": true,
+  "version": "4.0.0",
   "fingerprints": {
-    "structureHash": "d80d1f4b82bf563b0f076153576f387731bd84665fed5b192e691863c1cc34b9",
+    "structureHash": "b4dda94b200bab5877712612c51f7f1e40ef20f135ca17ef35d27ec99f1f375d",
     "schemaHash": "ca75649d048071f4cb9be62fd6dfcb215a27c49372760d1a8f687d15aa1f8401",
     "implHash": "3e6ba96b27946a1dd56f79350e6d5bf33253f491c53be0b50a77f2025635bf3b"
   },

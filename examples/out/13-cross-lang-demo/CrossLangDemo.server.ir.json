@@ -35,7 +35,8 @@
       "kind": "guard",
       "data": {
         "kind": "guard",
-        "guardType": "xor"
+        "guardType": "xor",
+        "decisionRole": "server"
       }
     },
     {
@@ -171,10 +172,45 @@
   "terminalStateIds": [
     "end_20"
   ],
-  "initiator": "browser",
-  "version": "0.1.1",
+  "participants": [
+    {
+      "name": "browser",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "server",
+      "lang": "py",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "supervisionStrategy": "scoped",
+  "triggers": [
+    {
+      "kind": "invoke",
+      "withType": "UserQuery",
+      "resolveMap": {
+        "browser": [
+          {
+            "step": "single"
+          }
+        ],
+        "server": [
+          {
+            "step": "single"
+          }
+        ]
+      }
+    }
+  ],
+  "invocable": true,
+  "version": "3.0.0",
   "fingerprints": {
-    "structureHash": "71d823292c9af46ae6c5c796708c1053f5720a139f266a51aba596460ade1e2f",
+    "structureHash": "50be58f3ce6bfdd073d27fccd76b1e191aec2c6f2c0d72484215911c4e2dbf91",
     "schemaHash": "91225ee290ec3a9e58f6c2fb33891c67fdd0b0fdcc32dd20c5a7d288faed99fc",
     "implHash": "4c59249489bf8fa91209c43bb208eb007d95bd05326a7f0f15f50a0227ab4138"
   }

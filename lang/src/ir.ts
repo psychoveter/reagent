@@ -112,6 +112,16 @@ export type IRState = {
   id: string;
   kind: IRStateKind;
   data: IRStateData;
+  /**
+   * Nearest enclosing try-scope metadata for this state, when the state was
+   * emitted from inside a `try {}` or its paired `catch {}` body.
+   */
+  tryScope?: {
+    scopeId: string;
+    phase: "try" | "catch";
+    catchStateId: string;
+    catchLabel: string;
+  };
 };
 
 export type IRStateData =
@@ -172,6 +182,8 @@ export type IRGuardData = {
   guardType: "expression" | "message" | "timeout" | "xor";
   /** For expression guards: the $ctx expression to evaluate */
   expr?: string;
+  /** For XOR alt guards: explicit deciding role, when declared */
+  decisionRole?: string;
 };
 
 export type IRForkData = {

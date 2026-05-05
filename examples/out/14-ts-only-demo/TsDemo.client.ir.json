@@ -35,7 +35,8 @@
       "kind": "guard",
       "data": {
         "kind": "guard",
-        "guardType": "xor"
+        "guardType": "xor",
+        "decisionRole": "handler"
       }
     },
     {
@@ -171,10 +172,45 @@
   "terminalStateIds": [
     "end_10"
   ],
-  "initiator": "client",
-  "version": "0.1.1",
+  "participants": [
+    {
+      "name": "client",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "handler",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "supervisionStrategy": "scoped",
+  "triggers": [
+    {
+      "kind": "invoke",
+      "withType": "Request",
+      "resolveMap": {
+        "client": [
+          {
+            "step": "single"
+          }
+        ],
+        "handler": [
+          {
+            "step": "single"
+          }
+        ]
+      }
+    }
+  ],
+  "invocable": true,
+  "version": "3.0.0",
   "fingerprints": {
-    "structureHash": "75f0826ac56456b4caa3b7a9e52fcea5e63d8fe0757b3dfc85bdf7d3311f3463",
+    "structureHash": "fe9a16692b84d8954d9bacb374b67664c93db98fe69238f9c21da30931f7a1bd",
     "schemaHash": "91225ee290ec3a9e58f6c2fb33891c67fdd0b0fdcc32dd20c5a7d288faed99fc",
     "implHash": "06899aba20de5cfd265d68765b1afec1fad3abd29c40c710a573438a69b1d48f"
   }

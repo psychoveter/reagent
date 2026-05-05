@@ -15,6 +15,7 @@ import type {
   IRState,
   IRTransition,
   MessageEnvelope,
+  ProtocolFault,
   TraceEvent,
 } from "../contracts/types.js";
 import {
@@ -61,6 +62,7 @@ export interface RoleRunConfig {
   invokeCallback?: (protoName: string, input?: Record<string, unknown>, roleMapping?: Record<string, string>) => Promise<unknown>;
   spawnCallback?: (protoName: string, input?: Record<string, unknown>, roleMapping?: Record<string, string>) => void;
   emitCallback?: (eventName: string, data?: Record<string, unknown>) => void;
+  reportTryScopeFault?: (fault: ProtocolFault) => Promise<ProtocolFault>;
 }
 
 export interface AdvanceHookContext {
@@ -101,6 +103,54 @@ class RoleRunCancelledError extends Error {
   }
 }
 
+class TryScopeFaultSignal extends Error {
+  readonly fault: ProtocolFault;
+
+  constructor(fault: ProtocolFault) {
+    super(fault.message);
+    this.name = "TryScopeFaultSignal";
+    this.fault = fault;
+  }
+}
+
+class BranchAbortError extends Error {
+  constructor(reason: string) {
+    super(reason);
+    this.name = "BranchAbortError";
+  }
+}
+
+class BranchAbortController {
+  private listeners = new Set<(err: BranchAbortError) => void>();
+  private error: BranchAbortError | null = null;
+
+  abort(reason: string): void {
+    if (this.error) return;
+    this.error = new BranchAbortError(reason);
+    for (const listener of this.listeners) {
+      listener(this.error);
+    }
+    this.listeners.clear();
+  }
+
+  throwIfAborted(): void {
+    if (this.error) {
+      throw this.error;
+    }
+  }
+
+  onAbort(listener: (err: BranchAbortError) => void): () => void {
+    if (this.error) {
+      listener(this.error);
+      return () => {};
+    }
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+}
+
 // ── RoleRun implementation ───────────────────────────────────────────
 
 export class RoleRun implements RoleRunInterface {
@@ -133,10 +183,12 @@ export class RoleRun implements RoleRunInterface {
   private traces: TraceEvent[] = [];
   private returnValue: unknown = undefined;
   private hasReturnValue = false;
+  private lastFailure: ProtocolFault | null = null;
   private cancelReason: string | null = null;
   private completionFired = false;
   private timerHandles = new Set<ReturnType<typeof setTimeout>>();
   private sleepRejectors = new Map<ReturnType<typeof setTimeout>, (err: Error) => void>();
+  private pendingTryScopeFaults = new Map<string, ProtocolFault>();
 
   constructor(
     graph: IRGraph,
@@ -228,6 +280,7 @@ export class RoleRun implements RoleRunInterface {
         return;
       }
       console.error(`[RoleRun ${this.identity.instanceId}] Fatal error:`, err);
+      this.lastFailure = this.normalizeFault(err, undefined, "runtime");
       this._status = "failed";
       this.engine.setStatus("failed");
       this.emitTrace("ProtocolFailed", { error: String(err) });
@@ -245,6 +298,23 @@ export class RoleRun implements RoleRunInterface {
     return { has: this.hasReturnValue, value: this.returnValue };
   }
 
+  getFailure(): ProtocolFault | null {
+    return this.lastFailure;
+  }
+
+  notifyTryScopeFault(fault: ProtocolFault): void {
+    const scopeId = fault.scopeId;
+    if (!scopeId) return;
+    const state = this.engine.getStateMap().get(this.engine.getCurrentStateId());
+    if (state?.tryScope?.phase !== "try" || state.tryScope.scopeId !== scopeId) {
+      return;
+    }
+    this.pendingTryScopeFaults.set(scopeId, fault);
+    const signal = new TryScopeFaultSignal(fault);
+    this.rejectPendingWaiters(signal);
+    this.clearPendingTimers(signal);
+  }
+
   // ── Internal advance loop ──────────────────────────────────────────
 
   private async advance(): Promise<void> {
@@ -254,6 +324,14 @@ export class RoleRun implements RoleRunInterface {
       this.throwIfCancelled();
       const state = engine.getStateMap().get(engine.getCurrentStateId());
       if (!state) throw new Error(`State ${engine.getCurrentStateId()} not found`);
+      const currentTryScope = state.tryScope?.phase === "try" ? state.tryScope : undefined;
+      if (currentTryScope) {
+        const pendingFault = this.pendingTryScopeFaults.get(currentTryScope.scopeId);
+        if (pendingFault) {
+          this.activateCatchForFault(state, pendingFault);
+          continue;
+        }
+      }
 
       if (this.config.advanceHook) {
         await this.config.advanceHook({
@@ -344,14 +422,26 @@ export class RoleRun implements RoleRunInterface {
             break;
         }
       } catch (err) {
+        if (err instanceof TryScopeFaultSignal) {
+          this.activateCatchForFault(state, err.fault);
+          continue;
+        }
+        if (currentTryScope) {
+          const normalized = await this.reportTryScopeFault(this.normalizeFault(err, state));
+          this.activateCatchForFault(state, normalized);
+          continue;
+        }
         if (engine.hasCatchTargets()) {
           const catchId = engine.popCatchTarget()!;
+          const fault = this.normalizeFault(err, state);
+          this.lastFailure = fault;
           this.emitTrace("ErrorCaught", {
             stateId: state.id,
-            error: err instanceof Error ? err.message : String(err),
+            error: fault.message,
+            fault,
             catchStateId: catchId,
           });
-          engine.ctx.error = err instanceof Error ? err.message : String(err);
+          engine.ctx.error = fault;
           engine.setCurrentState(catchId);
         } else {
           throw err;
@@ -503,29 +593,40 @@ export class RoleRun implements RoleRunInterface {
   }
 
   private async handleXorGuard(state: IRState, transitions: IRTransition[]): Promise<void> {
+    const guardData = state.data as { kind: "guard"; guardType: "xor"; decisionRole?: string };
+    const decisionRole = guardData.decisionRole;
+    const isDecisionRole = !decisionRole || decisionRole === this.identity.roleName;
     const exprTransitions = transitions.filter(t => t.label.kind === "expression");
     const elseTransition = transitions.find(t => t.label.kind === "else");
     const msgTransitions = transitions.filter(t => t.label.kind === "message");
 
     if (exprTransitions.length > 0) {
       let anyEvalSucceeded = false;
-      for (const t of exprTransitions) {
-        const expr = (t.label as { kind: "expression"; expr: string }).expr;
-        try {
-          const result = this.engine.evalExpr(expr);
-          anyEvalSucceeded = true;
-          if (result) {
-            this.emitTrace("GuardEvaluated", { expr, result: true });
-            this.engine.setCurrentState(t.to);
-            await this.advance();
-            return;
-          }
-        } catch { /* non-deciding role */ }
+      if (isDecisionRole) {
+        for (let idx = 0; idx < exprTransitions.length; idx++) {
+          const t = exprTransitions[idx];
+          const expr = (t.label as { kind: "expression"; expr: string }).expr;
+          try {
+            const result = this.engine.evalExpr(expr);
+            anyEvalSucceeded = true;
+            this.emitTrace("GuardEvaluated", { expr, result, decisionRole, stateId: state.id });
+            this.emitTrace("AltEvaluated", { stateId: state.id, mode: "expression", decisionRole, expr, result });
+            if (result) {
+              this.emitTrace("AltBranchChosen", { stateId: state.id, branchIndex: idx, decisionRole, mode: "expression" });
+              this.engine.setCurrentState(t.to);
+              await this.advance();
+              return;
+            }
+          } catch { /* non-deciding role or eval failure */ }
+        }
       }
 
-      if (anyEvalSucceeded) {
+      if (isDecisionRole && anyEvalSucceeded) {
         if (elseTransition) {
-          this.emitTrace("GuardEvaluated", { branch: "else" });
+          const elseIndex = exprTransitions.length;
+          this.emitTrace("GuardEvaluated", { branch: "else", decisionRole, stateId: state.id });
+          this.emitTrace("AltEvaluated", { stateId: state.id, mode: "expression", decisionRole, branch: "else" });
+          this.emitTrace("AltBranchChosen", { stateId: state.id, branchIndex: elseIndex, decisionRole, mode: "expression" });
           this.engine.setCurrentState(elseTransition.to);
           await this.advance();
           return;
@@ -533,29 +634,55 @@ export class RoleRun implements RoleRunInterface {
         throw new Error(`No matching branch in XOR guard ${state.id}`);
       }
 
-      const receiveExpectations = this.collectBranchReceiveExpectations([
+      const branchStartIds = [
         ...exprTransitions.map(t => t.to),
         ...(elseTransition ? [elseTransition.to] : []),
-      ]);
+      ];
+      const receiveExpectations = this.collectBranchReceiveExpectations(branchStartIds);
 
       if (receiveExpectations.length > 0) {
-        this.emitTrace("GuardEvaluated", { mode: "message-wait-fallback" });
+        this.emitTrace("GuardEvaluated", {
+          mode: decisionRole && !isDecisionRole ? "follower-message-wait" : "message-wait-fallback",
+          exprs: exprTransitions.map(t => (t.label as { kind: "expression"; expr: string }).expr),
+          decisionRole,
+          stateId: state.id,
+        });
         const result = await this.waitForAnyMessage(state.id, receiveExpectations);
+        this.emitTrace("AltBranchChosen", {
+          stateId: state.id,
+          branchIndex: result.branchIndex,
+          decisionRole,
+          mode: "message-observed",
+          messageName: result.env.messageName,
+        });
         await this.processXorRecvResult(result);
         return;
       }
 
-      throw new Error(`No matching branch in XOR guard ${state.id}`);
+      if (isDecisionRole && !anyEvalSucceeded) {
+        throw new Error(`No matching branch in XOR guard ${state.id}`);
+      }
+
+      throw new Error(`Role '${this.identity.roleName}' cannot observe alt decision for XOR guard ${state.id}`);
     }
 
     if (msgTransitions.length > 0) {
-      const env = await this.waitForAnyMessage(
-        state.id,
-        msgTransitions.map(t => ({
-          messageName: (t.label as { kind: "message"; messageName: string }).messageName,
-          targetStateId: t.to,
-        })),
-      );
+      const expectations = msgTransitions.map((t, branchIndex) => ({
+        messageName: (t.label as { kind: "message"; messageName: string }).messageName,
+        targetStateId: t.to,
+        branchIndex,
+      }));
+      if (isDecisionRole) {
+        this.emitTrace("AltEvaluated", { stateId: state.id, mode: "message", decisionRole });
+      }
+      const env = await this.waitForAnyMessage(state.id, expectations);
+      this.emitTrace("AltBranchChosen", {
+        stateId: state.id,
+        branchIndex: env.branchIndex,
+        decisionRole,
+        mode: "message",
+        messageName: env.env.messageName,
+      });
       this.engine.ctx.msg = env.env.payload;
       this.engine.setCurrentState(env.targetStateId);
       await this.advance();
@@ -628,12 +755,29 @@ export class RoleRun implements RoleRunInterface {
     this.emitTrace("ForkStarted", { stateId: state.id, branchCount: branchTransitions.length });
 
     const joinId = this.engine.findJoinForFork(state.id);
+    const abortControllers = branchTransitions.map(() => new BranchAbortController());
 
-    const branchPromises = branchTransitions.map(async (bt) => {
+    const branchPromises = branchTransitions.map(async (bt, idx) => {
       const branchCtx = Object.create(this.engine.ctx);
-      await this.runBranch(bt.to, joinId, branchCtx);
+      try {
+        await this.runBranch(bt.to, joinId, branchCtx, abortControllers[idx]);
+      } catch (err) {
+        if (err instanceof BranchAbortError) {
+          return;
+        }
+        for (let otherIdx = 0; otherIdx < abortControllers.length; otherIdx++) {
+          if (otherIdx !== idx) {
+            abortControllers[otherIdx].abort(`parallel branch failed in ${state.id}`);
+          }
+        }
+        throw err;
+      }
     });
-    await Promise.all(branchPromises);
+    const branchResults = await Promise.allSettled(branchPromises);
+    const branchFailure = branchResults.find((result) => result.status === "rejected");
+    if (branchFailure?.status === "rejected") {
+      throw branchFailure.reason;
+    }
     this.emitTrace("JoinCompleted", { stateId: joinId ?? state.id });
 
     if (joinId) {
@@ -668,13 +812,30 @@ export class RoleRun implements RoleRunInterface {
     const joinId = this.engine.findJoinForFork(state.id);
     const branchStartId = data.branchStartIds[0];
 
+    const abortControllers = list.map(() => new BranchAbortController());
     const branchPromises = list.map(async (item, idx) => {
       const branchCtx = Object.create(this.engine.ctx);
       branchCtx._scatterItem = item;
       branchCtx._scatterIdx = idx;
-      await this.runBranch(branchStartId, joinId, branchCtx);
+      try {
+        await this.runBranch(branchStartId, joinId, branchCtx, abortControllers[idx]);
+      } catch (err) {
+        if (err instanceof BranchAbortError) {
+          return;
+        }
+        for (let otherIdx = 0; otherIdx < abortControllers.length; otherIdx++) {
+          if (otherIdx !== idx) {
+            abortControllers[otherIdx].abort(`scatter branch failed in ${state.id}`);
+          }
+        }
+        throw err;
+      }
     });
-    await Promise.all(branchPromises);
+    const branchResults = await Promise.allSettled(branchPromises);
+    const branchFailure = branchResults.find((result) => result.status === "rejected");
+    if (branchFailure?.status === "rejected") {
+      throw branchFailure.reason;
+    }
     this.emitTrace("ScatterCompleted", { stateId: state.id, count: list.length });
 
     if (joinId) {
@@ -749,9 +910,15 @@ export class RoleRun implements RoleRunInterface {
 
   // ── Branch runner (for fork/join, scatter) ─────────────────────────
 
-  private async runBranch(startId: string, stopAtId: string | null, branchCtx: Record<string, unknown>): Promise<void> {
+  private async runBranch(
+    startId: string,
+    stopAtId: string | null,
+    branchCtx: Record<string, unknown>,
+    abort?: BranchAbortController,
+  ): Promise<void> {
     let currentId = startId;
     while (true) {
+      abort?.throwIfAborted();
       if (stopAtId && currentId === stopAtId) return;
       const state = this.engine.getStateMap().get(currentId);
       if (!state) throw new Error(`State ${currentId} not found in branch`);
@@ -798,7 +965,7 @@ export class RoleRun implements RoleRunInterface {
         }
         case "receive": {
           const data = state.data as { kind: "receive"; from: string; messageName: string; postReceiveZone?: string; postReceiveAsync?: boolean };
-          const env = await this.waitForMessage({ messageName: data.messageName, fromRole: data.from });
+          const env = await this.waitForMessage({ messageName: data.messageName, fromRole: data.from }, abort);
           this.emitTrace("MessageReceived", { messageName: data.messageName, from: env.from.agent, fromRole: env.from.role });
           branchCtx.msg = env.payload;
           if (data.postReceiveZone) {
@@ -838,7 +1005,7 @@ export class RoleRun implements RoleRunInterface {
           const data = state.data as { kind: "timer"; duration: { value: number; unit: string } };
           const ms = durationToMs(data.duration);
           this.emitTrace("TimerStarted", { stateId: state.id, durationMs: ms });
-          await this.sleep(ms);
+          await this.sleep(ms, abort);
           this.emitTrace("TimerFired", { stateId: state.id });
           currentId = this.branchFollowDefault(currentId);
           break;
@@ -866,32 +1033,52 @@ export class RoleRun implements RoleRunInterface {
 
   // ── Messaging helpers ──────────────────────────────────────────────
 
-  private waitForMessage(expectation: MessageExpectation): Promise<MessageEnvelope> {
+  private waitForMessage(expectation: MessageExpectation, abort?: BranchAbortController): Promise<MessageEnvelope> {
+    abort?.throwIfAborted();
     const idx = this.messageInbox.findIndex(e => this.matchesMessageExpectation(e, expectation));
     if (idx >= 0) return Promise.resolve(this.messageInbox.splice(idx, 1)[0]);
     return new Promise<MessageEnvelope>((resolve, reject) => {
-      this.messageResolvers.push({
+      let settled = false;
+      let unregisterAbort = () => {};
+      const entry = {
         expectation,
         resolve: (env) => {
+          if (settled) return;
+          settled = true;
+          unregisterAbort();
           if (this.cancelReason) {
             reject(new RoleRunCancelledError(this.cancelReason));
             return;
           }
           resolve(env);
         },
-        reject,
-      });
+        reject: (err: Error) => {
+          if (settled) return;
+          settled = true;
+          unregisterAbort();
+          reject(err);
+        },
+      };
+      unregisterAbort = abort?.onAbort((err) => {
+        this.messageResolvers = this.messageResolvers.filter((resolver) => resolver !== entry);
+        entry.reject(err);
+      }) ?? (() => {});
+      this.messageResolvers.push(entry);
     });
   }
 
   private waitForAnyMessage(
     guardId: string,
-    expectations: Array<MessageExpectation & { targetStateId: string }>,
-  ): Promise<{ env: MessageEnvelope; targetStateId: string }> {
+    expectations: Array<MessageExpectation & { targetStateId: string; branchIndex?: number }>,
+  ): Promise<{ env: MessageEnvelope; targetStateId: string; branchIndex?: number }> {
     for (const e of expectations) {
       const idx = this.messageInbox.findIndex(m => this.matchesMessageExpectation(m, e));
       if (idx >= 0) {
-        return Promise.resolve({ env: this.messageInbox.splice(idx, 1)[0], targetStateId: e.targetStateId });
+        return Promise.resolve({
+          env: this.messageInbox.splice(idx, 1)[0],
+          targetStateId: e.targetStateId,
+          branchIndex: e.branchIndex,
+        });
       }
     }
     return new Promise((resolve, reject) => {
@@ -902,7 +1089,7 @@ export class RoleRun implements RoleRunInterface {
             reject(new RoleRunCancelledError(this.cancelReason));
             return;
           }
-          resolve({ env, targetStateId: e.targetStateId });
+          resolve({ env, targetStateId: e.targetStateId, branchIndex: e.branchIndex });
         },
         reject,
       }));
@@ -921,22 +1108,23 @@ export class RoleRun implements RoleRunInterface {
 
   // ── Guard helpers ──────────────────────────────────────────────────
 
-  private collectBranchReceiveExpectations(branchStartIds: string[]): Array<MessageExpectation & { targetStateId: string }> {
-    const results: Array<MessageExpectation & { targetStateId: string }> = [];
-    for (const branchStartId of branchStartIds) {
+  private collectBranchReceiveExpectations(branchStartIds: string[]): Array<MessageExpectation & { targetStateId: string; branchIndex: number }> {
+    const results: Array<MessageExpectation & { targetStateId: string; branchIndex: number }> = [];
+    for (let branchIndex = 0; branchIndex < branchStartIds.length; branchIndex++) {
+      const branchStartId = branchStartIds[branchIndex];
       const receiveId = this.engine.findFirstReceiveInBranch(branchStartId);
       if (receiveId) {
         const recvState = this.engine.getStateMap().get(receiveId);
         if (recvState?.data.kind === "receive") {
           const recvData = recvState.data as { kind: "receive"; messageName: string; from: string };
-          results.push({ messageName: recvData.messageName, fromRole: recvData.from, targetStateId: receiveId });
+          results.push({ messageName: recvData.messageName, fromRole: recvData.from, targetStateId: receiveId, branchIndex });
         }
       }
     }
     return results;
   }
 
-  private async processXorRecvResult(result: { env: MessageEnvelope; targetStateId: string }): Promise<void> {
+  private async processXorRecvResult(result: { env: MessageEnvelope; targetStateId: string; branchIndex?: number }): Promise<void> {
     await this.processRecvResult(result);
   }
 
@@ -1056,7 +1244,7 @@ export class RoleRun implements RoleRunInterface {
     }
   }
 
-  private rejectPendingWaiters(err: RoleRunCancelledError): void {
+  private rejectPendingWaiters(err: Error): void {
     if (this.messageResolvers.length > 0) {
       for (const resolver of this.messageResolvers) {
         resolver.reject(err);
@@ -1071,7 +1259,7 @@ export class RoleRun implements RoleRunInterface {
       }
       this.xorResolvers.clear();
     }
-    if (this.cancelReason == null) {
+    if (err instanceof RoleRunCancelledError && this.cancelReason == null) {
       this.cancelReason = err.reason;
     }
   }
@@ -1085,24 +1273,35 @@ export class RoleRun implements RoleRunInterface {
     this.timerHandles.clear();
   }
 
-  private async sleep(ms: number): Promise<void> {
+  private async sleep(ms: number, abort?: BranchAbortController): Promise<void> {
     this.throwIfCancelled();
+    abort?.throwIfAborted();
     await new Promise<void>((resolve, reject) => {
+      let unregisterAbort = () => {};
       const handle = setTimeout(() => {
         this.timerHandles.delete(handle);
         this.sleepRejectors.delete(handle);
+        unregisterAbort();
         resolve();
       }, ms);
       this.timerHandles.add(handle);
       this.sleepRejectors.set(handle, reject);
+      unregisterAbort = abort?.onAbort((err) => {
+        clearTimeout(handle);
+        this.timerHandles.delete(handle);
+        this.sleepRejectors.delete(handle);
+        reject(err);
+      }) ?? (() => {});
       if (this.cancelReason) {
         clearTimeout(handle);
         this.timerHandles.delete(handle);
         this.sleepRejectors.delete(handle);
+        unregisterAbort();
         reject(new RoleRunCancelledError(this.cancelReason));
       }
     });
     this.throwIfCancelled();
+    abort?.throwIfAborted();
   }
 
   private participantCardinality(roleName: string): "single" | "many" {
@@ -1118,6 +1317,104 @@ export class RoleRun implements RoleRunInterface {
       return;
     }
     setRoleBinding(this.dynamicRoleBindings, this.identity.protocolName, roleName, agentName, "single");
+  }
+
+  private async reportTryScopeFault(fault: ProtocolFault): Promise<ProtocolFault> {
+    if (!this.config.reportTryScopeFault) {
+      return fault;
+    }
+    try {
+      return await this.config.reportTryScopeFault(fault);
+    } catch {
+      return fault;
+    }
+  }
+
+  private activateCatchForFault(state: IRState, fault: ProtocolFault): void {
+    const tryScope = state.tryScope;
+    if (!tryScope || tryScope.phase !== "try") {
+      throw new Error(fault.message);
+    }
+    this.pendingTryScopeFaults.delete(tryScope.scopeId);
+    this.lastFailure = fault;
+    this.emitTrace("ErrorCaught", {
+      stateId: state.id,
+      error: fault.message,
+      fault,
+      catchStateId: tryScope.catchStateId,
+    });
+    this.engine.ctx.error = fault;
+    this.engine.setCurrentState(tryScope.catchStateId);
+  }
+
+  private normalizeFault(
+    err: unknown,
+    state?: IRState,
+    fallbackPhase: ProtocolFault["phase"] = "runtime",
+  ): ProtocolFault {
+    if (this.isProtocolFault(err)) {
+      return err;
+    }
+    const phase = this.phaseForState(state?.data.kind) ?? fallbackPhase;
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      kind: phase === "invoke"
+        ? "invoke_error"
+        : phase === "fork"
+          ? "branch_error"
+          : phase === "scatter"
+            ? "scatter_error"
+            : phase === "runtime"
+              ? "runtime_error"
+              : "zone_error",
+      message,
+      instanceId: this.identity.instanceId,
+      scopeId: state?.tryScope?.scopeId,
+      protocolName: this.identity.protocolName,
+      roleName: this.identity.roleName,
+      agentName: this.identity.agentName,
+      stateId: state?.id,
+      phase,
+      source: "local",
+      cause: this.serializeErrorCause(err),
+    };
+  }
+
+  private phaseForState(kind: IRState["data"]["kind"] | undefined): ProtocolFault["phase"] | undefined {
+    switch (kind) {
+      case "action": return "action";
+      case "send": return "send";
+      case "receive": return "receive";
+      case "guard": return "guard";
+      case "timer": return "timer";
+      case "fork": return "fork";
+      case "scatter": return "scatter";
+      case "invoke": return "invoke";
+      default: return undefined;
+    }
+  }
+
+  private serializeErrorCause(err: unknown): Record<string, unknown> | undefined {
+    if (err instanceof TryScopeFaultSignal) {
+      return err.fault.cause;
+    }
+    if (err instanceof Error) {
+      return {
+        name: err.name,
+        message: err.message,
+      };
+    }
+    if (err && typeof err === "object") {
+      return err as Record<string, unknown>;
+    }
+    return undefined;
+  }
+
+  private isProtocolFault(value: unknown): value is ProtocolFault {
+    return typeof value === "object"
+      && value !== null
+      && "kind" in value
+      && "message" in value;
   }
 
   private emitTrace(kind: string, data?: Record<string, unknown>): void {

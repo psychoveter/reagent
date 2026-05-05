@@ -5,13 +5,13 @@
     {
       "protocolName": "SpawnSubagent",
       "roleName": "planner",
-      "protocolVersion": "2.0.0"
+      "protocolVersion": "4.0.0"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "0.1.0",
+  "version": "2.0.0",
   "fingerprints": {
-    "playsHash": "cc5108ed1e35674abd3de7078bfd04405a12a068e51ade086cf156db5804a116",
+    "playsHash": "dba5f86add092aa6a50ee60da429d3bee88232580a6c663ba97eefde1eadd144",
     "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
   }
 }

@@ -4,40 +4,40 @@
       "stateId": "send_2",
       "protocolName": "ValidateIntentWithSia",
       "role": "comma",
-      "file": "examples/protocols/src/lib/validate-intent-with-sia.rg",
-      "line": 14,
+      "file": "../examples/protocols/src/lib/validate-intent-with-sia.rg",
+      "line": 18,
       "column": 3
     },
     {
       "stateId": "act_6",
       "protocolName": "ValidateIntentWithSia",
       "role": "comma",
-      "file": "examples/protocols/src/lib/validate-intent-with-sia.rg",
-      "line": 21,
+      "file": "../examples/protocols/src/lib/validate-intent-with-sia.rg",
+      "line": 25,
       "column": 5
     },
     {
       "stateId": "act_8",
       "protocolName": "ValidateIntentWithSia",
       "role": "comma",
-      "file": "examples/protocols/src/lib/validate-intent-with-sia.rg",
-      "line": 23,
+      "file": "../examples/protocols/src/lib/validate-intent-with-sia.rg",
+      "line": 27,
       "column": 5
     },
     {
       "stateId": "act_9",
       "protocolName": "ValidateIntentWithSia",
       "role": "comma",
-      "file": "examples/protocols/src/lib/validate-intent-with-sia.rg",
-      "line": 26,
+      "file": "../examples/protocols/src/lib/validate-intent-with-sia.rg",
+      "line": 30,
       "column": 3
     },
     {
       "stateId": "recv_12",
       "protocolName": "ValidateIntentWithSia",
       "role": "sia",
-      "file": "examples/protocols/src/lib/validate-intent-with-sia.rg",
-      "line": 14,
+      "file": "../examples/protocols/src/lib/validate-intent-with-sia.rg",
+      "line": 18,
       "column": 3
     }
   ]

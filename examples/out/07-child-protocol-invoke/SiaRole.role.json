@@ -5,13 +5,13 @@
     {
       "protocolName": "TaskExecutionWithChild",
       "roleName": "sia",
-      "protocolVersion": "1.0.0"
+      "protocolVersion": "4.0.0"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "7.0.0",
+  "version": "130.0.0",
   "fingerprints": {
-    "playsHash": "662c93234af93c8ef518bb157dba27700ee6b12ff16203fc80758e66ddde64ad",
+    "playsHash": "586c0c70448c249dde9010762e86206e90dbf0aacd57cf1615cee3532bd66480",
     "behaviorHash": "90d1d22e125fdbed9a3af8dc227859c7d65a22e6f61a23a44c9bf8360e17026a"
   }
 }

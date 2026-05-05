@@ -5,7 +5,7 @@
     {
       "protocolName": "TaskExecutionFromEvent",
       "roleName": "comma",
-      "protocolVersion": "0.1.1"
+      "protocolVersion": "2.0.0"
     }
   ],
   "lifecycleHandlers": [
@@ -18,9 +18,9 @@
       }
     }
   ],
-  "version": "22.0.0",
+  "version": "204.0.0",
   "fingerprints": {
-    "playsHash": "a8ebf8a7c1584e4324d10329b5588b108acdf8684e8d8c1233cc047d3b789e9d",
+    "playsHash": "30c7dbb688b019d250d18228a0d77a4c44380ce6cdb70bb5aa60c85e994d96c1",
     "behaviorHash": "3f445c7957b31052caee26a896d85590c8bf737ffc00bd9e9b13c02fb02e8914"
   }
 }

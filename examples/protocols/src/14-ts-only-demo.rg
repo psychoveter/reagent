@@ -33,7 +33,7 @@ protocol TsDemo {
     $self.queriesHandled = ($self.queriesHandled || 0) + 1
   }
 
-  alt ($ctx.result.status == "ok") {
+  alt at handler ($ctx.result.status == "ok") {
     handler --> client: Accept = {
       onSend {
         $ctx.msg.data = $ctx.result.data

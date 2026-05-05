@@ -5,13 +5,13 @@
     {
       "protocolName": "TaskExecutionWithChild",
       "roleName": "user",
-      "protocolVersion": "1.0.0"
+      "protocolVersion": "4.0.0"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "4.0.0",
+  "version": "112.0.0",
   "fingerprints": {
-    "playsHash": "a31171899e00441c63e0a1e505c3c8e351be01d459780002f684c64603604c65",
+    "playsHash": "512de62f7e667ca579941872978c298884ee39465e66f73d4982ea6d664bc448",
     "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
   }
 }

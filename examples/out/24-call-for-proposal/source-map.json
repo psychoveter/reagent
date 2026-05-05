@@ -4,89 +4,105 @@
       "stateId": "act_2",
       "protocolName": "CallForProposal",
       "role": "buyer",
-      "file": "examples/protocols/src/24-call-for-proposal.rg",
-      "line": 20,
+      "file": "../examples/protocols/src/24-call-for-proposal.rg",
+      "line": 24,
       "column": 3
     },
     {
       "stateId": "send_6",
       "protocolName": "CallForProposal",
       "role": "buyer",
-      "file": "examples/protocols/src/24-call-for-proposal.rg",
-      "line": 27,
+      "file": "../examples/protocols/src/24-call-for-proposal.rg",
+      "line": 31,
       "column": 5
     },
     {
       "stateId": "recv_10",
       "protocolName": "CallForProposal",
       "role": "buyer",
-      "file": "examples/protocols/src/24-call-for-proposal.rg",
-      "line": 41,
+      "file": "../examples/protocols/src/24-call-for-proposal.rg",
+      "line": 45,
       "column": 7
     },
     {
       "stateId": "recv_12",
       "protocolName": "CallForProposal",
       "role": "buyer",
-      "file": "examples/protocols/src/24-call-for-proposal.rg",
-      "line": 51,
+      "file": "../examples/protocols/src/24-call-for-proposal.rg",
+      "line": 55,
       "column": 7
     },
     {
       "stateId": "act_13",
       "protocolName": "CallForProposal",
       "role": "buyer",
-      "file": "examples/protocols/src/24-call-for-proposal.rg",
-      "line": 55,
+      "file": "../examples/protocols/src/24-call-for-proposal.rg",
+      "line": 59,
       "column": 3
     },
     {
-      "stateId": "send_14",
+      "stateId": "send_20",
       "protocolName": "CallForProposal",
       "role": "buyer",
-      "file": "examples/protocols/src/24-call-for-proposal.rg",
-      "line": 60,
-      "column": 3
-    },
-    {
-      "stateId": "recv_17",
-      "protocolName": "CallForProposal",
-      "role": "seller",
-      "file": "examples/protocols/src/24-call-for-proposal.rg",
-      "line": 27,
-      "column": 5
-    },
-    {
-      "stateId": "act_18",
-      "protocolName": "CallForProposal",
-      "role": "seller",
-      "file": "examples/protocols/src/24-call-for-proposal.rg",
-      "line": 36,
-      "column": 5
+      "file": "../examples/protocols/src/24-call-for-proposal.rg",
+      "line": 66,
+      "column": 7
     },
     {
       "stateId": "send_22",
       "protocolName": "CallForProposal",
-      "role": "seller",
-      "file": "examples/protocols/src/24-call-for-proposal.rg",
-      "line": 41,
-      "column": 7
-    },
-    {
-      "stateId": "send_24",
-      "protocolName": "CallForProposal",
-      "role": "seller",
-      "file": "examples/protocols/src/24-call-for-proposal.rg",
-      "line": 51,
+      "role": "buyer",
+      "file": "../examples/protocols/src/24-call-for-proposal.rg",
+      "line": 72,
       "column": 7
     },
     {
       "stateId": "recv_25",
       "protocolName": "CallForProposal",
       "role": "seller",
-      "file": "examples/protocols/src/24-call-for-proposal.rg",
-      "line": 60,
-      "column": 3
+      "file": "../examples/protocols/src/24-call-for-proposal.rg",
+      "line": 31,
+      "column": 5
+    },
+    {
+      "stateId": "act_26",
+      "protocolName": "CallForProposal",
+      "role": "seller",
+      "file": "../examples/protocols/src/24-call-for-proposal.rg",
+      "line": 40,
+      "column": 5
+    },
+    {
+      "stateId": "send_30",
+      "protocolName": "CallForProposal",
+      "role": "seller",
+      "file": "../examples/protocols/src/24-call-for-proposal.rg",
+      "line": 45,
+      "column": 7
+    },
+    {
+      "stateId": "send_32",
+      "protocolName": "CallForProposal",
+      "role": "seller",
+      "file": "../examples/protocols/src/24-call-for-proposal.rg",
+      "line": 55,
+      "column": 7
+    },
+    {
+      "stateId": "recv_36",
+      "protocolName": "CallForProposal",
+      "role": "seller",
+      "file": "../examples/protocols/src/24-call-for-proposal.rg",
+      "line": 66,
+      "column": 7
+    },
+    {
+      "stateId": "recv_38",
+      "protocolName": "CallForProposal",
+      "role": "seller",
+      "file": "../examples/protocols/src/24-call-for-proposal.rg",
+      "line": 72,
+      "column": 7
     }
   ]
 }

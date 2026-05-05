@@ -5,7 +5,7 @@
     {
       "protocolName": "InvokeDemo",
       "roleName": "caller",
-      "protocolVersion": "0.1.1"
+      "protocolVersion": "2.0.0"
     }
   ],
   "initAction": {
@@ -13,9 +13,9 @@
     "lang": "ts"
   },
   "lifecycleHandlers": [],
-  "version": "1.0.0",
+  "version": "3.0.0",
   "fingerprints": {
-    "playsHash": "e4fb3562e837aefc60281ecd9d0702f75370027fad724a1fe4c47caeaac805bf",
+    "playsHash": "da164fc588113317b3b3a5673a7d909c74bccde8e59c3523c2871c457a440e44",
     "behaviorHash": "1404265da437e516a0b3fe13a2e06bd8ef62e15aec69b33eb430a8bc32a4f527"
   }
 }

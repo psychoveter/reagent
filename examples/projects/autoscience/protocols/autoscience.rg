@@ -137,20 +137,23 @@ protocol ResearchCycle {
     $ctx.theoryCycles = 0
     $ctx.dataCycles = 0
     $ctx.consultantIds = await $agent.get_consultant_ids()
+    $ctx.primaryConsultantIds = [$ctx.consultantIds[0]]
     $ctx.researcherIds = await $agent.get_researcher_ids()
   }
 
   // Phase 2: Formalize the intuition via consultant
-  lead --> consultant: Intuition
+  scatter ($ctx.primaryConsultantIds as consultant) {
+    lead --> consultant: Intuition
 
-  consultant invokes Formalize({
-    intuition: $ctx.msg,
-    existingClaims: []
-  }) -> $ctx.formalizedClaims
+    consultant invokes Formalize({
+      intuition: $ctx.msg,
+      existingClaims: []
+    }) -> $ctx.formalizedClaims
 
-  consultant --> lead: FormalClaim = {
-    onReceive {
-      $ctx.liveClaims.push($ctx.msg)
+    consultant --> lead: FormalClaim = {
+      onReceive {
+        $ctx.liveClaims.push($ctx.msg)
+      }
     }
   }
 
@@ -189,7 +192,7 @@ protocol ResearchCycle {
     }
 
     // Branch on action type
-    alt ($ctx.nextAction == "critique") {
+    alt at lead ($ctx.nextAction == "critique") {
 
       // ── CRITICAL CYCLE ──
       lead {
@@ -237,17 +240,19 @@ protocol ResearchCycle {
       human --> lead: Correction
 
       // Fixate with corrections
-      lead --> consultant: Correction
+      scatter ($ctx.primaryConsultantIds as consultant) {
+        lead --> consultant: Correction
 
-      consultant invokes Fixation({
-        claims: $ctx.liveClaims,
-        corrections: $ctx.msg,
-        previousVersion: $ctx.documentVersion
-      }) -> $ctx.newDocument
+        consultant invokes Fixation({
+          claims: $ctx.liveClaims,
+          corrections: $ctx.msg,
+          previousVersion: $ctx.documentVersion
+        }) -> $ctx.newDocument
 
-      consultant --> lead: DocumentDraft = {
-        onReceive {
-          $ctx.documentVersion = $ctx.msg.version
+        consultant --> lead: DocumentDraft = {
+          onReceive {
+            $ctx.documentVersion = $ctx.msg.version
+          }
         }
       }
 
@@ -259,18 +264,20 @@ protocol ResearchCycle {
         $ctx.selectedPrediction = await $agent.select_prediction($ctx.liveClaims)
       }
 
-      // Consultant designs experiment
-      lead --> consultant: FormalClaim = {
-        onSend {
-          $ctx.msg = $ctx.selectedPrediction
+      // Primary consultant designs experiment
+      scatter ($ctx.primaryConsultantIds as consultant) {
+        lead --> consultant: FormalClaim = {
+          onSend {
+            $ctx.msg = $ctx.selectedPrediction
+          }
         }
-      }
 
-      consultant {
-        $ctx.experimentSpec = await $agent.design_experiment($ctx.msg)
-      }
+        consultant {
+          $ctx.experimentSpec = await $agent.design_experiment($ctx.msg)
+        }
 
-      consultant --> lead: ExperimentSpec
+        consultant --> lead: ExperimentSpec
+      }
 
       // Lead presents spec to human for approval
       lead --> human: ExperimentSpec
@@ -336,26 +343,28 @@ protocol ResearchCycle {
       }
 
       // Fixate
-      lead --> consultant: ResearchState = {
-        onSend {
-          $ctx.msg = {
-            liveClaims: $ctx.liveClaims,
-            deadClaims: $ctx.deadClaims,
-            documentVersion: $ctx.documentVersion
+      scatter ($ctx.primaryConsultantIds as consultant) {
+        lead --> consultant: ResearchState = {
+          onSend {
+            $ctx.msg = {
+              liveClaims: $ctx.liveClaims,
+              deadClaims: $ctx.deadClaims,
+              documentVersion: $ctx.documentVersion
+            }
           }
         }
-      }
 
-      consultant invokes Fixation({
-        claims: $ctx.msg.liveClaims,
-        corrections: [],
-        previousVersion: $ctx.msg.documentVersion,
-        experimentResults: $ctx.experimentResults
-      }) -> $ctx.updatedDocument
+        consultant invokes Fixation({
+          claims: $ctx.msg.liveClaims,
+          corrections: [],
+          previousVersion: $ctx.msg.documentVersion,
+          experimentResults: $ctx.experimentResults
+        }) -> $ctx.updatedDocument
 
-      consultant --> lead: DocumentDraft = {
-        onReceive {
-          $ctx.documentVersion = $ctx.msg.version
+        consultant --> lead: DocumentDraft = {
+          onReceive {
+            $ctx.documentVersion = $ctx.msg.version
+          }
         }
       }
 
@@ -430,24 +439,26 @@ protocol ResearchCycle {
   }
 
   // Final fixation
-  lead --> consultant: ResearchState = {
-    onSend {
-      $ctx.msg = {
-        liveClaims: $ctx.liveClaims,
-        deadClaims: $ctx.deadClaims,
-        documentVersion: $ctx.documentVersion
+  scatter ($ctx.primaryConsultantIds as consultant) {
+    lead --> consultant: ResearchState = {
+      onSend {
+        $ctx.msg = {
+          liveClaims: $ctx.liveClaims,
+          deadClaims: $ctx.deadClaims,
+          documentVersion: $ctx.documentVersion
+        }
       }
     }
+
+    consultant invokes Fixation({
+      claims: $ctx.msg.liveClaims,
+      corrections: [],
+      previousVersion: $ctx.msg.documentVersion,
+      isFinal: true
+    }) -> $ctx.finalDocument
+
+    consultant --> lead: DocumentDraft
   }
-
-  consultant invokes Fixation({
-    claims: $ctx.msg.liveClaims,
-    corrections: [],
-    previousVersion: $ctx.msg.documentVersion,
-    isFinal: true
-  }) -> $ctx.finalDocument
-
-  consultant --> lead: DocumentDraft
 
   // Lead sends final report to human
   lead {

@@ -5,18 +5,18 @@
     {
       "protocolName": "InvokeDemo",
       "roleName": "responder",
-      "protocolVersion": "0.1.1"
+      "protocolVersion": "2.0.0"
     },
     {
       "protocolName": "ComputeSquare",
       "roleName": "worker",
-      "protocolVersion": "0.1.0"
+      "protocolVersion": "2.0.0"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "13.0.0",
+  "version": "41.0.0",
   "fingerprints": {
-    "playsHash": "396dabb622a091c2bf600903087c42bfc8d5048fec575c498a39b9acb66d483a",
+    "playsHash": "6a9eea98fb9f1f91bf11af63b9eb521e63547e8c723f32c9a7096d470a004395",
     "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
   }
 }

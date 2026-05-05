@@ -35,7 +35,7 @@
       "patterns": [
         {
           "name": "keyword.control.reagent",
-          "match": "\\b(protocol|import|as|participants|trigger|invoke|cron|event|alt|loop|par|wait|timeout|try|catch|else|and|agent|plays|init|on|message|role|extends|runs|async|invokes|spawns|scatter|gather|where|resolve|persistent|with)\\b"
+          "match": "\\b(protocol|import|as|participants|trigger|invoke|cron|event|alt|at|loop|par|wait|timeout|try|catch|else|and|agent|plays|init|on|message|role|extends|runs|async|invokes|spawns|scatter|gather|where|resolve|persistent|with)\\b"
         },
         {
           "name": "storage.modifier.reagent",

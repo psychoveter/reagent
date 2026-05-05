@@ -27,7 +27,7 @@ protocol LoopRetryBackoff {
       }
     }
 
-    alt (sia --> comma: ValidationOk) {
+    alt at comma (sia --> comma: ValidationOk) {
       comma { $ctx.valid = true }
       comma { reagent.break() }
     } else (sia --> comma: ValidationError where { code: "TRANSIENT" }) {

@@ -5,13 +5,13 @@
     {
       "protocolName": "TaskExecutionWithMultipartyChild",
       "roleName": "sia",
-      "protocolVersion": "1.0.0"
+      "protocolVersion": "4.0.0"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "9.0.0",
+  "version": "136.0.0",
   "fingerprints": {
-    "playsHash": "fe963016f3b063acee5b27a4d63f650003546d594899f88dd0c907832250a6d0",
+    "playsHash": "8947526035142f684ec2b2aff923c2b885087dce5f4b542b3c49478c0dbe5136",
     "behaviorHash": "90d1d22e125fdbed9a3af8dc227859c7d65a22e6f61a23a44c9bf8360e17026a"
   }
 }

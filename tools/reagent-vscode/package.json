@@ -346,9 +346,9 @@
     "bundle-runtime-admin": "node ./scripts/bundle-runtime-admin.mjs",
     "compile": "npm run bundle-lang && tsc -p ./ && tsc -p server/ && npm run bundle-runtime-admin",
     "watch": "tsc -watch -p ./",
-    "test:lsp:legacy": "npm run compile && node --import tsx server/test/lsp/legacy-lsp.test.ts",
+    "test:lsp:compiled": "npm run compile && node --import tsx server/test/lsp/compiled-lsp.smoke.test.ts",
     "test:lsp:current": "npm run compile && node --import tsx server/test/lsp/current-lsp.test.ts",
-    "test:lsp": "npm run test:lsp:legacy && npm run test:lsp:current",
+    "test:lsp": "npm run test:lsp:compiled && npm run test:lsp:current",
     "package": "npm run compile && vsce package"
   },
   "dependencies": {

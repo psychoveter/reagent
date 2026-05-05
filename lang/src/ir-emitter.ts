@@ -431,6 +431,20 @@ class GraphBuilder {
     this.transitions.push({ from, to, label });
   }
 
+  private annotateStateRange(
+    startIndex: number,
+    meta: {
+      scopeId: string;
+      phase: "try" | "catch";
+      catchStateId: string;
+      catchLabel: string;
+    },
+  ): void {
+    for (let idx = startIndex; idx < this.states.length; idx++) {
+      this.states[idx].tryScope = meta;
+    }
+  }
+
   private advance(stateId: string, data: IRStateData, label: IRTransitionLabel = { kind: "default" }, loc?: Loc): string {
     this.addState(stateId, data, loc);
     this.addTransition(this.currentId, stateId, label);
@@ -544,7 +558,11 @@ class GraphBuilder {
   private emitAlt(alt: AltStmt): void {
     // Create a guard (decision) node
     const guardId = nextId("xor");
-    this.advance(guardId, { kind: "guard", guardType: "xor" });
+    this.advance(guardId, {
+      kind: "guard",
+      guardType: "xor",
+      ...(alt.decisionRole ? { decisionRole: alt.decisionRole } : {}),
+    });
 
     // Create a merge (join) node after all branches
     const mergeId = nextId("merge");
@@ -705,8 +723,9 @@ class GraphBuilder {
   // ── Try/catch ───────────────────────────────────────────────────
 
   private emitTry(tryStmt: TryStmt): void {
-    // Normal path
+    const scopeId = `try_${tryStmt.loc.start.line}_${tryStmt.loc.start.col}`;
     const tryEntryId = this.currentId;
+    const tryStateStart = this.states.length;
     this.emitBody(tryStmt.tryBody);
     const tryExitId = this.currentId;
 
@@ -719,11 +738,24 @@ class GraphBuilder {
     // Error path: any state in the try body can transition to catch on error
     // We model this as: tryEntry has an error edge to catch entry
     const catchEntryId = nextId("catch");
-    this.addState(catchEntryId, { kind: "error", label: tryStmt.catchLabel });
+    this.addState(catchEntryId, { kind: "error", label: tryStmt.catchLabel }, tryStmt.loc);
     this.addTransition(tryEntryId, catchEntryId, { kind: "error" });
+    this.annotateStateRange(tryStateStart, {
+      scopeId,
+      phase: "try",
+      catchStateId: catchEntryId,
+      catchLabel: tryStmt.catchLabel,
+    });
 
+    const catchStateStart = this.states.length - 1;
     this.currentId = catchEntryId;
     this.emitBody(tryStmt.catchBody);
+    this.annotateStateRange(catchStateStart, {
+      scopeId,
+      phase: "catch",
+      catchStateId: catchEntryId,
+      catchLabel: tryStmt.catchLabel,
+    });
 
     // Catch path → merge
     this.addTransition(this.currentId, mergeId, { kind: "default" });

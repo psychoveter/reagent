@@ -4,14 +4,14 @@
   "lang": "ts",
   "states": [
     {
-      "id": "init_16",
+      "id": "init_24",
       "kind": "initial",
       "data": {
         "kind": "initial"
       }
     },
     {
-      "id": "recv_17",
+      "id": "recv_25",
       "kind": "receive",
       "data": {
         "kind": "receive",
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "act_18",
+      "id": "act_26",
       "kind": "action",
       "data": {
         "kind": "action",
@@ -31,15 +31,16 @@
       }
     },
     {
-      "id": "xor_19",
+      "id": "xor_27",
       "kind": "guard",
       "data": {
         "kind": "guard",
-        "guardType": "xor"
+        "guardType": "xor",
+        "decisionRole": "seller"
       }
     },
     {
-      "id": "guard_21",
+      "id": "guard_29",
       "kind": "guard",
       "data": {
         "kind": "guard",
@@ -48,7 +49,7 @@
       }
     },
     {
-      "id": "send_22",
+      "id": "send_30",
       "kind": "send",
       "data": {
         "kind": "send",
@@ -59,7 +60,7 @@
       }
     },
     {
-      "id": "else_23",
+      "id": "else_31",
       "kind": "guard",
       "data": {
         "kind": "guard",
@@ -67,7 +68,7 @@
       }
     },
     {
-      "id": "send_24",
+      "id": "send_32",
       "kind": "send",
       "data": {
         "kind": "send",
@@ -77,7 +78,7 @@
       }
     },
     {
-      "id": "merge_20",
+      "id": "merge_28",
       "kind": "guard",
       "data": {
         "kind": "guard",
@@ -85,7 +86,25 @@
       }
     },
     {
-      "id": "recv_25",
+      "id": "xor_33",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "xor",
+        "decisionRole": "buyer"
+      }
+    },
+    {
+      "id": "guard_35",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression",
+        "expr": "$ctx._scatterItem == $ctx.winner.sellerId"
+      }
+    },
+    {
+      "id": "recv_36",
       "kind": "receive",
       "data": {
         "kind": "receive",
@@ -95,7 +114,33 @@
       }
     },
     {
-      "id": "end_26",
+      "id": "else_37",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "recv_38",
+      "kind": "receive",
+      "data": {
+        "kind": "receive",
+        "from": "buyer",
+        "arrow": "-->",
+        "messageName": "Reject"
+      }
+    },
+    {
+      "id": "merge_34",
+      "kind": "guard",
+      "data": {
+        "kind": "guard",
+        "guardType": "expression"
+      }
+    },
+    {
+      "id": "end_39",
       "kind": "terminal",
       "data": {
         "kind": "terminal",
@@ -105,71 +150,7 @@
   ],
   "transitions": [
     {
-      "from": "init_16",
-      "to": "recv_17",
-      "label": {
-        "kind": "default"
-      }
-    },
-    {
-      "from": "recv_17",
-      "to": "act_18",
-      "label": {
-        "kind": "default"
-      }
-    },
-    {
-      "from": "act_18",
-      "to": "xor_19",
-      "label": {
-        "kind": "default"
-      }
-    },
-    {
-      "from": "xor_19",
-      "to": "guard_21",
-      "label": {
-        "kind": "expression",
-        "expr": "$ctx.canFulfill == true"
-      }
-    },
-    {
-      "from": "guard_21",
-      "to": "send_22",
-      "label": {
-        "kind": "default"
-      }
-    },
-    {
-      "from": "send_22",
-      "to": "merge_20",
-      "label": {
-        "kind": "default"
-      }
-    },
-    {
-      "from": "xor_19",
-      "to": "else_23",
-      "label": {
-        "kind": "else"
-      }
-    },
-    {
-      "from": "else_23",
-      "to": "send_24",
-      "label": {
-        "kind": "default"
-      }
-    },
-    {
-      "from": "send_24",
-      "to": "merge_20",
-      "label": {
-        "kind": "default"
-      }
-    },
-    {
-      "from": "merge_20",
+      "from": "init_24",
       "to": "recv_25",
       "label": {
         "kind": "default"
@@ -177,21 +158,163 @@
     },
     {
       "from": "recv_25",
-      "to": "end_26",
+      "to": "act_26",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "act_26",
+      "to": "xor_27",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_27",
+      "to": "guard_29",
+      "label": {
+        "kind": "expression",
+        "expr": "$ctx.canFulfill == true"
+      }
+    },
+    {
+      "from": "guard_29",
+      "to": "send_30",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_30",
+      "to": "merge_28",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_27",
+      "to": "else_31",
+      "label": {
+        "kind": "else"
+      }
+    },
+    {
+      "from": "else_31",
+      "to": "send_32",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "send_32",
+      "to": "merge_28",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "merge_28",
+      "to": "xor_33",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_33",
+      "to": "guard_35",
+      "label": {
+        "kind": "expression",
+        "expr": "$ctx._scatterItem == $ctx.winner.sellerId"
+      }
+    },
+    {
+      "from": "guard_35",
+      "to": "recv_36",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_36",
+      "to": "merge_34",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "xor_33",
+      "to": "else_37",
+      "label": {
+        "kind": "else"
+      }
+    },
+    {
+      "from": "else_37",
+      "to": "recv_38",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "recv_38",
+      "to": "merge_34",
+      "label": {
+        "kind": "default"
+      }
+    },
+    {
+      "from": "merge_34",
+      "to": "end_39",
       "label": {
         "kind": "default"
       }
     }
   ],
-  "initialStateId": "init_16",
+  "initialStateId": "init_24",
   "terminalStateIds": [
-    "end_26"
+    "end_39"
   ],
-  "initiator": "buyer",
-  "version": "2.0.0",
+  "participants": [
+    {
+      "name": "buyer",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "seller",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "many",
+      "initiator": false
+    }
+  ],
+  "supervisionStrategy": "scoped",
+  "triggers": [
+    {
+      "kind": "invoke",
+      "withType": "CFPRequest",
+      "resolveMap": {
+        "buyer": [
+          {
+            "step": "single"
+          }
+        ],
+        "seller": [
+          {
+            "step": "single"
+          }
+        ]
+      }
+    }
+  ],
+  "invocable": true,
+  "version": "7.0.0",
   "fingerprints": {
-    "structureHash": "0cbef6149253f314e3ba8e18a3062278a7a8527744d2fb95faf6edcc4598abb5",
-    "schemaHash": "4f9f4b174f28486e6e78bfc899421efbbca51c77b7407c7a13f4f41e7d5bd324",
-    "implHash": "df6fdf958488e632e9684efb656438dd99b85d67a0135c3aaa6b145452fcaeb4"
+    "structureHash": "1542f957bc96a35d933357c976b735103d35ca56b8bcdc6c81e837f0fb84adc6",
+    "schemaHash": "16a687047c842d4f60dd6f9f54e17d8195f0ba2e531a0833da2bbcc2347acd97",
+    "implHash": "8f4f498cd409984f43be16e6e992bc8ec2f9220d0198cf327797b2a7dec01308"
   }
 }

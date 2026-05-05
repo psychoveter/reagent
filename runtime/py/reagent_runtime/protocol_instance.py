@@ -364,41 +364,47 @@ class ProtocolInstance:
         transitions = self._transitions_from.get(state["id"], [])
 
         if data.get("guardType") == "xor":
+            decision_role = data.get("decisionRole")
+            is_decision_role = (not decision_role) or decision_role == self.role_name
             expr_trans = [t for t in transitions if t["label"]["kind"] == "expression"]
             else_trans = next((t for t in transitions if t["label"]["kind"] == "else"), None)
             msg_trans = [t for t in transitions if t["label"]["kind"] == "message"]
 
             if expr_trans:
                 any_eval_succeeded = False
-                for t in expr_trans:
-                    expr = t["label"]["expr"]
-                    try:
-                        result = self._eval_expr(expr)
-                        any_eval_succeeded = True
-                        if result:
-                            self._emit_trace("GuardEvaluated", {"expr": expr, "result": True})
-                            self._current_state_id = t["to"]
-                            await self._advance()
-                            return
-                    except Exception:
-                        pass
+                if is_decision_role:
+                    for idx, t in enumerate(expr_trans):
+                        expr = t["label"]["expr"]
+                        try:
+                            result = self._eval_expr(expr)
+                            any_eval_succeeded = True
+                            self._emit_trace("GuardEvaluated", {"expr": expr, "result": result, "decisionRole": decision_role, "stateId": state["id"]})
+                            self._emit_trace("AltEvaluated", {"stateId": state["id"], "mode": "expression", "decisionRole": decision_role, "expr": expr, "result": result})
+                            if result:
+                                self._emit_trace("AltBranchChosen", {"stateId": state["id"], "branchIndex": idx, "decisionRole": decision_role, "mode": "expression"})
+                                self._current_state_id = t["to"]
+                                await self._advance()
+                                return
+                        except Exception:
+                            pass
 
-                if any_eval_succeeded:
+                if is_decision_role and any_eval_succeeded:
                     if else_trans:
-                        self._emit_trace("GuardEvaluated", {"branch": "else"})
+                        self._emit_trace("GuardEvaluated", {"branch": "else", "decisionRole": decision_role, "stateId": state["id"]})
+                        self._emit_trace("AltEvaluated", {"stateId": state["id"], "mode": "expression", "decisionRole": decision_role, "branch": "else"})
+                        self._emit_trace("AltBranchChosen", {"stateId": state["id"], "branchIndex": len(expr_trans), "decisionRole": decision_role, "mode": "expression"})
                         self._current_state_id = else_trans["to"]
                         await self._advance()
                         return
                     raise RuntimeError(f"No matching branch in XOR guard {state['id']}")
 
-                # Expressions ALL failed (non-deciding agent).
-                # Fall through to message-based waiting.
+                # Expressions ALL failed or this role is only observing.
                 recv_expectations = []
                 all_branch_starts = [t["to"] for t in expr_trans]
                 if else_trans:
                     all_branch_starts.append(else_trans["to"])
 
-                for branch_start_id in all_branch_starts:
+                for branch_index, branch_start_id in enumerate(all_branch_starts):
                     recv_id = self._find_first_receive_in_branch(branch_start_id)
                     if recv_id:
                         recv_state = self._state_map.get(recv_id)
@@ -406,11 +412,23 @@ class ProtocolInstance:
                             recv_expectations.append({
                                 "messageName": recv_state["data"]["messageName"],
                                 "targetStateId": recv_id,
+                                "branchIndex": branch_index,
                             })
 
                 if recv_expectations:
-                    self._emit_trace("GuardEvaluated", {"mode": "message-wait-fallback"})
+                    self._emit_trace("GuardEvaluated", {
+                        "mode": "follower-message-wait" if decision_role and not is_decision_role else "message-wait-fallback",
+                        "decisionRole": decision_role,
+                        "stateId": state["id"],
+                    })
                     result = await self._wait_for_any_message(state["id"], recv_expectations)
+                    self._emit_trace("AltBranchChosen", {
+                        "stateId": state["id"],
+                        "branchIndex": result.get("branchIndex"),
+                        "decisionRole": decision_role,
+                        "mode": "message-observed",
+                        "messageName": result["env"]["messageName"],
+                    })
 
                     env = result["env"]
                     self._emit_trace("MessageReceived", {
@@ -434,13 +452,25 @@ class ProtocolInstance:
                     await self._advance()
                     return
 
-                raise RuntimeError(f"No matching branch in XOR guard {state['id']}")
+                if is_decision_role and not any_eval_succeeded:
+                    raise RuntimeError(f"No matching branch in XOR guard {state['id']}")
+
+                raise RuntimeError(f"Role '{self.role_name}' cannot observe alt decision for XOR guard {state['id']}")
 
             if msg_trans:
+                if is_decision_role:
+                    self._emit_trace("AltEvaluated", {"stateId": state["id"], "mode": "message", "decisionRole": decision_role})
                 result = await self._wait_for_any_message(
                     state["id"],
-                    [{"messageName": t["label"]["messageName"], "targetStateId": t["to"]} for t in msg_trans],
+                    [{"messageName": t["label"]["messageName"], "targetStateId": t["to"], "branchIndex": idx} for idx, t in enumerate(msg_trans)],
                 )
+                self._emit_trace("AltBranchChosen", {
+                    "stateId": state["id"],
+                    "branchIndex": result.get("branchIndex"),
+                    "decisionRole": decision_role,
+                    "mode": "message",
+                    "messageName": result["env"]["messageName"],
+                })
                 self._ctx["msg"] = result["env"]["payload"]
                 self._current_state_id = result["targetStateId"]
                 await self._advance()
@@ -857,7 +887,11 @@ class ProtocolInstance:
                 if env["messageName"] == e["messageName"]:
                     self._message_inbox.pop(i)
                     result_imm: asyncio.Future = loop.create_future()
-                    result_imm.set_result({"env": env, "targetStateId": e["targetStateId"]})
+                    result_imm.set_result({
+                        "env": env,
+                        "targetStateId": e["targetStateId"],
+                        "branchIndex": e.get("branchIndex"),
+                    })
                     return result_imm
 
         result_fut: asyncio.Future = loop.create_future()
@@ -866,8 +900,8 @@ class ProtocolInstance:
             per_msg_fut: asyncio.Future = loop.create_future()
 
             per_msg_fut.add_done_callback(
-                lambda f, tid=e["targetStateId"]: (
-                    result_fut.set_result({"env": f.result(), "targetStateId": tid})
+                lambda f, tid=e["targetStateId"], branch_index=e.get("branchIndex"): (
+                    result_fut.set_result({"env": f.result(), "targetStateId": tid, "branchIndex": branch_index})
                     if not result_fut.done() else None
                 )
             )

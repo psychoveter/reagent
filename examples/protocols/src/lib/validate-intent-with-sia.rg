@@ -21,7 +21,7 @@ protocol ValidateIntentWithSia {
     }
   }
 
-  alt (sia --> comma: ValidationOk) {
+  alt at comma (sia --> comma: ValidationOk) {
     comma { $ctx.validation = { ok: true } }
   } else (sia --> comma: ValidationError) {
     comma { $ctx.validation = { ok: false, error: $ctx.msg } }

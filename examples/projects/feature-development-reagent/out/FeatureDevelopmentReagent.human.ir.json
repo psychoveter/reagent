@@ -145,6 +145,7 @@
       "initiator": false
     }
   ],
+  "supervisionStrategy": "scoped",
   "triggers": [
     {
       "kind": "invoke",
@@ -174,27 +175,27 @@
     }
   ],
   "invocable": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "fingerprints": {
-    "structureHash": "a0f5c0a52c5fffb6b28900773f3f614c5b37271d9c0e6f71c1c42733d3ae2f90",
+    "structureHash": "1cb4b5c5c229f7e678d1056db8c3a06c1be3460f416177cb296c6f0b9898f255",
     "schemaHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "implHash": "3fb6a5dc0fecaa8f8a9343d86390d80d4294b68253bc58cdb7cf5435c2bc55d8"
   },
   "dependencies": [
     {
       "protocolName": "DesignStage",
-      "structureHash": "84d179e736b09b39419f4bdf52bb050df84ae257de25171dece3818640ad6c26",
-      "version": "0.1.0"
+      "structureHash": "fdb1017bd71f0342f57f6553c78c1bf3386ca0419f0c259914f938d033835104",
+      "version": "1.0.0"
     },
     {
       "protocolName": "FinalizationStage",
-      "structureHash": "1918858bc6cffd9aa41c5e730c9263c85e612dcc0223218ce46de0de246d18c8",
-      "version": "0.1.0"
+      "structureHash": "a78d5fcccc83fdc46192b9c7b4209f53ff4cb82edac1609fdfbd6a482dcc46f0",
+      "version": "1.0.0"
     },
     {
       "protocolName": "ImplementationStage",
-      "structureHash": "4c57b1aabd6ebd9c314f1c5feeb84b9375461827df3d9a21b235e8594d2b5d9e",
-      "version": "0.1.0"
+      "structureHash": "e302a9128b4bc052e068eff96dd1c6d66e44181e6bc185caf3165763a178ac3e",
+      "version": "1.0.0"
     }
   ]
 }

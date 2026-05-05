@@ -5,7 +5,7 @@
     {
       "protocolName": "TryCatchDemo",
       "roleName": "processor",
-      "protocolVersion": "0.1.1"
+      "protocolVersion": "2.0.0"
     }
   ],
   "initAction": {
@@ -22,9 +22,9 @@
       }
     }
   ],
-  "version": "1.0.0",
+  "version": "3.0.0",
   "fingerprints": {
-    "playsHash": "32ea373a67637fd588a6d52fe02e386e4ba2258be902fd1654e67bbbc1931020",
+    "playsHash": "7ef1769021f4fdf9b2f21028c51ae311a8f86d922d68ec1c7239dbd3e63d11de",
     "behaviorHash": "afea9621a8a309f743afaa1c27ba7c4bc5627a5a7378193312fc6442cd832499"
   }
 }

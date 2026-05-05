@@ -213,7 +213,7 @@ protocol DesignStage {
       }
     }
 
-    alt ($ctx.stageApproved == true) {
+    alt at analyst ($ctx.stageApproved == true) {
       analyst {
         reagent.return({
           stage: "design",
@@ -345,7 +345,7 @@ protocol ImplementationStage {
       }
     }
 
-    alt ($ctx.stageApproved == true) {
+    alt at analyst ($ctx.stageApproved == true) {
       analyst {
         reagent.return({
           stage: "implementation",
@@ -493,7 +493,7 @@ protocol FinalizationStage {
       }
     }
 
-    alt ($ctx.stageApproved == true) {
+    alt at analyst ($ctx.stageApproved == true) {
       analyst {
         reagent.return({
           stage: "finalization",

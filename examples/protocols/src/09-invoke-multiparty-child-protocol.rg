@@ -31,7 +31,7 @@ protocol TaskExecutionWithMultipartyChild {
     sia: sia
   } -> $ctx.validation
 
-  alt ($ctx.validation.ok == true) {
+  alt at comma ($ctx.validation.ok == true) {
     comma --> user: Done = { }
   } else {
     comma --> user: Failed = { }

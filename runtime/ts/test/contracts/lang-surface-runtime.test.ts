@@ -314,6 +314,40 @@ test("M5-LANG tests (v0.0.11)", async () => {
     recordResult("T36: alt where pattern matching (IR validation)", false, e.message);
   }
 
+  // ── T37: alt explicit decision maker in IR/trace ─────────────────
+  try {
+    const dir = join(EXAMPLES_OUT, "14-ts-only-demo");
+    const handlerGraph = loadGraph(dir, "TsDemo", "handler");
+    const xor = handlerGraph.states.find(s => s.kind === "guard" && (s.data as any).guardType === "xor");
+    assert.ok(xor, "Handler should have XOR guard");
+    assert.equal((xor!.data as any).decisionRole, "handler", "XOR guard should carry explicit decisionRole");
+
+    const { rc, deployment } = createSingleNodeSetup(dir, [
+      { name: "ClientAgent", graphEntries: [{ proto: "TsDemo", role: "client" }] },
+      { name: "HandlerAgent", graphEntries: [{ proto: "TsDemo", role: "handler" }] },
+    ]);
+
+    await rc.start();
+    const instanceId = randomUUID();
+    const trigger = { instanceId, protocolName: "TsDemo", input: { text: "trace-test" }, roleToAgent: deployment.roleToAgent };
+    rc.triggerProtocol("ClientAgent", trigger);
+    rc.triggerProtocol("HandlerAgent", trigger);
+
+    const handler = getHandle(rc, "HandlerAgent");
+    await handler.waitForCompletion(1, 5000);
+
+    const hi = handler.getInstances().get(instanceId)!;
+    assert.equal(hi.getStatus(), "completed", "Handler should complete");
+    const traces = hi.getTraces();
+    assert.ok(traces.some(t => t.kind === "AltEvaluated"), "Handler should emit AltEvaluated trace");
+    assert.ok(traces.some(t => t.kind === "AltBranchChosen"), "Handler should emit AltBranchChosen trace");
+
+    await rc.stop();
+    recordResult("T37: alt explicit decision maker in IR/trace", true);
+  } catch (e: any) {
+    recordResult("T37: alt explicit decision maker in IR/trace", false, e.message);
+  }
+
   // ── Summary ──────────────────────────────────────────────────────
   const passed = results.filter(r => r.passed).length;
   const failed = results.filter(r => !r.passed).length;

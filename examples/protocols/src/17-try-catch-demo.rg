@@ -9,6 +9,7 @@ protocol TryCatchDemo {
   participants:
     sender [ts] initiator,
     processor [ts]
+    
   trigger on invoke with Request {
     resolve sender = single
     resolve processor = single

@@ -1,0 +1,17 @@
+{
+  "name": "reagent-decks",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:deep-dive": "slidev deep-dive/slides.md --open",
+    "export:deep-dive": "slidev export deep-dive/slides.md --output deep-dive/deep-dive --timeout 60000",
+    "export:all": "npm run export:deep-dive",
+    "dev": "echo 'Usage: npm run dev:<deck-name>' && exit 1"
+  },
+  "devDependencies": {
+    "@slidev/cli": "^52.14.1",
+    "@slidev/theme-default": "^0.25.0",
+    "@slidev/theme-seriph": "^0.25.0",
+    "playwright-chromium": "^1.58.2"
+  }
+}

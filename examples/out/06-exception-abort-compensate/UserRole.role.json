@@ -5,13 +5,13 @@
     {
       "protocolName": "ExceptionAbortCompensate",
       "roleName": "user",
-      "protocolVersion": "0.1.1"
+      "protocolVersion": "2.0.0"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "3.0.0",
+  "version": "111.0.0",
   "fingerprints": {
-    "playsHash": "f4271a2753946bb3ca236a19cd85ed0d05a8ca691129b0da5854022e45130525",
+    "playsHash": "f6059da0d1fe5add47fe0fd9d95d5ced9e4569cc6d77b6f582bc19b95c29feb3",
     "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
   }
 }

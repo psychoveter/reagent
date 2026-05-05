@@ -5,13 +5,13 @@
     {
       "protocolName": "SpawnSubagent",
       "roleName": "comma",
-      "protocolVersion": "2.0.0"
+      "protocolVersion": "4.0.0"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "17.0.0",
+  "version": "199.0.0",
   "fingerprints": {
-    "playsHash": "d01d252e15521d07369bc90bdeaed85c97f0fed8dcc90bf611774b34aff4270a",
+    "playsHash": "36cb40d57eb2bc1ebbac70662aa76f5f9744b8d0d6e7f17c4412557c8575451c",
     "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
   }
 }

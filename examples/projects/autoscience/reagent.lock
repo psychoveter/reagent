@@ -1,49 +1,49 @@
 {
   "protocols": {
     "ResearchCycle": {
-      "version": "1.1.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "structureHash": "48291955b4a875fa2104bdc74b457938c58bed8b3db2b3d6b503a709cc0bafc2",
+        "structureHash": "2d1f1048721579f388e2fd416da12ab2258be065657bb08f9881402007aa4f52",
         "schemaHash": "ec9afa9630a7c92fa7bb77d153e1c3899bca927b24cfbe5e17a0c2aa530a1297",
-        "implHash": "889bd6e9b9970b116efc3fa130d59fde9e41d38c8cbb423b597ce9d664747186"
+        "implHash": "32976976b4a15cb2f738a3c46c114a200c05f059921ded959e7432f296199192"
       }
     },
     "Formalize": {
-      "version": "0.1.1",
+      "version": "1.0.0",
       "fingerprints": {
-        "structureHash": "d52a39a84fc2d6b7dc4a31474002794b06b53551a24a2892d644eca63ae6cc13",
+        "structureHash": "1f832cf5ea1fa889aca42f2ed692ef47842e69a9f11e37735088d4a7913ea260",
         "schemaHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "implHash": "7a18340ba902b2a101e966c272ac5c727e7679b65e43850cc7114facc7a0ac53"
       }
     },
     "Critique": {
-      "version": "0.1.1",
+      "version": "1.0.0",
       "fingerprints": {
-        "structureHash": "baf08ca7abd51d530c437047b7efc8647ba40e639c1f31ca4a784edcfa760c49",
+        "structureHash": "2877cead0e0ead15c1e37c3959871c43369f35ba53e6b9d6152182377f88b513",
         "schemaHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "implHash": "b06bc0a4db2682cd3324a1c4c78a9545c1ad1708b07285a73a2a6019a12d3e23"
       }
     },
     "ExperimentRun": {
-      "version": "0.1.1",
+      "version": "1.0.0",
       "fingerprints": {
-        "structureHash": "0f6bc72e86fc3fa4bf412350a2017a07326ebec4ab2e3597e7f60a813e7be467",
+        "structureHash": "e6615f80b3b3890c8713b8a6a2f778323cf8d0aceb415636463319ec013b6132",
         "schemaHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "implHash": "a05699f0b14e3ca36856c4f5768152f4ffa8a73faee7493adb91dbcf54d2dcfe"
       }
     },
     "Fixation": {
-      "version": "0.1.1",
+      "version": "1.0.0",
       "fingerprints": {
-        "structureHash": "3afa5ee74de8625304ae4a0f4210b86927c7403be68fb3dd1d2ba3ea8cb142b5",
+        "structureHash": "1f424c0fa852e679232081047330772783594d3cd156def722656841d20d8506",
         "schemaHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "implHash": "9949e1a50599d67f3ea9926b0e16e2114b55ca697c706fdd996f49074e3b2263"
       }
     },
     "SimpleResearch": {
-      "version": "0.1.0",
+      "version": "1.0.0",
       "fingerprints": {
-        "structureHash": "d8637e1cf2285781c55802abb577f19ad09eb093b6e68b0f2386ccf1c1a1ea55",
+        "structureHash": "940dd23dda236e0abf4a0dc6993a5d0ce0379e2db620e12ca6070e4255717489",
         "schemaHash": "a5478ddc45cb67916df231e56bd1b2bf50e18aea6893e054af0e8ff17e8e1c03",
         "implHash": "c16430a52237d67712cd066e817d8ce8dcb1d948c9624e832d52c2cab0637a3f"
       }
@@ -58,51 +58,51 @@
       }
     },
     "ConsultantRole": {
-      "version": "3.0.0",
+      "version": "5.0.0",
       "fingerprints": {
-        "playsHash": "1d7eeb06b0ef5bc671af90ae7ddbca6f8381fcbead51866163948b029514025e",
+        "playsHash": "bfce64799822db926ea72d8249500b51b5c4154b19dd4477031bdd1ee17856af",
         "behaviorHash": "bc0f2293ea14d652edf1dbffb7526a98496ea99f57888bc498c0c5b915699a8d"
       }
     },
     "ResearcherRole": {
-      "version": "3.0.0",
+      "version": "5.0.0",
       "fingerprints": {
-        "playsHash": "41b5a4d1ae45f24af3dd9b1cd8a254862463a70744ac6ed6a3808000d3886cb0",
+        "playsHash": "3ef8b7e0b617055d0a365cd8f150418f2ee5d4fe1cf903ee71a03a6e0772ba12",
         "behaviorHash": "2bdedb7c89b95c0ae9c3a4b831b8ae18e2e62872e52b7a5bfe290dc2bafec1a6"
       }
     },
     "HumanRole": {
-      "version": "2.0.0",
+      "version": "4.0.0",
       "fingerprints": {
-        "playsHash": "24a6e8dc26e309662a2f5eee626dbdb283666c5a3aacd2b3b85ee6d24df72019",
+        "playsHash": "92857d6879a0afcf2381617b3d0cd584444ab671ff195d528ec1f8514304a97c",
         "behaviorHash": "bac350bcbb1f3cc94c5675c9caf747a83919350956f080b1158e3e8babc41b4d"
       }
     },
     "LeadRole": {
-      "version": "1.0.0",
+      "version": "3.0.0",
       "fingerprints": {
-        "playsHash": "c46a029c2271d800dbb6dd46cd348869aed83c963250d3a3eb7e0ad2b4c75e82",
+        "playsHash": "67f519eeb066e3ebee6f7b6ca4f23d6f5bf9bfa9a7a7fd3e693681d6464f74a8",
         "behaviorHash": "f546a9d44ea1f3cd8feb4602e8c3fc55b6b8d4a0528b004d2ef0dd2b5c5b8456"
       }
     },
     "SimpleHumanRole": {
-      "version": "0.1.0",
+      "version": "1.0.0",
       "fingerprints": {
-        "playsHash": "83505f865bdbd67b53d6e16408356a78204762e15382a8739b96684f8636b800",
+        "playsHash": "8f5828a3c8a7bfdf7e496e263233595b397f5b060fbb361ad45c6d521d51b46b",
         "behaviorHash": "d60e8de6aeafa6edf8e8cd1b527e19b7be5e5f8b2c9af272322d4d4d9b493dd5"
       }
     },
     "SimpleConsultantRole": {
-      "version": "0.1.0",
+      "version": "1.0.0",
       "fingerprints": {
-        "playsHash": "16c5e29bfb2f4311d73f60825f26a722c11c523290650792f40c3d2cda04cf9b",
+        "playsHash": "88fc88717fa8395f87aee2958b6c3f3c6b1a9b52b0cc11339bb6af39e64b05d5",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
       }
     },
     "SimpleResearcherRole": {
-      "version": "0.1.0",
+      "version": "1.0.0",
       "fingerprints": {
-        "playsHash": "2f1954ba40a64a8ebc8849768eb6674fe9ac997da3c4a053e4e5b81a7b5e574f",
+        "playsHash": "7e5cfeacec18b1f47f9bdfd5c845384b260ca48befd4da23945bd026ec9587e2",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
       }
     }

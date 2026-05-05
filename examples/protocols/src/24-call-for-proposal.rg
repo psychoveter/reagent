@@ -15,7 +15,7 @@ message Reject {}
 protocol CallForProposal {
   participants:
     buyer [ts] initiator,
-    seller [ts]
+    seller [ts] many
   trigger on invoke with CFPRequest {
     resolve buyer = single
     resolve seller = single
@@ -41,7 +41,7 @@ protocol CallForProposal {
       $ctx.canFulfill = evaluate($ctx.spec)
     }
 
-    alt ($ctx.canFulfill == true) {
+    alt at seller ($ctx.canFulfill == true) {
       seller --> buyer: Propose = {
         onSend {
           $ctx.msg.price = $ctx.price
@@ -60,10 +60,16 @@ protocol CallForProposal {
     $ctx.winner = selectBest($ctx.proposals)
   }
 
-  // Notify winner (simplified: in real CFP, you'd scatter accept/reject to all)
-  buyer --> seller: Accept = {
-    onSend {
-      $ctx.msg.winnerId = $ctx.winner.sellerId
+  // Notify all sellers of the outcome.
+  scatter ($ctx.candidates as seller) {
+    alt at buyer ($ctx._scatterItem == $ctx.winner.sellerId) {
+      buyer --> seller: Accept = {
+        onSend {
+          $ctx.msg.winnerId = $ctx.winner.sellerId
+        }
+      }
+    } else {
+      buyer --> seller: Reject = { }
     }
   }
 }

@@ -4,88 +4,88 @@
       "stateId": "act_2",
       "protocolName": "TaskExecution",
       "role": "user",
-      "file": "examples/protocols/src/12-agent-multi-protocol.rg",
-      "line": 18,
+      "file": "../examples/protocols/src/12-agent-multi-protocol.rg",
+      "line": 24,
       "column": 3
     },
     {
       "stateId": "send_3",
       "protocolName": "TaskExecution",
       "role": "user",
-      "file": "examples/protocols/src/12-agent-multi-protocol.rg",
-      "line": 21,
+      "file": "../examples/protocols/src/12-agent-multi-protocol.rg",
+      "line": 27,
       "column": 3
     },
     {
       "stateId": "recv_6",
       "protocolName": "TaskExecution",
       "role": "comma",
-      "file": "examples/protocols/src/12-agent-multi-protocol.rg",
-      "line": 21,
+      "file": "../examples/protocols/src/12-agent-multi-protocol.rg",
+      "line": 27,
       "column": 3
     },
     {
       "stateId": "invoke_7",
       "protocolName": "TaskExecution",
       "role": "comma",
-      "file": "examples/protocols/src/12-agent-multi-protocol.rg",
-      "line": 23,
+      "file": "../examples/protocols/src/12-agent-multi-protocol.rg",
+      "line": 29,
       "column": 3
     },
     {
       "stateId": "act_8",
       "protocolName": "TaskExecution",
       "role": "comma",
-      "file": "examples/protocols/src/12-agent-multi-protocol.rg",
-      "line": 25,
+      "file": "../examples/protocols/src/12-agent-multi-protocol.rg",
+      "line": 31,
       "column": 3
     },
     {
       "stateId": "send_9",
       "protocolName": "TaskExecution",
       "role": "comma",
-      "file": "examples/protocols/src/12-agent-multi-protocol.rg",
-      "line": 29,
+      "file": "../examples/protocols/src/12-agent-multi-protocol.rg",
+      "line": 35,
       "column": 3
     },
     {
       "stateId": "recv_12",
       "protocolName": "TaskExecution",
       "role": "sia",
-      "file": "examples/protocols/src/12-agent-multi-protocol.rg",
-      "line": 29,
+      "file": "../examples/protocols/src/12-agent-multi-protocol.rg",
+      "line": 35,
       "column": 3
     },
     {
       "stateId": "send_2",
       "protocolName": "HealthCheck",
       "role": "monitor",
-      "file": "examples/protocols/src/12-agent-multi-protocol.rg",
-      "line": 41,
+      "file": "../examples/protocols/src/12-agent-multi-protocol.rg",
+      "line": 51,
       "column": 3
     },
     {
       "stateId": "recv_3",
       "protocolName": "HealthCheck",
       "role": "monitor",
-      "file": "examples/protocols/src/12-agent-multi-protocol.rg",
-      "line": 42,
+      "file": "../examples/protocols/src/12-agent-multi-protocol.rg",
+      "line": 52,
       "column": 3
     },
     {
       "stateId": "recv_6",
       "protocolName": "HealthCheck",
       "role": "comma",
-      "file": "examples/protocols/src/12-agent-multi-protocol.rg",
-      "line": 41,
+      "file": "../examples/protocols/src/12-agent-multi-protocol.rg",
+      "line": 51,
       "column": 3
     },
     {
       "stateId": "send_7",
       "protocolName": "HealthCheck",
       "role": "comma",
-      "file": "examples/protocols/src/12-agent-multi-protocol.rg",
-      "line": 42,
+      "file": "../examples/protocols/src/12-agent-multi-protocol.rg",
+      "line": 52,
       "column": 3
     }
   ]

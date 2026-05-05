@@ -65,18 +65,65 @@
   "terminalStateIds": [
     "end_4"
   ],
-  "initiator": "user",
-  "version": "1.0.0",
+  "participants": [
+    {
+      "name": "user",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "comma",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    },
+    {
+      "name": "sia",
+      "lang": "*",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "supervisionStrategy": "scoped",
+  "triggers": [
+    {
+      "kind": "invoke",
+      "withType": "TaskRequest",
+      "resolveMap": {
+        "user": [
+          {
+            "step": "single"
+          }
+        ],
+        "comma": [
+          {
+            "step": "single"
+          }
+        ],
+        "sia": [
+          {
+            "step": "single"
+          }
+        ]
+      }
+    }
+  ],
+  "invocable": true,
+  "version": "4.0.0",
   "fingerprints": {
-    "structureHash": "48da8691f087259a9085fdd7f50c48acaaff36bea0bc9ebf67d4a247d8196f2b",
+    "structureHash": "896a12a81923e78c323888717f6eef60ff711dce51c817a24eec19e10062d7e3",
     "schemaHash": "3ff741769ea2af2c94ab665342ce44cb8474c89539c481b8ab462ceb042038e8",
     "implHash": "309ba36bc1b2b8a476274428a18d973f4bb7a3c1ff289797a445683e31eda26b"
   },
   "dependencies": [
     {
       "protocolName": "DeriveDsiBsi",
-      "structureHash": "075bd4a0778079275c6c058cacf873254a679da9b91628582022e94e29d02541",
-      "version": "0.1.0"
+      "structureHash": "875d885639861a11572a80906016d68c8105e260e30928cf1028b281a6ea32e6",
+      "version": "3.0.0"
     }
   ]
 }

@@ -388,7 +388,7 @@ protocol ProcessPayment {
     onReceive { $ctx.fraudResult = $ctx.msg }
   }
 
-  alt ($ctx.fraudResult.approved == true) {
+  alt at gateway ($ctx.fraudResult.approved == true) {
     // Step 2: charge + notify in parallel
     par {
       gateway --> ledger: PaymentRequest = {
@@ -567,7 +567,7 @@ protocol DailyRiskReview {
     onReceive { $ctx.approval = $ctx.msg }
   }
 
-  alt ($ctx.approval.approved == true) {
+  alt at reviewer ($ctx.approval.approved == true) {
     reviewer {
       $self.lastApproved = $ctx.today
       reagent.emit("risk.approved", { date: $ctx.today })
@@ -745,7 +745,7 @@ protocol DesignStage {
     analyst --> human: ApprovalRequest
     human --> analyst: ApprovalDecision
 
-    alt ($ctx.stageApproved == true) {
+    alt at analyst ($ctx.stageApproved == true) {
       analyst {
         reagent.return({
           stage: "design",

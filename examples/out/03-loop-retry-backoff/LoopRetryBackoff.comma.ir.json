@@ -44,7 +44,8 @@
       "kind": "guard",
       "data": {
         "kind": "guard",
-        "guardType": "xor"
+        "guardType": "xor",
+        "decisionRole": "comma"
       }
     },
     {
@@ -107,13 +108,13 @@
           "unit": "s",
           "loc": {
             "start": {
-              "index": 862,
-              "line": 31,
+              "index": 944,
+              "line": 35,
               "col": 12
             },
             "end": {
-              "index": 864,
-              "line": 31,
+              "index": 946,
+              "line": 35,
               "col": 14
             }
           }
@@ -308,10 +309,45 @@
   "terminalStateIds": [
     "end_16"
   ],
-  "initiator": "comma",
-  "version": "0.1.1",
+  "participants": [
+    {
+      "name": "comma",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "sia",
+      "lang": "*",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "supervisionStrategy": "scoped",
+  "triggers": [
+    {
+      "kind": "invoke",
+      "withType": "ValidateIntent",
+      "resolveMap": {
+        "comma": [
+          {
+            "step": "single"
+          }
+        ],
+        "sia": [
+          {
+            "step": "single"
+          }
+        ]
+      }
+    }
+  ],
+  "invocable": true,
+  "version": "3.0.0",
   "fingerprints": {
-    "structureHash": "2ea8954286b26f2a65ac1d2a25694970a5e9053f5aef2b3df30f2c61309aab39",
+    "structureHash": "d7816714f16e3e6df373367dac1e8c8c16ebbc201a5e982e35da39f8c260b1a9",
     "schemaHash": "5ebe31072521e3c4474d0f41799505f02356d47a777afa2172a43667271b5092",
     "implHash": "a1b60d62ceaec48c1aa969f09ad12560d073835be87f6b42e54d0e91e32f4f08"
   }

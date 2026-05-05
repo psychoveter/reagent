@@ -1,33 +1,33 @@
 {
   "protocols": {
     "DesignStage": {
-      "version": "0.1.0",
+      "version": "1.0.0",
       "fingerprints": {
-        "structureHash": "84d179e736b09b39419f4bdf52bb050df84ae257de25171dece3818640ad6c26",
+        "structureHash": "fdb1017bd71f0342f57f6553c78c1bf3386ca0419f0c259914f938d033835104",
         "schemaHash": "f98c1ee4f7b0195d0f9fabbb6e5539ce174fb444a69f059b6f56cb647466fa22",
         "implHash": "24c8e587599dbb3d54e08cfaf8f1a409ec6362228721b3fc01d179e84383f6a5"
       }
     },
     "ImplementationStage": {
-      "version": "0.1.0",
+      "version": "1.0.0",
       "fingerprints": {
-        "structureHash": "4c57b1aabd6ebd9c314f1c5feeb84b9375461827df3d9a21b235e8594d2b5d9e",
+        "structureHash": "e302a9128b4bc052e068eff96dd1c6d66e44181e6bc185caf3165763a178ac3e",
         "schemaHash": "577a307b16d84747effd9a9be4866c61b298d65d6663690024d97eaf0e0eea45",
         "implHash": "fc6a8b8550ead711ea6184af5bacfb08f8358614bc8af9700c58e817d89fb43c"
       }
     },
     "FinalizationStage": {
-      "version": "0.1.0",
+      "version": "1.0.0",
       "fingerprints": {
-        "structureHash": "1918858bc6cffd9aa41c5e730c9263c85e612dcc0223218ce46de0de246d18c8",
+        "structureHash": "a78d5fcccc83fdc46192b9c7b4209f53ff4cb82edac1609fdfbd6a482dcc46f0",
         "schemaHash": "8f3160a8648d6cd672b52f9fb93a721104ba8eed1d6663b6ce341bbe1c0f7761",
         "implHash": "ee029b28b91de03577fb8a0683f87ae3242a8ad90dc723257e1044eda7988669"
       }
     },
     "FeatureDevelopmentReagent": {
-      "version": "0.1.0",
+      "version": "1.0.0",
       "fingerprints": {
-        "structureHash": "a0f5c0a52c5fffb6b28900773f3f614c5b37271d9c0e6f71c1c42733d3ae2f90",
+        "structureHash": "1cb4b5c5c229f7e678d1056db8c3a06c1be3460f416177cb296c6f0b9898f255",
         "schemaHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "implHash": "3fb6a5dc0fecaa8f8a9343d86390d80d4294b68253bc58cdb7cf5435c2bc55d8"
       }
@@ -35,30 +35,30 @@
   },
   "roles": {
     "HumanRole": {
-      "version": "0.1.0",
+      "version": "1.0.0",
       "fingerprints": {
-        "playsHash": "a684cb67dd27b022d7ebe8f37be0f69884e2b8c48e7006dc20fa694209a92a3c",
+        "playsHash": "c14e05ade6b57705e46995a9a179af743d467829d0cdd10de830ec912f8d2ef2",
         "behaviorHash": "a271c8e47c79bfce918d64eb78a60545186f885b63203c8cbb1591b298bb2104"
       }
     },
     "AnalystRole": {
-      "version": "0.1.0",
+      "version": "1.0.0",
       "fingerprints": {
-        "playsHash": "ba2143c6d21ccfc47f50f0449e8ef3d28048eb9d9cc654e5ffaded0c4ce22de0",
+        "playsHash": "fb7d497dd1fa52ed9d1bfb5bc9ea7b4fcc3aa5baa7043a6560af72395d38841c",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
       }
     },
     "DeveloperRole": {
-      "version": "0.1.0",
+      "version": "1.0.0",
       "fingerprints": {
-        "playsHash": "bd5e3940670f94a322dbf8f81b410b711db48e0d51aa0d35bd6a2b5e1212d59c",
+        "playsHash": "a3bfc265c55a8380eae7f343e4034caa1348c408ad60b606e44b861faf938050",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
       }
     },
     "ReviewerRole": {
-      "version": "0.1.0",
+      "version": "1.0.0",
       "fingerprints": {
-        "playsHash": "d99dcfc9b1164ae56c0a841635363dc312c9f2e70dbbe1dbbaaf9631f037d748",
+        "playsHash": "beab0759cccf14e36dbdd1922c32d2820e7d702cc094bf9d3a1a9c7d5ac19fcc",
         "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
       }
     }

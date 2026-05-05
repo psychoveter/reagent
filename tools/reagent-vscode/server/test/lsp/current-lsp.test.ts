@@ -116,12 +116,7 @@ agent ReceiverAgent runs ReceiverRole
 
 describe("M13 LSP feature tests", () => {
   before(async () => {
-    const serverPath = path.resolve(
-      __dirname,
-      "..",
-      "src",
-      "server.ts",
-    );
+    const serverPath = path.resolve(process.cwd(), "server", "src", "server.ts");
     serverProcess = spawn("npx", ["tsx", serverPath, "--stdio"], {
       stdio: ["pipe", "pipe", "pipe"],
     });

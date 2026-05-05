@@ -596,7 +596,7 @@ function pMessageStmtFromIdent(c: Cursor, from: string, fromStart: Pos): Message
 const PROTOCOL_KEYWORDS = new Set([
   "protocol", "alt", "loop", "par", "try", "catch", "else", "wait",
   "timeout", "and", "import", "break", "participants", "input",
-  "agent", "plays", "init", "on", "invokes", "spawns", "scatter", "where", "as", "with",
+  "agent", "plays", "init", "on", "invokes", "spawns", "scatter", "where", "as", "with", "at",
   "async", "trigger", "resolve", "filter", "static", "dynamic", "single", "many",
   "initiator", "persistent", "all", "from", "roundRobin", "leastLoaded", "random",
   "sample", "first", "fallback", "custom",
@@ -761,6 +761,16 @@ function pAltStmt(c: Cursor): AltStmt | null {
   if (!consumeKeyword(c, "alt")) return null;
   skipWSAndComments(c);
 
+  let decisionRole: string | undefined;
+  if (startsWithKeyword(c, "at")) {
+    consumeKeyword(c, "at");
+    skipWSAndComments(c);
+    const role = readIdent(c);
+    if (!role) return null;
+    decisionRole = role.name;
+    skipWSAndComments(c);
+  }
+
   const branches: AltBranch[] = [];
 
   // First branch
@@ -793,7 +803,7 @@ function pAltStmt(c: Cursor): AltStmt | null {
     branches.push({ kind: "AltBranch", guard: elseGuard, body: elseBody, loc: c.locFrom(branchStart) });
   }
 
-  return { kind: "AltStmt", branches, loc: c.locFrom(start) };
+  return { kind: "AltStmt", decisionRole, branches, loc: c.locFrom(start) };
 }
 
 // ── Loop statement ──────────────────────────────────────────────────

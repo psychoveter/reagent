@@ -5,13 +5,13 @@
     {
       "protocolName": "TaskExecutionWithMultipartyChild",
       "roleName": "comma",
-      "protocolVersion": "1.0.0"
+      "protocolVersion": "4.0.0"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "21.0.0",
+  "version": "209.0.0",
   "fingerprints": {
-    "playsHash": "3fddff56c864e0668ef53a5c935575463710fab0de8f9232d7b9e1ffeb0fc522",
+    "playsHash": "bfa47bfe79c15400d437b7e3da7e6368ea31d670052c30fbd98a6a4d04bd3cd5",
     "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
   }
 }

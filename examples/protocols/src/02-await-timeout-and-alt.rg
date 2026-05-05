@@ -22,7 +22,7 @@ protocol AwaitTimeoutAlt {
     }
   }
 
-  alt (sia --> comma: Accept) {
+  alt at comma (sia --> comma: Accept) {
     comma {
       $ctx.status = "accepted"
     }

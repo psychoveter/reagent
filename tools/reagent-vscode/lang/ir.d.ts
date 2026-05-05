@@ -144,6 +144,8 @@ export type IRGuardData = {
     guardType: "expression" | "message" | "timeout" | "xor";
     /** For expression guards: the $ctx expression to evaluate */
     expr?: string;
+    /** For XOR alt guards: explicit deciding role, when declared */
+    decisionRole?: string;
 };
 export type IRForkData = {
     kind: "fork";

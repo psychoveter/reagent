@@ -5,7 +5,7 @@
  * active/completed run registries, and an optional attached AgentBehavior.
  */
 
-import type { AgentIR, IRGraph, MessageEnvelope, ProtocolTrigger, TraceEvent } from "../contracts/types.js";
+import type { AgentIR, IRGraph, MessageEnvelope, ProtocolFault, ProtocolTrigger, TraceEvent } from "../contracts/types.js";
 import type { ReagentTransport } from "../contracts/transport.js";
 import type { AgentBehavior } from "../contracts/agent-behavior.js";
 import type { TraceHook } from "../contracts/interceptor.js";
@@ -70,6 +70,7 @@ export interface AgentShellConfig {
   extras?: Record<string, unknown>;
   emitBusCallback?: EmitBusCallback;
   roleSpawnCallback?: (request: RoleSpawnRequest) => string;
+  reportTryScopeFault?: (fault: ProtocolFault) => Promise<ProtocolFault>;
   onStatusChange?: ShellStatusChangeCallback;
   onRunLifecycleEvent?: (event: AgentShellRunLifecycleEvent) => void | Promise<void>;
   finishedRunRetentionLimit?: number;
@@ -99,6 +100,7 @@ export class AgentShellImpl implements AgentShell {
   private agentIR?: AgentIR;
   private emitBusCb?: EmitBusCallback;
   private roleSpawnCb?: (request: RoleSpawnRequest) => string;
+  private reportTryScopeFaultCb?: (fault: ProtocolFault) => Promise<ProtocolFault>;
   private statusChangeCb?: ShellStatusChangeCallback;
   private runLifecycleCb?: (event: AgentShellRunLifecycleEvent) => void | Promise<void>;
   private runLifecycleChain: Promise<void> = Promise.resolve();
@@ -119,6 +121,7 @@ export class AgentShellImpl implements AgentShell {
     this.agentIR = config.agentIR;
     this.emitBusCb = config.emitBusCallback;
     this.roleSpawnCb = config.roleSpawnCallback;
+    this.reportTryScopeFaultCb = config.reportTryScopeFault;
     this.statusChangeCb = config.onStatusChange;
     this.runLifecycleCb = config.onRunLifecycleEvent;
     this.finishedRunRetentionLimit = Math.max(0, config.finishedRunRetentionLimit ?? 100);
@@ -207,6 +210,7 @@ export class AgentShellImpl implements AgentShell {
         this.spawnChildProtocol(trigger.instanceId, trigger.protocolName, protoName, input, roleMapping, rta),
       emitCallback: (eventName, data) =>
         this.handleEmit(trigger.protocolName, trigger.instanceId, eventName, data),
+      reportTryScopeFault: (fault) => this.reportTryScopeFault(fault),
     };
 
     const run = new RoleRun(graph, this.behavior, this.transport, this.selfState, runConfig);
@@ -251,6 +255,13 @@ export class AgentShellImpl implements AgentShell {
     const run = this.activeRuns.get(instanceId);
     if (!run) return false;
     run.cancel(reason);
+    return true;
+  }
+
+  notifyTryScopeFault(instanceId: string, fault: ProtocolFault): boolean {
+    const run = this.activeRuns.get(instanceId);
+    if (!run) return false;
+    run.notifyTryScopeFault(fault);
     return true;
   }
 
@@ -336,6 +347,7 @@ export class AgentShellImpl implements AgentShell {
         this.spawnChildProtocol(env.instanceId, env.protocolName, protoName, input, roleMapping, roleBindings),
       emitCallback: (eventName, data) =>
         this.handleEmit(env.protocolName, env.instanceId, eventName, data),
+      reportTryScopeFault: (fault) => this.reportTryScopeFault(fault),
     };
 
     const run = new RoleRun(graph, this.behavior, this.transport, this.selfState, runConfig);
@@ -535,6 +547,7 @@ export class AgentShellImpl implements AgentShell {
         this.spawnChildProtocol(childInstanceId, childProtoName, nestedProto, nestedInput, nestedRoleMapping, childRoleToAgent),
       emitCallback: (eventName, data) =>
         this.handleEmit(childProtoName, childInstanceId, eventName, data),
+      reportTryScopeFault: (fault) => this.reportTryScopeFault(fault),
     };
 
     const childRun = new RoleRun(graph, this.behavior, this.transport, this.selfState, childConfig);
@@ -559,7 +572,7 @@ export class AgentShellImpl implements AgentShell {
           const ret = childRun.getReturnValue();
           resolve(ret.has ? ret.value : undefined);
         } else {
-          reject(new Error(`Child protocol ${childProtoName} failed`));
+          reject(childRun.getFailure() ?? new Error(`Child protocol ${childProtoName} failed`));
         }
       });
       childRun.run();
@@ -600,6 +613,7 @@ export class AgentShellImpl implements AgentShell {
         this.spawnChildProtocol(childInstanceId, childProtoName, nestedProto, nestedInput, nestedRoleMapping, override),
       emitCallback: (eventName, data) =>
         this.handleEmit(childProtoName, childInstanceId, eventName, data),
+      reportTryScopeFault: (fault) => this.reportTryScopeFault(fault),
     };
 
     const childRun = new RoleRun(graph, this.behavior, this.transport, this.selfState, childConfig);
@@ -660,6 +674,13 @@ export class AgentShellImpl implements AgentShell {
     if (this.emitBusCb) {
       this.emitBusCb(eventName, data ?? {}, { agent: this.name, instanceId });
     }
+  }
+
+  private async reportTryScopeFault(fault: ProtocolFault): Promise<ProtocolFault> {
+    if (!this.reportTryScopeFaultCb) {
+      return fault;
+    }
+    return this.reportTryScopeFaultCb(fault);
   }
 
   private emitRunLifecycle(event: AgentShellRunLifecycleEvent): void {
