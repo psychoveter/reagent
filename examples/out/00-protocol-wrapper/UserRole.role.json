@@ -5,13 +5,13 @@
     {
       "protocolName": "TaskExecution",
       "roleName": "user",
-      "protocolVersion": "41.0.0"
+      "protocolVersion": "59.0.0"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "108.0.0",
+  "version": "177.0.0",
   "fingerprints": {
-    "playsHash": "d214f34d5ce83dede05ec2d18fe244165623c0e1ab2965d2a7fece363fc8f1e5",
+    "playsHash": "2f878585a87431dbaa955397c5053806d8a1e13bf37407caca5067b16e51eb7c",
     "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
   }
 }

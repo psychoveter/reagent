@@ -5,7 +5,7 @@
       "protocolName": "CrossLangE2E",
       "role": "tsRole",
       "file": "examples/protocols/src/20-cross-lang-e2e.rg",
-      "line": 11,
+      "line": 12,
       "column": 3
     },
     {
@@ -13,7 +13,7 @@
       "protocolName": "CrossLangE2E",
       "role": "tsRole",
       "file": "examples/protocols/src/20-cross-lang-e2e.rg",
-      "line": 15,
+      "line": 16,
       "column": 3
     },
     {
@@ -21,7 +21,7 @@
       "protocolName": "CrossLangE2E",
       "role": "tsRole",
       "file": "examples/protocols/src/20-cross-lang-e2e.rg",
-      "line": 29,
+      "line": 30,
       "column": 3
     },
     {
@@ -29,7 +29,7 @@
       "protocolName": "CrossLangE2E",
       "role": "pyRole",
       "file": "examples/protocols/src/20-cross-lang-e2e.rg",
-      "line": 15,
+      "line": 16,
       "column": 3
     },
     {
@@ -37,7 +37,7 @@
       "protocolName": "CrossLangE2E",
       "role": "pyRole",
       "file": "examples/protocols/src/20-cross-lang-e2e.rg",
-      "line": 24,
+      "line": 25,
       "column": 3
     },
     {
@@ -45,7 +45,7 @@
       "protocolName": "CrossLangE2E",
       "role": "pyRole",
       "file": "examples/protocols/src/20-cross-lang-e2e.rg",
-      "line": 29,
+      "line": 30,
       "column": 3
     }
   ]

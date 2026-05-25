@@ -84,10 +84,26 @@
   "terminalStateIds": [
     "end_5"
   ],
-  "initiator": "tsRole",
-  "version": "0.1.1",
+  "participants": [
+    {
+      "name": "tsRole",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "pyRole",
+      "lang": "py",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "supervisionStrategy": "scoped",
+  "version": "2.0.0",
   "fingerprints": {
-    "structureHash": "195cb71074986958fd07361ca1978163ba2c008a8c1e48db32394507b6bbf4af",
+    "structureHash": "f59f68d0586bafadf95d52805b24e2f35f3e3753bd76bbd56a2cb161910145fa",
     "schemaHash": "a89f7e4dd65f1129a20f16db3ba04c04e36c3a75df9ccc5c85d7e583322eec10",
     "implHash": "0da0f3257eaec0619247da9817066c06519771fa6292612e0331de2719d8849c"
   }

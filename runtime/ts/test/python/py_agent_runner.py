@@ -17,7 +17,7 @@ import json
 import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "py"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "py"))
 
 from reagent_runtime.agent_runner import AgentRunner
 

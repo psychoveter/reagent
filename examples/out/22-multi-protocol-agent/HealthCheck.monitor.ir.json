@@ -68,10 +68,26 @@
   "terminalStateIds": [
     "end_4"
   ],
-  "initiator": "monitor",
-  "version": "20.0.0",
+  "participants": [
+    {
+      "name": "monitor",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "worker",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "supervisionStrategy": "scoped",
+  "version": "81.0.0",
   "fingerprints": {
-    "structureHash": "6c863f0544ad814ed299a27a261f689f3c22ba4e62bc781019a472e9e2604439",
+    "structureHash": "ab7a54cb9b06cbf99864e3d5139bca78a778edaad84ef7fc5d571b1c7795673e",
     "schemaHash": "4ab1b58940301b8acd55f43b1bcbbdfaccf4159a4ee2bb684afb9d11e9404018",
     "implHash": "15aefc1748b94b3dac9994de362b1147671e0888605dd2777dd214dd37bfda51"
   }

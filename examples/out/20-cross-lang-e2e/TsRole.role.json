@@ -5,7 +5,7 @@
     {
       "protocolName": "CrossLangE2E",
       "roleName": "tsRole",
-      "protocolVersion": "0.1.1"
+      "protocolVersion": "2.0.0"
     }
   ],
   "initAction": {
@@ -13,9 +13,9 @@
     "lang": "ts"
   },
   "lifecycleHandlers": [],
-  "version": "1.0.0",
+  "version": "3.0.0",
   "fingerprints": {
-    "playsHash": "9977f36018bf0cc3ea8120a57cf94c562017ff64261b78ca44548a7c60913b1e",
+    "playsHash": "2cc8fe59660c3e98aa4ab98bac5d49e3455b84d70d8a48f87f0e7f40c6b88463",
     "behaviorHash": "bce259d25a91f4eefc933b7b951ee5fb6e3356aa14ac695fea0dc20b39486763"
   }
 }

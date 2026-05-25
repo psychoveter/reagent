@@ -18,7 +18,7 @@ Conventions (v0.1):
 - Standalone agent zone syntax: `RoleName { ... host-language code ... }` (bare, no lang tag).
 - **Hook zones**: `onSend { ... }` / `onReceive { ... }` inside message props open inline agent zones for the sender/receiver respectively.
 - `$ctx` is the only bridge between choreography and host code (injected by runtime).
-- `reagent.*` runtime library: `reagent.invoke`, `reagent.spawn`, `reagent.return`, `reagent.emit` — zone-only.
+- `reagent.*` runtime library (zone-only stable surface): `reagent.return`, `reagent.emit`, `reagent.break`. Child protocols and role spawning are protocol-level constructs: `<role> invokes Proto(...)`, `<role> async invokes Proto(...)`, `<role> spawns Role(...)`.
 - **No `if/else` at protocol level**: condition branching lives in agent zone code.
 - Imports: `.rg` files for protocols, `.ts/.js/.py/.kt` files for code modules.
 

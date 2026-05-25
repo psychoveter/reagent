@@ -1,17 +1,18 @@
 /**
  * Zone Executor — runs raw host-language (TypeScript/JS) zone bodies
  * with $ctx, $self, and reagent injected into scope.
+ *
+ * The injected `reagent` object exposes only the stable v0 surface documented
+ * in `docs/current/02-lang-spec.md` §1.4: `return`, `emit`, and `break`.
+ * Child protocol invocation and role spawning are protocol-level constructs
+ * (`<role> invokes`, `<role> async invokes`, `<role> spawns`), not zone-level
+ * `reagent.*` calls.
  */
 
 export type ReagentStub = {
   emit: (eventName: string, data?: Record<string, unknown>) => void;
-  invoke: (proto: unknown, args?: Record<string, unknown>) => unknown;
-  spawn: (proto: unknown, args?: Record<string, unknown>) => void;
   return: (value: unknown) => void;
   break: () => void;
-  resolve: (role: string, pipeline?: unknown[]) => unknown[];
-  registry: { findByRole: (role: string) => unknown[]; get: (name: string) => unknown | undefined; all: () => unknown[] };
-  stop: () => void;
 };
 
 export function createReagentStub(): ReagentStub {
@@ -19,54 +20,19 @@ export function createReagentStub(): ReagentStub {
     emit: (eventName, data) => {
       throw new EmitRequest(eventName, data);
     },
-    invoke: (proto, args) => {
-      throw new InvokeRequest(proto as string, args as Record<string, unknown> | undefined);
-    },
-    spawn: (proto, args) => {
-      throw new SpawnRequest(proto as string, args as Record<string, unknown> | undefined);
-    },
     return: (value) => {
       throw new ReturnValue(value);
     },
     break: () => {
       throw new BreakRequest();
     },
-    resolve: (_role, _pipeline) => {
-      throw new ResolveRequest(_role, _pipeline);
-    },
-    registry: {
-      findByRole: () => [],
-      get: () => undefined,
-      all: () => [],
-    },
-    stop: () => {
-      throw new StopRequest();
-    },
   };
-}
-
-/** Sentinel thrown when a zone calls reagent.invoke() */
-export class InvokeRequest {
-  readonly __reagentInvoke = true;
-  constructor(
-    public readonly protoName: string,
-    public readonly input?: Record<string, unknown>,
-  ) {}
 }
 
 /** Sentinel thrown when a zone calls reagent.return() */
 export class ReturnValue {
   readonly __reagentReturn = true;
   constructor(public readonly value: unknown) {}
-}
-
-/** Sentinel thrown when a zone calls reagent.spawn() */
-export class SpawnRequest {
-  readonly __reagentSpawn = true;
-  constructor(
-    public readonly protoName: string,
-    public readonly input?: Record<string, unknown>,
-  ) {}
 }
 
 /** Sentinel thrown when a zone calls reagent.emit() */
@@ -81,20 +47,6 @@ export class EmitRequest {
 /** Sentinel thrown when a zone calls reagent.break() */
 export class BreakRequest {
   readonly __reagentBreak = true;
-}
-
-/** Sentinel thrown when a zone calls reagent.resolve() */
-export class ResolveRequest {
-  readonly __reagentResolve = true;
-  constructor(
-    public readonly role: string,
-    public readonly pipeline?: unknown[],
-  ) {}
-}
-
-/** Sentinel thrown when a zone calls reagent.stop() */
-export class StopRequest {
-  readonly __reagentStop = true;
 }
 
 /**

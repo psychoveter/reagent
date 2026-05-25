@@ -5,12 +5,12 @@
     {
       "protocolName": "SpawnEmitDemo",
       "roleName": "orchestrator",
-      "protocolVersion": "2.0.0"
+      "protocolVersion": "4.0.0"
     },
     {
       "protocolName": "BackgroundTask",
       "roleName": "worker",
-      "protocolVersion": "0.1.0"
+      "protocolVersion": "2.0.0"
     }
   ],
   "initAction": {
@@ -18,9 +18,9 @@
     "lang": "ts"
   },
   "lifecycleHandlers": [],
-  "version": "1.0.0",
+  "version": "3.0.0",
   "fingerprints": {
-    "playsHash": "a84860fa3c1086e402d7f8868f5d8a5338f21e78308fe04c05a3a64f16c87eae",
+    "playsHash": "52722d3c0e08d6244e36228dece760919153daa4c75a8427dbe2fcbd0e3ad2e3",
     "behaviorHash": "dd7cccb581752e52a3a3941823c7522ca72e6d025d6ac0c6617902d069b212de"
   }
 }

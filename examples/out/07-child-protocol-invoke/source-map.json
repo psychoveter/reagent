@@ -4,7 +4,7 @@
       "stateId": "act_2",
       "protocolName": "DeriveDsiBsi",
       "role": "comma",
-      "file": "../examples/protocols/src/07-child-protocol-invoke.rg",
+      "file": "examples/protocols/src/07-child-protocol-invoke.rg",
       "line": 14,
       "column": 3
     },
@@ -12,7 +12,7 @@
       "stateId": "act_2",
       "protocolName": "TaskExecutionWithChild",
       "role": "user",
-      "file": "../examples/protocols/src/07-child-protocol-invoke.rg",
+      "file": "examples/protocols/src/07-child-protocol-invoke.rg",
       "line": 31,
       "column": 3
     },
@@ -20,7 +20,7 @@
       "stateId": "send_3",
       "protocolName": "TaskExecutionWithChild",
       "role": "user",
-      "file": "../examples/protocols/src/07-child-protocol-invoke.rg",
+      "file": "examples/protocols/src/07-child-protocol-invoke.rg",
       "line": 34,
       "column": 3
     },
@@ -28,7 +28,7 @@
       "stateId": "recv_6",
       "protocolName": "TaskExecutionWithChild",
       "role": "comma",
-      "file": "../examples/protocols/src/07-child-protocol-invoke.rg",
+      "file": "examples/protocols/src/07-child-protocol-invoke.rg",
       "line": 34,
       "column": 3
     },
@@ -36,7 +36,7 @@
       "stateId": "invoke_7",
       "protocolName": "TaskExecutionWithChild",
       "role": "comma",
-      "file": "../examples/protocols/src/07-child-protocol-invoke.rg",
+      "file": "examples/protocols/src/07-child-protocol-invoke.rg",
       "line": 36,
       "column": 3
     },
@@ -44,7 +44,7 @@
       "stateId": "send_8",
       "protocolName": "TaskExecutionWithChild",
       "role": "comma",
-      "file": "../examples/protocols/src/07-child-protocol-invoke.rg",
+      "file": "examples/protocols/src/07-child-protocol-invoke.rg",
       "line": 38,
       "column": 3
     },
@@ -52,7 +52,7 @@
       "stateId": "recv_11",
       "protocolName": "TaskExecutionWithChild",
       "role": "sia",
-      "file": "../examples/protocols/src/07-child-protocol-invoke.rg",
+      "file": "examples/protocols/src/07-child-protocol-invoke.rg",
       "line": 38,
       "column": 3
     }

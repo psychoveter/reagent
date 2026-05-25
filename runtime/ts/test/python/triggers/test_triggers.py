@@ -11,7 +11,7 @@ T7: TriggerMatcher — policy suppression
 """
 
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "py"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "py"))
 
 import time
 from datetime import datetime

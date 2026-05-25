@@ -5,7 +5,7 @@
       "protocolName": "ScatterGather",
       "role": "coordinator",
       "file": "examples/protocols/src/23-scatter-gather.rg",
-      "line": 17,
+      "line": 21,
       "column": 3
     },
     {
@@ -13,7 +13,7 @@
       "protocolName": "ScatterGather",
       "role": "coordinator",
       "file": "examples/protocols/src/23-scatter-gather.rg",
-      "line": 23,
+      "line": 27,
       "column": 5
     },
     {
@@ -21,7 +21,7 @@
       "protocolName": "ScatterGather",
       "role": "coordinator",
       "file": "examples/protocols/src/23-scatter-gather.rg",
-      "line": 31,
+      "line": 35,
       "column": 5
     },
     {
@@ -29,7 +29,7 @@
       "protocolName": "ScatterGather",
       "role": "coordinator",
       "file": "examples/protocols/src/23-scatter-gather.rg",
-      "line": 41,
+      "line": 45,
       "column": 3
     },
     {
@@ -37,7 +37,7 @@
       "protocolName": "ScatterGather",
       "role": "worker",
       "file": "examples/protocols/src/23-scatter-gather.rg",
-      "line": 23,
+      "line": 27,
       "column": 5
     },
     {
@@ -45,7 +45,7 @@
       "protocolName": "ScatterGather",
       "role": "worker",
       "file": "examples/protocols/src/23-scatter-gather.rg",
-      "line": 28,
+      "line": 32,
       "column": 5
     },
     {
@@ -53,7 +53,7 @@
       "protocolName": "ScatterGather",
       "role": "worker",
       "file": "examples/protocols/src/23-scatter-gather.rg",
-      "line": 31,
+      "line": 35,
       "column": 5
     }
   ]

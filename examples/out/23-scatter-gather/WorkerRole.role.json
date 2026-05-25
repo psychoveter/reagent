@@ -5,13 +5,13 @@
     {
       "protocolName": "ScatterGather",
       "roleName": "worker",
-      "protocolVersion": "2.0.0"
+      "protocolVersion": "4.0.0"
     }
   ],
   "lifecycleHandlers": [],
-  "version": "20.0.0",
+  "version": "80.0.0",
   "fingerprints": {
-    "playsHash": "98dec8ec025427d17681761e7042d5d6028af899d16a0bae1d979caaa9ea4d04",
+    "playsHash": "2688b1683f18bdf826de406dbf1cec310d6bc8e8efb6f4e49c4f93f19972e541",
     "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
   }
 }

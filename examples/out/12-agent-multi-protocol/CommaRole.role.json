@@ -5,12 +5,12 @@
     {
       "protocolName": "TaskExecution",
       "roleName": "comma",
-      "protocolVersion": "42.0.0"
+      "protocolVersion": "60.0.0"
     },
     {
       "protocolName": "HealthCheck",
       "roleName": "comma",
-      "protocolVersion": "61.0.0"
+      "protocolVersion": "79.0.0"
     }
   ],
   "initAction": {
@@ -43,9 +43,9 @@
       }
     }
   ],
-  "version": "206.0.0",
+  "version": "322.0.0",
   "fingerprints": {
-    "playsHash": "4c62e1aba99290a829812f56b68ca679a2bc290942d2d0161410b1e811ccd58c",
+    "playsHash": "8c621f253915b1ffb2fb5b0c1edea9d037d2d9d843aec0ac59bd8601bf67820e",
     "behaviorHash": "6c9a6242fca2132097085defabab7de2d62f526f498be33d020ef4d1c8ea4c4a"
   }
 }

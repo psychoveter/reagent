@@ -37,6 +37,12 @@
         "from": "comma",
         "arrow": "-->",
         "messageName": "Done"
+      },
+      "tryScope": {
+        "scopeId": "try_26_3",
+        "phase": "try",
+        "catchStateId": "catch_6",
+        "catchLabel": "error"
       }
     },
     {
@@ -45,6 +51,12 @@
       "data": {
         "kind": "error",
         "label": "error"
+      },
+      "tryScope": {
+        "scopeId": "try_26_3",
+        "phase": "catch",
+        "catchStateId": "catch_6",
+        "catchLabel": "error"
       }
     },
     {
@@ -55,6 +67,12 @@
         "from": "comma",
         "arrow": "-->",
         "messageName": "Failed"
+      },
+      "tryScope": {
+        "scopeId": "try_26_3",
+        "phase": "catch",
+        "catchStateId": "catch_6",
+        "catchLabel": "error"
       }
     },
     {

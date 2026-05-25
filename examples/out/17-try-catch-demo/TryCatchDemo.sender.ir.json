@@ -39,6 +39,12 @@
         "arrow": "-->",
         "messageName": "Result",
         "postReceiveZone": "\n        $ctx.responseData = $ctx.msg.data\n        $self.successCount = ($self.successCount || 0) + 1\n      "
+      },
+      "tryScope": {
+        "scopeId": "try_31_3",
+        "phase": "try",
+        "catchStateId": "catch_6",
+        "catchLabel": "error"
       }
     },
     {
@@ -47,6 +53,12 @@
       "data": {
         "kind": "error",
         "label": "error"
+      },
+      "tryScope": {
+        "scopeId": "try_31_3",
+        "phase": "catch",
+        "catchStateId": "catch_6",
+        "catchLabel": "error"
       }
     },
     {
@@ -58,6 +70,12 @@
         "arrow": "-->",
         "messageName": "Failure",
         "postReceiveZone": "\n        $ctx.failureReason = $ctx.msg.reason\n        $self.failureCount = ($self.failureCount || 0) + 1\n      "
+      },
+      "tryScope": {
+        "scopeId": "try_31_3",
+        "phase": "catch",
+        "catchStateId": "catch_6",
+        "catchLabel": "error"
       }
     },
     {

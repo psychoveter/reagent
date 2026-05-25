@@ -129,6 +129,30 @@ Current implementation notes:
 - `leastLoaded` is parsed and emitted in IR, but its current evaluator behavior is still a stub equivalent to first-candidate selection.
 - Zone-level dynamic resolution helpers such as `reagent.resolve()` / `reagent.registry` are not yet part of the stable current runtime surface.
 
+#### Supervision strategy (protocol-level)
+
+A protocol header may declare a `supervision:` directive selecting one of four strategies that govern how the runtime treats failures and orphan adoption for this protocol:
+
+```rg
+protocol Name {
+  participants: ...
+  supervision: one-for-one
+  trigger on invoke with InputMsg { ... }
+  ...body...
+}
+```
+
+| Strategy        | Effect on fault and orphan adoption                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `scoped` (default) | A fault cancels the protocol instance scope. Adopted orphans are cancelled rather than continued.                      |
+| `one-for-one`   | The faulting role's run is restarted in isolation; sibling roles continue. RC failure adoption restarts the affected role only. |
+| `all-for-one`   | Any role fault tears down all roles in the instance and restarts the protocol from its initial state.                    |
+| `detached`      | The protocol survives parent-scope cancellation; failures are local to the instance and do not propagate up.             |
+
+The directive is optional; when omitted, the compiler emits `supervisionStrategy: "scoped"` into IR.
+
+The directive is enforced by the runtime in [`runtime/ts/src/controller/reagent-controller.ts`](../../runtime/ts/src/controller/reagent-controller.ts) (orphan adoption and cancellation paths) and threaded through `ProtocolRunRecord`. See [`03-runtime-core.md`](03-runtime-core.md) §9 for the process model and [`../future/distributed-try-catch.md`](../future/distributed-try-catch.md) for the broader fault-propagation RFC that introduced the strategies.
+
 ### 1.2 Message step
 
 ```
@@ -142,8 +166,8 @@ A --> B: MessageName
 
 Arrow types:
 
-- `-->` — default message (async delivery). **This is the only arrow used in v0 examples.**
-- `->`, `->>`, `-->>` — reserved for future semantics (e.g. sync call, broadcast). Not yet defined.
+- `-->` — default message (async delivery). **This is the only valid arrow in v0.**
+- `->`, `->>`, `-->>` — reserved for future semantics (e.g. sync call, broadcast). Using any of these at parse time produces an `E_RESERVED_ARROW` error; they are accepted by the lexer for forward compatibility but rejected by the parser.
 
 #### Props in message steps: hooks (inline agent zones)
 
@@ -242,6 +266,12 @@ alice {
 
 **When absent**: agents without `agent.json` (or without a `module` field) do not have `$agent` in scope. Referencing `$agent` in such zones evaluates to `undefined` (TS/JS) or raises `NameError` (Python). The `.rg` agent declaration (`agent X runs Role`) works as before — `$agent` is purely additive.
 
+**Module factory contract** (TS/JS): the runtime resolves the manifest's `module` path via [`runtime/ts/src/support/agent-manifest.ts`](../../runtime/ts/src/support/agent-manifest.ts) and inspects the default export.
+
+- If the default export is a **function** (callable), the runtime invokes it with the manifest's `config` object and binds the return value as `$agent`. The factory may be sync or async — the loader awaits the promise.
+- Otherwise, the **export object itself** is bound as `$agent`. This is the right shape for static singletons (e.g. a module that exposes named helpers).
+- Python uses class instantiation (`AliceModule(config)` from the example above); the factory contract above is the TS/JS analogue.
+
 See also: `01-user-guide.md` §6.1 for `agent.json` format and native module loading.
 
 ### 1.4 Reagent runtime library (`reagent.`*)
@@ -264,9 +294,12 @@ Do not treat `reagent.resolve()` or `reagent.registry` as part of the stable cur
 reagent.return(expr)
 ```
 
-Sends a **return message** from the current protocol instance back to the invoker (the role that called `invoke`). Semantically, this is a message from the child's `initiator` to the parent's invoking role. The parent receives the value as the result of `invoke`.
+Captures the return value on the protocol instance and triggers a clean completion. The value is surfaced to the parent (when invoked synchronously via `<role> invokes ChildProto(...) -> $ctx.target`) by binding it to the `resultTarget` after `ProtocolCompleted` fires. The transport-level realization is the `ProtocolCompleted` trace event payload — there is no separate `ReturnValue` wire message synthesized by the runtime.
 
-This means `reagent.return()` is not just a control-flow construct — it **generates a message** in the protocol trace (e.g. `ReturnValue` from child initiator to parent invoker).
+Implementation notes:
+
+- The runtime captures the value via `engine.setReturnValue(value)` ([`runtime/ts/src/core/role-run.ts`](../../runtime/ts/src/core/role-run.ts)) and exposes it through `run.getReturnValue()`.
+- `MessageEnvelope` records (see §1.14) for `ReturnValue` are not produced; consumers reading the trace stream should observe `ProtocolCompleted` for the child instance to obtain the return value.
 
 #### `reagent.emit(eventName, props)` — emit an event outward
 
@@ -336,9 +369,9 @@ Execution order for `A --> B: M = { onSend { ... } onReceive { ... } }`:
 
 **Important**: `onSend` always runs on the sender's side, `onReceive` always on the receiver's. The host language of each hook zone is that of the respective participant.
 
-### 1.8 Imports (protocol files and code modules)
+### 1.8 Imports
 
-Reagent supports two kinds of imports:
+Reagent v0 supports **protocol imports** only.
 
 #### Protocol imports (`.rg` files)
 
@@ -347,15 +380,6 @@ import "./lib/derive-dsi-bsi.rg" as derive
 ```
 
 Makes protocols defined in the file available as `derive.ProtoName`.
-
-#### Code module imports (`.ts`, `.js`, `.py`, `.kt`)
-
-```
-import "./lib/helpers.ts" as helpers
-```
-
-Makes host-language functions/values available inside agent zones of the matching language.
-Code imports are resolved by the engine at zone execution time.
 
 #### Zone helper functions — patterns by language
 
@@ -371,17 +395,17 @@ entity {
 }
 ```
 
-**TypeScript/JavaScript** (`[ts]`, `[js]`): zone code runs inside `new Function(...)`, which does not support `import` statements. Two options:
+**TypeScript / JavaScript / Kotlin** (`[ts]`, `[js]`, `[kt]`): zone code runs inside `new Function(...)` (TS/JS) or an analogous evaluation context (Kotlin), which does not support host-language `import` statements. Use **`$agent` methods**: put helpers on the native module and call via `$agent`:
 
-1. `**$agent` methods** (preferred): put helpers on the native module and call via `$agent`:
-  ```
-   sender {
-     $ctx.result = $agent.computeHash($ctx.data)
-   }
-  ```
-2. **Code module imports** (above): `import "./helpers.ts" as helpers` makes the module available in zones.
+```
+sender {
+  $ctx.result = $agent.computeHash($ctx.data)
+}
+```
 
-**Kotlin** (`[kt]`): follows the same pattern as TypeScript — use `$agent` for external logic.
+See §1.3.1 for `$agent` and the manifest format.
+
+> **Note.** `.rg`-level code-module imports (e.g. `import "./helpers.ts" as helpers` injecting an alias into TS zones) are not part of the v0 surface. The design proposal is tracked in [`../future/code-module-imports.md`](../future/code-module-imports.md). Until that lands, `$agent` is the canonical escape hatch for TS/JS/Kotlin zones, and Python zones use plain `import`.
 
 ### 1.9 Protocol-level control flow (reserved syntax)
 
@@ -717,14 +741,15 @@ Every message on the wire is wrapped in a `MessageEnvelope` — the base type al
 
 ```
 MessageEnvelope {
-  instanceId:     string          // protocol instance this message belongs to
-  protocolName:   string          // protocol that produced this message
-  from:           { agent: string, role: string }   // sender identity
-  to:             { agent: string, role: string }   // receiver identity
-  messageName:    string          // the message type name (matches the `message` definition name)
-  payload:        Record<string, unknown>            // user-defined fields from the `message` body
-  ts:             number          // timestamp (epoch ms)
-  idempotencyKey: string          // unique key for exactly-once delivery
+  instanceId:       string          // protocol instance this message belongs to
+  protocolName:     string          // protocol that produced this message
+  protocolVersion?: string          // set by the reconciler when a versioned protocol is in effect
+  from:             { agent: string, role: string }   // sender identity
+  to:               { agent: string, role: string }   // receiver identity
+  messageName:      string          // the message type name (matches the `message` definition name)
+  payload:          Record<string, unknown>            // user-defined fields from the `message` body
+  ts:               number          // timestamp (epoch ms)
+  idempotencyKey:   string          // unique key for exactly-once delivery
 }
 ```
 
@@ -842,8 +867,10 @@ ImportStmt      ::= "import" WS+ String (WS+ "as" WS+ Ident)? WS* (";" WS*)?
 ProtocolDef     ::= "protocol" WS+ Ident WS* "{" ProtocolBody "}"
 ProtocolBody    ::= (WS | Comment | ProtocolDirective | Item | ReservedStmt)*
 
-ProtocolDirective ::= ParticipantsStmt | TriggerDecl
+ProtocolDirective ::= ParticipantsStmt | SupervisionStmt | TriggerDecl
 ParticipantsStmt  ::= "participants" WS* ":" WS* ParticipantList
+SupervisionStmt     ::= "supervision" WS* ":" WS* SupervisionStrategy
+SupervisionStrategy ::= "scoped" | "one-for-one" | "all-for-one" | "detached"
 ParticipantList   ::= Participant (WS* "," WS* Participant)*
 Participant       ::= Ident (WS* "[" LangTag "]")? ParticipantModifiers?
 LangTag           ::= "ts" | "js" | "py" | "kt" | "*"
@@ -853,6 +880,8 @@ TriggerKind       ::= "invoke"
                      | "cron" WS+ StringLiteral
                      | "event" WS+ StringLiteral
 TriggerType       ::= WS+ "with" WS+ Ident          /* mandatory for invoke/event, forbidden for cron */
+                                                       /* `as` is accepted as a legacy synonym of `with` and emits */
+                                                       /* an E_TRIGGER_AS_DEPRECATED parser warning. */
 TriggerBodyOpt    ::= WS* "{" WS* TriggerBodyItem* WS* "}"
 TriggerBodyItem   ::= ResolveDecl | TriggerInputAssign
 ResolveDecl       ::= "resolve" WS+ Ident WS* "=" WS* ResolvePipeline
@@ -1010,6 +1039,7 @@ The compiler produces per-role **Protocol IR** — directed graphs of states and
 - `IRGraph` per role (local view of the global protocol):
   - `triggers: TriggerIR[]` and `invocable: boolean`
   - `participants?: ParticipantIR[]` — participant declarations with modifiers
+  - `supervisionStrategy?: SupervisionStrategy` — `scoped` (default), `one-for-one`, `all-for-one`, or `detached`; emitted from the protocol-level `supervision:` directive (see §1.1)
   - `version?: string` and `fingerprints?: ProtocolFingerprint` — versioning metadata
   - `dependencies?: ProtocolDependency[]` — cross-protocol dependencies (for `invokes`)
 - `ParticipantIR` — per-participant metadata: `{ name, lang, binding, cardinality, initiator }`
@@ -1097,6 +1127,24 @@ The `build` command reads `reagent.json` (project manifest) and produces:
 - `deployment.json` — deployment plan mapping agents to roles, role defs, and IR files
 - `source-map.json` — source location mapping from IR states to `.rg` file positions
 - `reagent.lock` — version lock file with protocol/role fingerprints for change detection
+
+#### Build artifact schemas
+
+The auxiliary build artifacts have stable JSON shapes backed by TypeScript types in the `@reagent/lang` package. Use these as the normative reference; the table below points to the source of truth for each artifact.
+
+| Artifact            | TS type / source                                                                                                                                                              | Shape summary                                                                                                                       |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `<Proto>.<role>.ir.json` | `IRGraph` in [`lang/src/ir.ts`](../../lang/src/ir.ts)                                                                                                                    | See §4.3.                                                                                                                           |
+| `<Role>.role.json`  | `RoleIR` in [`lang/src/ir.ts`](../../lang/src/ir.ts)                                                                                                                          | See §4.4.                                                                                                                           |
+| `<Agent>.agent.json` | `AgentIR` in [`lang/src/ir.ts`](../../lang/src/ir.ts)                                                                                                                        | See §4.5.                                                                                                                           |
+| `messages.json`     | `IRMessageSchema[]` in [`lang/src/ir.ts`](../../lang/src/ir.ts)                                                                                                               | Top-level array of `{ name, fields: IRFieldSchema[] }`. See §4.6.                                                                   |
+| `deployment.json`   | Emitted in [`lang/src/cli.ts`](../../lang/src/cli.ts) `cmdBuild`                                                                                                              | `{ agents: DeploymentAgent[], roleToAgent: Record<string, string \| string[]>, roles?: { name, file }[], messages?: "messages.json" }`. Each `DeploymentAgent` is `{ name, lang, roleName, roleFile, plays: { protocolName, roleName, irGraphFile }[] }`. |
+| `source-map.json`   | `{ entries: SourceMapEntry[] }` where `SourceMapEntry` is in [`lang/src/ir-emitter.ts`](../../lang/src/ir-emitter.ts)                                                         | `{ stateId, protocolName, role, file, line, column }` per IR state.                                                                 |
+| `reagent.lock`      | `ReagentLock` in [`lang/src/versioning.ts`](../../lang/src/versioning.ts)                                                                                                     | `{ protocols: Record<string, { version, fingerprints: ProtocolFingerprint }>, roles: Record<string, { version, fingerprints: RoleFingerprint }> }`. |
+
+`ProtocolFingerprint` and `RoleFingerprint` are defined in [`lang/src/ir.ts`](../../lang/src/ir.ts).
+
+> **JSON Schema artifacts** for these shapes are intentionally not generated in v0. The TS types above are the canonical source of truth. If a future tooling need motivates emitting JSON Schema (e.g. to validate `deployment.json` in non-TS clients), the path is to plug `ts-json-schema-generator` into the build and ship the schemas under `lang/schema/`. Tracked as a follow-up.
 
 ### 4.8 Reference runtimes
 

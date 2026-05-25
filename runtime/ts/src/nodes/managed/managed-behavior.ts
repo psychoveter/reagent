@@ -8,10 +8,15 @@
 
 import type { ProtocolEvent, AgentResponse } from "../../core/protocol-engine.js";
 import type { AgentBehavior } from "../../contracts/agent-behavior.js";
-import { executeZone, executeZoneAsync, InvokeRequest, ReturnValue, BreakRequest, type ReagentStub } from "../../core/zone-executor.js";
+import { executeZone, executeZoneAsync, ReturnValue, BreakRequest, type ReagentStub } from "../../core/zone-executor.js";
 
 export interface ManagedBehaviorConfig {
   extras?: Record<string, unknown>;
+  /**
+   * Kept for compatibility with the engine's invoke wiring even though the
+   * stable v0 zone surface no longer exposes `reagent.invoke`. Protocol-level
+   * `<role> invokes` / `<role> async invokes` flow through this callback.
+   */
   invokeCallback?: (protoName: string, input?: Record<string, unknown>) => Promise<unknown>;
   spawnCallback?: (protoName: string, input?: Record<string, unknown>) => void;
   emitCallback?: (eventName: string, data?: Record<string, unknown>) => void;
@@ -26,14 +31,8 @@ export class ManagedAgentBehavior implements AgentBehavior {
 
   private createReagent(config: ManagedBehaviorConfig = this.config): ReagentStub {
     return {
-      invoke: (proto, args) => {
-        throw new InvokeRequest(proto as string, args as Record<string, unknown> | undefined);
-      },
       return: (value) => {
         throw new ReturnValue(value);
-      },
-      spawn: (proto, args) => {
-        config.spawnCallback?.(proto as string, args as Record<string, unknown> | undefined);
       },
       emit: (eventName, data) => {
         config.emitCallback?.(eventName, data);
@@ -41,13 +40,6 @@ export class ManagedAgentBehavior implements AgentBehavior {
       break: () => {
         throw new BreakRequest();
       },
-      resolve: () => [],
-      registry: {
-        findByRole: () => [],
-        get: () => undefined,
-        all: () => [],
-      },
-      stop: () => {},
     };
   }
 
@@ -101,22 +93,6 @@ export class ManagedAgentBehavior implements AgentBehavior {
       }
       if (err instanceof BreakRequest) {
         return { type: "break_requested" };
-      }
-      if (err instanceof InvokeRequest) {
-        if (!mergedConfig.invokeCallback) {
-          return { type: "error_thrown", error: new Error("reagent.invoke() called but no invokeCallback set") };
-        }
-        const invokeResult = await mergedConfig.invokeCallback(err.protoName, err.input);
-        const cachedReagent: ReagentStub = {
-          ...reagent,
-          invoke: () => invokeResult,
-        };
-        if (isAsync) {
-          await executeZoneAsync(body, ctx, selfRef, cachedReagent, this.zoneExtras());
-        } else {
-          executeZone(body, ctx, selfRef, cachedReagent, this.zoneExtras());
-        }
-        return { type: "ctx_update", ctx };
       }
       return { type: "error_thrown", error: err instanceof Error ? err : new Error(String(err)) };
     }

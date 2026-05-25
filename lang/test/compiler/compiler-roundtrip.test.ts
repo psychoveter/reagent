@@ -40,7 +40,6 @@ const EXPECTED_CR2_UNSUPPORTED = new Set([
   "20-cross-lang-e2e.rg",
   "22-multi-protocol-agent.rg",
   "23-scatter-gather.rg",
-  "24-call-for-proposal.rg",
 ]);
 
 // ── CR.1: All .rg examples compile without errors ───────────────────

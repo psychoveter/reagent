@@ -5,7 +5,7 @@
       "protocolName": "TaskExecutionLegacy",
       "role": "user",
       "file": "examples/protocols/src/task-execution.rg",
-      "line": 12,
+      "line": 18,
       "column": 3
     },
     {
@@ -13,7 +13,7 @@
       "protocolName": "TaskExecutionLegacy",
       "role": "user",
       "file": "examples/protocols/src/task-execution.rg",
-      "line": 15,
+      "line": 21,
       "column": 3
     },
     {
@@ -21,7 +21,7 @@
       "protocolName": "TaskExecutionLegacy",
       "role": "user",
       "file": "examples/protocols/src/task-execution.rg",
-      "line": 17,
+      "line": 23,
       "column": 3
     },
     {
@@ -29,7 +29,7 @@
       "protocolName": "TaskExecutionLegacy",
       "role": "comma",
       "file": "examples/protocols/src/task-execution.rg",
-      "line": 15,
+      "line": 21,
       "column": 3
     },
     {
@@ -37,7 +37,7 @@
       "protocolName": "TaskExecutionLegacy",
       "role": "comma",
       "file": "examples/protocols/src/task-execution.rg",
-      "line": 17,
+      "line": 23,
       "column": 3
     },
     {
@@ -45,7 +45,7 @@
       "protocolName": "TaskExecutionLegacy",
       "role": "comma",
       "file": "examples/protocols/src/task-execution.rg",
-      "line": 23,
+      "line": 29,
       "column": 3
     },
     {
@@ -53,7 +53,7 @@
       "protocolName": "TaskExecutionLegacy",
       "role": "comma",
       "file": "examples/protocols/src/task-execution.rg",
-      "line": 27,
+      "line": 33,
       "column": 3
     },
     {
@@ -61,7 +61,7 @@
       "protocolName": "TaskExecutionLegacy",
       "role": "sia",
       "file": "examples/protocols/src/task-execution.rg",
-      "line": 27,
+      "line": 33,
       "column": 3
     }
   ]

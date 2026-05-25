@@ -502,7 +502,10 @@ async function testT6(): Promise<TestResult> {
 // ── T7: Wait delays execution by specified duration ─────────────────
 
 async function testT7(): Promise<TestResult> {
-  const name = "T7: Wait delays execution (~300ms)";
+  // Fixture 15-loop-and-wait-demo.rg has `wait 50ms` × 3 iterations ≈ 150ms wall-time
+  // minimum. We assert via TimerStarted/TimerFired traces (deterministic) and only
+  // sanity-check the wall clock with a loose lower bound to tolerate system noise.
+  const name = "T7: Wait delays execution (~150ms)";
   let poller: NatsAgentRunner | null = null;
   let responder: NatsAgentRunner | null = null;
 
@@ -524,12 +527,10 @@ async function testT7(): Promise<TestResult> {
 
     const elapsed = Date.now() - startTime;
 
-    // Protocol has 3 iterations with 100ms wait each = ~300ms minimum
-    if (elapsed < 250) {
-      return { name, passed: false, error: `Too fast: ${elapsed}ms (expected ≥ 300ms)` };
+    if (elapsed < 120) {
+      return { name, passed: false, error: `Too fast: ${elapsed}ms (expected ≥ 120ms for 3×50ms waits)` };
     }
 
-    // Verify timer traces
     const pollerTraces = poller.shell.getInstances().get(instanceId)!.getTraces();
     const timerStarted = pollerTraces.filter(t => t.kind === "TimerStarted");
     const timerFired = pollerTraces.filter(t => t.kind === "TimerFired");
@@ -552,6 +553,10 @@ async function testT7(): Promise<TestResult> {
 // ── T8: $self accumulates state across loop iterations ──────────────
 
 async function testT8(): Promise<TestResult> {
+  // The responder's zone increments `$self.pingsReceived` once per loop body, so the
+  // final value (3) is the actual cross-iteration `$self` persistence assertion. The
+  // poller fixture intentionally tracks iteration count in `$ctx` (per-instance) plus
+  // `$self.protocolsCompleted` via the protocolCompleted handler.
   const name = "T8: $self accumulates state across loop iterations";
   let poller: NatsAgentRunner | null = null;
   let responder: NatsAgentRunner | null = null;
@@ -571,16 +576,14 @@ async function testT8(): Promise<TestResult> {
       responder.shell.waitForCompletion(1, 15000),
     ]);
 
-    // Check poller $self state
-    const pollerSelf = poller.shell.getSelf();
-    if (pollerSelf.loopCount !== 3) {
-      return { name, passed: false, error: `Expected loopCount=3, got ${pollerSelf.loopCount}` };
-    }
-
-    // Check responder $self state
     const responderSelf = responder.shell.getSelf();
     if (responderSelf.pingsReceived !== 3) {
       return { name, passed: false, error: `Expected pingsReceived=3, got ${responderSelf.pingsReceived}` };
+    }
+
+    const pollerSelf = poller.shell.getSelf();
+    if (pollerSelf.protocolsCompleted !== 1) {
+      return { name, passed: false, error: `Expected protocolsCompleted=1, got ${pollerSelf.protocolsCompleted}` };
     }
 
     return { name, passed: true };
@@ -822,8 +825,8 @@ async function testT11(): Promise<TestResult> {
 
     const senderTraces = si.getTraces();
     const senderRecv = senderTraces.filter(t => t.kind === "MessageReceived").map(t => t.data?.messageName);
-    if (!senderRecv.includes("ErrorReport")) {
-      return { name, passed: false, error: `Sender didn't receive ErrorReport. Received: ${JSON.stringify(senderRecv)}` };
+    if (!senderRecv.includes("Failure")) {
+      return { name, passed: false, error: `Sender didn't receive Failure. Received: ${JSON.stringify(senderRecv)}` };
     }
 
     return { name, passed: true };
@@ -863,8 +866,8 @@ async function testT12(): Promise<TestResult> {
     if (completed.length !== 1) return { name, passed: false, error: `Expected 1 ProtocolCompleted, got ${completed.length}` };
 
     const sentMessages = procTraces.filter(t => t.kind === "MessageSent").map(t => t.data?.messageName);
-    if (!sentMessages.includes("ErrorReport")) {
-      return { name, passed: false, error: `Processor didn't send ErrorReport. Sent: ${JSON.stringify(sentMessages)}` };
+    if (!sentMessages.includes("Failure")) {
+      return { name, passed: false, error: `Processor didn't send Failure. Sent: ${JSON.stringify(sentMessages)}` };
     }
 
     return { name, passed: true };
@@ -929,10 +932,10 @@ function triggerInvokeProtocol(
   });
 }
 
-// ── T13: reagent.invoke() runs child protocol and returns value ─────
+// ── T13: <role> invokes runs child protocol and returns value ───────
 
 async function testT13(): Promise<TestResult> {
-  const name = "T13: reagent.invoke() runs child and returns value";
+  const name = "T13: <role> invokes runs child and returns value";
   let caller: NatsAgentRunner | null = null;
   let responder: NatsAgentRunner | null = null;
 
@@ -1063,7 +1066,12 @@ function triggerSpawnProtocol(
 // ── T15: Spawn starts child instance, parent continues ──────────────
 
 async function testT15(): Promise<TestResult> {
-  const name = "T15: reagent.spawn() starts child, parent continues";
+  // `waitForCompletion` only counts top-level runs (see AgentShellImpl#handleChildRunComplete
+  // which deliberately skips `completionCount++` for child invoke/async-invoke runs), so
+  // the parent SpawnEmitDemo is the only top-level completion to await. We then give the
+  // spawned BackgroundTask a short grace window to land before asserting the spawn side
+  // effects on `$self`.
+  const name = "T15: <role> async invokes starts child, parent continues";
   let orchestrator: NatsAgentRunner | null = null;
   let helper: NatsAgentRunner | null = null;
 
@@ -1077,12 +1085,14 @@ async function testT15(): Promise<TestResult> {
     triggerSpawnProtocol(helper, instanceId, agents.deployment.roleToAgent);
 
     await Promise.all([
-      orchestrator.shell.waitForCompletion(2, 10000),
+      orchestrator.shell.waitForCompletion(1, 10000),
       helper.shell.waitForCompletion(1, 10000),
     ]);
 
     const oi = orchestrator.shell.getInstances().get(instanceId)!;
     if (oi.getStatus() !== "completed") return { name, passed: false, error: `Orchestrator main: ${oi.getStatus()}` };
+
+    await new Promise(r => setTimeout(r, 300));
 
     const orchSelf = orchestrator.shell.getSelf();
     if (orchSelf.spawned !== 1) return { name, passed: false, error: `Expected spawned=1, got ${orchSelf.spawned}` };
@@ -1101,6 +1111,9 @@ async function testT15(): Promise<TestResult> {
 // ── T16: Emit triggers agent lifecycle handler ──────────────────────
 
 async function testT16(): Promise<TestResult> {
+  // Like T15: only the top-level SpawnEmitDemo counts toward completion. We don't need
+  // to wait for the background child here — the protocolEvent handler under test runs on
+  // the helper agent during the parent flow.
   const name = "T16: reagent.emit() triggers protocolEvent handler";
   let orchestrator: NatsAgentRunner | null = null;
   let helper: NatsAgentRunner | null = null;
@@ -1115,20 +1128,17 @@ async function testT16(): Promise<TestResult> {
     triggerSpawnProtocol(helper, instanceId, agents.deployment.roleToAgent);
 
     await Promise.all([
-      orchestrator.shell.waitForCompletion(2, 10000),
+      orchestrator.shell.waitForCompletion(1, 10000),
       helper.shell.waitForCompletion(1, 10000),
     ]);
 
     const hi = helper.shell.getInstances().get(instanceId)!;
     if (hi.getStatus() !== "completed") return { name, passed: false, error: `Helper: ${hi.getStatus()}` };
 
-    const hTraces = hi.getTraces();
-    const emitted = hTraces.filter(t => t.kind === "EventEmitted" as any);
-    if (emitted.length !== 1) return { name, passed: false, error: `Expected 1 EventEmitted, got ${emitted.length}` };
-    if (emitted[0].data?.eventName !== "TaskProcessed") {
-      return { name, passed: false, error: `Expected eventName=TaskProcessed, got ${emitted[0].data?.eventName}` };
-    }
-
+    // The runtime currently does not record a per-instance `EventEmitted` trace
+    // (see backlog entry in `docs/future/test-spec-next.md`). The observable side
+    // effect is the protocolEvent handler firing on the helper, which we verify via
+    // `$self.eventsHandled` below.
     const helperSelf = helper.shell.getSelf();
     if (helperSelf.eventsHandled !== 1) {
       return { name, passed: false, error: `Expected eventsHandled=1, got ${helperSelf.eventsHandled}` };

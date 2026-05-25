@@ -5,7 +5,7 @@
       "protocolName": "BackgroundTask",
       "role": "worker",
       "file": "examples/protocols/src/19-spawn-emit-demo.rg",
-      "line": 12,
+      "line": 14,
       "column": 3
     },
     {
@@ -13,7 +13,7 @@
       "protocolName": "SpawnEmitDemo",
       "role": "orchestrator",
       "file": "examples/protocols/src/19-spawn-emit-demo.rg",
-      "line": 22,
+      "line": 25,
       "column": 3
     },
     {
@@ -21,7 +21,7 @@
       "protocolName": "SpawnEmitDemo",
       "role": "orchestrator",
       "file": "examples/protocols/src/19-spawn-emit-demo.rg",
-      "line": 26,
+      "line": 29,
       "column": 3
     },
     {
@@ -29,7 +29,7 @@
       "protocolName": "SpawnEmitDemo",
       "role": "orchestrator",
       "file": "examples/protocols/src/19-spawn-emit-demo.rg",
-      "line": 28,
+      "line": 31,
       "column": 3
     },
     {
@@ -37,7 +37,7 @@
       "protocolName": "SpawnEmitDemo",
       "role": "orchestrator",
       "file": "examples/protocols/src/19-spawn-emit-demo.rg",
-      "line": 32,
+      "line": 35,
       "column": 3
     },
     {
@@ -45,7 +45,7 @@
       "protocolName": "SpawnEmitDemo",
       "role": "orchestrator",
       "file": "examples/protocols/src/19-spawn-emit-demo.rg",
-      "line": 46,
+      "line": 49,
       "column": 3
     },
     {
@@ -53,7 +53,7 @@
       "protocolName": "SpawnEmitDemo",
       "role": "helper",
       "file": "examples/protocols/src/19-spawn-emit-demo.rg",
-      "line": 32,
+      "line": 35,
       "column": 3
     },
     {
@@ -61,7 +61,7 @@
       "protocolName": "SpawnEmitDemo",
       "role": "helper",
       "file": "examples/protocols/src/19-spawn-emit-demo.rg",
-      "line": 41,
+      "line": 44,
       "column": 3
     },
     {
@@ -69,7 +69,7 @@
       "protocolName": "SpawnEmitDemo",
       "role": "helper",
       "file": "examples/protocols/src/19-spawn-emit-demo.rg",
-      "line": 46,
+      "line": 49,
       "column": 3
     }
   ]

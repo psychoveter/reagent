@@ -4,7 +4,7 @@
       "stateId": "act_2",
       "protocolName": "TsDemo",
       "role": "client",
-      "file": "../examples/protocols/src/14-ts-only-demo.rg",
+      "file": "examples/protocols/src/14-ts-only-demo.rg",
       "line": 18,
       "column": 3
     },
@@ -12,7 +12,7 @@
       "stateId": "send_3",
       "protocolName": "TsDemo",
       "role": "client",
-      "file": "../examples/protocols/src/14-ts-only-demo.rg",
+      "file": "examples/protocols/src/14-ts-only-demo.rg",
       "line": 22,
       "column": 3
     },
@@ -20,7 +20,7 @@
       "stateId": "recv_7",
       "protocolName": "TsDemo",
       "role": "client",
-      "file": "../examples/protocols/src/14-ts-only-demo.rg",
+      "file": "examples/protocols/src/14-ts-only-demo.rg",
       "line": 37,
       "column": 5
     },
@@ -28,7 +28,7 @@
       "stateId": "recv_9",
       "protocolName": "TsDemo",
       "role": "client",
-      "file": "../examples/protocols/src/14-ts-only-demo.rg",
+      "file": "examples/protocols/src/14-ts-only-demo.rg",
       "line": 46,
       "column": 5
     },
@@ -36,7 +36,7 @@
       "stateId": "recv_12",
       "protocolName": "TsDemo",
       "role": "handler",
-      "file": "../examples/protocols/src/14-ts-only-demo.rg",
+      "file": "examples/protocols/src/14-ts-only-demo.rg",
       "line": 22,
       "column": 3
     },
@@ -44,7 +44,7 @@
       "stateId": "act_13",
       "protocolName": "TsDemo",
       "role": "handler",
-      "file": "../examples/protocols/src/14-ts-only-demo.rg",
+      "file": "examples/protocols/src/14-ts-only-demo.rg",
       "line": 31,
       "column": 3
     },
@@ -52,7 +52,7 @@
       "stateId": "send_17",
       "protocolName": "TsDemo",
       "role": "handler",
-      "file": "../examples/protocols/src/14-ts-only-demo.rg",
+      "file": "examples/protocols/src/14-ts-only-demo.rg",
       "line": 37,
       "column": 5
     },
@@ -60,7 +60,7 @@
       "stateId": "send_19",
       "protocolName": "TsDemo",
       "role": "handler",
-      "file": "../examples/protocols/src/14-ts-only-demo.rg",
+      "file": "examples/protocols/src/14-ts-only-demo.rg",
       "line": 46,
       "column": 5
     }

@@ -4,7 +4,7 @@
       "stateId": "send_2",
       "protocolName": "ParallelSubtasks",
       "role": "comma",
-      "file": "../examples/protocols/src/04-parallel-subtasks.rg",
+      "file": "examples/protocols/src/04-parallel-subtasks.rg",
       "line": 19,
       "column": 3
     },
@@ -12,7 +12,7 @@
       "stateId": "send_3",
       "protocolName": "ParallelSubtasks",
       "role": "comma",
-      "file": "../examples/protocols/src/04-parallel-subtasks.rg",
+      "file": "examples/protocols/src/04-parallel-subtasks.rg",
       "line": 24,
       "column": 3
     },
@@ -20,7 +20,7 @@
       "stateId": "recv_7",
       "protocolName": "ParallelSubtasks",
       "role": "comma",
-      "file": "../examples/protocols/src/04-parallel-subtasks.rg",
+      "file": "examples/protocols/src/04-parallel-subtasks.rg",
       "line": 31,
       "column": 5
     },
@@ -28,7 +28,7 @@
       "stateId": "recv_9",
       "protocolName": "ParallelSubtasks",
       "role": "comma",
-      "file": "../examples/protocols/src/04-parallel-subtasks.rg",
+      "file": "examples/protocols/src/04-parallel-subtasks.rg",
       "line": 37,
       "column": 5
     },
@@ -36,7 +36,7 @@
       "stateId": "act_10",
       "protocolName": "ParallelSubtasks",
       "role": "comma",
-      "file": "../examples/protocols/src/04-parallel-subtasks.rg",
+      "file": "examples/protocols/src/04-parallel-subtasks.rg",
       "line": 44,
       "column": 3
     },
@@ -44,7 +44,7 @@
       "stateId": "recv_13",
       "protocolName": "ParallelSubtasks",
       "role": "worker1",
-      "file": "../examples/protocols/src/04-parallel-subtasks.rg",
+      "file": "examples/protocols/src/04-parallel-subtasks.rg",
       "line": 19,
       "column": 3
     },
@@ -52,7 +52,7 @@
       "stateId": "send_17",
       "protocolName": "ParallelSubtasks",
       "role": "worker1",
-      "file": "../examples/protocols/src/04-parallel-subtasks.rg",
+      "file": "examples/protocols/src/04-parallel-subtasks.rg",
       "line": 31,
       "column": 5
     },
@@ -60,7 +60,7 @@
       "stateId": "recv_21",
       "protocolName": "ParallelSubtasks",
       "role": "worker2",
-      "file": "../examples/protocols/src/04-parallel-subtasks.rg",
+      "file": "examples/protocols/src/04-parallel-subtasks.rg",
       "line": 24,
       "column": 3
     },
@@ -68,7 +68,7 @@
       "stateId": "send_26",
       "protocolName": "ParallelSubtasks",
       "role": "worker2",
-      "file": "../examples/protocols/src/04-parallel-subtasks.rg",
+      "file": "examples/protocols/src/04-parallel-subtasks.rg",
       "line": 37,
       "column": 5
     }

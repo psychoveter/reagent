@@ -28,6 +28,12 @@
         "to": "sia",
         "arrow": "-->",
         "messageName": "SubmitIntent"
+      },
+      "tryScope": {
+        "scopeId": "try_26_3",
+        "phase": "try",
+        "catchStateId": "catch_15",
+        "catchLabel": "error"
       }
     },
     {
@@ -38,6 +44,12 @@
         "from": "sia",
         "arrow": "-->",
         "messageName": "Accepted"
+      },
+      "tryScope": {
+        "scopeId": "try_26_3",
+        "phase": "try",
+        "catchStateId": "catch_15",
+        "catchLabel": "error"
       }
     },
     {
@@ -48,6 +60,12 @@
         "to": "user",
         "arrow": "-->",
         "messageName": "Done"
+      },
+      "tryScope": {
+        "scopeId": "try_26_3",
+        "phase": "try",
+        "catchStateId": "catch_15",
+        "catchLabel": "error"
       }
     },
     {
@@ -56,6 +74,12 @@
       "data": {
         "kind": "error",
         "label": "error"
+      },
+      "tryScope": {
+        "scopeId": "try_26_3",
+        "phase": "catch",
+        "catchStateId": "catch_15",
+        "catchLabel": "error"
       }
     },
     {
@@ -65,6 +89,12 @@
         "kind": "action",
         "body": "\n      compensate(\"sia.cancelIntent\", { ref: $ctx.intentRef })\n    ",
         "lang": "ts"
+      },
+      "tryScope": {
+        "scopeId": "try_26_3",
+        "phase": "catch",
+        "catchStateId": "catch_15",
+        "catchLabel": "error"
       }
     },
     {
@@ -76,6 +106,12 @@
         "arrow": "-->",
         "messageName": "Failed",
         "preSendZone": "\n        $ctx.msg.message = $ctx.error\n      "
+      },
+      "tryScope": {
+        "scopeId": "try_26_3",
+        "phase": "catch",
+        "catchStateId": "catch_15",
+        "catchLabel": "error"
       }
     },
     {

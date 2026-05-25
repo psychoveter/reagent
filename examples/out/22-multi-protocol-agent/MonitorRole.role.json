@@ -5,7 +5,7 @@
     {
       "protocolName": "HealthCheck",
       "roleName": "monitor",
-      "protocolVersion": "20.0.0"
+      "protocolVersion": "81.0.0"
     }
   ],
   "initAction": {
@@ -22,9 +22,9 @@
       }
     }
   ],
-  "version": "2.0.0",
+  "version": "22.0.0",
   "fingerprints": {
-    "playsHash": "2a1fe2f46ca973337357d1cf65f51eb0cbc2b76e0baa63cb542aa9d603ba76f0",
+    "playsHash": "4f45572521d479180d23e2ddec41ea6bb633359d17dd85f5a6c2a0aadabe63a1",
     "behaviorHash": "440817a688e622a6a0112cdf2dcfe55fdf457fae10cf7a848a9a73e24c1786a0"
   }
 }

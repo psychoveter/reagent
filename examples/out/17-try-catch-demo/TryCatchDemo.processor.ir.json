@@ -28,6 +28,12 @@
         "kind": "action",
         "body": "\n      if ($ctx.requestText === \"fail\") {\n        throw new Error(\"processing_failed\")\n      }\n      $ctx.result = \"processed:\" + $ctx.requestText\n    ",
         "lang": "ts"
+      },
+      "tryScope": {
+        "scopeId": "try_31_3",
+        "phase": "try",
+        "catchStateId": "catch_14",
+        "catchLabel": "error"
       }
     },
     {
@@ -39,6 +45,12 @@
         "arrow": "-->",
         "messageName": "Result",
         "preSendZone": "\n        $ctx.msg.data = $ctx.result\n      "
+      },
+      "tryScope": {
+        "scopeId": "try_31_3",
+        "phase": "try",
+        "catchStateId": "catch_14",
+        "catchLabel": "error"
       }
     },
     {
@@ -47,6 +59,12 @@
       "data": {
         "kind": "error",
         "label": "error"
+      },
+      "tryScope": {
+        "scopeId": "try_31_3",
+        "phase": "catch",
+        "catchStateId": "catch_14",
+        "catchLabel": "error"
       }
     },
     {
@@ -56,6 +74,12 @@
         "kind": "action",
         "body": "\n      $ctx.errorMsg = \"error occurred\"\n    ",
         "lang": "ts"
+      },
+      "tryScope": {
+        "scopeId": "try_31_3",
+        "phase": "catch",
+        "catchStateId": "catch_14",
+        "catchLabel": "error"
       }
     },
     {
@@ -67,6 +91,12 @@
         "arrow": "-->",
         "messageName": "Failure",
         "preSendZone": "\n        $ctx.msg.reason = $ctx.errorMsg\n      "
+      },
+      "tryScope": {
+        "scopeId": "try_31_3",
+        "phase": "catch",
+        "catchStateId": "catch_14",
+        "catchLabel": "error"
       }
     },
     {

@@ -4,7 +4,7 @@ __pycache__/
 .tmp-*/
 .env
 .gitnexus
-.idea
+.idea/
 .claude/
 .DS_Store
 .cursor/

@@ -5,7 +5,7 @@
     {
       "protocolName": "SpawnEmitDemo",
       "roleName": "helper",
-      "protocolVersion": "2.0.0"
+      "protocolVersion": "4.0.0"
     }
   ],
   "initAction": {
@@ -22,9 +22,9 @@
       }
     }
   ],
-  "version": "1.0.0",
+  "version": "3.0.0",
   "fingerprints": {
-    "playsHash": "2d2c1ec42a90e6b430a389a7042914ba0f4557a92046bc1d8e3c027c625ac2a1",
+    "playsHash": "9fa5f845baba38f6dbae4ea35957ab9a68e77dacc825abe94d23437c4faacfd5",
     "behaviorHash": "12c20c8cd8bd2cd15c641a4709e239bec5160f5f79b6a768a820c5a3e7bb20d6"
   }
 }

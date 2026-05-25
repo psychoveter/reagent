@@ -5,7 +5,7 @@
     {
       "protocolName": "ScatterGather",
       "roleName": "coordinator",
-      "protocolVersion": "2.0.0"
+      "protocolVersion": "4.0.0"
     }
   ],
   "initAction": {
@@ -13,9 +13,9 @@
     "lang": "ts"
   },
   "lifecycleHandlers": [],
-  "version": "14.0.0",
+  "version": "54.0.0",
   "fingerprints": {
-    "playsHash": "94502357f9cd9d1e17ed41c197d11e9361d9ce5d8d6db2a677b7fadabb25033f",
+    "playsHash": "8488af9b04665ce87c950d57fa030d31285ba9da3b07d0343346aa15b8c18677",
     "behaviorHash": "995b644300b189b4641ffd1df5e563f14cd2a0ceeeb1133c867698328de1ca21"
   }
 }

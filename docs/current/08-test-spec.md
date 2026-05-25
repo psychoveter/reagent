@@ -74,6 +74,7 @@ Notes:
 
 - `surface/triggers.test.ts`
 - `surface/ir-surface.test.ts`
+- `surface/parser-errors.test.ts`
 - `compiler/compiler-roundtrip.test.ts`
 - `compiler/fingerprints.test.ts`
 - `compiler/decompiler.test.ts`
@@ -161,12 +162,11 @@ Practical rule:
 
 ## 5. Current Known Gaps
 
-Known-red suites that are not purely environment failures:
-
-| Suite | Failing test(s) | Nature |
-|---|---|---|
-| `runtime/ts/test/stories/runtime-semantics-nats.test.ts` | T7, T8, T11, T12 | Wait timing, `$self` persistence, and `try/catch` naming gaps remain |
-| `runtime/ts/test/core/agent-host-boundary.test.ts` | A6 | Async zone detection in compiled IR still diverges from expectation |
+No persistent known-red suites at the time of this revision: the previous
+runtime-semantics-nats T7/T8/T11/T12 entries and the agent-host-boundary A6
+entry are all green after the language-evolution wave (zone executor surface
+narrowed, fixture/test re-aligned). See `docs/future/test-spec-next.md` for the
+short carried-over backlog.
 
 Conditional or environment-dependent suites:
 
@@ -175,12 +175,16 @@ Conditional or environment-dependent suites:
 
 Decompile note:
 
-- `lang/test/compiler/compiler-roundtrip.test.ts` is green again, but `CR.2` currently tracks a fixed expected-unsupported set for newer invoke/spawn/scatter/multi-protocol examples until decompiler catch-up work lands.
+- `lang/test/compiler/compiler-roundtrip.test.ts` is green; `CR.2` continues to track a fixed expected-unsupported set (`18-invoke-demo`, `19-spawn-emit-demo`, `20-cross-lang-e2e`, `22-multi-protocol-agent`, `23-scatter-gather`) until the decompiler covers invoke/async-invoke/scatter/multi-protocol shapes. `24-call-for-proposal.rg` now round-trips and is no longer expected to fail.
+
+Observability note:
+
+- The `EventEmitted` trace kind is declared in `runtime/ts/src/contracts/types.ts` but the runtime currently does not record a per-instance trace when a zone calls `reagent.emit(...)`. The emit side effect (protocolEvent handler firing on the subscriber) is exercised by `T16` in `stories/runtime-semantics-nats.test.ts` via `$self.eventsHandled`.
 
 Resolve-policy-specific gaps:
 
 - no deterministic story or e2e test currently exercises a non-trivial trigger pipeline such as `all | filter(...) | roundRobin`
-- no current test covers zone-level `reagent.resolve()` / `reagent.registry` because that runtime surface is not wired yet
+- zone-level `reagent.resolve()` / `reagent.registry` were intentionally removed from the v0 zone surface; the (potential future) cluster-side resolve helpers are not wired and have no behavior-level test coverage
 - `leastLoaded` remains stubbed and does not yet have behavior-level test coverage
 
 ## 6. Use-Case Coverage Map

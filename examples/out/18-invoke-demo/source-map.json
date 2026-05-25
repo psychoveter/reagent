@@ -4,7 +4,7 @@
       "stateId": "act_2",
       "protocolName": "ComputeSquare",
       "role": "worker",
-      "file": "../examples/protocols/src/18-invoke-demo.rg",
+      "file": "examples/protocols/src/18-invoke-demo.rg",
       "line": 14,
       "column": 3
     },
@@ -12,7 +12,7 @@
       "stateId": "act_2",
       "protocolName": "InvokeDemo",
       "role": "caller",
-      "file": "../examples/protocols/src/18-invoke-demo.rg",
+      "file": "examples/protocols/src/18-invoke-demo.rg",
       "line": 25,
       "column": 3
     },
@@ -20,7 +20,7 @@
       "stateId": "send_3",
       "protocolName": "InvokeDemo",
       "role": "caller",
-      "file": "../examples/protocols/src/18-invoke-demo.rg",
+      "file": "examples/protocols/src/18-invoke-demo.rg",
       "line": 28,
       "column": 3
     },
@@ -28,7 +28,7 @@
       "stateId": "recv_4",
       "protocolName": "InvokeDemo",
       "role": "caller",
-      "file": "../examples/protocols/src/18-invoke-demo.rg",
+      "file": "examples/protocols/src/18-invoke-demo.rg",
       "line": 39,
       "column": 3
     },
@@ -36,7 +36,7 @@
       "stateId": "recv_7",
       "protocolName": "InvokeDemo",
       "role": "responder",
-      "file": "../examples/protocols/src/18-invoke-demo.rg",
+      "file": "examples/protocols/src/18-invoke-demo.rg",
       "line": 28,
       "column": 3
     },
@@ -44,7 +44,7 @@
       "stateId": "invoke_8",
       "protocolName": "InvokeDemo",
       "role": "responder",
-      "file": "../examples/protocols/src/18-invoke-demo.rg",
+      "file": "examples/protocols/src/18-invoke-demo.rg",
       "line": 37,
       "column": 3
     },
@@ -52,7 +52,7 @@
       "stateId": "send_9",
       "protocolName": "InvokeDemo",
       "role": "responder",
-      "file": "../examples/protocols/src/18-invoke-demo.rg",
+      "file": "examples/protocols/src/18-invoke-demo.rg",
       "line": 39,
       "column": 3
     }

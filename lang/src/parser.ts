@@ -62,6 +62,12 @@ export type ParseError = {
   code: string;
   message: string;
   loc: Loc;
+  /**
+   * Severity of the diagnostic. Defaults to "error" when absent.
+   * Warnings do not fail the parse (`ParseResult.ok` stays true), but they are
+   * still reported in `errors` for tooling and IDEs.
+   */
+  severity?: "error" | "warning";
 };
 
 export type ParseResult = {
@@ -119,7 +125,9 @@ export function parseProgram(src: string): ParseResult {
     skipToNewline(c);
   }
 
-  return { ok: errors.length === 0, ast: { kind: "Program", items }, errors };
+  errors.push(...c.errors);
+  const hardErrors = errors.filter(e => (e.severity ?? "error") === "error");
+  return { ok: hardErrors.length === 0, ast: { kind: "Program", items }, errors };
 }
 
 // ── Cursor ──────────────────────────────────────────────────────────
@@ -129,6 +137,14 @@ class Cursor {
   i = 0;
   line = 1;
   col = 1;
+
+  /**
+   * Per-parse mutable state. Scoped to a single `parseProgram` call (and to
+   * the currently-parsed `ProtocolDef` for `langMap`). Replaces what used to be
+   * module-global state and makes nested/concurrent parses safe.
+   */
+  langMap: Map<string, LangTag> = new Map();
+  errors: ParseError[] = [];
 
   constructor(src: string) {
     this.src = src;
@@ -546,8 +562,16 @@ function pMessageStmtFromIdent(c: Cursor, from: string, fromStart: Pos): Message
   const start = fromStart;
 
   skipWSAndComments(c);
+  const arrowStart = c.pos();
   const arrow = readArrow(c);
   if (!arrow) return null;
+  if (arrow !== "-->") {
+    c.errors.push({
+      code: "E_RESERVED_ARROW",
+      message: `arrow '${arrow}' is reserved for future use; use '-->' for v0`,
+      loc: { start: arrowStart, end: c.pos() },
+    });
+  }
 
   skipWSAndComments(c);
   const to = readIdent(c);
@@ -651,9 +675,16 @@ function pAltGuard(c: Cursor): AltGuard | null {
   const id = readIdent(c);
   if (id) {
     skipWSAndComments(c);
-    const arrowSaved = c.save();
+    const arrowStart = c.pos();
     const arrow = readArrow(c);
     if (arrow) {
+      if (arrow !== "-->") {
+        c.errors.push({
+          code: "E_RESERVED_ARROW",
+          message: `arrow '${arrow}' is reserved for future use; use '-->' for v0`,
+          loc: { start: arrowStart, end: c.pos() },
+        });
+      }
       // It's a message guard
       skipWSAndComments(c);
       const to = readIdent(c);
@@ -1116,12 +1147,6 @@ function pScatterStmt(c: Cursor): ScatterStmt | null {
 
 // ── Protocol body ───────────────────────────────────────────────────
 
-/**
- * Build a participant name → lang mapping for the current protocol scope.
- * This is called after participants are parsed and used to resolve agent zone languages.
- */
-let currentLangMap: Map<string, LangTag> = new Map();
-
 function pProtocolBody(c: Cursor): ProtocolItem[] {
   const items: ProtocolItem[] = [];
 
@@ -1130,9 +1155,17 @@ function pProtocolBody(c: Cursor): ProtocolItem[] {
     if (c.eof()) break;
     if (c.peek() === "}") break;
 
+    const beforeIdx = c.i;
     const item = pProtocolItem(c);
-    if (!item) break;
-    items.push(item);
+    if (item) {
+      items.push(item);
+      continue;
+    }
+    // Item returned null. If the cursor advanced (e.g. error path consumed a
+    // token like `break`), keep going to give the rest of the body a chance.
+    // If the cursor did not advance, we are stuck and must exit to avoid a
+    // infinite loop.
+    if (c.i === beforeIdx) break;
   }
 
   return items;
@@ -1150,14 +1183,6 @@ function pProtocolItem(c: Cursor): ProtocolItem | null {
   if (startsWithKeyword(c, "try")) return pTryStmt(c);
   if (startsWithKeyword(c, "scatter")) return pScatterStmt(c);
 
-  // `break` inside loops — parsed as a special WaitStmt-like sentinel
-  // Actually, `break` is a host-language construct. It appears inside agent zones, not at protocol level.
-  // But example 03 has `break` at protocol indentation inside an alt branch inside a loop.
-  // In the examples, `break` appears inside an agent zone: `comma { $ctx.valid = true }` then `break`.
-  // Actually looking again — `break` is on its own line after the zone. Let's handle it:
-  // `break` at protocol level is NOT valid in v0.0.4; it must be inside an agent zone.
-  // But example 03 has it after the zone on its own line. This is an issue we should handle gracefully.
-
   // Try ident-based: message step or agent zone
   const saved = c.save();
   const id = readIdent(c);
@@ -1167,11 +1192,14 @@ function pProtocolItem(c: Cursor): ProtocolItem | null {
     return null;
   }
 
-  // Check for `break` keyword (appears in example 03 at protocol level within loops)
+  // `break` is zone-only — must be invoked as `reagent.break()` inside an
+  // agent zone within a loop. A bare `break` at protocol level is rejected.
   if (id.name === "break") {
-    // Treat as a pseudo-statement. We don't have a BreakStmt node,
-    // so we model it as an agent zone with empty body on the current role.
-    // For now, return null and let it be silently consumed.
+    c.errors.push({
+      code: "E_PROTOCOL_BREAK",
+      message: "'break' is zone-only; use 'reagent.break()' inside an agent zone within a loop",
+      loc: id.loc,
+    });
     return null;
   }
 
@@ -1193,14 +1221,16 @@ function pProtocolItem(c: Cursor): ProtocolItem | null {
     return pInvokeStmtFromIdent(c, id.name, id.loc.start, false);
   }
 
-  // `<role> spawns <Proto>(...)` — DEPRECATED: compiles as async invoke
+  // `<role> spawns <RoleName>(config) as <participant> persistent -> $ctx.ref`
+  // Protocol-level role instantiation. Distinct from async invoke;
+  // see lang-spec §1.9 and IRSpawnData in ir.ts.
   if (startsWithKeyword(c, "spawns")) {
     return pSpawnStmtFromIdent(c, id.name, id.loc.start);
   }
 
   // If next char is `{`, it's an agent zone (if id is a known participant and not a keyword)
   if (c.peek() === "{" && !PROTOCOL_KEYWORDS.has(id.name)) {
-    const lang = currentLangMap.get(id.name) ?? "ts";
+    const lang = c.langMap.get(id.name) ?? "ts";
     return pAgentZoneFromIdent(c, id.name, id.loc.start, lang as LangTag);
   }
 
@@ -1246,8 +1276,8 @@ function pProtocolDef(c: Cursor): ProtocolDef | null {
       if (!list) return null;
       participants = list;
 
-      currentLangMap = new Map();
-      for (const p of participants) currentLangMap.set(p.name, p.lang);
+      c.langMap = new Map();
+      for (const p of participants) c.langMap.set(p.name, p.lang);
       continue;
     }
 
@@ -1351,14 +1381,32 @@ function pTriggerDecl(c: Cursor): TriggerDecl | null {
   let withType: string | undefined;
   if (triggerKind === "cron") {
     // cron uses system CronTrigger
-  } else if (consumeKeyword(c, "with") || consumeKeyword(c, "as")) {
-    skipWSAndComments(c);
-    const msgType = readIdent(c);
-    if (!msgType) return null;
-    withType = msgType.name;
-    skipWSAndComments(c);
   } else {
-    return null;
+    const withLoc = consumeKeyword(c, "with");
+    if (withLoc) {
+      skipWSAndComments(c);
+      const msgType = readIdent(c);
+      if (!msgType) return null;
+      withType = msgType.name;
+      skipWSAndComments(c);
+    } else {
+      const asLoc = consumeKeyword(c, "as");
+      if (asLoc) {
+        c.errors.push({
+          code: "E_TRIGGER_AS_DEPRECATED",
+          message: "`trigger on ... as MsgType` is deprecated; use `trigger on ... with MsgType` instead",
+          loc: asLoc,
+          severity: "warning",
+        });
+        skipWSAndComments(c);
+        const msgType = readIdent(c);
+        if (!msgType) return null;
+        withType = msgType.name;
+        skipWSAndComments(c);
+      } else {
+        return null;
+      }
+    }
   }
 
   let inputExpr: string | undefined;

@@ -19,7 +19,7 @@ import sys
 import uuid
 
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
-RUNTIME_PY = os.path.join(TESTS_DIR, "..", "..", "..", "py")
+RUNTIME_PY = os.path.join(TESTS_DIR, "..", "..", "..", "..", "py")
 sys.path.insert(0, RUNTIME_PY)
 
 from reagent_runtime.controller import ReagentController

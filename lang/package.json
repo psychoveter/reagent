@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test:parse": "node ./dist/cli.js parse ../examples/task-execution.rg",
-    "test:surface": "node --import tsx --test test/surface/triggers.test.ts test/surface/ir-surface.test.ts",
+    "test:surface": "node --import tsx --test test/surface/triggers.test.ts test/surface/ir-surface.test.ts test/surface/parser-errors.test.ts",
     "test:compiler": "node --import tsx --test test/compiler/compiler-roundtrip.test.ts test/compiler/fingerprints.test.ts test/compiler/decompiler.test.ts",
     "test": "npm run test:surface",
     "test:all": "npm run test:surface && npm run test:compiler"

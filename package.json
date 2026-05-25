@@ -26,7 +26,7 @@
     "test:python:runtime-core": "python runtime/ts/test/python/runtime-core/test_runtime_core.py",
     "test:python:coverage": "python runtime/ts/test/python/runtime-core/test_runtime_coverage.py",
     "test:python:triggers": "python runtime/ts/test/python/triggers/test_triggers.py",
-    "test:python:parity": "python runtime/ts/test/python/parity/test_ts_python_pa rity.py",
+    "test:python:parity": "python runtime/ts/test/python/parity/test_ts_python_parity.py",
     "test:python": "npm run test:python:runtime-core && npm run test:python:coverage && npm run test:python:triggers && npm run test:python:parity",
     "test:tooling:lsp": "cd tools/reagent-vscode && npm run test:lsp",
     "test:fast": "npm run test:lang:surface && npm run test:runtime:fast",

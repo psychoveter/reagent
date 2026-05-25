@@ -4,7 +4,7 @@
       "stateId": "act_2",
       "protocolName": "LoopRetryBackoff",
       "role": "comma",
-      "file": "../examples/protocols/src/03-loop-retry-backoff.rg",
+      "file": "examples/protocols/src/03-loop-retry-backoff.rg",
       "line": 19,
       "column": 3
     },
@@ -12,7 +12,7 @@
       "stateId": "send_5",
       "protocolName": "LoopRetryBackoff",
       "role": "comma",
-      "file": "../examples/protocols/src/03-loop-retry-backoff.rg",
+      "file": "examples/protocols/src/03-loop-retry-backoff.rg",
       "line": 24,
       "column": 5
     },
@@ -20,7 +20,7 @@
       "stateId": "act_9",
       "protocolName": "LoopRetryBackoff",
       "role": "comma",
-      "file": "../examples/protocols/src/03-loop-retry-backoff.rg",
+      "file": "examples/protocols/src/03-loop-retry-backoff.rg",
       "line": 31,
       "column": 7
     },
@@ -28,7 +28,7 @@
       "stateId": "act_10",
       "protocolName": "LoopRetryBackoff",
       "role": "comma",
-      "file": "../examples/protocols/src/03-loop-retry-backoff.rg",
+      "file": "examples/protocols/src/03-loop-retry-backoff.rg",
       "line": 32,
       "column": 7
     },
@@ -36,7 +36,7 @@
       "stateId": "act_12",
       "protocolName": "LoopRetryBackoff",
       "role": "comma",
-      "file": "../examples/protocols/src/03-loop-retry-backoff.rg",
+      "file": "examples/protocols/src/03-loop-retry-backoff.rg",
       "line": 34,
       "column": 7
     },
@@ -44,7 +44,7 @@
       "stateId": "timer_13",
       "protocolName": "LoopRetryBackoff",
       "role": "comma",
-      "file": "../examples/protocols/src/03-loop-retry-backoff.rg",
+      "file": "examples/protocols/src/03-loop-retry-backoff.rg",
       "line": 35,
       "column": 7
     },
@@ -52,7 +52,7 @@
       "stateId": "act_15",
       "protocolName": "LoopRetryBackoff",
       "role": "comma",
-      "file": "../examples/protocols/src/03-loop-retry-backoff.rg",
+      "file": "examples/protocols/src/03-loop-retry-backoff.rg",
       "line": 37,
       "column": 7
     },
@@ -60,7 +60,7 @@
       "stateId": "recv_20",
       "protocolName": "LoopRetryBackoff",
       "role": "sia",
-      "file": "../examples/protocols/src/03-loop-retry-backoff.rg",
+      "file": "examples/protocols/src/03-loop-retry-backoff.rg",
       "line": 24,
       "column": 5
     },
@@ -68,7 +68,7 @@
       "stateId": "timer_25",
       "protocolName": "LoopRetryBackoff",
       "role": "sia",
-      "file": "../examples/protocols/src/03-loop-retry-backoff.rg",
+      "file": "examples/protocols/src/03-loop-retry-backoff.rg",
       "line": 35,
       "column": 7
     }

@@ -68,10 +68,45 @@
   "terminalStateIds": [
     "end_4"
   ],
-  "initiator": "dispatcher",
-  "version": "12.0.0",
+  "participants": [
+    {
+      "name": "dispatcher",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": true
+    },
+    {
+      "name": "worker",
+      "lang": "ts",
+      "binding": "static",
+      "cardinality": "single",
+      "initiator": false
+    }
+  ],
+  "supervisionStrategy": "scoped",
+  "triggers": [
+    {
+      "kind": "invoke",
+      "withType": "Task",
+      "resolveMap": {
+        "dispatcher": [
+          {
+            "step": "single"
+          }
+        ],
+        "worker": [
+          {
+            "step": "single"
+          }
+        ]
+      }
+    }
+  ],
+  "invocable": true,
+  "version": "52.0.0",
   "fingerprints": {
-    "structureHash": "06a1cd9d565a8a8ed2886f4dbe5ac9d329ad7d8e7415e01e057cc7465e7226b4",
+    "structureHash": "1142e0a51797917b440e19b4189056ceadd7fec6114ba6c1fc99c0cf08ba85dd",
     "schemaHash": "a478e832eb757283f3e9a4aaf7ee176db5eeced0f5acb78e69f601fddd77c3cd",
     "implHash": "7c9b4a576248f6224fcd98fb07175a38d2e164ca62205544957131f597f0ef8c"
   }

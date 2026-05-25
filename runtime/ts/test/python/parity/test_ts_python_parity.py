@@ -21,8 +21,8 @@ import traceback
 import time
 
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
-RUNTIME_PY = os.path.join(TESTS_DIR, "..", "..", "..", "py")
-EXAMPLES_OUT = os.path.join(TESTS_DIR, "..", "..", "..", "..", "examples", "out")
+RUNTIME_PY = os.path.join(TESTS_DIR, "..", "..", "..", "..", "py")
+EXAMPLES_OUT = os.path.join(TESTS_DIR, "..", "..", "..", "..", "..", "examples", "out")
 sys.path.insert(0, RUNTIME_PY)
 
 

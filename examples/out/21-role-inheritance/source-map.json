@@ -5,7 +5,7 @@
       "protocolName": "HealthCheck",
       "role": "monitor",
       "file": "examples/protocols/src/21-role-inheritance.rg",
-      "line": 14,
+      "line": 18,
       "column": 3
     },
     {
@@ -13,7 +13,7 @@
       "protocolName": "HealthCheck",
       "role": "monitor",
       "file": "examples/protocols/src/21-role-inheritance.rg",
-      "line": 15,
+      "line": 19,
       "column": 3
     },
     {
@@ -21,7 +21,7 @@
       "protocolName": "HealthCheck",
       "role": "node",
       "file": "examples/protocols/src/21-role-inheritance.rg",
-      "line": 14,
+      "line": 18,
       "column": 3
     },
     {
@@ -29,7 +29,7 @@
       "protocolName": "HealthCheck",
       "role": "node",
       "file": "examples/protocols/src/21-role-inheritance.rg",
-      "line": 15,
+      "line": 19,
       "column": 3
     },
     {
@@ -37,7 +37,7 @@
       "protocolName": "TaskProcessing",
       "role": "dispatcher",
       "file": "examples/protocols/src/21-role-inheritance.rg",
-      "line": 28,
+      "line": 36,
       "column": 3
     },
     {
@@ -45,7 +45,7 @@
       "protocolName": "TaskProcessing",
       "role": "dispatcher",
       "file": "examples/protocols/src/21-role-inheritance.rg",
-      "line": 42,
+      "line": 50,
       "column": 3
     },
     {
@@ -53,7 +53,7 @@
       "protocolName": "TaskProcessing",
       "role": "worker",
       "file": "examples/protocols/src/21-role-inheritance.rg",
-      "line": 28,
+      "line": 36,
       "column": 3
     },
     {
@@ -61,7 +61,7 @@
       "protocolName": "TaskProcessing",
       "role": "worker",
       "file": "examples/protocols/src/21-role-inheritance.rg",
-      "line": 37,
+      "line": 45,
       "column": 3
     },
     {
@@ -69,7 +69,7 @@
       "protocolName": "TaskProcessing",
       "role": "worker",
       "file": "examples/protocols/src/21-role-inheritance.rg",
-      "line": 42,
+      "line": 50,
       "column": 3
     }
   ]

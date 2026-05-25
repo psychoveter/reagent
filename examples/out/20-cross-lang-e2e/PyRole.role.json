@@ -5,7 +5,7 @@
     {
       "protocolName": "CrossLangE2E",
       "roleName": "pyRole",
-      "protocolVersion": "0.1.1"
+      "protocolVersion": "2.0.0"
     }
   ],
   "initAction": {
@@ -22,9 +22,9 @@
       }
     }
   ],
-  "version": "1.0.0",
+  "version": "3.0.0",
   "fingerprints": {
-    "playsHash": "b00be28a6382279d50d6e2984ea2fb5d242b40b82309c0f417bcb83c0320c022",
+    "playsHash": "a8fbd20dc544f3bf82463b447956cc23f00cbdd1b30dc8088fcbcd58d55ab4cb",
     "behaviorHash": "3738b034a36a3bee10469f1d5d40bd0c1d3d2f868ee600043518215d15a3087e"
   }
 }

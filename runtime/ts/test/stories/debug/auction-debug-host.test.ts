@@ -61,7 +61,8 @@ type TraceEventPayload = {
 };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const REAGENT_ROOT = resolve(__dirname, "..", "..", "..");
+// __dirname = runtime/ts/test/stories/debug → 5× ".." reaches the reagent root.
+const REAGENT_ROOT = resolve(__dirname, "..", "..", "..", "..", "..");
 const AUCTION_SIM_ROOT = join(REAGENT_ROOT, "examples", "projects", "auction-sim");
 const AUCTION_SIM_OUT = join(AUCTION_SIM_ROOT, "out");
 const TSX_BIN = join(REAGENT_ROOT, "runtime", "ts", "node_modules", ".bin", "tsx");

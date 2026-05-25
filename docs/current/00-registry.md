@@ -28,26 +28,27 @@ It is intentionally organized as a numbered reading order rather than as a flat 
 
 ### TypeScript runtime
 
-`runtime/ts/src` is now split into explicit layers:
+`runtime/ts/src` is split into explicit layers:
 
-- `contracts/` for shared runtime interfaces and types
-- `core/` for protocol execution primitives
+- `contracts/` for shared runtime interfaces, R1 ontology types, and wire-level types
+- `core/` for protocol execution primitives (`RoleEngine`, `RoleRun`, `AgentShell`, zone executor, scatter coordinator)
 - `controller/` for `ReagentController` and runtime registry logic
-- `nodes/` for language/runtime host adapters
-- `gate/` for Message Gate session and transport support
-- `mcp/` for MCP-facing adapter and server code
+- `nodes/` for `BehaviorFactory` implementations: `nodes/managed/`, `nodes/claude/`, `nodes/gate/` (Message Gate session and transport support), and `nodes/mcp/` (MCP-facing adapter and server code), plus the `python-behavior-factory.ts` and `custom-behavior-factory.ts` entry points
 - `cluster/` for state store, membership, leader election, and runtime bootstrap
-- `triggers/` for trigger matching and resolve policy evaluation
+- `triggers/` for trigger matching, cron, and resolve policy evaluation
 - `network/` for `NodeLink` implementations and legacy NATS transport compatibility
 - `admin/` for admin server, remote node, debug, registry view, and reconciler
 - `observability/` for OTel hooks
 - `support/` for runtime support utilities such as agent manifest loading
 
-The root of `runtime/ts/src` now keeps only true entrypoints and package surface files:
+The root of `runtime/ts/src` keeps only true entrypoints and package surface files:
 
-- `index.ts`
-- `main.ts`
-- `mcp-gate.ts`
+- `index.ts` — package surface
+- `main.ts` — RC bootstrap entrypoint
+- `rgctl.ts` — `rgctl` CLI binary (deploy, inspect, debug)
+
+Note: there is no top-level `gate/` or `mcp/` directory; both live under `nodes/`.
+This matches the layer description in [`03-runtime-core.md`](03-runtime-core.md) §2.
 
 ### Python runtime
 

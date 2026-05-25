@@ -851,7 +851,7 @@ export class RoleRun implements RoleRunInterface {
     this.emitTrace("InvokeStarted", { stateId: state.id, protocolName: data.protocolName });
 
     if (!this.config.invokeCallback) {
-      throw new Error(`reagent.invoke() for protocol "${data.protocolName}" but no invokeCallback set`);
+      throw new Error(`<role> invokes ${data.protocolName}(...) but no invokeCallback set`);
     }
 
     let inputValue: Record<string, unknown> | undefined;
@@ -1042,7 +1042,7 @@ export class RoleRun implements RoleRunInterface {
       let unregisterAbort = () => {};
       const entry = {
         expectation,
-        resolve: (env) => {
+        resolve: (env: MessageEnvelope) => {
           if (settled) return;
           settled = true;
           unregisterAbort();

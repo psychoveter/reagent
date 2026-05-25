@@ -14,7 +14,7 @@
     }
   ],
   "lifecycleHandlers": [],
-  "version": "41.0.0",
+  "version": "59.0.0",
   "fingerprints": {
     "playsHash": "6a9eea98fb9f1f91bf11af63b9eb521e63547e8c723f32c9a7096d470a004395",
     "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"
