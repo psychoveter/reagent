@@ -5,12 +5,12 @@
     {
       "protocolName": "TaskProcessing",
       "roleName": "worker",
-      "protocolVersion": "53.0.0"
+      "protocolVersion": "61.0.0"
     },
     {
       "protocolName": "HealthCheck",
       "roleName": "worker",
-      "protocolVersion": "81.0.0"
+      "protocolVersion": "93.0.0"
     }
   ],
   "initAction": {
@@ -35,9 +35,9 @@
       }
     }
   ],
-  "version": "79.0.0",
+  "version": "91.0.0",
   "fingerprints": {
-    "playsHash": "3f94af66bfc394dc912d0a61923d833053a4a4decffada48fba505fa807b954d",
+    "playsHash": "a0b57e165a13ac24c7ad61698aafe73cf3a41ddf92825cbe3ef87cfcf9e5ee50",
     "behaviorHash": "0550070c29e721c627260e432b230f87836914a033090a8e01d9e6a5e60da4b6"
   }
 }

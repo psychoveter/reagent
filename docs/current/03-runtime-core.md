@@ -19,7 +19,7 @@ The TypeScript runtime core is now reflected directly in `runtime/ts/src`:
 | Contracts | `runtime/ts/src/contracts/` | Shared runtime interfaces, R1 ontology types, and wire-level types |
 | Core | `runtime/ts/src/core/` | Protocol execution (`RoleEngine`, `RoleRun`, `AgentShell`), zone execution, agent behavior model |
 | Controller | `runtime/ts/src/controller/` | `ReagentController`, protocol registry, local bus, role bindings |
-| Nodes | `runtime/ts/src/nodes/` | `BehaviorFactory` implementations for managed, custom, Python, and gate-backed agents |
+| Nodes | `runtime/ts/src/nodes/` | `BehaviorFactory` implementations for managed, custom, and gate-backed agents |
 | Triggers | `runtime/ts/src/triggers/` | Trigger matching, trigger policy, cron, resolve policy |
 | Network | `runtime/ts/src/network/` | `NodeLink` implementations and transport compatibility |
 | Cluster | `runtime/ts/src/cluster/` | State store, membership, leader election, runtime bootstrap |
@@ -85,7 +85,6 @@ The R1 Runtime Antientropy redesign introduces a unified execution model that re
 - `CustomBehaviorFactory` — wraps user-supplied `AgentBehavior` implementations
 - `ClaudeBehaviorFactory` — calls Claude API directly via `handle()` (first real custom behavior consumer)
 - `GateBehaviorFactory` — creates gate-backed proxy behaviors
-- `PythonBehaviorFactory` — bridges to the Python runtime (stub, deferred)
 
 **`AgentRecord`** is a DTO/projection of `AgentShell` state for cluster publication. It is not a peer runtime entity.
 
@@ -99,7 +98,6 @@ The following types have been fully removed (R1 cleanup):
 - `NativeAgentNode` / `NativeAgentHandle` — replaced by `ManagedBehaviorFactory` / `AgentShellImpl`
 - `CustomAgentNode` / `CustomAgentHandle` — replaced by `CustomBehaviorFactory` / `AgentShellImpl`
 - `MessageGateNode` / `MessageGateHandle` — replaced by `GateBehaviorFactory` / `AgentShellImpl`
-- `PythonAgentNode` / `PythonAgentHandle` — replaced by `PythonBehaviorFactory` (stub, Python deferred)
 
 ## 4. Routing Model
 
@@ -204,7 +202,7 @@ Current limitation:
 
 Protocol launch is a node-local RC responsibility, not a centralized server concern.
 
-## 8. Managed, Custom, Python, And Gate Hosts
+## 8. Managed, Custom, And Gate Hosts
 
 ### R1 unified model
 
@@ -222,9 +220,9 @@ All agent modes now share a single execution path: `AgentShell` + `BehaviorFacto
 
 `ClaudeBehaviorFactory` (in `runtime/ts/src/nodes/claude/claude-behavior-factory.ts`) creates `ClaudeBehavior` instances that call the Claude API via `@anthropic-ai/claude-agent-sdk` directly inside `handle()`. The `claude-node.ts` host bootstraps an RC in-process and registers this factory — no MCP child process or polling loop. This is the first real consumer of the `CustomBehaviorFactory` extensibility pattern.
 
-### Python agents
+### `[py]` zone executor
 
-`PythonBehaviorFactory` is a stub for Python-backed agents (deferred per backlog).
+Language tags (`[ts]`, `[js]`, `[py]`, `[kt]`) remain part of the surface syntax and IR. The TS RC currently executes `[ts]` zones natively. For `[py]`-tagged zones a self-contained Python helper lives under `runtime/ts/zone-execs/py/reagent_runtime/zone_executor.py` and is exercised by `runtime/ts/test/core/agent-host-boundary.test.ts` (`A2`/`A4`); whole-agent dispatch to `Role[py]` is not supported on the TS RC and is deferred until the Rust Release Candidate ships with a PyO3 / equivalent host. See [`../future/retire-python-runtime.md`](../future/retire-python-runtime.md).
 
 ### Message Gate and MCP Gate
 
@@ -841,7 +839,7 @@ the core RC runtime model itself.
 - receive-side instance materialization is implemented in both managed and custom paths.
 - `AgentRecord` and `AgentShellImpl` are now separate concepts in the TS runtime model.
 - the TS runtime filesystem now matches the architecture described here.
-- the Python runtime remains implemented but structurally asymmetric relative to TS.
+- the previously parallel Python runtime has been retired; only the `[py]`-zone executor remains under `runtime/ts/zone-execs/py/` as RC virtual-language scaffolding.
 
 ## 12. Primary Files
 

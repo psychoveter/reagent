@@ -85,7 +85,7 @@
     }
   ],
   "supervisionStrategy": "scoped",
-  "version": "53.0.0",
+  "version": "61.0.0",
   "fingerprints": {
     "structureHash": "a8b5f04045f24f7d09ca43edd6881075b14dbd3dde6fee94ed9129d3a76afaa2",
     "schemaHash": "62a3629ef9e82183f520e42d013626129661bc6d239e4699136e8d24f7548524",

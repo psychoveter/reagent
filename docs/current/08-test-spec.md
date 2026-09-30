@@ -17,13 +17,13 @@ This document is the canonical current map of the Reagent test surface after the
 | Runtime story tests | `runtime/ts/test/stories/` | Deterministic scenario-style runtime stories |
 | Runtime debug stories | `runtime/ts/test/stories/debug/` | Hosted debug flow coverage |
 | Runtime live stories | `runtime/ts/test/stories/live/` | External/live agent coverage |
-| Python runtime tests | `runtime/ts/test/python/` | Runtime-core, triggers, and TS/Python parity |
+| `[py]` zone executor | `runtime/ts/zone-execs/py/` | RC virtual-language Python helper (no parallel runtime) |
 | LSP tests | `tools/reagent-vscode/server/test/lsp/` | Legacy and current language-server suites |
 
 Notes:
 
 - `runtime/ts/test/support/` remains the shared TS test helper layer.
-- `runtime/ts/test/py_agent_runner.py` remains helper code, not a test suite.
+- `runtime/ts/zone-execs/py/` houses the `[py]`-zone executor consumed by `runtime/ts/test/core/agent-host-boundary.test.ts` (`A2`/`A4`). It is *not* a parallel runtime; see [`docs/future/retire-python-runtime.md`](../future/retire-python-runtime.md).
 
 ## 2. Script Lanes
 
@@ -47,7 +47,6 @@ Notes:
 | NATS-backed story | `npm run test:stories:nats` |
 | Debug story | `npm run test:stories:debug` |
 | Live story | `npm run test:stories:live` |
-| Python | `npm run test:python` |
 | LSP tooling | `npm run test:tooling:lsp` |
 
 ### Package-level ownership
@@ -109,7 +108,6 @@ Notes:
 - `contracts/custom-hosts.test.ts`
 - `contracts/gate-session.test.ts`
 - `contracts/debug-session.test.ts`
-- `contracts/runtime-conformance.test.ts`
 - `contracts/runtime-utilities.test.ts`
 - `contracts/runtime-regressions.test.ts`
 - `stories/runtime-semantics-nats.test.ts`
@@ -118,13 +116,6 @@ Notes:
 - `stories/risk-review-approval.test.ts`
 - `stories/debug/auction-debug-host.test.ts`
 - `stories/live/task-delegation-claude.test.ts`
-
-### `runtime/ts/test/python/`
-
-- `runtime-core/test_runtime_core.py`
-- `runtime-core/test_runtime_coverage.py`
-- `triggers/test_triggers.py`
-- `parity/test_ts_python_parity.py`
 
 ### `tools/reagent-vscode/server/test/lsp/`
 
@@ -150,8 +141,7 @@ Recommended default order after compiler or runtime work:
 5. `npm run test:stories:nats`
 6. `npm run test:stories:debug`
 7. optional `npm run test:stories:live`
-8. optional `npm run test:python`
-9. optional `npm run test:tooling:lsp`
+8. optional `npm run test:tooling:lsp`
 
 Practical rule:
 
@@ -175,7 +165,7 @@ Conditional or environment-dependent suites:
 
 Decompile note:
 
-- `lang/test/compiler/compiler-roundtrip.test.ts` is green; `CR.2` continues to track a fixed expected-unsupported set (`18-invoke-demo`, `19-spawn-emit-demo`, `20-cross-lang-e2e`, `22-multi-protocol-agent`, `23-scatter-gather`) until the decompiler covers invoke/async-invoke/scatter/multi-protocol shapes. `24-call-for-proposal.rg` now round-trips and is no longer expected to fail.
+- `lang/test/compiler/compiler-roundtrip.test.ts` is green; `CR.2` continues to track a fixed expected-unsupported set (`18-invoke-demo`, `19-spawn-emit-demo`, `22-multi-protocol-agent`, `23-scatter-gather`) until the decompiler covers invoke/async-invoke/scatter/multi-protocol shapes. `24-call-for-proposal.rg` now round-trips and is no longer expected to fail.
 
 Observability note:
 
@@ -194,7 +184,7 @@ Resolve-policy-specific gaps:
 | UC1 Sealed-Bid Auction Simulation | `runtime/ts/test/stories/debug/auction-debug-host.test.ts` plus debug/gate contracts | Strong | direct debug story already exists |
 | UC2 Distributed LLM Research Swarm | `runtime/ts/test/stories/live/task-delegation-claude.test.ts` is the closest live path | Partial | richer multi-node live swarm story still deferred |
 | UC3 IoT Sensor Pipeline with Cron and Event Triggers | `runtime/ts/test/stories/iot-cron-event.test.ts` plus `runtime/ts/test/triggers/trigger-matcher.test.ts` | Strong | good deterministic trigger chain coverage |
-| UC4 Cross-Language / Cross-Mode Orchestration | `runtime/ts/test/stories/cross-mode-orchestration.test.ts` plus custom/gate/contracts lanes | Strong | Python boundary is still a separate extension |
+| UC4 Cross-Language / Cross-Mode Orchestration | `runtime/ts/test/stories/cross-mode-orchestration.test.ts` plus custom/gate/contracts lanes; `[py]`-zone executor exercised by `runtime/ts/test/core/agent-host-boundary.test.ts` (`A2`/`A4`) | Strong | whole-agent-on-`[py]` dispatch deferred to Rust RC; see [`docs/future/retire-python-runtime.md`](../future/retire-python-runtime.md) |
 | UC5 Scheduled Risk Review with Approval and Child Protocols | `runtime/ts/test/stories/risk-review-approval.test.ts` | Strong | advanced scenario is covered in a deterministic story |
 
 ## 7. Primary Breakage Zones

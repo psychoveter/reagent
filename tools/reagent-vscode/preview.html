@@ -434,9 +434,7 @@
       </select>
       <select id="topo-scenario-select" class="toolbar-select" style="display:none">
         <option value="local">A2: Local Dev (single node)</option>
-        <option value="cross-lang">A5: Cross-Language (TS+Py)</option>
         <option value="server-cluster" selected>A6d: SSH Server Cluster</option>
-        <option value="py-sim">A6a: Python Simulation</option>
         <option value="browser-server">A6b: Browser + Server</option>
         <option value="robot-cloud">A6c: Robot + Cloud</option>
       </select>
@@ -715,42 +713,26 @@ const scenarios = {
     stats: { totalAgents: 3, totalNodes: 1, activeLinks: 0, totalMsgRate: 'loopback' },
   },
 
-  'cross-lang': {
-    title: 'Cross-Language — TS + Python on local',
-    description: 'One Node.js RC process + one Python subprocess. IPC via JSON-line stdin/stdout.',
-    nodes: [
-      { nodeId: 'local', label: 'local', host: 'localhost', status: 'online', type: 'local', runtime: 'ts+py',
-        agentNode: 'NativeAgentNode + PythonAgentNode', provision: 'Extension spawns Node.js RC; RC spawns Python subprocess',
-        agents: [
-          { name: 'ClientAgent', role: 'ClientRole', lang: 'ts', plays: [{proto:'CrossLangDemo',role:'browser'}], status: 'online', pid: 5100, mem: '14MB' },
-          { name: 'ServerAgent', role: 'ServerRole', lang: 'py', plays: [{proto:'CrossLangDemo',role:'server'}], status: 'online', pid: 5101, mem: '45MB' },
-        ] },
-    ],
-    links: [],
-    protocols: ['CrossLangDemo'],
-    stats: { totalAgents: 2, totalNodes: 1, activeLinks: 0, totalMsgRate: 'loopback + IPC' },
-  },
-
   'server-cluster': {
     title: 'SSH Server Cluster',
     description: 'Multiple VMs provisioned via SSH. NATS for inter-node transport.',
     nodes: [
       { nodeId: 'node-1', label: 'node-1 (orchestrator)', host: '10.0.0.1:4000', status: 'online', type: 'ssh', runtime: 'ts',
-        agentNode: 'NativeAgentNode + PythonAgentNode',
+        agentNode: 'NativeAgentNode',
         provision: 'ssh deploy@10.0.0.1 → install runtime → copy IR → start RC',
         agents: [
           { name: 'ClientAgent', role: 'ClientRole', lang: 'ts', plays: [{proto:'TaskProcessing',role:'client'},{proto:'HealthCheck',role:'monitor'}], status: 'online', pid: 1201, mem: '24MB' },
           { name: 'UIAgent', role: 'UIRole', lang: 'ts', plays: [{proto:'TaskProcessing',role:'display'}], status: 'online', pid: 1202, mem: '18MB' },
         ] },
       { nodeId: 'node-2', label: 'node-2 (workers)', host: '10.0.0.2:4000', status: 'online', type: 'ssh', runtime: 'ts',
-        agentNode: 'NativeAgentNode + PythonAgentNode',
+        agentNode: 'NativeAgentNode',
         provision: 'ssh deploy@10.0.0.2 → install runtime → copy IR → start RC',
         agents: [
           { name: 'WorkerAgent', role: 'WorkerRole', lang: 'ts', plays: [{proto:'TaskProcessing',role:'worker'},{proto:'HealthCheck',role:'worker'}], status: 'online', pid: 2301, mem: '41MB' },
           { name: 'AnalyzerAgent', role: 'AnalyzerRole', lang: 'py', plays: [{proto:'TaskProcessing',role:'analyzer'}], status: 'online', pid: 2302, mem: '128MB' },
         ] },
       { nodeId: 'node-3', label: 'node-3 (ML)', host: '10.0.0.3:4000', status: 'online', type: 'ssh', runtime: 'ts',
-        agentNode: 'NativeAgentNode + PythonAgentNode',
+        agentNode: 'NativeAgentNode',
         provision: 'ssh deploy@10.0.0.3 → GPU node, CUDA available',
         agents: [
           { name: 'MLAgent', role: 'MLRole', lang: 'py', plays: [{proto:'Inference',role:'model'},{proto:'HealthCheck',role:'worker'}], status: 'online', pid: 3401, mem: '2.1GB' },
@@ -769,44 +751,12 @@ const scenarios = {
     stats: { totalAgents: 5, totalNodes: 4, activeLinks: 3, totalMsgRate: '265/s' },
   },
 
-  'py-sim': {
-    title: 'Python Multi-Agent Simulation',
-    description: 'All agents in one Python process via InprocAgentNode. Zero serialization, millions msg/s. Jupyter-friendly.',
-    nodes: [
-      { nodeId: 'sim-core-0', label: 'sim-core-0 (main)', host: 'localhost:cpu0', status: 'online', type: 'sim', runtime: 'py',
-        agentNode: 'InprocAgentNode (zero-copy)', provision: 'rc = ReagentController("sim-core-0") in Jupyter',
-        agents: [
-          { name: 'Forager×30', role: 'ForagerRole', lang: 'py', plays: [{proto:'NMMOSim',role:'forager'}], status: 'online', pid: 7700, mem: '180MB' },
-          { name: 'Predator×5', role: 'PredatorRole', lang: 'py', plays: [{proto:'NMMOSim',role:'predator'}], status: 'online', pid: 7700, mem: '95MB' },
-          { name: 'EnvAgent', role: 'EnvironmentRole', lang: 'py', plays: [{proto:'NMMOSim',role:'environment'}], status: 'online', pid: 7700, mem: '210MB' },
-        ] },
-      { nodeId: 'sim-core-1', label: 'sim-core-1', host: 'localhost:cpu1', status: 'online', type: 'sim', runtime: 'py',
-        agentNode: 'InprocAgentNode (zero-copy)', provision: 'Forked from main via multiprocessing',
-        agents: [
-          { name: 'Forager×30', role: 'ForagerRole', lang: 'py', plays: [{proto:'NMMOSim',role:'forager'}], status: 'online', pid: 7701, mem: '175MB' },
-          { name: 'Predator×5', role: 'PredatorRole', lang: 'py', plays: [{proto:'NMMOSim',role:'predator'}], status: 'online', pid: 7701, mem: '90MB' },
-        ] },
-      { nodeId: 'sim-observer', label: 'sim-observer', host: 'localhost:cpu2', status: 'online', type: 'sim', runtime: 'py',
-        agentNode: 'InprocAgentNode', provision: 'Separate process for metrics/visualization',
-        agents: [
-          { name: 'MetricsAgent', role: 'MetricsRole', lang: 'py', plays: [{proto:'NMMOSim',role:'observer'}], status: 'online', pid: 7702, mem: '32MB' },
-        ] },
-    ],
-    links: [
-      { from: 'sim-core-0', to: 'sim-core-1', type: 'shm', url: 'InMemoryNodeLink (shared mem)', status: 'active', msgRate: '48k/s', latency: '0.01ms' },
-      { from: 'sim-core-0', to: 'sim-observer', type: 'tcp', url: 'tcp://localhost:9100', status: 'active', msgRate: '1.2k/s', latency: '0.05ms' },
-      { from: 'sim-core-1', to: 'sim-observer', type: 'tcp', url: 'tcp://localhost:9100', status: 'active', msgRate: '1.1k/s', latency: '0.05ms' },
-    ],
-    protocols: ['NMMOSim'],
-    stats: { totalAgents: 71, totalNodes: 3, activeLinks: 3, totalMsgRate: '50.3k/s' },
-  },
-
   'browser-server': {
     title: 'Browser + Server',
     description: 'Browser tab runs RC with TS agents. Server RC hosts backend agents. Connected via WebSocket.',
     nodes: [
       { nodeId: 'server-rc', label: 'server-rc', host: 'api.example.com:4000', status: 'online', type: 'ssh', runtime: 'ts',
-        agentNode: 'NativeAgentNode + PythonAgentNode',
+        agentNode: 'NativeAgentNode',
         provision: 'Node.js server process, listens for WsNodeLink connections',
         agents: [
           { name: 'APIAgent', role: 'APIRole', lang: 'ts', plays: [{proto:'AppProtocol',role:'api'}], status: 'online', pid: 3100, mem: '52MB' },

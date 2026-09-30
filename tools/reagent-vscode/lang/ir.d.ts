@@ -104,6 +104,16 @@ export type IRState = {
     id: string;
     kind: IRStateKind;
     data: IRStateData;
+    /**
+     * Nearest enclosing try-scope metadata for this state, when the state was
+     * emitted from inside a `try {}` or its paired `catch {}` body.
+     */
+    tryScope?: {
+        scopeId: string;
+        phase: "try" | "catch";
+        catchStateId: string;
+        catchLabel: string;
+    };
 };
 export type IRStateData = IRInitialData | IRSendData | IRReceiveData | IRActionData | IRGuardData | IRForkData | IRJoinData | IRTimerData | IRTerminalData | IRErrorData | IRInvokeData | IRAsyncInvokeData | IRSpawnData | IRScatterData;
 export type IRInitialData = {

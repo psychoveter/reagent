@@ -5,10 +5,11 @@ It is intentionally organized as a numbered reading order rather than as a flat 
 
 ## Status
 
-- TypeScript runtime was structurally reorganized in this pass.
-- `runtime/ts/src` now reflects the runtime architecture through layer folders.
-- Python runtime was **not** structurally reorganized in the same pass.
-- The language layer remains stable and is documented here without a matching structural rewrite.
+- TypeScript is the only first-class runtime today (Reagent Controller, AgentShell, BehaviorFactory layer).
+- The parallel Python runtime has been retired; only the `[py]`-zone executor remains as RC virtual-language scaffolding under `runtime/ts/zone-execs/py/`.
+- `runtime/ts/src` is organized into explicit layer folders (see below).
+- The language layer remains stable; `LangTag` (including `"py"`) is preserved at the syntax/IR level even though only `[ts]` zones are natively executable on the TS RC today.
+- The future Rust Release Candidate (with a Python host model based on PyO3 / equivalent FFI) is tracked in [`docs/future/`](../future/).
 
 ## Recommended Reading Order
 
@@ -33,7 +34,7 @@ It is intentionally organized as a numbered reading order rather than as a flat 
 - `contracts/` for shared runtime interfaces, R1 ontology types, and wire-level types
 - `core/` for protocol execution primitives (`RoleEngine`, `RoleRun`, `AgentShell`, zone executor, scatter coordinator)
 - `controller/` for `ReagentController` and runtime registry logic
-- `nodes/` for `BehaviorFactory` implementations: `nodes/managed/`, `nodes/claude/`, `nodes/gate/` (Message Gate session and transport support), and `nodes/mcp/` (MCP-facing adapter and server code), plus the `python-behavior-factory.ts` and `custom-behavior-factory.ts` entry points
+- `nodes/` for `BehaviorFactory` implementations: `nodes/managed/`, `nodes/claude/`, `nodes/gate/` (Message Gate session and transport support), and `nodes/mcp/` (MCP-facing adapter and server code), plus the `custom-behavior-factory.ts` entry point
 - `cluster/` for state store, membership, leader election, and runtime bootstrap
 - `triggers/` for trigger matching, cron, and resolve policy evaluation
 - `network/` for `NodeLink` implementations and legacy NATS transport compatibility
@@ -50,10 +51,11 @@ The root of `runtime/ts/src` keeps only true entrypoints and package surface fil
 Note: there is no top-level `gate/` or `mcp/` directory; both live under `nodes/`.
 This matches the layer description in [`03-runtime-core.md`](03-runtime-core.md) §2.
 
-### Python runtime
+### `[py]` zone executor (RC virtual-language scaffolding)
 
-The Python runtime remains implemented and tested, but its filesystem layout was not reorganized to mirror the new TS tree.
-Where the docs describe TS and Python together, treat TS as the freshly refactored implementation and Python as a partially mirrored implementation with deliberate asymmetry.
+`runtime/ts/zone-execs/py/reagent_runtime/zone_executor.py` is a self-contained Python helper invoked by the TS RC to execute `[py]`-tagged zone bodies (sync and async). It is *not* a runtime — there is no `ReagentController`, `AgentRunner`, or transport on the Python side. The TS RC currently exercises this path only in `runtime/ts/test/core/agent-host-boundary.test.ts` (tests `A2` / `A4`).
+
+Whole-agent-on-`[py]` dispatch (`agent X runs Role[py]`) is unsupported until the Rust RC lands with PyO3 / equivalent host bindings; see [`docs/future/retire-python-runtime.md`](../future/retire-python-runtime.md) and [`docs/future/nmmo-python-host.md`](../future/nmmo-python-host.md).
 
 ## Scope Rules For `current/`
 

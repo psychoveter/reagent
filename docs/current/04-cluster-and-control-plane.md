@@ -337,17 +337,17 @@ Imperative host code should provide:
 `RuntimeConfig` should not be repurposed for Claude-specific or tool-specific launch settings.
 Those belong in wrapper configs around the runtime config.
 
-## 13. Python Runtime Asymmetry
+## 13. Python Runtime Retired
 
-The TypeScript runtime and control-plane layers were reorganized to match the current architecture.
-The Python runtime was not.
+The parallel Python runtime has been retired. Only the `[py]`-zone executor
+remains under `runtime/ts/zone-execs/py/` as RC virtual-language scaffolding.
 
 Practical consequence:
 
 - this file describes the current TypeScript control-plane model
-- Python support may mirror parts of the behavior, but not the structure or file layout
-
-Do not assume path parity between `runtime/ts/` and `runtime/py/`.
+- whole-agent dispatch to `Role[py]` is unsupported on the TS RC and is
+  deferred to the future Rust Release Candidate with PyO3 / equivalent host
+  bindings; see [`../future/retire-python-runtime.md`](../future/retire-python-runtime.md).
 
 ## 14. Primary Files
 

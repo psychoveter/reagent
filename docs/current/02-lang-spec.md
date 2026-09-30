@@ -272,7 +272,7 @@ alice {
 - Otherwise, the **export object itself** is bound as `$agent`. This is the right shape for static singletons (e.g. a module that exposes named helpers).
 - Python uses class instantiation (`AliceModule(config)` from the example above); the factory contract above is the TS/JS analogue.
 
-See also: `01-user-guide.md` §6.1 for `agent.json` format and native module loading.
+See also: `01-user-guide.md` §4.2–4.3 for `agent.json` format and native module loading.
 
 ### 1.4 Reagent runtime library (`reagent.`*)
 
@@ -1146,34 +1146,30 @@ The auxiliary build artifacts have stable JSON shapes backed by TypeScript types
 
 > **JSON Schema artifacts** for these shapes are intentionally not generated in v0. The TS types above are the canonical source of truth. If a future tooling need motivates emitting JSON Schema (e.g. to validate `deployment.json` in non-TS clients), the path is to plug `ts-json-schema-generator` into the build and ship the schemas under `lang/schema/`. Tracked as a follow-up.
 
-### 4.8 Reference runtimes
+### 4.8 Reference runtime
 
-Lightweight **reference runners** (TypeScript and Python) interpret IR JSON directly:
+The TypeScript Reagent Controller (`runtime/ts/src/controller/`) interprets IR
+JSON directly:
 
-- **AgentRunner** — one instance per agent. Manages `$self`, lifecycle handlers, message routing to ProtocolInstances. Wires `invoke_callback` and `spawn_callback` for IR-level `invoke`/`async_invoke` states.
-- **ProtocolInstance** — interprets one IRGraph state machine per protocol instance. Has its own `$ctx`. Includes a **message inbox buffer** for messages arriving before receivers register (critical for synchronous loopback transport).
-- **Zone Executor** — executes raw zone body strings with `$ctx`, `$self`, `reagent` in scope. Python executor includes JS→Python compatibility layer (`true`→`True`, `===`→`==`, etc.).
+- **AgentShell / RoleEngine / RoleRun** — manage `$self`, lifecycle handlers,
+  and message routing to per-protocol instances. Wire `invoke`/`async_invoke`
+  / `spawn` callbacks for IR-level invocation states.
+- **ProtocolEngine** — interprets one `IRGraph` state machine per protocol
+  instance. Has its own `$ctx`. Includes a message inbox buffer for messages
+  arriving before receivers register.
+- **Zone executor** — executes raw zone body strings with `$ctx`, `$self`,
+  `reagent` in scope. `[py]` zones are dispatched to the in-tree Python
+  helper under `runtime/ts/zone-execs/py/` (sync and async), which includes a
+  JS→Python compatibility layer (`true`→`True`, `===`→`==`, etc.).
 
-#### TypeScript orchestrator (`ReagentController`)
+The TS `ReagentController` manages agent registry, routing table, interceptor
+chain, and `NodeLink` management. It hosts multiple `BehaviorFactory`
+backends — `ManagedBehaviorFactory`, `CustomBehaviorFactory`,
+`GateBehaviorFactory`, `ClaudeBehaviorFactory` — keyed by language tag and
+behavior kind. Transport is abstracted via `ReagentTransport` — no direct
+NATS dependency.
 
-The TS `ReagentController` (in `runtime/ts/`) manages agent registry, routing table, interceptor chain, and NodeLink management. It supports multiple `AgentNode` backends keyed by language (`ts` → `NativeAgentNode`, `py` → `PythonAgentNode`). Transport is abstracted via `ReagentTransport` — no direct NATS dependency.
-
-#### Python orchestrator (`ReagentController`)
-
-The Python `ReagentController` (in `runtime/py/reagent_runtime/controller.py`) mirrors the TS RC architecture as a pure-Python orchestrator. No NATS or TS parent required. Key components:
-
-- `**InprocAgentNode`** — runs agents in the same process via `AgentRunner` + `InprocTransport`. Zero serialization overhead. Primary mode for NMMO-style multi-agent simulations.
-- `**IpcAgentNode**` — runs agents as subprocesses via `ipc_agent.py` with JSON-line stdin/stdout IPC.
-- `**InprocTransport**` — per-agent transport that routes envelopes through the RC's routing table via a callback. Traces go to an optional trace callback. Subscriptions are no-ops.
-
-Usage:
-
-```python
-rc = ReagentController(node_id="sim")
-rc.add_agent_node("*", InprocAgentNode(role_to_agent=rta))
-rc.register_agent("Agent0", role_ir, graphs)
-await rc.start()
-rc.trigger_protocol("Agent0", trigger)
-```
-
-See `runtime/py/` for implementations and `runtime/ts/test/python/runtime-core/test_runtime_core.py` for E2E tests.
+> The previously parallel Python `ReagentController` (under `runtime/py/`) has
+> been retired. Whole-agent dispatch to `Role[py]` is deferred until the
+> Rust Release Candidate with PyO3 / equivalent host bindings. See
+> [`../future/retire-python-runtime.md`](../future/retire-python-runtime.md).

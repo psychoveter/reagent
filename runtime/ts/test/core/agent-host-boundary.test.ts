@@ -114,7 +114,7 @@ execute_zone(
 assert ctx['result'] == 'processed: world', f'Expected processed: world, got {ctx[\"result\"]}'
 print('A2: PASS')
 "`,
-    { encoding: "utf8", cwd: join(__dirname, "..", "..", "..", "py") },
+    { encoding: "utf8", cwd: join(__dirname, "..", "..", "zone-execs", "py") },
   );
   assert.ok(result.includes("A2: PASS"));
   console.log("  A2: PASS");
@@ -170,7 +170,7 @@ async def run():
 
 asyncio.run(run())
 "`,
-    { encoding: "utf8", cwd: join(__dirname, "..", "..", "..", "py") },
+    { encoding: "utf8", cwd: join(__dirname, "..", "..", "zone-execs", "py") },
   );
   assert.ok(result.includes("A4: PASS"));
   console.log("  A4: PASS");

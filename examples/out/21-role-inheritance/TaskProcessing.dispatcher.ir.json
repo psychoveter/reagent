@@ -104,7 +104,7 @@
     }
   ],
   "invocable": true,
-  "version": "52.0.0",
+  "version": "60.0.0",
   "fingerprints": {
     "structureHash": "1142e0a51797917b440e19b4189056ceadd7fec6114ba6c1fc99c0cf08ba85dd",
     "schemaHash": "a478e832eb757283f3e9a4aaf7ee176db5eeced0f5acb78e69f601fddd77c3cd",

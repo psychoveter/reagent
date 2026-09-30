@@ -25,7 +25,6 @@ gap-ов. Отдельный лог волны держать в этом док
   set:
   - `18-invoke-demo.rg`
   - `19-spawn-emit-demo.rg`
-  - `20-cross-lang-e2e.rg`
   - `22-multi-protocol-agent.rg`
   - `23-scatter-gather.rg`
 - Что нужно сделать: довести декомпилятор до round-trip поддержки этих форм.
@@ -65,15 +64,19 @@ gap-ов. Отдельный лог волны держать в этом док
   не запускает дочерние шаги.
 - Tier: Tier 1 (stories deterministic).
 
-### 1.5 Cross-language UC4: реальный Python boundary
+### 1.5 Cross-language UC4: реальный Python boundary (gated on Rust RC)
 
 - Файл: [`runtime/ts/test/stories/cross-mode-orchestration.test.ts`](../../runtime/ts/test/stories/cross-mode-orchestration.test.ts).
 - Сейчас покрыт TS-first cross-mode (managed + custom + gate). Полный
   cross-language вариант с реальной TS↔Py границей внутри одного протокола
-  остаётся отдельным шагом. Базовый кросс-язык на уровне messaging
-  (`T17`/`T18` в `runtime-semantics-nats.test.ts`) уже зелёный, но это не
-  story-level coverage.
-- Tier: Tier 2 (нужен NATS + Python venv).
+  заблокирован удалением параллельного Python runtime
+  ([`retire-python-runtime.md`](retire-python-runtime.md)); вернётся вместе с
+  Rust Release Candidate + PyO3-хостом (см.
+  [`nmmo-python-host.md`](nmmo-python-host.md)).
+- `[py]`-зональное исполнение в TS RC уже покрыто `A2`/`A4` в
+  [`runtime/ts/test/core/agent-host-boundary.test.ts`](../../runtime/ts/test/core/agent-host-boundary.test.ts)
+  через релокированный zone executor под `runtime/ts/zone-execs/py/`.
+- Tier: Tier 3 (gated on future Rust RC).
 
 ---
 
@@ -123,7 +126,8 @@ gap-ов. Отдельный лог волны держать в этом док
   волне.
 - `T3` (IoT cron/event story-level e2e) — реализовано, зелёное.
 - `T4` (cross-mode orchestration e2e) — реализовано в TS-first форме;
-  расширение до реального cross-language Python boundary осталось в §1.5.
+  расширение до реального cross-language Python boundary заблокировано на
+  Rust RC + PyO3 (см. §1.5).
 - `T5` (risk review approval e2e) — реализовано happy-path; `reject` ветка
   осталась в §1.4.
 - `T6` (research swarm live e2e) — сознательно отложено, см. §2.1.

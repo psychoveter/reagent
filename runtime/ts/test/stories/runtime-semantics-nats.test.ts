@@ -11,15 +11,13 @@
  * T1: Linear protocol (accept path)
  * T2: Alt branching — accept path
  * T3: Alt branching — reject path
- * T4: Cross-language (skipped without Python — same IR, same TS runner)
  * T5: Agent $self state across multiple protocol instances
  * T6: Loop executes N iterations then exits
  * T7: Wait delays execution by specified duration
  * T8: $self accumulates state across loop iterations
  */
 
-import { readFileSync, existsSync } from "node:fs";
-import { spawn as spawnProcess } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { AgentShellImpl, type AgentShellConfig } from "../../src/core/agent-shell-impl.js";
@@ -41,9 +39,6 @@ const PAR_FIXTURES_DIR = join(__dirname, "..", "..", "..", "..", "examples", "ou
 const TRYCATCH_FIXTURES_DIR = join(__dirname, "..", "..", "..", "..", "examples", "out", "17-try-catch-demo");
 const INVOKE_FIXTURES_DIR = join(__dirname, "..", "..", "..", "..", "examples", "out", "18-invoke-demo");
 const SPAWN_FIXTURES_DIR = join(__dirname, "..", "..", "..", "..", "examples", "out", "19-spawn-emit-demo");
-const CROSSLANG_FIXTURES_DIR = join(__dirname, "..", "..", "..", "..", "examples", "out", "20-cross-lang-e2e");
-const PY_RUNTIME_DIR = join(__dirname, "..", "..", "..", "py");
-const PY_VENV_BIN = join(PY_RUNTIME_DIR, ".venv", "bin", "python");
 
 // ── NATS-backed AgentShell helper ───────────────────────────────────
 
@@ -292,45 +287,6 @@ async function testT3(): Promise<TestResult> {
     return { name, passed: false, error: String(e) };
   } finally {
     if (client && handler) await stopNatsRunners(client, handler);
-  }
-}
-
-// ── T4: Cross-language (TS only simulation) ────────────────────────
-
-async function testT4(): Promise<TestResult> {
-  const name = "T4: Cross-language (TS-simulated, same IR format)";
-
-  try {
-    const crossDir = join(__dirname, "..", "..", "..", "..", "examples", "out", "13-cross-lang-demo");
-    const browserIR = loadAgentIRFromDir(crossDir, "BrowserAgent");
-    const serverIR = loadAgentIRFromDir(crossDir, "ServerAgent");
-
-    if (browserIR.lang !== "ts") {
-      return { name, passed: false, error: `BrowserAgent lang should be ts, got ${browserIR.lang}` };
-    }
-    if (serverIR.lang !== "py") {
-      return { name, passed: false, error: `ServerAgent lang should be py, got ${serverIR.lang}` };
-    }
-    if (browserIR.plays.length !== 1 || browserIR.plays[0].protocolName !== "CrossLangDemo") {
-      return { name, passed: false, error: "BrowserAgent plays binding incorrect" };
-    }
-    if (serverIR.plays.length !== 1 || serverIR.plays[0].protocolName !== "CrossLangDemo") {
-      return { name, passed: false, error: "ServerAgent plays binding incorrect" };
-    }
-
-    const browserGraph: IRGraph = JSON.parse(readFileSync(join(crossDir, "CrossLangDemo.browser.ir.json"), "utf8"));
-    const serverGraph: IRGraph = JSON.parse(readFileSync(join(crossDir, "CrossLangDemo.server.ir.json"), "utf8"));
-
-    if (browserGraph.role !== "browser") {
-      return { name, passed: false, error: "Browser graph role mismatch" };
-    }
-    if (serverGraph.role !== "server") {
-      return { name, passed: false, error: "Server graph role mismatch" };
-    }
-
-    return { name, passed: true };
-  } catch (e) {
-    return { name, passed: false, error: String(e) };
   }
 }
 
@@ -1152,182 +1108,6 @@ async function testT16(): Promise<TestResult> {
   }
 }
 
-// ── Cross-language helpers ───────────────────────────────────────────
-
-function runPyAgent(
-  fixturesDir: string,
-  agentName: string,
-  instanceId: string,
-  roleToAgent: Record<string, string>,
-): Promise<{ status: string; self: Record<string, unknown>; traces: any[] }> {
-  return new Promise((resolve, reject) => {
-    const pyScript = join(__dirname, "..", "python", "py_agent_runner.py");
-    const child = spawnProcess(PY_VENV_BIN, [
-      pyScript,
-      fixturesDir,
-      agentName,
-      NATS_URL.replace("nats://", "nats://"),
-      instanceId,
-      JSON.stringify(roleToAgent),
-    ], {
-      cwd: PY_RUNTIME_DIR,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
-    child.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
-
-    const timer = setTimeout(() => {
-      child.kill("SIGTERM");
-      reject(new Error(`Python agent timed out. stderr: ${stderr}\nstdout: ${stdout}`));
-    }, 20000);
-
-    child.on("close", (code: number | null) => {
-      clearTimeout(timer);
-      if (code !== 0) {
-        reject(new Error(`Python agent exited ${code}. stderr: ${stderr}\nstdout: ${stdout}`));
-        return;
-      }
-      const lines = stdout.split("\n");
-      const resultLine = lines.find(l => l.startsWith("RESULT:"));
-      if (!resultLine) {
-        reject(new Error(`No RESULT line in stdout: ${stdout}`));
-        return;
-      }
-      try {
-        resolve(JSON.parse(resultLine.slice(7)));
-      } catch (e) {
-        reject(new Error(`Failed to parse result: ${resultLine}`));
-      }
-    });
-  });
-}
-
-// ── T17: TS → Python → TS message flow ──────────────────────────────
-
-async function testT17(): Promise<TestResult> {
-  const name = "T17: Cross-language TS ↔ Python message flow";
-
-  if (!existsSync(PY_VENV_BIN)) {
-    return { name, passed: true, error: "(skipped — Python venv not found)" };
-  }
-
-  let tsRunner: NatsAgentRunner | null = null;
-
-  try {
-    const deployment = JSON.parse(readFileSync(join(CROSSLANG_FIXTURES_DIR, "deployment.json"), "utf8"));
-    const tsAgentIR = loadAgentIRFromDir(CROSSLANG_FIXTURES_DIR, "TsAgent");
-    const tsGraph: IRGraph = JSON.parse(readFileSync(join(CROSSLANG_FIXTURES_DIR, "CrossLangE2E.tsRole.ir.json"), "utf8"));
-
-    tsRunner = await createNatsRunner(
-      tsAgentIR,
-      new Map([["CrossLangE2E.tsRole", tsGraph]]),
-      deployment.roleToAgent,
-    );
-
-    await tsRunner.shell.start();
-    await new Promise(r => setTimeout(r, 300));
-
-    const instanceId = randomUUID();
-
-    const pyPromise = runPyAgent(CROSSLANG_FIXTURES_DIR, "PyAgent", instanceId, deployment.roleToAgent);
-
-    await new Promise(r => setTimeout(r, 1500));
-
-    tsRunner.shell.triggerProtocol({
-      instanceId,
-      protocolName: "CrossLangE2E",
-      input: {},
-      roleToAgent: deployment.roleToAgent,
-    });
-
-    const [pyResult] = await Promise.all([
-      pyPromise,
-      tsRunner.shell.waitForCompletion(1, 15000),
-    ]);
-
-    const tsi = tsRunner.shell.getInstances().get(instanceId)!;
-    if (tsi.getStatus() !== "completed") return { name, passed: false, error: `TS: ${tsi.getStatus()}` };
-    if (pyResult.status !== "completed") {
-      const failTraces = pyResult.traces?.filter((t: any) => t.kind === "ProtocolFailed") ?? [];
-      return { name, passed: false, error: `Py: ${pyResult.status}, traces: ${JSON.stringify(failTraces)}` };
-    }
-
-    const tsSelf = tsRunner.shell.getSelf();
-    const expectedReply = "hello from ts — echoed by py";
-    if (tsSelf.lastReply !== expectedReply) {
-      return { name, passed: false, error: `Expected lastReply="${expectedReply}", got "${tsSelf.lastReply}"` };
-    }
-
-    return { name, passed: true };
-  } catch (e) {
-    return { name, passed: false, error: String(e) };
-  } finally {
-    if (tsRunner) await stopNatsRunners(tsRunner);
-  }
-}
-
-// ── T18: Python agent $self persists + lifecycle handler ─────────────
-
-async function testT18(): Promise<TestResult> {
-  const name = "T18: Python $self state + lifecycle handler";
-
-  if (!existsSync(PY_VENV_BIN)) {
-    return { name, passed: true, error: "(skipped — Python venv not found)" };
-  }
-
-  let tsRunner: NatsAgentRunner | null = null;
-
-  try {
-    const deployment = JSON.parse(readFileSync(join(CROSSLANG_FIXTURES_DIR, "deployment.json"), "utf8"));
-    const tsAgentIR = loadAgentIRFromDir(CROSSLANG_FIXTURES_DIR, "TsAgent");
-    const tsGraph: IRGraph = JSON.parse(readFileSync(join(CROSSLANG_FIXTURES_DIR, "CrossLangE2E.tsRole.ir.json"), "utf8"));
-
-    tsRunner = await createNatsRunner(
-      tsAgentIR,
-      new Map([["CrossLangE2E.tsRole", tsGraph]]),
-      deployment.roleToAgent,
-    );
-
-    await tsRunner.shell.start();
-    await new Promise(r => setTimeout(r, 300));
-
-    const instanceId = randomUUID();
-
-    const pyPromise = runPyAgent(CROSSLANG_FIXTURES_DIR, "PyAgent", instanceId, deployment.roleToAgent);
-
-    await new Promise(r => setTimeout(r, 1500));
-
-    tsRunner.shell.triggerProtocol({
-      instanceId,
-      protocolName: "CrossLangE2E",
-      input: {},
-      roleToAgent: deployment.roleToAgent,
-    });
-
-    const [pyResult] = await Promise.all([
-      pyPromise,
-      tsRunner.shell.waitForCompletion(1, 15000),
-    ]);
-
-    if (pyResult.self.messagesProcessed !== 1) {
-      return { name, passed: false, error: `Expected messagesProcessed=1, got ${pyResult.self.messagesProcessed}` };
-    }
-
-    if (pyResult.self.completedCount !== 1) {
-      return { name, passed: false, error: `Expected completedCount=1, got ${pyResult.self.completedCount}` };
-    }
-
-    return { name, passed: true };
-  } catch (e) {
-    return { name, passed: false, error: String(e) };
-  } finally {
-    if (tsRunner) await stopNatsRunners(tsRunner);
-  }
-}
-
 // ── T19: Trace validator detects illegal message ─────────────────────
 
 async function testT19(): Promise<TestResult> {
@@ -1426,7 +1206,7 @@ async function runAllTests(): Promise<void> {
   console.log(`NATS: ${NATS_URL}`);
   console.log(`Fixtures: ${FIXTURES_DIR}\n`);
 
-  const tests = [testT1, testT2, testT3, testT4, testT5, testT6, testT7, testT8, testT9, testT10, testT11, testT12, testT13, testT14, testT15, testT16, testT17, testT18, testT19, testT20];
+  const tests = [testT1, testT2, testT3, testT5, testT6, testT7, testT8, testT9, testT10, testT11, testT12, testT13, testT14, testT15, testT16, testT19, testT20];
   const results: TestResult[] = [];
 
   for (const test of tests) {

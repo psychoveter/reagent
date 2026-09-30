@@ -5,7 +5,7 @@
     {
       "protocolName": "TaskProcessing",
       "roleName": "client",
-      "protocolVersion": "53.0.0"
+      "protocolVersion": "61.0.0"
     }
   ],
   "initAction": {
@@ -22,9 +22,9 @@
       }
     }
   ],
-  "version": "55.0.0",
+  "version": "63.0.0",
   "fingerprints": {
-    "playsHash": "5d1688e2869a1ec6cd9b1780366e70579336d5bdee7c955d5ef82049a020af95",
+    "playsHash": "c49ddc033861959350638d6c5caf6d4279878f0f25a4ee4483e8a5f2d2962ed5",
     "behaviorHash": "1d94d231fa3a852cb62d7479767f8b0ba72d50c2f14841c94594c9e1cc10ae1b"
   }
 }

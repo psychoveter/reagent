@@ -19,7 +19,6 @@
  * C9:  External trigger via RC API
  * C10: Multi-protocol on single node
  * C11: Agent in multiple protocols
- * C12: Cross-language TS<->Python via RC
  */
 
 import { join, dirname } from "node:path";
@@ -28,7 +27,6 @@ import { randomUUID } from "node:crypto";
 
 import { ReagentController, type ReagentControllerConfig } from "../../src/controller/reagent-controller.js";
 import { ManagedBehaviorFactory } from "../../src/nodes/managed/managed-behavior-factory.js";
-import { PythonBehaviorFactory } from "../../src/nodes/python-behavior-factory.js";
 import { AgentShellImpl } from "../../src/core/agent-shell-impl.js";
 import { createInMemoryLinkPair } from "../../src/network/inmemory-node-link.js";
 import type { IRGraph, TraceEvent, MessageEnvelope } from "../../src/contracts/types.js";
@@ -43,8 +41,6 @@ const PAR_FIXTURES_DIR = join(__dirname, "..", "..", "..", "..", "examples", "ou
 const INVOKE_FIXTURES_DIR = join(__dirname, "..", "..", "..", "..", "examples", "out", "18-invoke-demo");
 const SPAWN_FIXTURES_DIR = join(__dirname, "..", "..", "..", "..", "examples", "out", "19-spawn-emit-demo");
 const MULTI_PROTO_DIR = join(__dirname, "..", "..", "..", "..", "examples", "out", "22-multi-protocol-agent");
-const CROSS_LANG_DIR = join(__dirname, "..", "..", "..", "..", "examples", "out", "20-cross-lang-e2e");
-const PY_RUNTIME_DIR = join(__dirname, "..", "..", "..", "py");
 
 // ── C1: Single-node loopback ────────────────────────────────────────
 
@@ -688,98 +684,11 @@ async function testC11(): Promise<TestResult> {
   }
 }
 
-// ── C12: Cross-language TS<->Python via RC ──────────────────────────
-
-async function testC12(): Promise<TestResult> {
-  const name = "C12: Cross-language TS<->Python via RC";
-
-  try {
-    const deployment = loadDeploymentFrom(CROSS_LANG_DIR);
-
-    // Two BehaviorFactory backends — ts and py
-    const tsFactory = new ManagedBehaviorFactory();
-    const pyFactory = new PythonBehaviorFactory();
-
-    const rc = new ReagentController({
-      nodeId: "cross-lang-node",
-      behaviorFactories: { ts: tsFactory, py: pyFactory },
-    });
-
-    // TsAgent (lang: "ts") → ManagedBehaviorFactory
-    const { roleIR: tsRole } = loadRoleIR(CROSS_LANG_DIR, "TsAgent");
-    const tsGraphs = buildGraphs(CROSS_LANG_DIR, [{ proto: "CrossLangE2E", role: "tsRole" }]);
-    rc.registerAgent("TsAgent", tsRole, tsGraphs);
-
-    // PyAgent (lang: "py") → PythonBehaviorFactory
-    const { roleIR: pyRole } = loadRoleIR(CROSS_LANG_DIR, "PyAgent");
-    const pyGraphs = buildGraphs(CROSS_LANG_DIR, [{ proto: "CrossLangE2E", role: "pyRole" }]);
-    rc.registerAgent("PyAgent", pyRole, pyGraphs);
-
-    await rc.start();
-
-    const instanceId = randomUUID();
-    const trigger = {
-      instanceId,
-      protocolName: "CrossLangE2E",
-      input: {},
-      roleToAgent: deployment.roleToAgent,
-    };
-
-    // Trigger receiver (PyAgent) before sender (TsAgent) for loopback safety
-    rc.triggerProtocol("PyAgent", trigger);
-    // Small delay to let the Python side create the protocol instance
-    await new Promise(r => setTimeout(r, 200));
-    rc.triggerProtocol("TsAgent", trigger);
-
-    const tsHandle = getHandle(rc, "TsAgent");
-    const pyHandle = rc.getAgent("PyAgent") as AgentShellImpl;
-
-    await Promise.all([
-      tsHandle.waitForCompletion(1, 15000),
-      pyHandle.waitForCompletion(1, 15000),
-    ]);
-
-    // Verify TS side completed
-    const tsInstance = tsHandle.getInstances().get(instanceId)!;
-    if (tsInstance.getStatus() !== "completed") {
-      return { name, passed: false, error: `TsAgent: ${tsInstance.getStatus()}` };
-    }
-
-    // Verify Python side completed
-    const pyInstance = pyHandle.getInstances().get(instanceId)!;
-    if (pyInstance.getStatus() !== "completed") {
-      return { name, passed: false, error: `PyAgent status: ${pyInstance.getStatus()}` };
-    }
-
-    // Verify TS agent got the reply from Python
-    const tsSelf = tsHandle.getSelf();
-    const expectedReply = "hello from ts — echoed by py";
-    if (tsSelf.lastReply !== expectedReply) {
-      return { name, passed: false, error: `Expected lastReply="${expectedReply}", got "${tsSelf.lastReply}"` };
-    }
-
-    // Verify Python agent's $self
-    const pySelf = pyHandle.getSelf();
-    if (pySelf.messagesProcessed !== 1) {
-      return { name, passed: false, error: `Expected messagesProcessed=1, got ${pySelf.messagesProcessed}` };
-    }
-    if (pySelf.completedCount !== 1) {
-      return { name, passed: false, error: `Expected completedCount=1, got ${pySelf.completedCount}` };
-    }
-
-    await rc.stop();
-    return { name, passed: true };
-  } catch (e) {
-    return { name, passed: false, error: String(e) };
-  }
-}
-
 // ── Runner ──────────────────────────────────────────────────────────
 
 async function runAllTests(): Promise<void> {
   console.log("=== M5-CTRL Functional E2E Tests ===\n");
 
-  // C12 (cross-language TS<->Python) skipped: Python runtime deferred per backlog
   const tests = [testC1, testC2, testC3, testC4, testC5, testC6, testC7, testC8, testC9, testC10, testC11];
   const results: TestResult[] = [];
 

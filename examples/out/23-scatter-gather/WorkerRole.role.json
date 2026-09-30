@@ -9,7 +9,7 @@
     }
   ],
   "lifecycleHandlers": [],
-  "version": "80.0.0",
+  "version": "92.0.0",
   "fingerprints": {
     "playsHash": "2688b1683f18bdf826de406dbf1cec310d6bc8e8efb6f4e49c4f93f19972e541",
     "behaviorHash": "11631f9d8327d6f9c838c87381a0fed56b47569a43561372fa164294f1dc166b"

@@ -130,7 +130,7 @@
     }
   ],
   "invocable": true,
-  "version": "59.0.0",
+  "version": "67.0.0",
   "fingerprints": {
     "structureHash": "5612e2b0ea595fa49cc73b4a6dd58cb102dcdfa9a1989f46be4a6a6d264fcb18",
     "schemaHash": "21b81feb8eddceb596f9a7440f752f4c88125168661be87c564d13c0cdcb6031",

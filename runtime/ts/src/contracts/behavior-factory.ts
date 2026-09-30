@@ -9,7 +9,6 @@
  *   - ManagedBehaviorFactory: creates ManagedBehavior (zone executor)
  *   - CustomBehaviorFactory: wraps a user-supplied AgentBehavior
  *   - GateBehaviorFactory: creates gate-backed proxy behaviors
- *   - PythonBehaviorFactory: bridges to the Python runtime subprocess
  */
 
 import type { RoleIR, IRGraph } from "./types.js";

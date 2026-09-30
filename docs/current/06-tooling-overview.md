@@ -159,7 +159,7 @@ These are runtime hooks, but they matter to tooling because they feed dashboards
 - Some debug flows are still partially coupled to legacy control transport patterns.
 - Some source comments still mention older collection paths or central orchestration assumptions.
 - The runtime tree reorganization changed many source paths; current docs should reference the layered tree rather than the old flat layout.
-- Python runtime support exists, but the Python runtime was not structurally reorganized alongside the TS runtime.
+- The previously parallel Python runtime has been retired; only the `[py]`-zone executor remains under `runtime/ts/zone-execs/py/`. See [`../future/retire-python-runtime.md`](../future/retire-python-runtime.md).
 
 ## 10. Primary Files
 

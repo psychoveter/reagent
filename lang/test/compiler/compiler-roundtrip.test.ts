@@ -37,7 +37,6 @@ const ALL_RG_FILES = readdirSync(EXAMPLES_DIR)
 const EXPECTED_CR2_UNSUPPORTED = new Set([
   "18-invoke-demo.rg",
   "19-spawn-emit-demo.rg",
-  "20-cross-lang-e2e.rg",
   "22-multi-protocol-agent.rg",
   "23-scatter-gather.rg",
 ]);

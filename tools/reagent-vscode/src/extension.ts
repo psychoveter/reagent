@@ -698,24 +698,6 @@ export function activate(context: vscode.ExtensionContext): void {
   outputChannel.appendLine('Reagent Language extension activated.');
 }
 
-function findRuntimePyDir(projectRoot: string): string | null {
-  const candidates = [
-    path.resolve(projectRoot, '../../runtime/py'),
-    path.resolve(projectRoot, '../../../runtime/py'),
-    path.resolve(projectRoot, '../../../../runtime/py'),
-  ];
-  for (const folder of vscode.workspace.workspaceFolders ?? []) {
-    candidates.push(
-      path.join(folder.uri.fsPath, 'projects', 'reagent', 'runtime', 'py'),
-      path.join(folder.uri.fsPath, 'runtime', 'py'),
-    );
-  }
-  for (const c of candidates) {
-    if (fs.existsSync(path.join(c, 'reagent_runtime', 'remote_node_cli.py'))) return c;
-  }
-  return null;
-}
-
 function findComposePath(projectRoot: string): string | null {
   const candidates = [
     path.join(projectRoot, 'docker-compose.yml'),

@@ -8,7 +8,8 @@
  *   and mounted on the `kt` backend slot
  *
  * This is intentionally cross-mode first.
- * Python parity is a later extension, not part of this deterministic wave.
+ * Whole-agent dispatch to `Role[py]` is gated on the future Rust RC with
+ * PyO3 / equivalent host bindings; see `docs/future/retire-python-runtime.md`.
  */
 
 import assert from "node:assert/strict";

@@ -1,6 +1,0 @@
-{
-  "agentName": "BrowserAgent",
-  "lang": "ts",
-  "roleName": "BrowserRole",
-  "roleFile": "BrowserRole.role.json"
-}

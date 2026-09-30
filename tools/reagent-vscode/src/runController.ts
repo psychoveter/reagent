@@ -51,14 +51,6 @@ export class RunController implements vscode.Disposable {
     const startTime = Date.now();
 
     try {
-      const projectRoot = this.findProjectRoot(rgFilePath);
-      if (projectRoot) {
-        const runPy = path.join(projectRoot, 'run.py');
-        if (fs.existsSync(runPy)) {
-          await this.runPythonProject(runPy, projectRoot, startTime);
-          return;
-        }
-      }
       await this.runTsInProcess(rgFilePath, startTime);
     } catch (err) {
       const elapsed = Date.now() - startTime;
@@ -67,39 +59,6 @@ export class RunController implements vscode.Disposable {
     } finally {
       this.running = false;
     }
-  }
-
-  private async runPythonProject(runPy: string, projectRoot: string, startTime: number): Promise<void> {
-    const { spawn } = await import('child_process');
-    const pythonPath = vscode.workspace.getConfiguration('python').get<string>('defaultInterpreterPath') || 'python3';
-
-    this.outputChannel.appendLine(`  Using Python runner: ${runPy}`);
-    this.outputChannel.appendLine(`  Python: ${pythonPath}\n`);
-
-    return new Promise<void>((resolve, reject) => {
-      const proc = spawn(pythonPath, [runPy], { cwd: projectRoot });
-
-      proc.stdout.on('data', (data: Buffer) => {
-        this.outputChannel.append(data.toString());
-      });
-      proc.stderr.on('data', (data: Buffer) => {
-        this.outputChannel.append(data.toString());
-      });
-      proc.on('close', (code: number | null) => {
-        const elapsed = Date.now() - startTime;
-        if (code === 0) {
-          this.outputChannel.appendLine(`\n✓ Completed in ${elapsed}ms`);
-          vscode.window.showInformationMessage(`Reagent: Python project completed in ${elapsed}ms`);
-          resolve();
-        } else {
-          this.outputChannel.appendLine(`\n✗ Process exited with code ${code} after ${elapsed}ms`);
-          reject(new Error(`Python runner exited with code ${code}`));
-        }
-      });
-      proc.on('error', (err: Error) => {
-        reject(new Error(`Failed to start Python: ${err.message}`));
-      });
-    });
   }
 
   private async runTsInProcess(rgFilePath: string, startTime: number): Promise<void> {
@@ -261,17 +220,6 @@ export class RunController implements vscode.Disposable {
         }
       }, 50);
     });
-  }
-
-  private findProjectRoot(rgFilePath: string): string | null {
-    let dir = path.dirname(rgFilePath);
-    for (let i = 0; i < 5; i++) {
-      if (fs.existsSync(path.join(dir, 'reagent.json'))) return dir;
-      const parent = path.dirname(dir);
-      if (parent === dir) break;
-      dir = parent;
-    }
-    return null;
   }
 
   private findLangDist(rgFilePath: string, workspaceRoot?: string): string | null {

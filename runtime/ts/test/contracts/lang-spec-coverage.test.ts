@@ -726,8 +726,8 @@ async function testC19(): Promise<TestResult> {
 
 // ── C20: protocolCompleted lifecycle across multiple instances ────────
 // Note: protocolStarted is defined in the lang-spec but NOT yet implemented
-// in either TS or Python runtime. This test verifies protocolCompleted fires
-// correctly across multiple sequential protocol instances and accumulates $self.
+// in the TS runtime. This test verifies protocolCompleted fires correctly
+// across multiple sequential protocol instances and accumulates $self.
 
 async function testC20(): Promise<TestResult> {
   const name = "C20: protocolCompleted lifecycle across instances";
@@ -994,9 +994,6 @@ async function testC23(): Promise<TestResult> {
     return { name, passed: false, error: String(e) };
   }
 }
-
-// ── Python parity tests: inline IR with Python zones ────────────────
-// These are in the separate test_py_rc_coverage.py file
 
 // ── Runner ──────────────────────────────────────────────────────────
 

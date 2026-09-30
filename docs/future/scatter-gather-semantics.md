@@ -25,7 +25,7 @@ But the current semantics are not strong enough.
 Today, branch `$ctx` isolation is only approximate:
 
 - TS runtime uses `Object.create(parentCtx)`
-- Python runtime uses shallow `dict(parentCtx)`
+- the relocated `[py]` zone executor uses shallow `dict(parentCtx)`
 - current docs describe this as "isolated copy" even though nested mutable values are still shared
 
 That creates three practical problems:
@@ -218,7 +218,7 @@ First-version practical rule:
 - plain objects, arrays, scalars, and JSON-like data are within the intended model
 - opaque handles, functions, class instances, sockets, and other host-specific values are outside the guarantee
 
-This keeps the semantics portable across TS and Python without inventing a full object-graph contract.
+This keeps the semantics portable across TS and `[py]`-zoned code without inventing a full object-graph contract.
 
 ### 8.3 Branch output
 
@@ -489,9 +489,7 @@ Current examples/docs/tests likely affected:
 - `docs/current/09-e2e-usecases.md`
 - `runtime/ts/test/core/scatter-async.test.ts`
 - `runtime/ts/test/core/role-run.test.ts`
-- `runtime/tests/contracts/lang-surface-runtime.test.ts`
-- `runtime/tests/contracts/runtime-conformance.test.ts`
-- `runtime/tests/python/parity/test_ts_python_parity.py`
+- `runtime/ts/test/contracts/lang-surface-runtime.test.ts`
 
 Any example that currently relies on branch-local `push`, `append`, or nested object mutation as a shared merge channel must be rewritten.
 
@@ -514,7 +512,7 @@ The language/IR likely needs:
 
 The runtime likely needs:
 
-- real branch-local cloning in TS and Python
+- real branch-local cloning in the TS runtime
 - ordered branch result collection
 - explicit handoff of gathered branch results to the control path
 - failure/cancellation behavior aligned with try/catch semantics

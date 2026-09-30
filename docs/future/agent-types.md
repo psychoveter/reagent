@@ -471,7 +471,7 @@ Recommended first-version matrix:
 | Agent type | Language | Zones | Bindings | Consume | Produce | Notes |
 |---|---|---|---|---|---|---|
 | `ManagedTs` | `ts` | allowed | `$ctx`, `$self`, `reagent`, optional `$agent` | json, plaintext | json, markdown, html, plaintext | TS managed/reference path |
-| `ManagedPy` | `py` | allowed | `$ctx`, `$self`, `reagent`, optional `$agent` | json, plaintext | json, markdown, plaintext | Python managed/reference path |
+| `ManagedPy` | `py` | allowed | `$ctx`, `$self`, `reagent`, optional `$agent` | json, plaintext | json, markdown, plaintext | Zone-level `[py]` via `runtime/ts/zone-execs/py/`; whole-agent dispatch gated on Rust RC + PyO3 (see [`retire-python-runtime.md`](retire-python-runtime.md)) |
 | `InstructionWorker` | `instruction` | allowed | `$ctx`, `$self`, `reagent` | markdown, json, plaintext, code | markdown, json, html, plaintext, structured_report | instruction/prompt-oriented zones |
 | `WebUser` | `none` | forbidden | none | html, markdown, plaintext | text, choice, file | human in browser |
 | `CursorUser` | `none` | forbidden | none | markdown, plaintext, mcp_tool_call | text, choice, code_edit, file_read | human in Cursor IDE |

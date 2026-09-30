@@ -30,8 +30,11 @@ Completed work is intentionally not tracked here. When something lands and is re
 ## 1. Active backlog
 
 These are the most practical next steps for the current TS-first runtime line.
-Python parity remains valuable, but it is intentionally deprioritized relative to
-the TypeScript runtime, control-plane hosts, and test surface.
+The parallel Python runtime has been retired; only the `[py]`-zone executor
+remains under `runtime/ts/zone-execs/py/` as RC virtual-language scaffolding.
+Whole-agent dispatch to `Role[py]` is gated on the Rust Release Candidate
+with PyO3 / equivalent host bindings (see §2 below and
+[`retire-python-runtime.md`](retire-python-runtime.md)).
 
 ### Runtime and cluster
 
@@ -87,7 +90,7 @@ new/updated suites, but that is now a verification task rather than an implement
 ## 2. Long-horizon runtime roadmap
 
 These items are not needed to make the current architecture viable, but they remain
-important if Reagent grows beyond the current TS/Py runtime line.
+important if Reagent grows beyond the current TS-only runtime line.
 
 ### Python host embedding instead of Python runtime parity
 

@@ -5,7 +5,6 @@
  * R2: canDeploy with PATCH change → compatible, no restart
  * R3: canDeploy with dependency structureHash conflict → incompatible
  * R4: Trigger protocol → messages carry protocolVersion
- * R5: (Python) register + list + canDeploy in Python RC
  */
 
 import { join, dirname } from "node:path";
@@ -18,13 +17,11 @@ import { ReagentController } from "../../src/controller/reagent-controller.js";
 import { ManagedBehaviorFactory } from "../../src/nodes/managed/managed-behavior-factory.js";
 import type { MessageEnvelope } from "../../src/contracts/types.js";
 import type { ProtocolEntry } from "../../src/controller/protocol-registry.js";
-import { execFileSync } from "node:child_process";
 import { buildGraphs, loadDeploymentFrom, loadRoleIR } from "../support/runtime-fixtures.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = join(__dirname, "..", "..", "..", "..", "examples", "out", "14-ts-only-demo");
 const INVOKE_DIR = join(__dirname, "..", "..", "..", "..", "examples", "out", "18-invoke-demo");
-const PY_RUNTIME_DIR = join(__dirname, "..", "..", "..", "py");
 
 function createSetup(dir: string, agents: Array<{ name: string; graphEntries: Array<{ proto: string; role: string }> }>) {
   const deployment = loadDeploymentFrom(dir);
@@ -160,75 +157,3 @@ test("R4: messages carry protocolVersion after trigger", async () => {
   await rc.stop();
 });
 
-// ── R5: Python RC registry ──────────────────────────────────────────
-
-test("R5: Python RC registers protocols with fingerprints", () => {
-  const script = `
-import sys, json, os
-sys.path.insert(0, "${PY_RUNTIME_DIR}")
-from reagent_runtime.protocol_registry import ProtocolRegistry, ProtocolEntry
-
-reg = ProtocolRegistry()
-
-entry = ProtocolEntry(
-    name="TestProto",
-    version="0.1.0",
-    fingerprints={"structureHash": "aaa", "schemaHash": "bbb", "implHash": "ccc"},
-    dependencies=[],
-    ir_graphs={},
-)
-reg.register(entry)
-reg.bind_agent("TestProto", "Agent1")
-
-listed = reg.list()
-assert len(listed) == 1
-assert listed[0].name == "TestProto"
-assert listed[0].version == "0.1.0"
-assert listed[0].fingerprints["structureHash"] == "aaa"
-assert reg.agents_for_protocol("TestProto") == ["Agent1"]
-
-# Test can_deploy — new protocol
-entry2 = ProtocolEntry(
-    name="NewProto",
-    version="0.1.0",
-    fingerprints={"structureHash": "xxx", "schemaHash": "yyy", "implHash": "zzz"},
-    dependencies=[],
-    ir_graphs={},
-)
-report = reg.can_deploy(entry2)
-assert report.compatible is True
-assert report.change_level == "none"
-
-# Test can_deploy — patch change
-entry3 = ProtocolEntry(
-    name="TestProto",
-    version="0.1.1",
-    fingerprints={"structureHash": "aaa", "schemaHash": "bbb", "implHash": "ddd"},
-    dependencies=[],
-    ir_graphs={},
-)
-report2 = reg.can_deploy(entry3)
-assert report2.compatible is True
-assert report2.change_level == "patch"
-
-# Test can_deploy — major change
-entry4 = ProtocolEntry(
-    name="TestProto",
-    version="0.2.0",
-    fingerprints={"structureHash": "zzz", "schemaHash": "bbb", "implHash": "ccc"},
-    dependencies=[],
-    ir_graphs={},
-)
-report3 = reg.can_deploy(entry4)
-assert report3.compatible is False
-assert report3.change_level == "major"
-
-print("OK")
-`;
-
-  const result = execFileSync("python3", ["-c", script], {
-    encoding: "utf8",
-    timeout: 10000,
-  });
-  assert.ok(result.trim().includes("OK"), `Python test failed: ${result}`);
-});

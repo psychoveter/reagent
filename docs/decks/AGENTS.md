@@ -40,3 +40,5 @@ npm run export:all
 ## Текущие деки
 
 - `deep-dive/` — архитектурный обзор current docs и future docs Reagent
+- `startupcamp/` — питч-дека: клинический кейс → платформа → сертификация → язык и рантайм Reagent (материалы в `startupcamp/files/`)
+- `competitors/` — конкурентная карта multi-agent orchestration: workflow graphs, swarms, interaction protocols и defensible positioning Reagent

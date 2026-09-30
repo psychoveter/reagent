@@ -268,49 +268,12 @@ const parentNode = new CustomAgentNode({
 });
 ```
 
-### Python
-
-```python
-from reagent_runtime import ReagentController, CustomAgentNode, AgentInterface
-
-class CompositeAgentAdapter(AgentInterface):
-    def __init__(self, config):
-        inner_node = CustomAgentNode(
-            role_to_agent=config["inner_role_to_agent"],
-            agent_factory=config["inner_agent_factory"],
-        )
-        self.inner_rc = ReagentController(
-            node_id=f"{config['parent_agent_name']}-inner",
-            agent_node=inner_node,
-        )
-        self.event_router = config["event_router"]
-
-    async def start(self):
-        for reg in self.config["inner_agents"]:
-            self.inner_rc.register_agent(reg["name"], reg["role_ir"], reg["graphs"])
-        await self.inner_rc.start()
-
-    async def handle(self, event: dict) -> dict:
-        route = self.event_router(event)
-
-        if route["type"] == "trigger":
-            instance_id = f"inner-{id(event)}"
-            self.inner_rc.trigger_protocol(route["initiator"], {
-                "instanceId": instance_id,
-                "protocolName": route["protocol_name"],
-                "input": route["input"],
-                "roleToAgent": route["role_to_agent"],
-            })
-            # Wait for inner protocol completion
-            agent = self.inner_rc.get_agent(route["initiator"])
-            await agent.wait_for_completion(expected_count=1, timeout_s=30)
-            return {"ctx": agent.get_self()}
-
-        return {}
-
-    async def stop(self):
-        await self.inner_rc.stop()
-```
+> A Python sketch previously shown here used the now-retired
+> `reagent_runtime.ReagentController` / `CustomAgentNode` package. Whole-agent
+> dispatch to a Python-hosted composite is gated on the Rust Release Candidate
+> with PyO3 / equivalent host bindings; see
+> [`retire-python-runtime.md`](retire-python-runtime.md) and
+> [`nmmo-python-host.md`](nmmo-python-host.md).
 
 ### Key components
 
@@ -396,7 +359,8 @@ a standalone composite agent process that connects to the cluster via Gate.
 
 A Rust `ProtocolEngine` for inner RCs would significantly improve performance for deeply
 nested holarchies. The inner RC could use `reagent-core` (Rust) while the outer facade
-remains in TS/Python. This is a key synergy with Wave 4.
+remains in TS (or, once the PyO3 host lands, in a Python process embedding the
+Rust core). This is a key synergy with Wave 4.
 
 ---
 

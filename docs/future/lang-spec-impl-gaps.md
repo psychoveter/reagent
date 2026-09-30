@@ -147,7 +147,7 @@ observability/  support/  triggers/  index.ts  main.ts  rgctl.ts
   `nodes/gate/` and `nodes/mcp/`.
 - `mcp-gate.ts` does not exist; the third root file is `rgctl.ts`.
 - This matches `03-runtime-core.md §2`, which (correctly) describes `nodes/`
-  as “managed, custom, Python, and gate-backed agents”.
+  as “managed, custom, and gate-backed agents”.
 
 **Impact**
 
@@ -703,8 +703,9 @@ This document deliberately does **not** audit:
   `05-versioning-and-reconcile.md`, `06-tooling-overview.md`, `07-lsp.md`,
   `08-test-spec.md`, `09-e2e-usecases.md` against their respective
   implementations beyond the layout cross-check that affects `00-registry.md`.
-- The Python runtime (`runtime/py/`), per the explicit "not reorganized"
-  caveat in `00-registry.md`.
+- The retired parallel Python runtime (the relocated `[py]`-zone executor
+  under `runtime/ts/zone-execs/py/` remains in scope only as virtual-language
+  scaffolding); see [`retire-python-runtime.md`](retire-python-runtime.md).
 - Examples beyond the imports / `reagent.*` usage scan.
 
 A follow-up audit of `03–05` against runtime/cluster code is a natural next

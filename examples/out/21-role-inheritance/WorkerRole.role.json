@@ -6,12 +6,12 @@
     {
       "protocolName": "HealthCheck",
       "roleName": "node",
-      "protocolVersion": "80.0.0"
+      "protocolVersion": "92.0.0"
     },
     {
       "protocolName": "TaskProcessing",
       "roleName": "worker",
-      "protocolVersion": "52.0.0"
+      "protocolVersion": "60.0.0"
     }
   ],
   "initAction": {
@@ -36,9 +36,9 @@
       }
     }
   ],
-  "version": "78.0.0",
+  "version": "90.0.0",
   "fingerprints": {
-    "playsHash": "271e9075841f8f56be992a51c288e209ebe33c915a6577a6e4192ee813ecd21e",
+    "playsHash": "1e6706c2b1a0c1d7249f9e64d9f430f55fabceba998e5738b3347ca5a8bfa804",
     "behaviorHash": "3d64fdd86f616457d3cc19349ee54a8f584e9713a2987a997162aaf12576aa0d"
   }
 }

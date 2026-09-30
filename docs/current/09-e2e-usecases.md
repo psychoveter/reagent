@@ -83,26 +83,26 @@ agent Buyer3 runs BuyerRole
 
 | Agent | `$agent` module | Integration mode |
 |---|---|---|
-| Auctioneer | `seller_io.py` — item catalog, result logging | Managed (`InprocAgentNode`) |
-| Buyer1..N | `buyer_strategy.py` — pluggable bidding function | Managed (`InprocAgentNode`) |
+| Auctioneer | `seller_io.ts` — item catalog, result logging | Managed (`ManagedBehaviorFactory`) |
+| Buyer1..N | `buyer_strategy.ts` — pluggable bidding function | Managed (`ManagedBehaviorFactory`) |
 
 | Aspect | Choice |
 |---|---|
-| Runtime | Python RC, single process |
+| Runtime | TypeScript RC, single process |
 | Cluster | none — in-process loopback |
-| Launch | `python run.py --item "Rare Painting" --reserve 200` |
+| Launch | `npx tsx run_node.ts --item "Rare Painting" --reserve 200` |
 
 ### What it exercises
 
 - `scatter` for fan-out to N buyers and result broadcast
 - `$agent` native modules for pluggable I/O
 - `$self` for persistent state across auction rounds
-- `[py]` zones with Python-native syntax
+- `[ts]` zones with TypeScript-native syntax
 - Single-process managed execution — zero infrastructure
 
 ### Why Reagent fits
 
-This shows Reagent as a precise local protocol runtime for structured multi-agent simulation — not just a distributed LLM orchestration layer. The protocol is the experiment specification; swapping strategy is editing `module.py`, not rewiring infrastructure.
+This shows Reagent as a precise local protocol runtime for structured multi-agent simulation — not just a distributed LLM orchestration layer. The protocol is the experiment specification; swapping strategy is editing the agent module, not rewiring infrastructure.
 
 ---
 
@@ -316,7 +316,7 @@ protocol AnomalyInvestigation {
 
 | Aspect | Choice |
 |---|---|
-| Runtime | Python RC, single process on edge gateway |
+| Runtime | TypeScript RC, single process on edge gateway |
 | Cluster | single node, `InMemoryStateStore` |
 | Triggers | `cron` for scheduled polling, `event` for reactive investigation |
 
@@ -441,16 +441,16 @@ protocol ProcessPayment {
 
 | Agent | Language | Host | Integration mode |
 |---|---|---|---|
-| PaymentGateway | `[ts]` | TS node, in-process | Managed (`NativeAgentNode`) |
-| FraudEngine | `[py]` | Python subprocess | Managed (`PythonAgentNode`) |
-| Ledger | `[ts]` | TS node, in-process | Managed (`NativeAgentNode`) |
+| PaymentGateway | `[ts]` | TS node, in-process | Managed (`ManagedBehaviorFactory`) |
+| FraudEngine | `[py]` | Future Rust RC + PyO3 host | Future — whole-agent `[py]` dispatch deferred |
+| Ledger | `[ts]` | TS node, in-process | Managed (`ManagedBehaviorFactory`) |
 | NotificationSvc | `[kt]` | External process | Message Gate (`HttpGateTransport`) |
 
 | Aspect | Choice |
 |---|---|
-| Integration modes | Managed (gateway, ledger), Python subprocess (fraud), Message Gate HTTP (notifier) |
-| Runtime | TypeScript RC as main orchestrator |
-| Transport | Loopback for TS, IPC for Python, HTTP for Kotlin |
+| Integration modes | Managed (gateway, ledger), Rust+PyO3 host (fraud, future), Message Gate HTTP (notifier) |
+| Runtime | TypeScript RC today; Rust Release Candidate later (for Python host) |
+| Transport | Loopback for TS, embedded host for `[py]` (future), HTTP for Kotlin |
 | Cluster | single node — no etcd |
 
 ### What it exercises
@@ -459,7 +459,8 @@ protocol ProcessPayment {
 - `par` for parallel independent steps (charge + notify)
 - `alt` with expression guards for conditional branching
 - `reagent.return()` for protocol result to invoker
-- `PythonAgentNode` for subprocess-based Python agents
+- Whole-agent dispatch to `Role[py]` — gated on the Rust RC with PyO3 host
+  bindings (see [`../future/retire-python-runtime.md`](../future/retire-python-runtime.md))
 - `MessageGateNode` with `HttpGateTransport` for external Kotlin service
 - Three integration modes in a single protocol
 
@@ -951,8 +952,7 @@ This is the simulation case that argues against maintaining a second full Python
 | MCP Gate | | x | | | x | x | |
 | Embedded Rust core in Python host | | | | | | | x |
 | **Deployment** | | | | | |
-| Single-process (Python RC) | x | | x | | | | |
-| Single-process (TS RC) | | | | x | | x | |
+| Single-process (TS RC) | x | | x | x | x | x | |
 | Single-process (embedded Python host) | | | | | | | x |
 | Multi-node cluster | | x | | | x | | |
 | Docker + etcd + NATS | | x | | | | | |

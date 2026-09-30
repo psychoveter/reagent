@@ -295,6 +295,11 @@ class GraphBuilder {
     addTransition(from, to, label) {
         this.transitions.push({ from, to, label });
     }
+    annotateStateRange(startIndex, meta) {
+        for (let idx = startIndex; idx < this.states.length; idx++) {
+            this.states[idx].tryScope = meta;
+        }
+    }
     advance(stateId, data, label = { kind: "default" }, loc) {
         this.addState(stateId, data, loc);
         this.addTransition(this.currentId, stateId, label);
@@ -531,8 +536,9 @@ class GraphBuilder {
     }
     // ── Try/catch ───────────────────────────────────────────────────
     emitTry(tryStmt) {
-        // Normal path
+        const scopeId = `try_${tryStmt.loc.start.line}_${tryStmt.loc.start.col}`;
         const tryEntryId = this.currentId;
+        const tryStateStart = this.states.length;
         this.emitBody(tryStmt.tryBody);
         const tryExitId = this.currentId;
         // Merge point after try/catch
@@ -542,10 +548,23 @@ class GraphBuilder {
         // Error path: any state in the try body can transition to catch on error
         // We model this as: tryEntry has an error edge to catch entry
         const catchEntryId = nextId("catch");
-        this.addState(catchEntryId, { kind: "error", label: tryStmt.catchLabel });
+        this.addState(catchEntryId, { kind: "error", label: tryStmt.catchLabel }, tryStmt.loc);
         this.addTransition(tryEntryId, catchEntryId, { kind: "error" });
+        this.annotateStateRange(tryStateStart, {
+            scopeId,
+            phase: "try",
+            catchStateId: catchEntryId,
+            catchLabel: tryStmt.catchLabel,
+        });
+        const catchStateStart = this.states.length - 1;
         this.currentId = catchEntryId;
         this.emitBody(tryStmt.catchBody);
+        this.annotateStateRange(catchStateStart, {
+            scopeId,
+            phase: "catch",
+            catchStateId: catchEntryId,
+            catchLabel: tryStmt.catchLabel,
+        });
         // Catch path → merge
         this.addTransition(this.currentId, mergeId, { kind: "default" });
         this.addState(mergeId, { kind: "guard", guardType: "expression" });

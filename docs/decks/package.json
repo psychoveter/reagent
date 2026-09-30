@@ -5,7 +5,11 @@
   "scripts": {
     "dev:deep-dive": "slidev deep-dive/slides.md --open",
     "export:deep-dive": "slidev export deep-dive/slides.md --output deep-dive/deep-dive --timeout 60000",
-    "export:all": "npm run export:deep-dive",
+    "dev:startupcamp": "slidev startupcamp/slides.md --open",
+    "export:startupcamp": "slidev export startupcamp/slides.md --output startupcamp/startupcamp --timeout 60000",
+    "dev:competitors": "slidev competitors/slides.md --open",
+    "export:competitors": "slidev export competitors/slides.md --output competitors/competitors --timeout 60000",
+    "export:all": "npm run export:deep-dive && npm run export:startupcamp && npm run export:competitors",
     "dev": "echo 'Usage: npm run dev:<deck-name>' && exit 1"
   },
   "devDependencies": {

@@ -2,7 +2,7 @@
  * Reagent Runtime Protocol — shared message envelope, subject convention, and trace event types.
  *
  * This module defines the wire protocol used between agent runners over NATS.
- * Both the TypeScript and Python runtimes must conform to these schemas.
+ * Any present and future Reagent runtimes must conform to these schemas.
  */
 
 import { randomUUID } from "node:crypto";

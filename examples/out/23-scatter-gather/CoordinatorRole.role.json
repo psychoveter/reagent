@@ -13,7 +13,7 @@
     "lang": "ts"
   },
   "lifecycleHandlers": [],
-  "version": "54.0.0",
+  "version": "62.0.0",
   "fingerprints": {
     "playsHash": "8488af9b04665ce87c950d57fa030d31285ba9da3b07d0343346aa15b8c18677",
     "behaviorHash": "995b644300b189b4641ffd1df5e563f14cd2a0ceeeb1133c867698328de1ca21"

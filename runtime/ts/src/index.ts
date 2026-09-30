@@ -25,7 +25,6 @@ export { CustomBehaviorFactory } from "./nodes/custom-behavior-factory.js";
 export type { CustomBehaviorFactoryConfig } from "./nodes/custom-behavior-factory.js";
 export { GateBehaviorFactory } from "./nodes/gate/gate-behavior-factory.js";
 export type { GateBehaviorFactoryConfig } from "./nodes/gate/gate-behavior-factory.js";
-export { PythonBehaviorFactory } from "./nodes/python-behavior-factory.js";
 export { ClaudeBehaviorFactory } from "./nodes/claude/claude-behavior-factory.js";
 export type { ClaudeBehaviorConfig } from "./nodes/claude/claude-behavior-factory.js";
 export {

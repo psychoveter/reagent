@@ -199,16 +199,13 @@ Reconciliation must not:
 
 Those are runtime concerns, not desired-state-planning concerns.
 
-## 13. Python Runtime Note
+## 13. Runtime Scope
 
-The versioning and reconciliation model is shared conceptually across TS and Python runtimes.
-However, only the TS runtime tree was structurally reorganized in this pass.
-
-Implication:
-
-- conceptual parity exists in parts of the registry/versioning model
-- structural parity in source layout does not
-- when reading implementation paths in this document, prefer TS paths as canonical current references
+The versioning and reconciliation model is implemented in the TypeScript
+runtime; this is the only first-class runtime today. The previously parallel
+Python runtime has been retired; only the `[py]`-zone executor remains under
+`runtime/ts/zone-execs/py/`. See
+[`../future/retire-python-runtime.md`](../future/retire-python-runtime.md).
 
 ## 14. Primary Files
 
